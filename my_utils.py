@@ -137,6 +137,7 @@ def sample_policy_actions(pi: np.ndarray, q_x_a: np.ndarray, n_users: np.int, n_
         pi_0=pi
     )
 
+
 def create_simluation_data_from_pi(pi: np.ndarray, q_x_a: np.ndarray, n_users: np.int, n_actions: np.int, random_state: int = 12345):
     random_ = check_random_state(random_state)
     simulation_data = {'actions':np.zeros((n_actions, n_users), dtype=np.int32), 'users': np.zeros((n_actions, n_users), dtype=np.int32), 'reward':np.zeros((n_actions, n_users))}
@@ -168,17 +169,12 @@ def train_model(dataset, train_data):
     return regression_model
 
 
-def create_convolution(train_data):
-    clustering = DBSCAN(eps=3, min_samples=2).fit(train_data['action'])
-    cluster_centroids = np.array([train_data['action'][clustering == label].mean(axis=1) for label in np.unique(clustering)])
-    return clustering, cluster_centroids
-
-
 if __name__ == '__main__':
-    data, train, val, test = generate_dataset(10, 10, 20, 8)
-    reg_model = train_model(data, train)
+    # data, train, val, test = generate_dataset(10, 10, 20, 8)
+    # reg_model = train_model(data, train)
 
-    convolution = neighborhood_model(np.squeeze(np.eye(10)[train['action'].reshape(-1)]), train['context'], reg_model)
-    convolution.convolve(np.squeeze(np.eye(10)[test['action'].reshape(-1)]), test['context'])
+    # convolution = neighborhood_model(np.squeeze(np.eye(10)[train['action'].reshape(-1)]), train['context'], reg_model)
+    # convolution.convolve(np.squeeze(np.eye(10)[test['action'].reshape(-1)]), test['context'])
+    pass
 
 
