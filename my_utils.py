@@ -111,6 +111,7 @@ def eval_policy(model, test_data, original_policy_prob, policy):
     res.append(reward.mean())
 
     pscore = original_policy_prob[test_data['x_idx'], actions].squeeze()
+    
     res.append(dm.estimate_policy_value(policy, scores))
     res.append(dr.estimate_policy_value(test_data['r'], test_data['a'], policy, scores, pscore=pscore))
     res.append(ipw.estimate_policy_value(test_data['r'], test_data['a'], policy, pscore=pscore))
