@@ -36,28 +36,34 @@ from obp.ope import (
 
 class NeighborhoodModel(metaclass=ABCMeta):
     def __init__(self, context, actions, action_emb, context_emb, rewards, num_neighbors=5, gamma=0.5):
-        self.fit(action_emb, context_emb)
+        self.gamma = 0.5
+        self.num_neighbors = num_neighbors
+        self.fit(action_emb, context_emb, actions, context, rewards)
+
+    def fit(self, action_emb, context_emb, actions, context, rewards):
+        self.update(action_emb, context_emb)
         self.actions = np.int32(actions)
         self.context = np.int32(context)
-        self.gamma = 0.5
-
         self.reward = rewards
-        self.num_neighbors = num_neighbors
-    
-    def fit(self, action_emb, context_emb):
+        self.calculate_scores()
+
+    def update(self, action_emb, context_emb):
         action_emb = np.divide(action_emb.T, np.linalg.norm(action_emb, axis=1))
         self.action_similarity = (action_emb.T @ action_emb + 1) / 2
         
         context_emb = np.divide(context_emb.T, np.linalg.norm(context_emb, axis=1))
         self.context_similarity = (context_emb.T @ context_emb + 1) / 2
-
-    def update(self, action_emb, context_emb):
-        self.fit(action_emb, context_emb)
-
+        self.calculate_scores()
+        
     def add_data(self, context, actions, rewards):
         self.actions = np.concatenate(self.actions, actions)
         self.context = np.concatenate(self.context, context)
         self.reward = np.concatenate(self.reward, rewards)
+        self.calculate_scores()
+    
+    def calculate_scores(self):
+        context = np.arange(self.context_similarity.shape[0])
+        self.scores = self.context_convolve(context)
 
     def convolve(self, test_actions, test_context):
         cosine_context = self.context_similarity[np.int32(test_context)][:, self.context]
@@ -83,17 +89,8 @@ class NeighborhoodModel(metaclass=ABCMeta):
         eta_all = eta_all.reshape(test_context.shape[0], self.action_similarity.shape[0], 1)
         return eta_all
     
-    def predict(self, test_context, chunksize=10000):
-        start = 0
-        end = min(chunksize, test_context.shape[0])
-        res = []
-        # chunksize is for how concurrently we can run things.
-        while start < test_context.shape[0]:
-            res.append(self.context_convolve(test_context[start:end]))
-            start = end
-            end = min(end + chunksize, test_context.shape[0])
-            
-        return np.concatenate(res, axis=0)
+    def predict(self, test_context):       
+        return self.scores[np.int32(test_context)]
 
 
 def eval_policy(model, test_data, original_policy_prob, policy):
