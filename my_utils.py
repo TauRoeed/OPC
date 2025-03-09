@@ -41,20 +41,21 @@ class NeighborhoodModel(metaclass=ABCMeta):
         self.fit(action_emb, context_emb, actions, context, rewards)
 
     def fit(self, action_emb, context_emb, actions, context, rewards):
-        self.update(action_emb, context_emb)
+        self.update(action_emb, context_emb, calc=False)
         self.actions = np.int32(actions)
         self.context = np.int32(context)
         self.reward = rewards
         self.calculate_scores()
 
-    def update(self, action_emb, context_emb):
+    def update(self, action_emb, context_emb, calc=True):
         action_emb = np.divide(action_emb.T, np.linalg.norm(action_emb, axis=1))
         self.action_similarity = (action_emb.T @ action_emb + 1) / 2
         
         context_emb = np.divide(context_emb.T, np.linalg.norm(context_emb, axis=1))
         self.context_similarity = (context_emb.T @ context_emb + 1) / 2
-        self.calculate_scores()
-        
+        if calc:
+            self.calculate_scores()
+
     def add_data(self, context, actions, rewards):
         self.actions = np.concatenate(self.actions, actions)
         self.context = np.concatenate(self.context, context)
@@ -99,7 +100,7 @@ def eval_policy(model, test_data, original_policy_prob, policy):
     ipw = IPW()
     sndr = SNDR()
 
-    scores = model.predict(test_data['x_idx'], chunksize=10000)
+    scores = model.predict(test_data['x_idx'])
 
     policy = policy[test_data['x_idx']]
     actions = np.squeeze(np.argmax(policy, axis=1))
