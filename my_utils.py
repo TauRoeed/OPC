@@ -103,6 +103,7 @@ def eval_policy(model, test_data, original_policy_prob, policy):
     scores = model.predict(test_data['x_idx'])
 
     policy = policy[test_data['x_idx']]
+    
     actions = np.squeeze(np.argmax(policy, axis=1))
     res = []
     reward = test_data['q_x_a'][test_data['x_idx'], actions]
