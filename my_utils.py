@@ -33,6 +33,29 @@ from obp.ope import (
     SelfNormalizedDoublyRobust as SNDR
 )
 
+class CustomCFDataset(Dataset):
+    def __init__(self, user_idx, action_idx, rewards, original_prob):
+        """
+        Args:
+            np_arrays (list of np.ndarray): List of numpy arrays
+        """
+        self.user_idx = user_idx
+        self.action_idx = action_idx
+        self.rewards = rewards
+        self.original_prob = original_prob
+
+    def __len__(self):
+        return len(self.rewards)
+
+    def __getitem__(self, sample_idx):   
+        # Convert list to tensor
+        user = torch.tensor(self.user_idx[sample_idx].squeeze())
+        action =  torch.tensor(self.action_idx[sample_idx].squeeze())
+        reward = torch.tensor(self.rewards[sample_idx].squeeze(), dtype=torch.double)
+        action_dist = torch.tensor(self.original_prob[user].squeeze())
+                    
+        return user, action, reward, action_dist
+    
 
 class NeighborhoodModel(metaclass=ABCMeta):
     def __init__(self, context, actions, action_emb, context_emb, rewards, num_neighbors=5, gamma=0.5):
@@ -92,6 +115,50 @@ class NeighborhoodModel(metaclass=ABCMeta):
     
     def predict(self, test_context):       
         return self.scores[np.int32(test_context)]
+
+
+class CFModel(nn.Module):
+    def __init__(self, num_users, num_actions, embedding_dim, 
+                 initial_user_embeddings=None, initial_actions_embeddings=None):
+
+        super(CFModel, self).__init__()
+        self.actions = torch.arange(num_actions)
+        self.users = torch.arange(num_users)
+
+        
+        # Initialize user and actions embeddings
+        if initial_user_embeddings is None:
+            self.user_embeddings = nn.Embedding(num_users, embedding_dim)
+        else:
+            # If initial embeddings are provided, set them as the embeddings
+            self.user_embeddings = nn.Embedding.from_pretrained(initial_user_embeddings, freeze=False)
+        
+        if initial_actions_embeddings is None:
+            self.actions_embeddings = nn.Embedding(num_actions, embedding_dim)
+        else:
+            # If initial embeddings are provided, set them as the embeddings
+            self.actions_embeddings = nn.Embedding.from_pretrained(initial_actions_embeddings, freeze=False)
+
+    def get_params(self):
+        return self.actions_embeddings(self.actions), self.user_embeddings(self.users)
+        
+    def forward(self, user_ids):
+        # Get embeddings for users and actions
+        user_embedding = self.user_embeddings(user_ids)
+        actions_embedding = self.actions_embeddings
+        
+        # Calculate dot product between user and actions embeddings
+        scores = user_embedding @ actions_embedding(self.actions).T
+        
+        # Apply softmax to get the predicted probability distribution
+        return F.softmax(scores, dim=1).unsqueeze(-1)
+    
+    def to(self, device):
+        # Move the module itself
+        super().to(device)
+        self.actions = self.actions.to(device)
+        self.users = self.users.to(device)
+        return self
 
 
 def eval_policy(model, test_data, original_policy_prob, policy):
