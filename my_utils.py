@@ -173,8 +173,8 @@ def eval_policy(model, test_data, original_policy_prob, policy):
     
     actions = np.squeeze(np.argmax(policy, axis=1))
     res = []
-    reward = test_data['q_x_a'][test_data['x_idx'], actions]
-    res.append(reward.mean())
+    # reward = test_data['q_x_a'][test_data['x_idx'], actions]
+    # res.append(reward.mean())
 
     pscore = original_policy_prob[test_data['x_idx'], actions].squeeze()
     
@@ -242,5 +242,3 @@ if __name__ == '__main__':
     # convolution = neighborhood_model(np.squeeze(np.eye(10)[train['action'].reshape(-1)]), train['context'], reg_model)
     # convolution.convolve(np.squeeze(np.eye(10)[test['action'].reshape(-1)]), test['context'])
     pass
-
-
