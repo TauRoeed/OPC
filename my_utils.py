@@ -27,7 +27,8 @@ from abc import ABCMeta
 from obp.ope import (
     OffPolicyEvaluation,
     RegressionModel,
-    InverseProbabilityWeighting as IPW,
+    # InverseProbabilityWeighting as IPW,
+    SelfNormalizedInverseProbabilityWeighting as IPW,
     DirectMethod as DM,
     DoublyRobust as DR,
     SelfNormalizedDoublyRobust as SNDR
