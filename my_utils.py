@@ -141,7 +141,7 @@ class CFModel(nn.Module):
             self.actions_embeddings = nn.Embedding.from_pretrained(initial_actions_embeddings, freeze=False)
 
     def get_params(self):
-        return self.actions_embeddings(self.actions), self.user_embeddings(self.users)
+        return self.user_embeddings(self.users), self.actions_embeddings(self.actions)
         
     def forward(self, user_ids):
         # Get embeddings for users and actions
