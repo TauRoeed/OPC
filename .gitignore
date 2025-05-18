@@ -1,0 +1,8 @@
+# Byte-compiled / cache
+__pycache__/
+
+# Virtual environments
+opc-env/
+
+# Old typo-ed file
+requirmnents.txt
