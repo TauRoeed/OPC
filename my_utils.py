@@ -7,7 +7,13 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
+
+# Use on CPU because OBP does not support the latest torch version and the current torch does not support my GPU:
 import torch
+device = torch.device("cpu")
+
+
+
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader, Dataset
