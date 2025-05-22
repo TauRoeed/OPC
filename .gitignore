@@ -3,6 +3,8 @@ __pycache__/
 
 # Virtual environments
 opc-env/
+OPLEnv/
+OBPEnv/
 
 # Old typo-ed file
 requirmnents.txt
