@@ -1,29 +1,20 @@
 import warnings
 warnings.filterwarnings("ignore")
 from copy import deepcopy
-from datetime import datetime
-from pathlib import Path
 
 import numpy as np
-import pandas as pd
 from tqdm import tqdm
-
-# Use on CPU because OBP does not support the latest torch version and the current torch does not support my GPU:
 import torch
-device = torch.device("cpu")
-
-
-
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader, Dataset
-import torch.optim as optim
 
 
 from sklearn.utils import check_random_state
-# implementing OPE of the IPWLearner using synthetic bandit data
-from sklearn.linear_model import LogisticRegression, LinearRegression
+random_state=12345
+random_ = check_random_state(random_state)
 
+from sklearn.utils import check_random_state
 import matplotlib.pyplot as plt
 
 from scipy.special import softmax
@@ -31,9 +22,6 @@ from abc import ABCMeta
 
 # import open bandit pipeline (obp)
 from obp.ope import (
-    OffPolicyEvaluation,
-    RegressionModel,
-    # InverseProbabilityWeighting as IPW,
     SelfNormalizedInverseProbabilityWeighting as IPW,
     DirectMethod as DM,
     DoublyRobust as DR,
@@ -168,6 +156,76 @@ class CFModel(nn.Module):
         return self
 
 
+def generate_dataset(params):
+    emb_a = random_.normal(size=(params["n_actions"], params["emb_dim"]))
+    noise_a = random_.normal(size=(params["emb_dim"]))
+    our_a = (1-params["eps"]) * emb_a + params["eps"] * noise_a
+
+    original_a = our_a.copy()
+
+    emb_x = random_.normal(size=(params["n_users"], params["emb_dim"]))
+    noise_x = random_.normal(size=(params["emb_dim"])) 
+    our_x = (1-params["eps"]) * emb_x + params["eps"] * noise_x
+    original_x = our_x.copy()
+
+    score = emb_x @ emb_a.T
+    # score = random_.normal(score, scale=params["sigma"])
+    q_x_a = (1 / (5.0 + np.exp(-score)))
+
+    return dict(
+                emb_a=emb_a,
+                our_a=our_a,
+                original_a=original_a,
+                emb_x=emb_x,
+                our_x=our_x,
+                original_x=original_x,
+                q_x_a=q_x_a,
+                n_actions=params["n_actions"],
+                n_users=params["n_users"],
+                emb_dim=params["emb_dim"]
+                )
+
+
+def create_simluation_data_from_pi(pi: np.ndarray, q_x_a: np.ndarray, n_users: np.int, n_actions: np.int, random_state: int = 12345):
+    random_ = check_random_state(random_state)
+    simulation_data = {'actions':np.zeros((n_actions, n_users), dtype=np.int32), 
+                       'users': np.zeros((n_actions, n_users), dtype=np.int32), 
+                       'reward':np.zeros((n_actions, n_users)),
+                       'pscore':np.zeros((n_actions, n_users))}
+    
+    reward = q_x_a  > random_.random(size=q_x_a.shape)
+    simulation_data['pi_0'] = pi
+    actions = []
+    for i in range(n_users):
+        user_actions = random_.choice(np.arange(n_actions), size=n_actions, p=pi[i], replace=True)
+        actions.append(np.array(user_actions))
+
+    actions = np.vstack(actions)
+    for i in range(n_actions):
+        simulation_data['actions'][i] = actions[:, i]
+        simulation_data['users'][i] = np.arange(n_users)
+        qq = q_x_a[np.arange(n_users), simulation_data['actions'][i]]
+        simulation_data['reward'][i] = np.squeeze(qq > random_.random(size=qq.shape))
+        simulation_data['pscore'][i] = np.squeeze(pi[np.arange(n_users), simulation_data['actions'][i]])
+    
+    simulation_data['q_x_a'] = reward
+    return simulation_data
+
+
+def get_train_data(n_actions, train_size, sim_data, idx, emb_x):
+   return dict(
+                num_data=train_size,
+                num_actions=n_actions,
+                x=emb_x[sim_data['users'][idx].flatten()],
+                a=sim_data['actions'][idx].flatten(),
+                r=sim_data['reward'][idx].flatten(),
+                x_idx=sim_data['users'][idx].flatten(),
+                pi_0=sim_data['pi_0'],
+                pscore=sim_data['pscore'][idx].flatten(),
+                q_x_a=sim_data['q_x_a']
+                )
+
+
 def eval_policy(model, test_data, original_policy_prob, policy):
     dr = DR()
     dm = DM()
@@ -192,54 +250,6 @@ def eval_policy(model, test_data, original_policy_prob, policy):
 
     return np.array(res)
 
-
-def sample_policy_actions(pi: np.ndarray, q_x_a: np.ndarray, n_users: np.int, n_actions: np.int, random_state: int = 12345):
-    # sample actions from Pi
-    random_ = check_random_state(random_state)
-    x_idx, a_idx = np.mgrid[:n_users, :n_actions]
-    x_idx, a_idx = x_idx.flatten(), a_idx.flatten()
-    prob = softmax(pi.flatten())
-    all_idx = random_.choice(np.arange(len(prob)), size=len(prob), p=prob, replace=False)
-    reward = q_x_a.flatten()
-
-    return dict(
-        actions=a_idx[all_idx],
-        users=x_idx[all_idx],
-        reward=reward[all_idx],
-        pscore=pi[x_idx[all_idx], a_idx[all_idx]],
-        pi_0=pi
-    )
-
-
-def create_simluation_data_from_pi(pi: np.ndarray, q_x_a: np.ndarray, n_users: np.int, n_actions: np.int, random_state: int = 12345):
-    random_ = check_random_state(random_state)
-    simulation_data = {'actions':np.zeros((n_actions, n_users), dtype=np.int32), 'users': np.zeros((n_actions, n_users), dtype=np.int32), 'reward':np.zeros((n_actions, n_users))}
-    actions = []
-    for i in range(n_users):
-        user_actions = random_.choice(np.arange(n_actions), size=n_actions, p=pi[i], replace=False)
-        actions.append(np.array(user_actions))
-
-    actions = np.vstack(actions)
-    for i in range(n_actions):
-        simulation_data['actions'][i] = actions[:, i]
-        simulation_data['users'][i] = np.arange(n_users)
-        simulation_data['reward'][i] = np.squeeze(q_x_a[np.arange(n_users), simulation_data['actions'][i]])
-
-    return simulation_data
-
-
-def train_model(dataset, train_data):
-    regression_model = RegressionModel(
-        n_actions=dataset.n_actions,
-        base_model=LogisticRegression(),)
-
-    regression_model.fit(
-        context=train_data["context"],
-        action=train_data["action"],
-        reward=train_data["reward"],
-        pscore=train_data["pscore"]
-    )
-    return regression_model
 
 
 if __name__ == '__main__':
