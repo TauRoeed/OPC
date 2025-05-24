@@ -11,8 +11,6 @@ from torch.utils.data import DataLoader, Dataset
 
 
 from sklearn.utils import check_random_state
-random_state=12345
-random_ = check_random_state(random_state)
 
 from sklearn.utils import check_random_state
 import matplotlib.pyplot as plt
@@ -157,6 +155,7 @@ class CFModel(nn.Module):
 
 
 def generate_dataset(params):
+    random_ = check_random_state(12345)
     emb_a = random_.normal(size=(params["n_actions"], params["emb_dim"]))
     noise_a = random_.normal(size=(params["emb_dim"]))
     our_a = (1-params["eps"]) * emb_a + params["eps"] * noise_a
