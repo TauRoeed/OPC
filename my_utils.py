@@ -154,6 +154,40 @@ class CFModel(nn.Module):
         return self
 
 
+class BPRModel(nn.Module):
+    def __init__(self, num_users, num_actions, embedding_dim, 
+                 initial_user_embeddings=None, initial_actions_embeddings=None):
+        super(BPRModel, self).__init__()
+
+        self.actions = torch.arange(num_actions)
+        self.users = torch.arange(num_users)
+        
+        # Initialize user and actions embeddings
+        if initial_user_embeddings is None:
+            self.user_embeddings = nn.Embedding(num_users, embedding_dim)
+        else:
+            # If initial embeddings are provided, set them as the embeddings
+            self.user_embeddings = nn.Embedding.from_pretrained(initial_user_embeddings, freeze=False)
+        
+        if initial_actions_embeddings is None:
+            self.actions_embeddings = nn.Embedding(num_actions, embedding_dim)
+        else:
+            # If initial embeddings are provided, set them as the embeddings
+            self.actions_embeddings = nn.Embedding.from_pretrained(initial_actions_embeddings, freeze=False)
+
+
+    def forward(self, user_ids, pos_action_ids, neg_action_ids):
+        user_embeds = self.user_embeddings(user_ids)
+        pos_action_embeds = self.actions_embeddings(pos_action_ids)
+        neg_action_embeds = self.actions_embeddings(neg_action_ids)
+
+        # Compute dot product between user and action embeddings
+        pos_scores = (user_embeds * pos_action_embeds).sum(dim=1)
+        neg_scores = (user_embeds * neg_action_embeds).sum(dim=1)
+
+        return pos_scores, neg_scores
+
+
 def generate_dataset(params):
     random_ = check_random_state(12345)
     emb_a = random_.normal(size=(params["n_actions"], params["emb_dim"]))
