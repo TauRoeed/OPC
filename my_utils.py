@@ -19,7 +19,7 @@ from scipy.special import softmax
 from abc import ABCMeta
 
 # import open bandit pipeline (obp)
-from obp.ope import (
+from from_saito import (
     SelfNormalizedInverseProbabilityWeighting as IPW,
     DirectMethod as DM,
     DoublyRobust as DR,
