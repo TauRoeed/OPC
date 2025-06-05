@@ -186,6 +186,24 @@ class BPRModel(nn.Module):
         neg_scores = (user_embeds * neg_action_embeds).sum(dim=1)
 
         return pos_scores, neg_scores
+    
+    def calc_scores(self, user_ids):
+                # Get embeddings for users and actions
+        user_embedding = self.user_embeddings(user_ids)
+        actions_embedding = self.actions_embeddings
+        
+        # Calculate dot product between user and actions embeddings
+        scores = user_embedding @ actions_embedding(self.actions).T
+        
+        # Apply softmax to get the predicted probability distribution
+        return F.softmax(scores, dim=1).unsqueeze(-1)
+    
+    def to(self, device):
+        # Move the module itself
+        super().to(device)
+        self.actions = self.actions.to(device)
+        self.users = self.users.to(device)
+        return self
 
 
 def generate_dataset(params):
