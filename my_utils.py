@@ -237,7 +237,7 @@ def generate_dataset(params):
                 )
 
 
-def create_simluation_data_from_pi(pi: np.ndarray, q_x_a: np.ndarray, n_users: np.int, n_actions: np.int, random_state: int = 12345):
+def create_simulation_data_from_pi(pi: np.ndarray, q_x_a: np.ndarray, n_users: int, n_actions: int, random_state: int = 12345):
     random_ = check_random_state(random_state)
     simulation_data = {'actions':np.zeros((n_actions, n_users), dtype=np.int32), 
                        'users': np.zeros((n_actions, n_users), dtype=np.int32), 
@@ -248,7 +248,7 @@ def create_simluation_data_from_pi(pi: np.ndarray, q_x_a: np.ndarray, n_users: n
     simulation_data['pi_0'] = pi
     actions = []
     for i in range(n_users):
-        user_actions = random_.choice(np.arange(n_actions), size=n_actions, p=pi[i], replace=True)
+        user_actions = random_.choice(np.arange(n_actions), size=n_actions, p=pi[i]/pi[i].sum(), replace=True)
         actions.append(np.array(user_actions))
 
     actions = np.vstack(actions)
