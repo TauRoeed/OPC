@@ -31,7 +31,8 @@ RUN pip install --upgrade pip && pip install \
 COPY req.txt .
 RUN python3.9 -m pip install -r req.txt
 RUN python3.9 -m pip install optuna
-
+RUN python3.9 -m pip install recogym
+RUN python3.9 -m pip install gym
 # Expose Jupyter port
 EXPOSE 8888
 
