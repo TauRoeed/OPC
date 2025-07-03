@@ -12,7 +12,7 @@ print(f"Using device: {device}")
 
 import torch.nn.functional as F
 import torch.optim as optim
-
+from custom_losses import BPRLoss
 from sklearn.utils import check_random_state
 
 # implementing OPE of the IPWLearner using synthetic bandit data
@@ -113,7 +113,7 @@ def validation_loop(model, val_loader, neighborhood_model, device='cpu'):
 
 
 
-def fit_bpr(model, loss_fn, data_loader, num_epochs=5, lr=0.0001, device=device):
+def fit_bpr(model, data_loader, loss_fn=BPRLoss(), num_epochs=5, lr=0.001, device=device):
     model.to(device)
     optimizer = optim.Adam(model.parameters(), lr=lr) # here we can change the learning rate
 

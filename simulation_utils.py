@@ -5,16 +5,16 @@ from copy import deepcopy
 import numpy as np
 import torch
 import torch.nn.functional as F
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, DataLoader
 
-# import gym
-# import recogym
-
-from sklearn.utils import check_random_state
+import gym
+import recogym
 
 from sklearn.utils import check_random_state
 
-
+from sklearn.utils import check_random_state
+from models import BPRModel
+from training_utils import fit_bpr
 from scipy.special import softmax
 
 
@@ -55,92 +55,96 @@ def calc_reward(dataset, policy):
 
 
 def generate_dataset(params):
+    env = gym.make('RecoGym-v1', config={
+        'n_users': params['n_users'],
+        'n_items': params['n_actions'],
+        'random_seed': 12345
+    })
+    
+    env.reset()
     random_ = check_random_state(12345)
     emb_a = random_.normal(size=(params["n_actions"], params["emb_dim"]))
+    emb_x = random_.normal(size=(params["n_users"], params["emb_dim"]))
+
+    n = params["n_users"]*params["n_actions"]
+    pi_0 = np.ones((params["n_users"], params["n_actions"])) / params['n_actions']
+    sim_data = create_simulation_data_from_pi(env, pi_0, n)
+
+    bpr_model = BPRModel(
+        num_users=params['n_users'],
+        num_actions=params['n_actions'],
+        embedding_dim=params['emb_dim']
+    )
+
+
+    cf_dataset =  CustomCFDataset(
+                                sim_data['users'], 
+                                sim_data['actions'], 
+                                sim_data['rewards'], 
+                                pi_0[sim_data['users']]
+                                )
+    
+    train_loader = DataLoader(cf_dataset, batch_size=100, shuffle=True)
+    fit_bpr(bpr_model, train_loader)
+
+    emb_x, emb_a = bpr_model.get_emb()
+    emb_x, emb_a = emb_x.detach().cpu().numpy(), emb_a.detach().cpu().numpy()
+
     noise_a = random_.normal(size=(params["emb_dim"]))
     our_a = (1-params["eps"]) * emb_a + params["eps"] * noise_a
 
     original_a = our_a.copy()
 
-    emb_x = random_.normal(size=(params["n_users"], params["emb_dim"]))
     noise_x = random_.normal(size=(params["emb_dim"])) 
     our_x = (1-params["eps"]) * emb_x + params["eps"] * noise_x
     original_x = our_x.copy()
 
-    score = emb_x @ emb_a.T
-    # score = random_.normal(score, scale=params["sigma"])
-    q_x_a = (1 / (5.0 + np.exp(-score)))
-
     return dict(
-                emb_a=emb_a,
-                our_a=our_a,
-                original_a=original_a,
-                emb_x=emb_x,
-                our_x=our_x,
-                original_x=original_x,
-                q_x_a=q_x_a,
-                n_actions=params["n_actions"],
-                n_users=params["n_users"],
-                emb_dim=params["emb_dim"]
-                )
+        emb_a=emb_a,
+        our_a=our_a,
+        original_a=original_a,
+        emb_x=emb_x,
+        our_x=our_x,
+        original_x=original_x,
+        env=env,
+        n_actions=params["n_actions"],
+        n_users=params["n_users"],
+        emb_dim=emb_a.shape[1]
+    )
 
-# def generate_dataset(params):
-#     env = gym.make('RecoGym-v1', config={
-#         'n_users': params['n_users'],
-#         'n_items': params['n_actions'],
-#         'random_seed': 12345
-#     })
+
+def create_simulation_data_from_pi(env, policy, n):
+    """
+    Samples one action per user from the given policy.
     
-#     env.reset()
+    Args:
+        env: The RecoGym environment (from generate_dataset)
+        policy: np.ndarray of shape (n_users, n_actions) – probability distributions over actions for each user
+        
+    Returns:
+        actions: np.ndarray of shape (n_users,) – sampled actions
+        rewards: np.ndarray of shape (n_users,) – obtained rewards
+        pscore: np.ndarray of shape (n_users,) – policy probability of the sampled action
+    """
+    n_users, n_actions = policy.shape
+    users = np.random.randint(0, n_users, size=n)
     
-#     # RecoGym does not expose embeddings directly, so we extract them
-#     internal = env.get_internal_state()
+    actions = np.zeros(n, dtype=int)
+    rewards = np.zeros(n, dtype=float)
+    pscore = np.zeros(n, dtype=float)
 
-#     emb_x = internal['user_embeddings']  # shape: (n_users, emb_dim)
-#     emb_a = internal['item_embeddings']  # shape: (n_actions, emb_dim)
+    for i, user_id in enumerate(users):
+        action_probs = policy[user_id]
+        action = np.random.choice(n_actions, p=action_probs)
 
-#     # Compute interaction scores and q_x_a
-#     score = emb_x @ emb_a.T
-#     q_x_a = 1 / (5.0 + np.exp(-score))
+        # Step the RecoGym env with this user-action pair
+        _, reward, _, _ = env.step((user_id, action))
 
-#     return dict(
-#         emb_a=emb_a,
-#         our_a=emb_a,  # no transformation in RecoGym
-#         original_a=emb_a.copy(),
-#         emb_x=emb_x,
-#         our_x=emb_x,
-#         original_x=emb_x.copy(),
-#         q_x_a=q_x_a,
-#         n_actions=params["n_actions"],
-#         n_users=params["n_users"],
-#         emb_dim=emb_a.shape[1]
-#     )
+        actions[i] = action
+        rewards[i] = reward
+        pscore[i] = action_probs[action]
 
-
-def create_simulation_data_from_pi(pi: np.ndarray, q_x_a: np.ndarray, n_users: int, n_actions: int, random_state: int = 12345):
-    random_ = check_random_state(random_state)
-    simulation_data = {'actions':np.zeros((n_actions, n_users), dtype=np.int32), 
-                       'users': np.zeros((n_actions, n_users), dtype=np.int32), 
-                       'reward':np.zeros((n_actions, n_users)),
-                       'pscore':np.zeros((n_actions, n_users))}
-    
-    reward = q_x_a  > random_.random(size=q_x_a.shape)
-    simulation_data['pi_0'] = pi
-    actions = []
-    for i in range(n_users):
-        user_actions = random_.choice(np.arange(n_actions), size=n_actions, p=pi[i]/pi[i].sum(), replace=True)
-        actions.append(np.array(user_actions))
-
-    actions = np.vstack(actions)
-    for i in range(n_actions):
-        simulation_data['actions'][i] = actions[:, i]
-        simulation_data['users'][i] = np.arange(n_users)
-        qq = q_x_a[np.arange(n_users), simulation_data['actions'][i]]
-        simulation_data['reward'][i] = np.squeeze(qq > random_.random(size=qq.shape))
-        simulation_data['pscore'][i] = np.squeeze(pi[np.arange(n_users), simulation_data['actions'][i]])
-    
-    simulation_data['q_x_a'] = reward
-    return simulation_data
+    return dict(users=users, actions=actions, rewards=rewards, pscore=pscore)
 
 
 def get_train_data(n_actions, train_size, sim_data, idx, emb_x):
