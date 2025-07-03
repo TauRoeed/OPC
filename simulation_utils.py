@@ -55,11 +55,11 @@ def calc_reward(dataset, policy):
 
 
 def generate_dataset(params):
-    env = gym.make('RecoGym-v1', config={
-        'n_users': params['n_users'],
-        'n_items': params['n_actions'],
-        'random_seed': 12345
-    })
+    env = gym.make('reco-gym-v1',
+        n_users=params['n_users'],
+        n_items=params['n_actions'],
+        random_seed=12345
+    )
     
     env.reset()
     random_ = check_random_state(12345)
