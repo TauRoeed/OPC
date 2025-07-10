@@ -9,6 +9,9 @@ from torch.utils.data import Dataset, DataLoader
 
 import gym
 import recogym
+from recogym.envs import env_1_args, RecoEnv1
+from recogym import Configuration
+from recogym.agents import Agent
 
 from sklearn.utils import check_random_state
 
@@ -51,44 +54,60 @@ class CustomCFDataset(Dataset):
     
 
 def calc_reward(dataset, policy):
-    return np.array([np.sum(dataset['q_x_a'] * policy.squeeze(), axis=1).mean()])
+    sim = create_simulation_data_from_pi(dataset['env'], policy, 10000)
+    return sim['rewards'].mean()
+    # return np.array([np.sum(dataset['q_x_a'] * policy.squeeze(), axis=1).mean()])
+
+
+
+class PolicyAgent(Agent):
+    def __init__(self, config, policy_matrix):
+        super().__init__(config)
+        self.policy = policy_matrix  # shape: (n_users, n_items)
+
+    def act(self, observation, reward, done):
+        user = observation.context().user()  # key for current user
+        probs = self.policy[user]
+        action = int(np.random.choice(len(probs), p=probs))
+        return {
+            'a': action,
+            'ps': float(probs[action])
+        }
+
+
+class FixedOmegaEnv(RecoEnv1):
+    def __init__(self, base_env, fixed_omegas):
+        # Do NOT call super().__init__() — we clone instead
+        self.__dict__ = base_env.__dict__.copy()
+        self.fixed_omegas = fixed_omegas
+
+    def reset(self, user_id=0):
+        super().reset(user_id)
+        self.omega = self.fixed_omegas[user_id].reshape((self.config.K, 1)).copy()
 
 
 def generate_dataset(params):
-    env = gym.make('reco-gym-v1',
-        n_users=params['n_users'],
-        n_items=params['n_actions'],
-        random_seed=12345
-    )
-    
+    env_1_args['random_seed'] = 12345
+    env_1_args["num_users"] = params["n_users"]
+    env_1_args["num_products"] = params["n_actions"]
+    env_1_args["K"] = params["emb_dim"]
+    env_1_args["change_omega_for_bandits"] = False
+    env = gym.make('reco-gym-v1')
+    env.init_gym(env_1_args)
+
     env.reset()
+
     random_ = check_random_state(12345)
-    emb_a = random_.normal(size=(params["n_actions"], params["emb_dim"]))
-    emb_x = random_.normal(size=(params["n_users"], params["emb_dim"]))
+    emb_a = env.beta
+    emb_x = []
 
-    n = params["n_users"]*params["n_actions"]
-    pi_0 = np.ones((params["n_users"], params["n_actions"])) / params['n_actions']
-    sim_data = create_simulation_data_from_pi(env, pi_0, n)
+    for i in range(params["n_users"]):
+        env.reset(user_id=i)
+        emb_x.append(env.omega.reshape(1, -1))
 
-    bpr_model = BPRModel(
-        num_users=params['n_users'],
-        num_actions=params['n_actions'],
-        embedding_dim=params['emb_dim']
-    )
+    emb_x = np.vstack(emb_x)
 
-
-    cf_dataset =  CustomCFDataset(
-                                sim_data['users'], 
-                                sim_data['actions'], 
-                                sim_data['rewards'], 
-                                pi_0[sim_data['users']]
-                                )
-    
-    train_loader = DataLoader(cf_dataset, batch_size=100, shuffle=True)
-    fit_bpr(bpr_model, train_loader)
-
-    emb_x, emb_a = bpr_model.get_emb()
-    emb_x, emb_a = emb_x.detach().cpu().numpy(), emb_a.detach().cpu().numpy()
+    env = FixedOmegaEnv(env, emb_x)
 
     noise_a = random_.normal(size=(params["emb_dim"]))
     our_a = (1-params["eps"]) * emb_a + params["eps"] * noise_a
@@ -98,7 +117,7 @@ def generate_dataset(params):
     noise_x = random_.normal(size=(params["emb_dim"])) 
     our_x = (1-params["eps"]) * emb_x + params["eps"] * noise_x
     original_x = our_x.copy()
-
+    
     return dict(
         emb_a=emb_a,
         our_a=our_a,
@@ -133,16 +152,24 @@ def create_simulation_data_from_pi(env, policy, n):
     rewards = np.zeros(n, dtype=float)
     pscore = np.zeros(n, dtype=float)
 
+    agent = PolicyAgent(env.config, policy)
+    env.agent = agent
+    obs, reward, done, info = None, None, False, {}
+    env.reset(user_id=0)
+
     for i, user_id in enumerate(users):
-        action_probs = policy[user_id]
-        action = np.random.choice(n_actions, p=action_probs)
+        
+        env.reset(user_id=user_id)
+        obs, reward, done = None, None, False
 
+        # keep stepping until you get an action
+        action = None
+        while not done and action is None:
+            action, obs, reward, done, info = env.step_offline(obs, reward, done)
         # Step the RecoGym env with this user-action pair
-        _, reward, _, _ = env.step((user_id, action))
-
-        actions[i] = action
+        actions[i] = action['a']
         rewards[i] = reward
-        pscore[i] = action_probs[action]
+        pscore[i] = action['ps']
 
     return dict(users=users, actions=actions, rewards=rewards, pscore=pscore)
 
