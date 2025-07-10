@@ -54,7 +54,7 @@ class CustomCFDataset(Dataset):
     
 
 def calc_reward(dataset, policy):
-    sim = create_simulation_data_from_pi(dataset['env'], policy, 10000)
+    sim = create_simulation_data_from_pi(dataset['env'], policy.squeeze(), 10000)
     return sim['rewards'].mean()
     # return np.array([np.sum(dataset['q_x_a'] * policy.squeeze(), axis=1).mean()])
 
@@ -166,12 +166,16 @@ def create_simulation_data_from_pi(env, policy, n):
         action = None
         while not done and action is None:
             action, obs, reward, done, info = env.step_offline(obs, reward, done)
+            if done and action is None:
+                env.reset(user_id=user_id)
+                obs, reward, done = None, None, False
+                
         # Step the RecoGym env with this user-action pair
         actions[i] = action['a']
         rewards[i] = reward
         pscore[i] = action['ps']
 
-    return dict(users=users, actions=actions, rewards=rewards, pscore=pscore)
+    return dict(users=users, actions=actions, rewards=rewards, pscore=pscore, pi_0=policy)
 
 
 def get_train_data(n_actions, train_size, sim_data, idx, emb_x):
@@ -180,11 +184,10 @@ def get_train_data(n_actions, train_size, sim_data, idx, emb_x):
                 num_actions=n_actions,
                 x=emb_x[sim_data['users'][idx].flatten()],
                 a=sim_data['actions'][idx].flatten(),
-                r=sim_data['reward'][idx].flatten(),
+                r=sim_data['rewards'][idx].flatten(),
                 x_idx=sim_data['users'][idx].flatten(),
                 pi_0=sim_data['pi_0'],
                 pscore=sim_data['pscore'][idx].flatten(),
-                q_x_a=sim_data['q_x_a']
                 )
 
 
