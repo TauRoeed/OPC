@@ -11,7 +11,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
 
 
-
+import debugpy
 import torch.nn as nn
 import torch.nn.functional as F
 

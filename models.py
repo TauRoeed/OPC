@@ -15,7 +15,6 @@ from abc import ABCMeta
 
 
 
-
 class NeighborhoodModel(metaclass=ABCMeta):
     def __init__(self, context, actions, action_emb, context_emb, rewards, num_neighbors=5, gamma=0.5):
         self.gamma = 0.5
@@ -98,6 +97,8 @@ class CFModel(nn.Module):
             # If initial embeddings are provided, set them as the embeddings
             self.actions_embeddings = nn.Embedding.from_pretrained(initial_actions_embeddings, freeze=False)
 
+        self.bias = nn.Parameter(torch.zeros((num_users, num_actions)))
+
     def get_params(self):
         return self.user_embeddings(self.users), self.actions_embeddings(self.actions)
         
@@ -105,10 +106,10 @@ class CFModel(nn.Module):
         # Get embeddings for users and actions
         user_embedding = self.user_embeddings(user_ids)
         actions_embedding = self.actions_embeddings
-        
+        bias = self.bias[user_ids]
         # Calculate dot product between user and actions embeddings
-        scores = user_embedding @ actions_embedding(self.actions).T
-        
+        scores = user_embedding @ actions_embedding(self.actions).T + bias
+
         # Apply softmax to get the predicted probability distribution
         return F.softmax(scores, dim=1).unsqueeze(-1)
     
@@ -117,6 +118,7 @@ class CFModel(nn.Module):
         super().to(device)
         self.actions = self.actions.to(device)
         self.users = self.users.to(device)
+        self.bias = self.bias.to(device)
         return self
 
 
@@ -179,3 +181,6 @@ class BPRModel(nn.Module):
         self.actions = self.actions.to(device)
         self.users = self.users.to(device)
         return self
+    
+    def seg_emb(self):
+        return self.user_embeddings.weight, self.actions_embeddings.weight

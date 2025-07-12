@@ -29,6 +29,9 @@ from estimators import (
     SelfNormalizedDoublyRobust as SNDR
 )
 
+import debugpy
+
+
 class CustomCFDataset(Dataset):
     def __init__(self, user_idx, action_idx, rewards, original_prob):
         """
@@ -54,10 +57,9 @@ class CustomCFDataset(Dataset):
     
 
 def calc_reward(dataset, policy):
-    sim = create_simulation_data_from_pi(dataset['env'], policy.squeeze(), 10000)
+    sim = create_simulation_data_from_pi(dataset['env'], policy.squeeze(), 30000)
     return sim['rewards'].mean()
     # return np.array([np.sum(dataset['q_x_a'] * policy.squeeze(), axis=1).mean()])
-
 
 
 class PolicyAgent(Agent):
@@ -91,7 +93,7 @@ def generate_dataset(params):
     env_1_args["num_users"] = params["n_users"]
     env_1_args["num_products"] = params["n_actions"]
     env_1_args["K"] = params["emb_dim"]
-    env_1_args["change_omega_for_bandits"] = False
+    # env_1_args["change_omega_for_bandits"] = False
     env = gym.make('reco-gym-v1')
     env.init_gym(env_1_args)
 
@@ -205,9 +207,9 @@ def eval_policy(model, test_data, original_policy_prob, policy):
     res = []
     # reward = test_data['q_x_a'][test_data['x_idx'], actions]
     # res.append(reward.mean())
-
-    pscore = original_policy_prob[test_data['x_idx'], actions].squeeze()
     
+    pscore = original_policy_prob[test_data['x_idx'], actions].squeeze()
+
     res.append(dm.estimate_policy_value(policy, scores))
     res.append(dr.estimate_policy_value(test_data['r'], test_data['a'], policy, scores, pscore=pscore))
     res.append(ipw.estimate_policy_value(test_data['r'], test_data['a'], policy, pscore=pscore))
@@ -220,11 +222,17 @@ def get_opl_results_dict(reg_results, conv_results):
     reward = conv_results[:, 0]
     return    dict(
                 policy_rewards=np.mean(reward),
-                ipw=np.mean(abs(conv_results[: ,3] - reward)),
-                reg_dm=np.mean(abs(reg_results - reward)),
-                conv_dm=np.mean(abs(conv_results[: ,1] - reward)),
-                conv_dr=np.mean(abs(conv_results[: ,2] - reward)),
-                conv_sndr=np.mean(abs(conv_results[: ,4] - reward)),
+                # ipw=np.mean(abs(conv_results[: ,3] - reward)),
+                # reg_dm=np.mean(abs(reg_results - reward)),
+                # conv_dm=np.mean(abs(conv_results[: ,1] - reward)),
+                # conv_dr=np.mean(abs(conv_results[: ,2] - reward)),
+                # conv_sndr=np.mean(abs(conv_results[: ,4] - reward)),
+
+                ipw=np.mean(conv_results[: ,3]), 
+                reg_dm=np.mean(reg_results),
+                conv_dm=np.mean(conv_results[: ,1]),
+                conv_dr=np.mean(conv_results[: ,2]),
+                conv_sndr=np.mean(conv_results[: ,4]),
 
                 ipw_var=np.var(conv_results[: ,3]),
                 reg_dm_var=np.var(reg_results),
