@@ -18,6 +18,7 @@ from sklearn.utils import check_random_state
 # implementing OPE of the IPWLearner using synthetic bandit data
 import scipy
 from scipy.special import softmax
+import debugpy
 
 
 random_state=12345
@@ -33,10 +34,15 @@ def calc_estimated_policy_rewards(pscore, scores, policy_prob, original_policy_r
         q_hat_at_position = scores[torch.arange(n), original_policy_actions].squeeze()
         dm_reward = (scores * policy_prob.detach()).sum(dim=1)
         
-        # reinforce trick step
         r_hat = ((iw * (original_policy_rewards - q_hat_at_position)) / iw.sum()) + dm_reward
 
         var_hat = r_hat.std()
+        # print(pscore.mean().item(), q_hat_at_position.mean().item(), policy_prob.mean().item(), original_policy_rewards.mean().item(), original_policy_actions.float().mean().item())
+        # print(f"Estimated rewards variance: {var_hat.item()}")
+        # print(f"Estimated rewards mean: {r_hat.mean().item()}")
+        # print(f"Estimated rewards dm: {dm_reward.mean().item()}")
+        # print(f"Estimated rewards iw: {iw.mean().item()}")
+
         return r_hat.mean() - scipy.stats.t.ppf(0.95, n - 1) * var_hat
 
 
