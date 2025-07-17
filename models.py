@@ -21,12 +21,14 @@ class NeighborhoodModel(metaclass=ABCMeta):
         self.num_neighbors = num_neighbors
         self.fit(action_emb, context_emb, actions, context, rewards)
 
+
     def fit(self, action_emb, context_emb, actions, context, rewards):
         self.update(action_emb, context_emb, calc=False)
         self.actions = np.int32(actions)
         self.context = np.int32(context)
-        self.reward = rewards
+        self.reward = np.float32(rewards)
         self.calculate_scores()
+
 
     def update(self, action_emb, context_emb, calc=True):
         action_emb = np.divide(action_emb.T, np.linalg.norm(action_emb, axis=1))
@@ -37,15 +39,18 @@ class NeighborhoodModel(metaclass=ABCMeta):
         if calc:
             self.calculate_scores()
 
+
     def add_data(self, context, actions, rewards):
         self.actions = np.concatenate(self.actions, actions)
         self.context = np.concatenate(self.context, context)
         self.reward = np.concatenate(self.reward, rewards)
         self.calculate_scores()
     
+
     def calculate_scores(self):
         context = np.arange(self.context_similarity.shape[0])
         self.scores = self.context_convolve(context)
+
 
     def convolve(self, test_actions, test_context):
         cosine_context = self.context_similarity[np.int32(test_context)][:, self.context]
@@ -59,6 +64,7 @@ class NeighborhoodModel(metaclass=ABCMeta):
         eta = eta * similarity
 
         return eta.sum(axis=1) / (similarity.sum(axis=1))
+
 
     def context_convolve(self, test_context):
         all_context = test_context.reshape(-1, 1) @ np.ones((1, self.action_similarity.shape[0]))

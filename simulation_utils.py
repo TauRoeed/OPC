@@ -57,7 +57,7 @@ class CustomCFDataset(Dataset):
     
 
 def calc_reward(dataset, policy):
-    sim = create_simulation_data_from_pi(dataset['env'], policy.squeeze(), 30000)
+    sim = create_simulation_data_from_pi(dataset['env'], policy.squeeze(), 300000)
     return sim['rewards'].mean()
     # return np.array([np.sum(dataset['q_x_a'] * policy.squeeze(), axis=1).mean()])
 
