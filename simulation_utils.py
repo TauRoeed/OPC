@@ -12,6 +12,7 @@ import recogym
 from recogym.envs import env_1_args, RecoEnv1
 from recogym import Configuration
 from recogym.agents import Agent
+from memory_profiler import profile
 
 from sklearn.utils import check_random_state
 
@@ -87,7 +88,6 @@ class FixedOmegaEnv(RecoEnv1):
         super().reset(user_id)
         self.omega = self.fixed_omegas[user_id].reshape((self.config.K, 1)).copy()
 
-
 def generate_dataset(params):
     env_1_args['random_seed'] = 12345
     env_1_args["num_users"] = params["n_users"]
@@ -132,7 +132,6 @@ def generate_dataset(params):
         n_users=params["n_users"],
         emb_dim=emb_a.shape[1]
     )
-
 
 def create_simulation_data_from_pi(env, policy, n):
     """

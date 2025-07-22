@@ -9,6 +9,7 @@ import torch
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
 
+from memory_profiler import profile
 
 import torch.nn.functional as F
 import torch.optim as optim
@@ -89,6 +90,7 @@ def run_train_loop(model, train_loader, neighborhood_model, criterion, lr=0.0001
         optimizer.step()
 
 
+@profile
 # 4. Define the training function
 def validation_loop(model, val_loader, neighborhood_model, device='cpu'):
 
@@ -111,11 +113,11 @@ def validation_loop(model, val_loader, neighborhood_model, device='cpu'):
         
         scores = torch.tensor(neighborhood_model.predict(user_idx.cpu().numpy()), device=device)
         
-        estimated_rewards = calc_estimated_policy_rewards(
+        estimated_rewards += calc_estimated_policy_rewards(
             pscore, scores, policy, rewards, action_idx.type(torch.long)
         )
 
-    return estimated_rewards.item()
+    return estimated_rewards.mean().item()
 
 
 

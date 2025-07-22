@@ -13,6 +13,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Copy requirements and install Python packages
 COPY req.txt .
 RUN pip install --no-cache-dir -r req.txt
+RUN pip install memory-profiler
+RUN pip install line_profiler
 
 # Optional: Set up a kernel (helpful if you want to name it explicitly)
 RUN python -m ipykernel install --user --name=debug-kernel --display-name "Python 3.9 (debug)"
