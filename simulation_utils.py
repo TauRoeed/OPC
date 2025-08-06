@@ -87,6 +87,9 @@ class FixedOmegaEnv(RecoEnv1):
     def reset(self, user_id=0):
         super().reset(user_id)
         self.omega = self.fixed_omegas[user_id].reshape((self.config.K, 1)).copy()
+        self.mu_bandit = 0
+
+
 
 def generate_dataset(params):
     env_1_args['random_seed'] = 12345

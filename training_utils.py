@@ -90,7 +90,6 @@ def run_train_loop(model, train_loader, neighborhood_model, criterion, lr=0.0001
         optimizer.step()
 
 
-@profile
 # 4. Define the training function
 def validation_loop(model, val_loader, neighborhood_model, device='cpu'):
 
@@ -112,11 +111,15 @@ def validation_loop(model, val_loader, neighborhood_model, device='cpu'):
         pscore = original_prob[torch.arange(user_idx.shape[0]), action_idx.type(torch.long)]
         
         scores = torch.tensor(neighborhood_model.predict(user_idx.cpu().numpy()), device=device)
-        
-        estimated_rewards += calc_estimated_policy_rewards(
+        batch_reward = calc_estimated_policy_rewards(
             pscore, scores, policy, rewards, action_idx.type(torch.long)
         )
-
+        estimated_rewards += batch_reward
+        if batch_reward.item() == None:
+            print("Estimated rewards is None, returning 0.0")
+            print(f"pscore: {pscore.item()}, scores: {scores.item()}, policy: {policy.item()}, rewards: {rewards.item()}, action_idx: {action_idx.item()}")
+            return 0.0
+    
     return estimated_rewards.mean().item()
 
 

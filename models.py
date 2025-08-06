@@ -30,7 +30,7 @@ from saito_helpers import check_bandit_feedback_inputs
 
 
 class NeighborhoodModel(metaclass=ABCMeta):
-    def __init__(self, context, actions, action_emb, context_emb, rewards, num_neighbors=5, chunksize=7000, gamma=0.5):
+    def __init__(self, context, actions, action_emb, context_emb, rewards, num_neighbors=5, chunksize=3000, gamma=0.5):
         self.gamma = gamma
         self.num_neighbors = num_neighbors
         self.chunksize = chunksize
@@ -71,8 +71,8 @@ class NeighborhoodModel(metaclass=ABCMeta):
         for chunk_start in range(0, B, self.chunksize):
             chunk_end = min(chunk_start + self.chunksize, B)
 
-            cosine_context = self.context_similarity[np.int32(test_context[chunk_start:chunk_end])][:, self.context].astype(np.float16)
-            cosine_actions = self.action_similarity[np.int32(test_actions[chunk_start:chunk_end])][:, self.actions].astype(np.float16)
+            cosine_context = self.context_similarity[np.int32(test_context[chunk_start:chunk_end])][:, self.context]
+            cosine_actions = self.action_similarity[np.int32(test_actions[chunk_start:chunk_end])][:, self.actions]
             tot_cosine = self.gamma * cosine_actions + (1 - self.gamma) * cosine_context
 
             del cosine_context, cosine_actions
@@ -125,7 +125,7 @@ class CFModel(nn.Module):
             # If initial embeddings are provided, set them as the embeddings
             self.actions_embeddings = nn.Embedding.from_pretrained(initial_actions_embeddings, freeze=False)
 
-        self.bias = nn.Parameter(torch.zeros((num_users, num_actions)))
+        # self.bias = nn.Parameter(torch.zeros((num_users, num_actions)))
     def get_params(self):
         return self.user_embeddings(self.users), self.actions_embeddings(self.actions)
     
@@ -133,9 +133,10 @@ class CFModel(nn.Module):
         # Get embeddings for users and actions
         user_embedding = self.user_embeddings(user_ids)
         actions_embedding = self.actions_embeddings
-        bias = self.bias[user_ids]
-        # Calculate dot product between user and actions embeddings
-        scores = user_embedding @ actions_embedding(self.actions).T + bias
+        # bias = self.bias[user_ids]
+        # Calculate dot product between user and actions embeddings\
+        # scores = user_embedding @ actions_embedding(self.actions).T + bias
+        scores = user_embedding @ actions_embedding(self.actions).T
 
         # Apply softmax to get the predicted probability distribution
         return F.softmax(scores, dim=1).unsqueeze(-1)
@@ -145,7 +146,7 @@ class CFModel(nn.Module):
         super().to(device)
         self.actions = self.actions.to(device)
         self.users = self.users.to(device)
-        self.bias = self.bias.to(device)
+        # self.bias = self.bias.to(device)
         return self
 
 
