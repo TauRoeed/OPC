@@ -9,7 +9,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from sklearn.utils import check_random_state
-from memory_profiler import profile
+# from memory_profiler import profile
 
 from scipy.special import softmax
 from abc import ABCMeta

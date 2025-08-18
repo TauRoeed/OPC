@@ -7,12 +7,12 @@ import torch
 import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
 
-import gym
-import recogym
-from recogym.envs import env_1_args, RecoEnv1
-from recogym import Configuration
-from recogym.agents import Agent
-from memory_profiler import profile
+# import gym
+# import recogym
+# from recogym.envs import env_1_args, RecoEnv1
+# from recogym import Configuration
+# from recogym.agents import Agent
+# from memory_profiler import profile
 
 from sklearn.utils import check_random_state
 
@@ -30,7 +30,7 @@ from estimators import (
     SelfNormalizedDoublyRobust as SNDR
 )
 
-import debugpy
+# import debugpy
 
 
 class CustomCFDataset(Dataset):
@@ -55,131 +55,75 @@ class CustomCFDataset(Dataset):
         action_dist = torch.tensor(self.original_prob[user].squeeze())
                     
         return user, action, reward, action_dist
-    
+
 
 def calc_reward(dataset, policy):
-    sim = create_simulation_data_from_pi(dataset['env'], policy.squeeze(), 300000)
-    return sim['rewards'].mean()
-    # return np.array([np.sum(dataset['q_x_a'] * policy.squeeze(), axis=1).mean()])
-
-
-class PolicyAgent(Agent):
-    def __init__(self, config, policy_matrix):
-        super().__init__(config)
-        self.policy = policy_matrix  # shape: (n_users, n_items)
-
-    def act(self, observation, reward, done):
-        user = observation.context().user()  # key for current user
-        probs = self.policy[user]
-        action = int(np.random.choice(len(probs), p=probs))
-        return {
-            'a': action,
-            'ps': float(probs[action])
-        }
-
-
-class FixedOmegaEnv(RecoEnv1):
-    def __init__(self, base_env, fixed_omegas):
-        # Do NOT call super().__init__() — we clone instead
-        self.__dict__ = base_env.__dict__.copy()
-        self.fixed_omegas = fixed_omegas
-
-    def reset(self, user_id=0):
-        super().reset(user_id)
-        self.omega = self.fixed_omegas[user_id].reshape((self.config.K, 1)).copy()
-        self.mu_bandit = 0
-
+    return np.array([np.sum(dataset['q_x_a'] * policy.squeeze(), axis=1).mean()])
 
 
 def generate_dataset(params):
-    env_1_args['random_seed'] = 12345
-    env_1_args["num_users"] = params["n_users"]
-    env_1_args["num_products"] = params["n_actions"]
-    env_1_args["K"] = params["emb_dim"]
-    # env_1_args["change_omega_for_bandits"] = False
-    env = gym.make('reco-gym-v1')
-    env.init_gym(env_1_args)
-
-    env.reset()
-
     random_ = check_random_state(12345)
-    emb_a = env.beta
-    emb_x = []
-
-    for i in range(params["n_users"]):
-        env.reset(user_id=i)
-        emb_x.append(env.omega.reshape(1, -1))
-
-    emb_x = np.vstack(emb_x)
-
-    env = FixedOmegaEnv(env, emb_x)
-
+    emb_a = random_.normal(size=(params["n_actions"], params["emb_dim"]))
     noise_a = random_.normal(size=(params["emb_dim"]))
     our_a = (1-params["eps"]) * emb_a + params["eps"] * noise_a
 
     original_a = our_a.copy()
 
+    emb_x = random_.normal(size=(params["n_users"], params["emb_dim"]))
     noise_x = random_.normal(size=(params["emb_dim"])) 
     our_x = (1-params["eps"]) * emb_x + params["eps"] * noise_x
     original_x = our_x.copy()
-    
+
+    score = emb_x @ emb_a.T
+    # score = random_.normal(score, scale=params["sigma"])
+    const = 1 / params['ctr']
+    q_x_a = (1 / (const + np.exp(-score)))
+    print(f"CTR: {q_x_a.mean()}")
+    user_prior = softmax(np.random.normal(size=(params["n_users"], 1))).squeeze()
+
     return dict(
-        emb_a=emb_a,
-        our_a=our_a,
-        original_a=original_a,
-        emb_x=emb_x,
-        our_x=our_x,
-        original_x=original_x,
-        env=env,
-        n_actions=params["n_actions"],
-        n_users=params["n_users"],
-        emb_dim=emb_a.shape[1]
-    )
+                emb_a=emb_a,
+                our_a=our_a,
+                original_a=original_a,
+                emb_x=emb_x,
+                our_x=our_x,
+                original_x=original_x,
+                q_x_a=q_x_a,
+                n_actions=params["n_actions"],
+                n_users=params["n_users"],
+                emb_dim=params["emb_dim"],
+                user_prior=user_prior,
+                )
 
-def create_simulation_data_from_pi(env, policy, n):
-    """
-    Samples one action per user from the given policy.
-    
-    Args:
-        env: The RecoGym environment (from generate_dataset)
-        policy: np.ndarray of shape (n_users, n_actions) – probability distributions over actions for each user
-        
-    Returns:
-        actions: np.ndarray of shape (n_users,) – sampled actions
-        rewards: np.ndarray of shape (n_users,) – obtained rewards
-        pscore: np.ndarray of shape (n_users,) – policy probability of the sampled action
-    """
-    n_users, n_actions = policy.shape
-    users = np.random.randint(0, n_users, size=n)
-    
-    actions = np.zeros(n, dtype=int)
-    rewards = np.zeros(n, dtype=float)
-    pscore = np.zeros(n, dtype=float)
 
-    agent = PolicyAgent(env.config, policy)
-    env.agent = agent
-    obs, reward, done, info = None, None, False, {}
-    env.reset(user_id=0)
+def create_simulation_data_from_pi(dataset: dict, policy: np.ndarray, n_samples, random_state: int = 12345):
+    random_ = check_random_state(random_state)
 
-    for i, user_id in enumerate(users):
-        
-        env.reset(user_id=user_id)
-        obs, reward, done = None, None, False
+    simulation_data = {'actions':np.zeros(n_samples, dtype=np.int32), 
+                       'users': np.zeros(n_samples, dtype=np.int32), 
+                       'reward':np.zeros(n_samples),
+                       'pscore':np.zeros(n_samples)}
 
-        # keep stepping until you get an action
-        action = None
-        while not done and action is None:
-            action, obs, reward, done, info = env.step_offline(obs, reward, done)
-            if done and action is None:
-                env.reset(user_id=user_id)
-                obs, reward, done = None, None, False
-                
-        # Step the RecoGym env with this user-action pair
-        actions[i] = action['a']
-        rewards[i] = reward
-        pscore[i] = action['ps']
+    simulation_data['pi_0'] = policy
+    users = random_.choice(np.arange(dataset['n_users']), size=n_samples, p=dataset['user_prior'], replace=True)
+    actions = []
 
-    return dict(users=users, actions=actions, rewards=rewards, pscore=pscore, pi_0=policy)
+    for i in users:
+        user_actions = random_.choice(np.arange(dataset['n_actions']), size=1, p=policy[i], replace=True)
+        actions.append(np.array(user_actions))
+
+    actions = np.array(actions)
+
+    idx = np.arange(n_samples)
+    simulation_data['actions'] = actions.squeeze()
+    simulation_data['users'][idx] = users[idx]
+
+    qq = dataset['q_x_a'][users, simulation_data['actions']]
+    simulation_data['reward'][idx] = np.squeeze(qq > random_.random(size=qq.shape))
+    simulation_data['pscore'][idx] = np.squeeze(policy[users, simulation_data['actions']])
+    simulation_data['q_x_a'] = dataset['q_x_a']
+
+    return simulation_data
 
 
 def get_train_data(n_actions, train_size, sim_data, idx, emb_x):
@@ -188,11 +132,18 @@ def get_train_data(n_actions, train_size, sim_data, idx, emb_x):
                 num_actions=n_actions,
                 x=emb_x[sim_data['users'][idx].flatten()],
                 a=sim_data['actions'][idx].flatten(),
-                r=sim_data['rewards'][idx].flatten(),
+                r=sim_data['reward'][idx].flatten(),
                 x_idx=sim_data['users'][idx].flatten(),
                 pi_0=sim_data['pi_0'],
                 pscore=sim_data['pscore'][idx].flatten(),
-                )
+                q_x_a=sim_data['q_x_a']
+                )    
+
+
+def calc_reward_criteo(dataset, policy):
+    sim = create_simulation_data_from_pi(dataset['env'], policy.squeeze(), 300000)
+    return sim['rewards'].mean()
+    # return np.array([np.sum(dataset['q_x_a'] * policy.squeeze(), axis=1).mean()])
 
 
 def eval_policy(model, test_data, original_policy_prob, policy):
@@ -218,6 +169,7 @@ def eval_policy(model, test_data, original_policy_prob, policy):
     res.append(sndr.estimate_policy_value(test_data['r'], test_data['a'], policy, scores, pscore=pscore))
 
     return np.array(res)
+
 
 
 def get_opl_results_dict(reg_results, conv_results):
@@ -254,12 +206,3 @@ def get_opl_results_dict(reg_results, conv_results):
                 context_diff_to_real=np.mean(conv_results[: ,7]),
                 context_delta=np.mean(conv_results[: ,8])
                 )
-
-
-if __name__ == '__main__':
-    # data, train, val, test = generate_dataset(10, 10, 20, 8)
-    # reg_model = train_model(data, train)
-
-    # convolution = neighborhood_model(np.squeeze(np.eye(10)[train['action'].reshape(-1)]), train['context'], reg_model)
-    # convolution.convolve(np.squeeze(np.eye(10)[test['action'].reshape(-1)]), test['context'])
-    pass
