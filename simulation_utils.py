@@ -78,7 +78,20 @@ def generate_dataset(params):
     # score = random_.normal(score, scale=params["sigma"])
     const = 1 / params['ctr']
     q_x_a = (1 / (const + np.exp(-score)))
-    print(f"CTR: {q_x_a.mean()}")
+
+    original_policy = softmax(our_x @ our_a.T, axis=1)
+    best_policy = softmax(emb_x @ emb_a.T, axis=1)
+
+    greedy_policy = np.zeros_like(original_policy)
+    greedy_policy[np.arange(params["n_users"]), np.argmax(best_policy, axis=1)] = 1
+
+    pseudo_dataset = dict(q_x_a=q_x_a)
+
+    print(f"Random Item CTR: {q_x_a.mean()}")
+    print(f"Optimal greedy CTR: {calc_reward(pseudo_dataset, greedy_policy)[0]}")
+    print(f"Optimal Stochastic CTR: {calc_reward(pseudo_dataset, best_policy)[0]}")
+    print(f"Our Initial CTR: {calc_reward(pseudo_dataset, original_policy)[0]}")
+
     user_prior = softmax(np.random.normal(size=(params["n_users"], 1))).squeeze()
 
     return dict(
