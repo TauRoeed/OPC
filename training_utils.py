@@ -1,4 +1,6 @@
 import warnings
+
+from matplotlib.pyplot import step
 warnings.filterwarnings("ignore")
 import sys
 sys.path.append("/code")
@@ -13,6 +15,13 @@ print(f"Using device: {device}")
 
 import torch.nn.functional as F
 import torch.optim as optim
+
+# Top of notebook (once)
+torch.backends.cudnn.benchmark = torch.cuda.is_available()
+if torch.cuda.is_available():
+    torch.set_float32_matmul_precision("high")  # TF32 = big speedup on Ada
+
+
 from custom_losses import BPRLoss
 from sklearn.utils import check_random_state
 
@@ -43,95 +52,131 @@ def calc_estimated_policy_rewards(pscore, scores, policy_prob, original_policy_r
 
 
 # 4. Define the training function
-def train(model, train_loader, neighborhood_model, criterion, num_epochs=1, lr=0.0001, device='cpu'):
-    model.to(device)
+def train(model, train_loader, neighborhood_model, scores_all,  criterion, num_epochs=1, lr=1e-4, device='cpu', log_gpu=False):
+    model.to(device).train()
+    if hasattr(criterion, "to"):
+        criterion = criterion.to(device)
+
+    # PROBE: explode if the model isn’t on CUDA (when CUDA is available)
+    if torch.cuda.is_available():
+        assert next(model.parameters()).is_cuda, "Model is on CPU!"
+
+    optimizer = optim.Adam(model.parameters(), lr=lr)
 
     for epoch in range(num_epochs):
-        run_train_loop(model, train_loader, neighborhood_model, criterion, lr=lr, device=device)
+        torch.cuda.reset_peak_memory_stats() if torch.cuda.is_available() else None
+        run_train_loop(model, train_loader, neighborhood_model, scores_all, criterion, lr=lr, device=device)
+
+        if log_gpu:
+            if torch.cuda.is_available():
+                torch.cuda.synchronize()
+                print(
+                    f"[epoch {epoch+1}/{num_epochs}] "
+                    f"alloc={torch.cuda.memory_allocated()/1024**2:.0f}MB "
+                    f"peak={torch.cuda.max_memory_allocated()/1024**2:.0f}MB",
+                    flush=True,
+                )
 
 
-# 4. Define the training function
-def run_train_loop(model, train_loader, neighborhood_model, criterion, lr=0.0001, device='cpu'):
+# 5. Define the training loop
+def run_train_loop(model, train_loader, neighborhood_model, scores_all, criterion, lr=1e-4, device='cpu'):
+    optimizer = optim.Adam(model.parameters(), lr=lr)
+    model.train()
 
-    optimizer = optim.Adam(model.parameters(), lr=lr) # here we can change the learning rate
-    model.train() # Set the model to training mode
+    # (Optional) assert once:
+    if torch.cuda.is_available():
+        assert next(model.parameters()).is_cuda, "Model is on CPU!"
 
-    for user_idx, action_idx, rewards, original_prob in train_loader:
-        # Move data to GPU if available
+    n_steps = len(train_loader)  # <— this works for most DataLoaders
+    for step, (user_idx, action_idx, rewards, original_prob) in enumerate(train_loader, 1):
+        # Move batch to device
+        user_idx      = user_idx.to(device, non_blocking=True)
+        action_idx    = action_idx.to(device, non_blocking=True)
+        rewards       = rewards.to(device, non_blocking=True)
+        original_prob = original_prob.to(device, non_blocking=True)
+
+        # PROBE: assert batch is on CUDA when available
         if torch.cuda.is_available():
-            user_idx = user_idx.to(device) 
-            action_idx = action_idx.to(device)
-            rewards = rewards.to(device)
-            original_prob = original_prob.to(device) 
-        
-        # Forward pass
-        policy = model(user_idx)
-        pscore = original_prob[torch.arange(user_idx.shape[0]), action_idx.type(torch.long)]
-        
-        scores = torch.tensor(neighborhood_model.predict(user_idx.cpu().numpy()), device=device)
-        
-        loss = criterion(
-                            pscore,
-                            scores,
-                            policy, 
-                            rewards, 
-                            action_idx.type(torch.long), 
-                            )
-        
-        # Zero the gradients Backward pass and optimization
-        optimizer.zero_grad()
+            assert user_idx.is_cuda and action_idx.is_cuda and rewards.is_cuda and original_prob.is_cuda, \
+                "Batch tensors not on CUDA"
 
-        loss.backward()                        
+        # Forward
+        policy = model(user_idx)  # stays on device
+        pscore = original_prob[torch.arange(user_idx.shape[0], device=device), action_idx.long()]
+
+        # *** Replace CPU round-trip with precomputed GPU lookup ***
+        # scores = torch.tensor(neighborhood_model.predict(user_idx.cpu().numpy()), device=device)
+        scores = scores_all[user_idx]   # <-- from section A
+
+        loss = criterion(pscore, scores, policy, rewards, action_idx.long())
+
+        optimizer.zero_grad(set_to_none=True)
+        loss.backward()
+        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
         optimizer.step()
 
+        # fire on step 1, every 5 steps, and last step
+        #if torch.cuda.is_available() and (step == 1 or step % 5 == 0 or step == n_steps):
+        #    torch.cuda.synchronize()
+            # use tqdm.write to play nice with progress bars
+        #    tqdm.write(
+        #        f"[epoch {epoch if 'epoch' in locals() else '?'} step {step}/{n_steps}] "
+        #        f"alloc={torch.cuda.memory_allocated()/1024**2:.0f}MB "
+        #        f"reserved={torch.cuda.memory_reserved()/1024**2:.0f}MB",
+        #    )
 
-# 4. Define the training function
-def validation_loop(model, val_loader, neighborhood_model, device='cpu'):
 
-    model.to(device)
 
-    model.eval() # Set the model to evaluation mode
-    estimated_rewards = 0.0
 
-    for user_idx, action_idx, rewards, original_prob in val_loader:
-        # Move data to GPU if available
-        if torch.cuda.is_available():
-            user_idx = user_idx.to(device) 
-            action_idx = action_idx.to(device)
-            rewards = rewards.to(device)
-            original_prob = original_prob.to(device) 
-        
-        # Forward pass
-        policy = model(user_idx)
-        pscore = original_prob[torch.arange(user_idx.shape[0]), action_idx.type(torch.long)]
-        
-        scores = torch.tensor(neighborhood_model.predict(user_idx.cpu().numpy()), device=device)
+# 6. Define the validation function
+def validation_loop(model, val_loader, neighborhood_model, scores_all, device='cpu'):
+    model.to(device).eval()
+    if torch.cuda.is_available():
+        assert next(model.parameters()).is_cuda
 
-        batch_reward = calc_estimated_policy_rewards(
-            pscore, scores, policy, rewards, action_idx.type(torch.long)
-        )
-        
-        estimated_rewards += batch_reward
-        if batch_reward.item() == None:
-            print("Estimated rewards is None, returning 0.0")
-            print(f"pscore: {pscore.item()}, scores: {scores.item()}, policy: {policy.item()}, rewards: {rewards.item()}, action_idx: {action_idx.item()}")
-            return 0.0
-    
-    return estimated_rewards.mean().item()
+    estimated_rewards = []
+
+    with torch.no_grad():
+        for user_idx, action_idx, rewards, original_prob in val_loader:
+            user_idx      = user_idx.to(device, non_blocking=True)
+            action_idx    = action_idx.to(device, non_blocking=True)
+            rewards       = rewards.to(device, non_blocking=True)
+            original_prob = original_prob.to(device, non_blocking=True)
+
+            policy = model(user_idx)
+            pscore = original_prob[torch.arange(user_idx.shape[0], device=device), action_idx.long()]
+
+            # scores on GPU via lookup
+            scores = scores_all[user_idx]
+
+            batch_reward = calc_estimated_policy_rewards(
+                pscore, scores, policy, rewards, action_idx.long()
+            )
+            # Make sure we collect a tensor, then average at the end
+            estimated_rewards.append(batch_reward)
+
+    return torch.stack(estimated_rewards).mean().item()
+
 
 
 
 def fit_bpr(model, data_loader, loss_fn=BPRLoss(), num_epochs=5, lr=0.001, device=device):
     model.to(device)
+    if torch.cuda.is_available():
+        assert next(model.parameters()).is_cuda
     optimizer = optim.Adam(model.parameters(), lr=lr) # here we can change the learning rate
 
     model.train() # Set the model to training mode
     tq = tqdm(range(num_epochs))
+    torch.cuda.reset_peak_memory_stats() if torch.cuda.is_available() else None
+
     for epoch in tq:
         running_loss = 0.0
         total_samples = 0
+
+        n_steps = len(data_loader)  # <— this works for most DataLoaders    
+        for step, (user_idx, action_idx, rewards, original_prob) in enumerate(data_loader, 1):
         
-        for user_idx, action_idx, rewards, original_prob in data_loader:
             # Move data to GPU if available
             if torch.cuda.is_available():
                 user_idx = user_idx.to(device) 
@@ -157,8 +202,20 @@ def fit_bpr(model, data_loader, loss_fn=BPRLoss(), num_epochs=5, lr=0.001, devic
             # Zero the gradients Backward pass and optimization
             optimizer.zero_grad()
 
-            loss.backward()                        
+            loss.backward()          
+
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             optimizer.step()
+
+            # fire on step 1, every 5 steps, and last step
+            #if torch.cuda.is_available() and (step == 1 or step % 5 == 0 or step == n_steps):
+            #    torch.cuda.synchronize()
+                # use tqdm.write to play nice with progress bars
+            #    tqdm.write(
+            #        f"[epoch {epoch if 'epoch' in locals() else '?'} step {step}/{n_steps}] "
+            #        f"alloc={torch.cuda.memory_allocated()/1024**2:.0f}MB "
+            #        f"reserved={torch.cuda.memory_reserved()/1024**2:.0f}MB",
+            #    )
             
             # update neighborhood
             # action_emb, context_emb = model.get_params()
@@ -170,3 +227,12 @@ def fit_bpr(model, data_loader, loss_fn=BPRLoss(), num_epochs=5, lr=0.001, devic
             # Print statistics after each epoch
             epoch_loss = running_loss / total_samples
             tq.set_description(f"Epoch [{epoch+1}/{num_epochs}], Loss: {epoch_loss:.4f}")
+        
+        if torch.cuda.is_available():
+            torch.cuda.synchronize()
+            print(
+                f"[epoch {epoch+1}/{num_epochs}] "
+                f"alloc={torch.cuda.memory_allocated()/1024**2:.0f}MB "
+                f"peak={torch.cuda.max_memory_allocated()/1024**2:.0f}MB",
+                flush=True,
+            )
