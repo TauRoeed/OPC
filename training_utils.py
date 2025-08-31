@@ -47,8 +47,9 @@ def calc_estimated_policy_rewards(pscore, scores, policy_prob, original_policy_r
         r_hat = ((iw * (original_policy_rewards - q_hat_at_position)) / iw.sum()) + dm_reward
 
         var_hat = r_hat.std()
-
-        return r_hat.mean() - scipy.stats.t.ppf(0.95, n - 1) * var_hat
+        lower_bound = r_hat.mean() - (scipy.stats.t.ppf(0.95, n - 1) * var_hat / (n ** 0.5))
+        
+        return lower_bound
 
 
 # 4. Define the training function
@@ -106,7 +107,7 @@ def run_train_loop(model, train_loader, neighborhood_model, scores_all, criterio
 
         # *** Replace CPU round-trip with precomputed GPU lookup ***
         # scores = torch.tensor(neighborhood_model.predict(user_idx.cpu().numpy()), device=device)
-        scores = scores_all[user_idx]   # <-- from section A
+        scores = scores_all[user_idx.long()]   # <-- from section A
 
         loss = criterion(pscore, scores, policy, rewards, action_idx.long())
 
@@ -147,7 +148,7 @@ def validation_loop(model, val_loader, neighborhood_model, scores_all, device='c
             pscore = original_prob[torch.arange(user_idx.shape[0], device=device), action_idx.long()]
 
             # scores on GPU via lookup
-            scores = scores_all[user_idx]
+            scores = scores_all[user_idx.long()]
 
             batch_reward = calc_estimated_policy_rewards(
                 pscore, scores, policy, rewards, action_idx.long()
@@ -156,8 +157,6 @@ def validation_loop(model, val_loader, neighborhood_model, scores_all, device='c
             estimated_rewards.append(batch_reward)
 
     return torch.stack(estimated_rewards).mean().item()
-
-
 
 
 def fit_bpr(model, data_loader, loss_fn=BPRLoss(), num_epochs=5, lr=0.001, device=device):
@@ -236,3 +235,4 @@ def fit_bpr(model, data_loader, loss_fn=BPRLoss(), num_epochs=5, lr=0.001, devic
                 f"peak={torch.cuda.max_memory_allocated()/1024**2:.0f}MB",
                 flush=True,
             )
+            
