@@ -66,7 +66,7 @@ def train(model, train_loader, neighborhood_model, scores_all,  criterion, num_e
 
     for epoch in range(num_epochs):
         torch.cuda.reset_peak_memory_stats() if torch.cuda.is_available() else None
-        run_train_loop(model, train_loader, neighborhood_model, scores_all, criterion, lr=lr, device=device)
+        run_train_loop(model, train_loader, optimizer, scores_all, criterion, lr=lr, device=device)
 
         if log_gpu:
             if torch.cuda.is_available():
@@ -80,8 +80,7 @@ def train(model, train_loader, neighborhood_model, scores_all,  criterion, num_e
 
 
 # 5. Define the training loop
-def run_train_loop(model, train_loader, neighborhood_model, scores_all, criterion, lr=1e-4, device='cpu'):
-    optimizer = optim.Adam(model.parameters(), lr=lr)
+def run_train_loop(model, train_loader, optimizer, scores_all, criterion, lr=1e-4, device='cpu'):
     model.train()
 
     # (Optional) assert once:
@@ -109,11 +108,12 @@ def run_train_loop(model, train_loader, neighborhood_model, scores_all, criterio
         # scores = torch.tensor(neighborhood_model.predict(user_idx.cpu().numpy()), device=device)
         scores = scores_all[user_idx.long()]   # <-- from section A
 
-        loss = criterion(pscore, scores, policy, rewards, action_idx.long())
+        optimizer.zero_grad()
 
-        optimizer.zero_grad(set_to_none=True)
+        loss = criterion(pscore, scores, policy, rewards, action_idx.long())
         loss.backward()
-        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+        # torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+        
         optimizer.step()
 
         # fire on step 1, every 5 steps, and last step
