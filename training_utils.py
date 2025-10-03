@@ -15,6 +15,7 @@ print(f"Using device: {device}")
 
 import torch.nn.functional as F
 import torch.optim as optim
+from torch.utils.data import DataLoader, Dataset
 
 # Top of notebook (once)
 torch.backends.cudnn.benchmark = torch.cuda.is_available()
@@ -29,7 +30,8 @@ from sklearn.utils import check_random_state
 import scipy
 from scipy.special import softmax
 # import debugpy
-
+import numpy as np
+import simulation_utils
 
 random_state=12345
 random_ = check_random_state(random_state)
@@ -53,7 +55,7 @@ def calc_estimated_policy_rewards(pscore, scores, policy_prob, original_policy_r
 
 
 # 4. Define the training function
-def train(model, train_loader, neighborhood_model, scores_all,  criterion, num_epochs=1, lr=1e-4, device='cpu', log_gpu=False):
+def train(model, train_loader, scores_all,  criterion, num_epochs=1, lr=1e-4, device='cpu', log_gpu=False):
     model.to(device).train()
     if hasattr(criterion, "to"):
         criterion = criterion.to(device)
@@ -87,7 +89,6 @@ def run_train_loop(model, train_loader, optimizer, scores_all, criterion, lr=1e-
     if torch.cuda.is_available():
         assert next(model.parameters()).is_cuda, "Model is on CPU!"
 
-    n_steps = len(train_loader)  # <— this works for most DataLoaders
     for step, (user_idx, action_idx, rewards, original_prob) in enumerate(train_loader, 1):
         # Move batch to device
         user_idx      = user_idx.to(device, non_blocking=True)
@@ -116,21 +117,9 @@ def run_train_loop(model, train_loader, optimizer, scores_all, criterion, lr=1e-
         
         optimizer.step()
 
-        # fire on step 1, every 5 steps, and last step
-        #if torch.cuda.is_available() and (step == 1 or step % 5 == 0 or step == n_steps):
-        #    torch.cuda.synchronize()
-            # use tqdm.write to play nice with progress bars
-        #    tqdm.write(
-        #        f"[epoch {epoch if 'epoch' in locals() else '?'} step {step}/{n_steps}] "
-        #        f"alloc={torch.cuda.memory_allocated()/1024**2:.0f}MB "
-        #        f"reserved={torch.cuda.memory_reserved()/1024**2:.0f}MB",
-        #    )
-
-
-
 
 # 6. Define the validation function
-def validation_loop(model, val_loader, neighborhood_model, scores_all, device='cpu'):
+def validation_loop(model, val_loader, scores_all, device='cpu'):
     model.to(device).eval()
     if torch.cuda.is_available():
         assert next(model.parameters()).is_cuda
@@ -156,7 +145,84 @@ def validation_loop(model, val_loader, neighborhood_model, scores_all, device='c
             # Make sure we collect a tensor, then average at the end
             estimated_rewards.append(batch_reward)
 
-    return torch.stack(estimated_rewards).mean().item()
+    avg = torch.stack(estimated_rewards).mean().item()
+    std = torch.stack(estimated_rewards).std().item()
+
+    return dict(value=avg, variance=std)
+
+
+
+# sndr rewards for cross validation
+def sndr_rewards(pscore, scores, policy_prob, original_policy_rewards, users, original_policy_actions):
+        
+        pi_e_at_position = policy_prob[users, original_policy_actions].squeeze()
+        iw = pi_e_at_position / pscore
+
+        q_hat_at_position = scores[users, original_policy_actions].squeeze()
+        dm_reward = (scores * policy_prob)[users].sum(axis=1)
+        
+        r_hat = ((iw * (original_policy_rewards - q_hat_at_position)) / iw.sum()) + dm_reward
+
+        return r_hat
+
+
+# snips rewards for cross validation
+def snips_rewards(pscore, policy_prob, original_policy_rewards, users, original_policy_actions):
+        
+        pi_e_at_position = policy_prob[users, original_policy_actions].squeeze()
+        iw = pi_e_at_position / pscore
+
+        print(simulation_utils.get_weights_info(pi_e_at_position, pscore))
+
+         # reinforce trick step
+        r_hat = ((iw * (original_policy_rewards)) / iw.sum())
+
+        return r_hat
+
+
+
+def perform_cv(ubiased_vec, estimator_vec, k=5):
+    n = len(ubiased_vec)
+    ratio = np.var(estimator_vec) / (np.var(ubiased_vec) + np.var(estimator_vec) + 1e-6)
+
+    if ratio == 0 or ratio == 1 or np.isnan(ratio):
+       ratio = 0.5
+    
+    ratio = max(0.2, ratio)
+    ratio = min(0.8, ratio)
+
+    estimator_size = int(n * ratio)
+    results = []
+
+    for i in range(k):
+        
+        indices = np.random.default_rng().permutation(n)
+        estimator_idx = indices[:estimator_size]
+        unbiased_idx = indices[estimator_size:]
+        res = (np.mean(ubiased_vec[unbiased_idx]) - np.mean(estimator_vec[estimator_idx]))**2
+
+        results.append(res)
+
+    results = np.array(results)
+
+    return results.mean() + (results.std() / np.sqrt(k))
+
+
+def cv_score_model(val_dataset, scores_all, policy_prob):
+
+    pscore = val_dataset['pscore']
+    scores = scores_all.detach().cpu().numpy().squeeze()
+    users = val_dataset['x_idx']
+    reward = val_dataset['r']
+    actions = val_dataset['a']
+
+    sndr_vec = sndr_rewards(pscore, scores, policy_prob, reward, users, actions)
+    snips_vec = snips_rewards(pscore, policy_prob, reward, users, actions)
+
+    err = perform_cv(sndr_vec, snips_vec, k=15)
+    print(f"Cross-validated error: {err}")
+
+    return sndr_vec.mean() - err
 
 
 def fit_bpr(model, data_loader, loss_fn=BPRLoss(), num_epochs=5, lr=0.001, device=device):
@@ -206,19 +272,6 @@ def fit_bpr(model, data_loader, loss_fn=BPRLoss(), num_epochs=5, lr=0.001, devic
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             optimizer.step()
 
-            # fire on step 1, every 5 steps, and last step
-            #if torch.cuda.is_available() and (step == 1 or step % 5 == 0 or step == n_steps):
-            #    torch.cuda.synchronize()
-                # use tqdm.write to play nice with progress bars
-            #    tqdm.write(
-            #        f"[epoch {epoch if 'epoch' in locals() else '?'} step {step}/{n_steps}] "
-            #        f"alloc={torch.cuda.memory_allocated()/1024**2:.0f}MB "
-            #        f"reserved={torch.cuda.memory_reserved()/1024**2:.0f}MB",
-            #    )
-            
-            # update neighborhood
-            # action_emb, context_emb = model.get_params()
-            
             # Calculate running loss and accuracy
             running_loss += loss.item()
             total_samples += 1

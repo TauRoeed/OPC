@@ -185,6 +185,36 @@ def eval_policy(model, test_data, original_policy_prob, policy):
 
 
 
+def calc_gini(x):
+    sorted_x = np.sort(x)
+    n = sorted_x.size
+
+    # weights: 1..n
+    cum_weights = np.arange(1, n+1, dtype=sorted_x.dtype)
+
+    numerator = np.sum((2 * cum_weights - n - 1) * sorted_x)
+    denominator = n * np.sum(sorted_x)
+
+    return numerator / denominator
+
+
+def calc_ESS(x):
+    return x.sum() ** 2 / (x ** 2).sum()
+
+
+def get_weights_info(policy, original_policy_prob):
+
+    iw = policy.squeeze() / original_policy_prob.squeeze()
+    iw = iw.flatten()
+
+    return dict(
+                gini=calc_gini(iw),
+                ess=calc_ESS(iw),
+                max_wi=iw.max(),
+                min_wi=iw.min(),
+    )
+
+
 def get_opl_results_dict(reg_results, conv_results):
     reward = conv_results[:, 0]
     return    dict(
