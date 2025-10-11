@@ -180,7 +180,6 @@ def snips_rewards(pscore, policy_prob, original_policy_rewards, users, original_
         return r_hat
 
 
-
 def perform_cv(ubiased_vec, estimator_vec, k=5):
     n = len(ubiased_vec)
     ratio = np.var(estimator_vec) / (np.var(ubiased_vec) + np.var(estimator_vec) + 1e-6)

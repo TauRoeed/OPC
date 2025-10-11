@@ -103,15 +103,38 @@ class NeighborhoodModel(metaclass=ABCMeta):
         return self.scores[np.int32(test_context)]
 
 
+
+class LinearTransform(nn.Module):
+    def __init__(self, embedding_size, embedding_dim):
+        super(LinearTransform, self).__init__()
+        self.delta = nn.Parameter(torch.zeros((embedding_size, embedding_dim)))
+
+    def forward(self, x, idx=None):
+        if idx is None:
+            return x + self.delta
+        else:   
+            return x + self.delta[idx]
+
+    def to(self, device):
+        # Move the module itself
+        super().to(device)
+        self.delta = self.delta.to(device)
+        return self
+
+
 class CFModel(nn.Module):
     def __init__(self, num_users, num_actions, embedding_dim, 
-                 initial_user_embeddings=None, initial_actions_embeddings=None):
+                 initial_user_embeddings=None, initial_actions_embeddings=None, 
+                 user_transform=None, action_transform=None):
 
         super(CFModel, self).__init__()
+
+        self.user_transform = user_transform
+        self.action_transform = action_transform
+
         self.actions = torch.arange(num_actions)
         self.users = torch.arange(num_users)
 
-        
         # Initialize user and actions embeddings
         if initial_user_embeddings is None:
             self.user_embeddings = nn.Embedding(num_users, embedding_dim)
@@ -125,20 +148,31 @@ class CFModel(nn.Module):
             # If initial embeddings are provided, set them as the embeddings
             self.actions_embeddings = nn.Embedding.from_pretrained(initial_actions_embeddings, freeze=False)
 
-        # self.bias = nn.Parameter(torch.zeros((num_users, num_actions)))
+        if user_transform is not None:
+            for param in  self.user_embeddings.parameters():
+                param.requires_grad = False
+        if action_transform is not None:
+            for param in self.actions_embeddings.parameters():
+                param.requires_grad = False
+
+
     def get_params(self):
         return self.user_embeddings(self.users), self.actions_embeddings(self.actions)
     
-    def forward(self, user_ids):
-        # Get embeddings for users and actions
-        user_embedding = self.user_embeddings(user_ids)
-        actions_embedding = self.actions_embeddings
-        # bias = self.bias[user_ids]
-        # Calculate dot product between user and actions embeddings\
-        # scores = user_embedding @ actions_embedding(self.actions).T + bias
-        scores = user_embedding @ actions_embedding(self.actions).T
 
-        # Apply softmax to get the predicted probability distribution
+    def forward(self, user_ids):
+
+        user_embedding = self.user_embeddings(user_ids)
+        actions_embedding = self.actions_embeddings(self.actions)
+        # Apply transform if it exists
+
+        if self.user_transform is not None:
+            user_embedding = self.user_transform(user_embedding, user_ids)
+        if self.action_transform is not None:
+            actions_embedding = self.action_transform(actions_embedding, self.actions)
+
+        scores = user_embedding @ actions_embedding.T
+
         return F.softmax(scores, dim=1).unsqueeze(-1)
     
     def to(self, device):
@@ -146,8 +180,58 @@ class CFModel(nn.Module):
         super().to(device)
         self.actions = self.actions.to(device)
         self.users = self.users.to(device)
-        # self.bias = self.bias.to(device)
+        
+        if self.user_transform is not None:
+            self.user_transform = self.user_transform.to(device)
+        if self.action_transform is not None:
+            self.action_transform = self.action_transform.to(device)
+
         return self
+
+
+class LinearCFModel(nn.Module):
+    def __init__(self, num_users, num_actions, embedding_dim, 
+                 initial_user_embeddings=None, initial_actions_embeddings=None):
+        
+        super(LinearCFModel, self).__init__()
+
+        self.user_transform = LinearTransform(num_users, embedding_dim)
+        self.action_transform = LinearTransform(num_actions, embedding_dim)
+
+        self.cfmodel = CFModel(
+                                num_users, 
+                                num_actions, 
+                                embedding_dim, 
+                                initial_user_embeddings, 
+                                initial_actions_embeddings,
+                                user_transform=self.user_transform,    
+                                action_transform=self.action_transform
+                               )
+        
+        for param in self.cfmodel.user_embeddings.parameters():
+            param.requires_grad = False
+
+        for param in self.cfmodel.actions_embeddings.parameters():
+            param.requires_grad = False
+
+    def forward(self, user_ids):
+        return self.cfmodel(user_ids)
+        
+    def to(self, device):
+        # Move the module itself
+        super().to(device)
+        
+        self.cfmodel = self.cfmodel.to(device)
+        self.user_transform = self.user_transform.to(device)
+        self.action_transform = self.action_transform.to(device)
+
+        return self
+    
+    def get_params(self):
+        emb_x = self.user_transform(self.cfmodel.user_embeddings.weight)
+        emb_a = self.action_transform(self.cfmodel.actions_embeddings.weight)
+        return emb_x, emb_a
+
 
 
 class BPRModel(nn.Module):
