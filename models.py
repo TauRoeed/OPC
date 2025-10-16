@@ -157,7 +157,17 @@ class CFModel(nn.Module):
 
 
     def get_params(self):
-        return self.user_embeddings(self.users), self.actions_embeddings(self.actions)
+        emb_x, emb_a = None, None
+        if self.user_transform is None:
+            emb_x = self.user_embeddings.weight
+        else:
+            emb_x = self.user_transform(self.user_embeddings.weight)
+        if self.action_transform is None:
+            emb_a = self.actions_embeddings.weight
+        else:
+            emb_a = self.action_transform(self.actions_embeddings.weight)
+
+        return emb_x, emb_a
     
 
     def forward(self, user_ids):
@@ -175,6 +185,7 @@ class CFModel(nn.Module):
 
         return F.softmax(scores, dim=1).unsqueeze(-1)
     
+
     def to(self, device):
         # Move the module itself
         super().to(device)
@@ -189,14 +200,33 @@ class CFModel(nn.Module):
         return self
 
 
+    def clone(self):
+        return CFModel(
+            num_users=self.users.size(0),
+            num_actions=self.actions.size(0),
+            embedding_dim=self.user_embeddings.embedding_dim,
+            initial_user_embeddings=self.user_embeddings.weight.data.clone(),
+            initial_actions_embeddings=self.actions_embeddings.weight.data.clone(),
+            user_transform=self.user_transform,
+            action_transform=self.action_transform
+            )
+
+
 class LinearCFModel(nn.Module):
     def __init__(self, num_users, num_actions, embedding_dim, 
-                 initial_user_embeddings=None, initial_actions_embeddings=None):
-        
+                 initial_user_embeddings=None, initial_actions_embeddings=None,
+                 user_transform=None, action_transform=None):
         super(LinearCFModel, self).__init__()
 
-        self.user_transform = LinearTransform(num_users, embedding_dim)
-        self.action_transform = LinearTransform(num_actions, embedding_dim)
+        if user_transform is not None:
+            self.user_transform = user_transform
+        else:
+            self.user_transform = LinearTransform(num_users, embedding_dim)
+        
+        if action_transform is not None:
+            self.action_transform = action_transform
+        else:
+            self.action_transform = LinearTransform(num_actions, embedding_dim)
 
         self.cfmodel = CFModel(
                                 num_users, 
@@ -228,10 +258,18 @@ class LinearCFModel(nn.Module):
         return self
     
     def get_params(self):
-        emb_x = self.user_transform(self.cfmodel.user_embeddings.weight)
-        emb_a = self.action_transform(self.cfmodel.actions_embeddings.weight)
-        return emb_x, emb_a
-
+        return self.cfmodel.get_params()
+    
+    def clone(self):
+        return LinearCFModel(
+            num_users=self.cfmodel.users.size(0),
+            num_actions=self.cfmodel.actions.size(0),
+            embedding_dim=self.cfmodel.user_embeddings.embedding_dim,
+            initial_user_embeddings=self.cfmodel.user_embeddings.weight.data.clone(),
+            initial_actions_embeddings=self.cfmodel.actions_embeddings.weight.data.clone(),
+            user_transform=self.user_transform,
+            action_transform=self.action_transform
+            )
 
 
 class BPRModel(nn.Module):

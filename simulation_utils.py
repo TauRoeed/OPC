@@ -169,18 +169,21 @@ def eval_policy(model, test_data, original_policy_prob, policy):
 
     policy = policy[test_data['x_idx']]
     
-    actions = np.squeeze(np.argmax(policy, axis=1))
+    actions = test_data['a']
     res = []
     # reward = test_data['q_x_a'][test_data['x_idx'], actions]
     # res.append(reward.mean())
     
     pscore = original_policy_prob[test_data['x_idx'], actions].squeeze()
+    pi_e_at_position = policy[test_data['x_idx'], actions].squeeze()
 
     res.append(dm.estimate_policy_value(policy, scores))
     res.append(dr.estimate_policy_value(test_data['r'], test_data['a'], policy, scores, pscore=pscore))
     res.append(ipw.estimate_policy_value(test_data['r'], test_data['a'], policy, pscore=pscore))
     res.append(sndr.estimate_policy_value(test_data['r'], test_data['a'], policy, scores, pscore=pscore))
 
+    print(get_weights_info(pi_e_at_position, pscore))
+    
     return np.array(res)
 
 

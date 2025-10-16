@@ -103,18 +103,28 @@ def run_train_loop(model, train_loader, optimizer, scores_all, criterion, lr=1e-
 
         # Forward
         policy = model(user_idx)  # stays on device
+
+        if torch.isnan(policy).max().item() == True:
+            print(f"NaN in policy : (, step {step})")
+            break
+            
         pscore = original_prob[torch.arange(user_idx.shape[0], device=device), action_idx.long()]
 
         # *** Replace CPU round-trip with precomputed GPU lookup ***
         # scores = torch.tensor(neighborhood_model.predict(user_idx.cpu().numpy()), device=device)
+
         scores = scores_all[user_idx.long()]   # <-- from section A
 
         optimizer.zero_grad()
 
         loss = criterion(pscore, scores, policy, rewards, action_idx.long())
         loss.backward()
-        # torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-        
+
+        # grad_user = model.user_transform.delta.clone()
+        # grad_action = model.action_transform.delta.clone()
+
+        # torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=0.5, error_if_nonfinite=True)
+
         optimizer.step()
 
 
@@ -171,8 +181,6 @@ def snips_rewards(pscore, policy_prob, original_policy_rewards, users, original_
         
         pi_e_at_position = policy_prob[users, original_policy_actions].squeeze()
         iw = pi_e_at_position / pscore
-
-        print(simulation_utils.get_weights_info(pi_e_at_position, pscore))
 
          # reinforce trick step
         r_hat = ((iw * (original_policy_rewards)) / iw.sum())
