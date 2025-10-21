@@ -123,7 +123,7 @@ def run_train_loop(model, train_loader, optimizer, scores_all, criterion, lr=1e-
         # grad_user = model.user_transform.delta.clone()
         # grad_action = model.action_transform.delta.clone()
 
-        # torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=0.5, error_if_nonfinite=True)
+        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0, error_if_nonfinite=True)
 
         optimizer.step()
 
@@ -226,7 +226,7 @@ def cv_score_model(val_dataset, scores_all, policy_prob):
     sndr_vec = sndr_rewards(pscore, scores, policy_prob, reward, users, actions)
     snips_vec = snips_rewards(pscore, policy_prob, reward, users, actions)
 
-    err = perform_cv(sndr_vec, snips_vec, k=15)
+    err = perform_cv(sndr_vec, snips_vec, k=100)
     print(f"Cross-validated error: {err}")
 
     return sndr_vec.mean() - err

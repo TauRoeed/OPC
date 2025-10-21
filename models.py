@@ -125,7 +125,8 @@ class LinearTransform(nn.Module):
 class CFModel(nn.Module):
     def __init__(self, num_users, num_actions, embedding_dim, 
                  initial_user_embeddings=None, initial_actions_embeddings=None, 
-                 user_transform=None, action_transform=None):
+                 user_transform=None, action_transform=None, 
+                 eps_greedy=1e-4):
 
         super(CFModel, self).__init__()
 
@@ -155,6 +156,8 @@ class CFModel(nn.Module):
             for param in self.actions_embeddings.parameters():
                 param.requires_grad = False
 
+        self.eps_greedy = eps_greedy
+
 
     def get_params(self):
         emb_x, emb_a = None, None
@@ -182,9 +185,11 @@ class CFModel(nn.Module):
             actions_embedding = self.action_transform(actions_embedding, self.actions)
 
         scores = user_embedding @ actions_embedding.T
+        
+        prob = F.softmax(scores, dim=1).unsqueeze(-1)
+        prob = (1 - self.eps_greedy) * prob + (self.eps_greedy / prob.shape[1])
 
-        return F.softmax(scores, dim=1).unsqueeze(-1)
-    
+        return prob
 
     def to(self, device):
         # Move the module itself
