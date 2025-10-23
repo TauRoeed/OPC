@@ -47,6 +47,7 @@ class CustomCFDataset(Dataset):
     def __len__(self):
         return len(self.rewards)
 
+
     def __getitem__(self, sample_idx):   
         # Convert list to tensor
         user = torch.tensor(self.user_idx[sample_idx].squeeze())
@@ -183,7 +184,7 @@ def eval_policy(model, test_data, original_policy_prob, policy):
     res.append(sndr.estimate_policy_value(test_data['r'], test_data['a'], policy, scores, pscore=pscore))
 
     print(get_weights_info(pi_e_at_position, pscore))
-    
+
     return np.array(res)
 
 

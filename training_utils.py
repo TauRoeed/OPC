@@ -223,6 +223,10 @@ def cv_score_model(val_dataset, scores_all, policy_prob):
     reward = val_dataset['r']
     actions = val_dataset['a']
 
+    prob = policy_prob[users, actions].squeeze()
+
+    print(simulation_utils.get_weights_info(prob, pscore))
+    
     sndr_vec = sndr_rewards(pscore, scores, policy_prob, reward, users, actions)
     snips_vec = snips_rewards(pscore, policy_prob, reward, users, actions)
 
