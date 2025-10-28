@@ -34,15 +34,30 @@ from estimators import (
 
 
 class CustomCFDataset(Dataset):
-    def __init__(self, user_idx, action_idx, rewards, original_prob):
+    def __init__(self, user_idx, action_idx, rewards, original_prob, q=0.05):
         """
         Args:
             np_arrays (list of np.ndarray): List of numpy arrays
         """
+        
         self.user_idx = user_idx
         self.action_idx = action_idx
         self.rewards = rewards
         self.original_prob = original_prob
+        self.q = q
+
+        self.filter_by_prob()
+
+    def filter_by_prob(self):
+        pscore = self.original_prob[self.user_idx, self.action_idx].squeeze()
+
+        qq = np.quantile(pscore, q=[self.q, 1-self.q])
+        mask = (pscore > qq[0]) & (pscore < qq[1])
+
+        self.user_idx = self.user_idx[mask]
+        self.action_idx = self.action_idx[mask]
+        self.rewards = self.rewards[mask]
+
 
     def __len__(self):
         return len(self.rewards)
@@ -51,7 +66,7 @@ class CustomCFDataset(Dataset):
     def __getitem__(self, sample_idx):   
         # Convert list to tensor
         user = torch.tensor(self.user_idx[sample_idx].squeeze())
-        action =  torch.tensor(self.action_idx[sample_idx].squeeze())
+        action =  torch.tensor(self.action_idx[sample_idx].squeeze()).long()
         reward = torch.tensor(self.rewards[sample_idx].squeeze(), dtype=torch.double)
         action_dist = torch.tensor(self.original_prob[user].squeeze())
                     
@@ -62,8 +77,8 @@ def calc_reward(dataset, policy):
     return np.array([np.sum(dataset['q_x_a'] * policy.squeeze(), axis=1).mean()])
 
 
-def generate_dataset(params):
-    random_ = check_random_state(12345)
+def generate_dataset(params, seed=12345):
+    random_ = check_random_state(seed)
     emb_a = random_.normal(size=(params["n_actions"], params["emb_dim"]))
     noise_a = random_.normal(size=(params["emb_dim"]))
     our_a = (1-params["eps"]) * emb_a + params["eps"] * noise_a

@@ -108,7 +108,7 @@ def run_train_loop(model, train_loader, optimizer, scores_all, criterion, lr=1e-
             print(f"NaN in policy : (, step {step})")
             break
             
-        pscore = original_prob[torch.arange(user_idx.shape[0], device=device), action_idx.long()]
+        pscore = original_prob[torch.arange(user_idx.shape[0], device=device), action_idx]
 
         # *** Replace CPU round-trip with precomputed GPU lookup ***
         # scores = torch.tensor(neighborhood_model.predict(user_idx.cpu().numpy()), device=device)
@@ -117,7 +117,7 @@ def run_train_loop(model, train_loader, optimizer, scores_all, criterion, lr=1e-
 
         optimizer.zero_grad()
 
-        loss = criterion(pscore, scores, policy, rewards, action_idx.long())
+        loss = criterion(pscore, scores, policy, rewards, action_idx)
         loss.backward()
 
         # grad_user = model.user_transform.delta.clone()
@@ -215,7 +215,7 @@ def perform_cv(ubiased_vec, estimator_vec, k=5):
     return results.mean() + (results.std() / np.sqrt(k))
 
 
-def cv_score_model(val_dataset, scores_all, policy_prob):
+def cv_score_model(val_dataset, scores_all, policy_prob, q=0.00):
 
     pscore = val_dataset['pscore']
     scores = scores_all.detach().cpu().numpy().squeeze()
@@ -226,14 +226,17 @@ def cv_score_model(val_dataset, scores_all, policy_prob):
     prob = policy_prob[users, actions].squeeze()
 
     print(simulation_utils.get_weights_info(prob, pscore))
-    
+    iw = prob / pscore
+    qq = np.quantile(iw, q=[q, 1-q])
+    mask = (iw > qq[0]) & (iw < qq[1])
+
     sndr_vec = sndr_rewards(pscore, scores, policy_prob, reward, users, actions)
     snips_vec = snips_rewards(pscore, policy_prob, reward, users, actions)
 
     err = perform_cv(sndr_vec, snips_vec, k=100)
     print(f"Cross-validated error: {err}")
 
-    return sndr_vec.mean() - err
+    return sndr_vec[mask].mean() - 2 * err
 
 
 def fit_bpr(model, data_loader, loss_fn=BPRLoss(), num_epochs=5, lr=0.001, device=device):
