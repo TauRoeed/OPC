@@ -201,6 +201,7 @@ def perform_cv(ubiased_vec, estimator_vec, k=5):
     estimator_size = int(n * ratio)
     results = []
 
+    # Computing k-fold CV error estimates:
     for i in range(k):
         
         indices = np.random.default_rng().permutation(n)
@@ -212,7 +213,8 @@ def perform_cv(ubiased_vec, estimator_vec, k=5):
 
     results = np.array(results)
 
-    return results.mean() + (results.std() / np.sqrt(k))
+    #return results.mean() + (results.std() / np.sqrt(k))
+    return np.sqrt(results.mean() + results.std())/np.sqrt(k) # note that this is different from the CV paper...
 
 
 def cv_score_model(val_dataset, scores_all, policy_prob, q=0.00):
@@ -234,9 +236,13 @@ def cv_score_model(val_dataset, scores_all, policy_prob, q=0.00):
     snips_vec = snips_rewards(pscore, policy_prob, reward, users, actions)
 
     err = perform_cv(sndr_vec, snips_vec, k=100)
-    print(f"Cross-validated error: {err}")
+    r_hat = sndr_vec[mask].mean()
 
-    return sndr_vec[mask].mean() - 2 * err
+    print(f"Estimated reward: {r_hat:.6f}")
+    print(f"Cross-validated error: {err:.6f}")
+    print(f"Final score CI (reward +- 2*error): [{r_hat - 2 * err:.6f}, {r_hat + 2 * err:.6f}]")
+
+    return r_hat - 2 * err
 
 
 def fit_bpr(model, data_loader, loss_fn=BPRLoss(), num_epochs=5, lr=0.001, device=device):

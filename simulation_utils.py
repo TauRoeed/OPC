@@ -197,7 +197,7 @@ def eval_policy(model, test_data, original_policy_prob, policy):
     res.append(dr.estimate_policy_value(test_data['r'], test_data['a'], policy, scores, pscore=pscore))
     res.append(ipw.estimate_policy_value(test_data['r'], test_data['a'], policy, pscore=pscore))
     res.append(sndr.estimate_policy_value(test_data['r'], test_data['a'], policy, scores, pscore=pscore))
-
+    print(f"Num samples is {len(test_data['r'])}")
     print(get_weights_info(pi_e_at_position, pscore))
 
     return np.array(res)
