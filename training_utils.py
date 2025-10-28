@@ -217,7 +217,7 @@ def perform_cv(ubiased_vec, estimator_vec, k=5):
     return np.sqrt(results.mean() + results.std())/np.sqrt(k) # note that this is different from the CV paper...
 
 
-def cv_score_model(val_dataset, scores_all, policy_prob, q=0.00):
+def cv_score_model(val_dataset, scores_all, policy_prob, q=0.025):
 
     pscore = val_dataset['pscore']
     scores = scores_all.detach().cpu().numpy().squeeze()

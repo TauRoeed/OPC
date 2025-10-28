@@ -113,7 +113,7 @@ class LinearTransform(nn.Module):
         if idx is None:
             return x + self.delta
         else:   
-            return x + self.delta[idx]
+            return x + self.delta[idx.long()]
 
     def to(self, device):
         # Move the module itself
