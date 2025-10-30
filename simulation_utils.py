@@ -102,11 +102,19 @@ def generate_dataset(params, seed=12345):
     greedy_policy[np.arange(params["n_users"]), np.argmax(best_policy, axis=1)] = 1
 
     pseudo_dataset = dict(q_x_a=q_x_a)
-    # second_idx = np.argpartition(best_policy, -2, axis=1)[:, -2:]
+
+    second_best_policy = original_policy.copy()
+    second_best_policy[greedy_policy == 1] = 0
+    second_best_policy = second_best_policy / second_best_policy.sum(axis=1, keepdims=True)
+    second_best_greedy = np.zeros_like(original_policy)
+    second_best_greedy[np.arange(params["n_users"]), np.argmax(second_best_policy, axis=1)] = 1
+
 
     print(f"Random Item CTR: {q_x_a.mean()}")
     print(f"Optimal greedy CTR: {calc_reward(pseudo_dataset, greedy_policy)[0]}")
+    print(f"Second Best greedy CTR: {calc_reward(pseudo_dataset, second_best_greedy)[0]}")
     print(f"Optimal Stochastic CTR: {calc_reward(pseudo_dataset, best_policy)[0]}")
+    print(f"second Best Stochastic CTR: {calc_reward(pseudo_dataset, second_best_policy)[0]}")
     print(f"Our Initial CTR: {calc_reward(pseudo_dataset, original_policy)[0]}")
 
     user_prior = softmax(np.random.normal(size=(params["n_users"], 1))).squeeze()
