@@ -171,7 +171,7 @@ def sndr_rewards(pscore, scores, policy_prob, original_policy_rewards, users, or
         q_hat_at_position = scores[users, original_policy_actions].squeeze()
         dm_reward = (scores * policy_prob)[users].sum(axis=1)
         
-        r_hat = ((iw * (original_policy_rewards - q_hat_at_position)) / iw.sum()) + dm_reward
+        r_hat = ((iw * (original_policy_rewards - q_hat_at_position))) + dm_reward
 
         return r_hat
 
@@ -214,7 +214,7 @@ def perform_cv(ubiased_vec, estimator_vec, k=5):
     results = np.array(results)
 
     #return results.mean() + (results.std() / np.sqrt(k))
-    return np.sqrt(results.mean() + results.std())/np.sqrt(k) # note that this is different from the CV paper...
+    return np.sqrt(results.mean() + results.std()) / np.sqrt(k) # note that this is different from the CV paper...
 
 
 def cv_score_model(val_dataset, scores_all, policy_prob, q=0.025):
