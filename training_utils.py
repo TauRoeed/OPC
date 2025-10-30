@@ -183,7 +183,7 @@ def snips_rewards(pscore, policy_prob, original_policy_rewards, users, original_
         iw = pi_e_at_position / pscore
 
          # reinforce trick step
-        r_hat = ((iw * (original_policy_rewards)) / iw.sum())
+        r_hat = ((iw * (original_policy_rewards)))
 
         return r_hat
 
@@ -232,15 +232,29 @@ def cv_score_model(val_dataset, scores_all, policy_prob, q=0.025):
     qq = np.quantile(iw, q=[q, 1-q])
     mask = (iw > qq[0]) & (iw < qq[1])
 
+    users = users[mask]
+    actions = actions[mask]
+    reward = reward[mask]
+    pscore = pscore[mask]
+    prob = prob[mask]
+
     sndr_vec = sndr_rewards(pscore, scores, policy_prob, reward, users, actions)
     snips_vec = snips_rewards(pscore, policy_prob, reward, users, actions)
 
     err = perform_cv(sndr_vec, snips_vec, k=100)
-    r_hat = sndr_vec[mask].mean()
+    
+    r_hat = sndr_vec.mean()
+    se_hat = sndr_vec.std() / np.sqrt(len(sndr_vec))
 
     print(f"Estimated reward: {r_hat:.6f}")
+
     print(f"Cross-validated error: {err:.6f}")
     print(f"Final score CI (reward +- 2*error): [{r_hat - 2 * err:.6f}, {r_hat + 2 * err:.6f}]")
+
+    se = scipy.stats.t.ppf(0.975, len(sndr_vec)-1) * se_hat
+    print(f"Standard error: {se_hat:.6f}")
+    print(f"Final t_dist CI (reward +- t_0.975*se_hat): [{r_hat - se:.6f}, {r_hat + se:.6f}]")
+
 
     return r_hat - 2 * err
 

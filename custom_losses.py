@@ -61,6 +61,35 @@ class SNDRPolicyLoss(nn.Module):
         r_hat = ((iw * (original_policy_rewards - q_hat_at_position)) / iw.sum()) + dm_reward
         reinforce_grad = r_hat * log_pi
         return reinforce_grad.mean()
+    
+
+class KLPolicyLoss(nn.Module):
+    def __init__(self, gamma=0.05, log_eps=1e-10):
+        super(KLPolicyLoss, self).__init__()
+        self.gamma = gamma
+        self.log_eps = log_eps
+
+    def kl_divergence(self, p, q):
+        p = p / p.sum()
+        q = q / q.sum()
+        kl = p * (torch.log(p + self.log_eps) - torch.log(q + self.log_eps))
+        return kl.sum()
+
+    def forward(self, pscore, scores, policy_prob, original_policy_rewards, original_policy_actions):
+        n = original_policy_actions.shape[0]
+
+        pi_e_at_position = policy_prob[torch.arange(n), original_policy_actions].squeeze()
+        iw = pi_e_at_position / pscore
+        iw = iw.detach()
+        q_hat_at_position = scores[torch.arange(n), original_policy_actions].squeeze()
+        dm_reward = (scores * policy_prob.detach()).sum(dim=1)
+        
+        # reinforce trick step
+        r_hat = ((iw * (original_policy_rewards - q_hat_at_position)) / iw.sum()) + dm_reward
+
+        loss = r_hat + self.gamma * self.kl_divergence(pscore, pi_e_at_position)
+        
+        return loss.mean()
 
 
 class BPRLoss(nn.Module):

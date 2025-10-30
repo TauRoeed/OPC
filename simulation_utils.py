@@ -102,6 +102,7 @@ def generate_dataset(params, seed=12345):
     greedy_policy[np.arange(params["n_users"]), np.argmax(best_policy, axis=1)] = 1
 
     pseudo_dataset = dict(q_x_a=q_x_a)
+    # second_idx = np.argpartition(best_policy, -2, axis=1)[:, -2:]
 
     print(f"Random Item CTR: {q_x_a.mean()}")
     print(f"Optimal greedy CTR: {calc_reward(pseudo_dataset, greedy_policy)[0]}")
