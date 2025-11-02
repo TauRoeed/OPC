@@ -30,6 +30,8 @@ from estimators import (
     SelfNormalizedDoublyRobust as SNDR
 )
 
+import time
+
 # import debugpy
 
 
@@ -134,7 +136,13 @@ def generate_dataset(params, seed=12345):
                 )
 
 
-def create_simulation_data_from_pi(dataset: dict, policy: np.ndarray, n_samples, random_state: int = 12345):
+def create_simulation_data_from_pi(
+                                    dataset: dict, 
+                                    policy: np.ndarray, 
+                                    n_samples: int, 
+                                    random_state: int = 12345,
+                                    chunk_size: int = 100000):
+    t0 = time.time()
     random_ = check_random_state(random_state)
 
     simulation_data = {'actions':np.zeros(n_samples, dtype=np.int32), 
@@ -144,22 +152,31 @@ def create_simulation_data_from_pi(dataset: dict, policy: np.ndarray, n_samples,
 
     simulation_data['pi_0'] = policy
     users = random_.choice(np.arange(dataset['n_users']), size=n_samples, p=dataset['user_prior'], replace=True)
-    actions = []
 
-    for i in users:
-        user_actions = random_.choice(np.arange(dataset['n_actions']), size=1, p=policy[i], replace=True)
-        actions.append(np.array(user_actions))
+    for start in range(0, n_samples, chunk_size):
+        end = min(start + chunk_size, n_samples)
+        u_chunk = users[start:end]
 
-    actions = np.array(actions)
+        # vectorized per-chunk sampling
+        user_policies = policy[u_chunk]                    # shape: (chunk, n_actions)
+        cum_p = np.cumsum(user_policies, axis=1)
+        r = random_.rand(len(u_chunk), 1)                  # uniform [0,1)
+        actions = (r < cum_p).argmax(axis=1)               # vectorized sampling
 
-    idx = np.arange(n_samples)
-    simulation_data['actions'] = actions.squeeze()
-    simulation_data['users'][idx] = users[idx]
+        # compute rewards and scores
+        qq = dataset["q_x_a"][u_chunk, actions]
+        rewards = (qq > random_.rand(*qq.shape)).astype(float)
+        pscore = policy[u_chunk, actions]
 
-    qq = dataset['q_x_a'][users, simulation_data['actions']]
-    simulation_data['reward'][idx] = np.squeeze(qq > random_.random(size=qq.shape))
-    simulation_data['pscore'][idx] = np.squeeze(policy[users, simulation_data['actions']])
+        # fill result slice
+        simulation_data["users"][start:end] = u_chunk
+        simulation_data["actions"][start:end] = actions.squeeze()
+        simulation_data["reward"][start:end] = rewards.squeeze()
+        simulation_data["pscore"][start:end] = pscore.squeeze()
+
     simulation_data['q_x_a'] = dataset['q_x_a']
+
+    print(f"Simulation time for {n_samples} samples: {time.time() - t0} seconds")
 
     return simulation_data
 
@@ -185,6 +202,8 @@ def calc_reward_criteo(dataset, policy):
 
 
 def eval_policy(model, test_data, original_policy_prob, policy):
+    t0 = time.time()
+
     dr = DR()
     dm = DM()
     ipw = IPW()
@@ -206,9 +225,12 @@ def eval_policy(model, test_data, original_policy_prob, policy):
     res.append(dr.estimate_policy_value(test_data['r'], test_data['a'], policy, scores, pscore=pscore))
     res.append(ipw.estimate_policy_value(test_data['r'], test_data['a'], policy, pscore=pscore))
     res.append(sndr.estimate_policy_value(test_data['r'], test_data['a'], policy, scores, pscore=pscore))
+
     print(f"Num samples is {len(test_data['r'])}")
+
     print(get_weights_info(pi_e_at_position, pscore))
 
+    print(f"Eval time: {time.time() - t0} seconds")
     return np.array(res)
 
 

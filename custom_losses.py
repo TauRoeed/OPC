@@ -60,6 +60,7 @@ class SNDRPolicyLoss(nn.Module):
         # reinforce trick step
         r_hat = ((iw * (original_policy_rewards - q_hat_at_position)) / iw.sum()) + dm_reward
         reinforce_grad = r_hat * log_pi
+
         return reinforce_grad.mean()
     
 
@@ -69,11 +70,22 @@ class KLPolicyLoss(nn.Module):
         self.gamma = gamma
         self.log_eps = log_eps
 
-    def kl_divergence(self, p, q):
-        p = p / p.sum()
-        q = q / q.sum()
-        kl = p * (torch.log(p + self.log_eps) - torch.log(q + self.log_eps))
-        return kl.sum()
+    def policy_kl_loss(self, logits_new, logits_old, detach_old=True, reduction='mean'):
+        # logits_new: current policy logits (requires grad)
+        # logits_old: baseline/previous policy logits
+        p_new = F.softmax(logits_new, dim=-1)
+        p_old = F.softmax(logits_old, dim=-1)
+
+        if detach_old:
+            p_old = p_old.detach()
+
+        kl = torch.sum(p_old * (torch.log(p_old + 1e-8) - p_new), dim=-1)
+        if reduction == 'mean':
+            return kl.mean()
+        elif reduction == 'sum':
+            return kl.sum()
+        else:
+            return kl
 
     def forward(self, pscore, scores, policy_prob, original_policy_rewards, original_policy_actions):
         n = original_policy_actions.shape[0]
@@ -87,8 +99,8 @@ class KLPolicyLoss(nn.Module):
         # reinforce trick step
         r_hat = ((iw * (original_policy_rewards - q_hat_at_position)) / iw.sum()) + dm_reward
 
-        loss = r_hat + self.gamma * self.kl_divergence(pscore, pi_e_at_position)
-        
+        loss = r_hat + self.gamma * self.policy_kl_loss(torch.log(pi_e_at_position), torch.log(pscore.detach()))
+
         return loss.mean()
 
 
