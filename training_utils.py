@@ -227,8 +227,13 @@ def cv_score_model(val_dataset, scores_all, policy_prob, q=0.0):
     actions = val_dataset['a']
 
     prob = policy_prob[users, actions].squeeze()
+    weights_info = simulation_utils.get_weights_info(prob, pscore)
+    print(f'Validation weights_info: {weights_info}')
 
-    print(simulation_utils.get_weights_info(prob, pscore))
+    if weights_info['ESS'] < len(reward) * 0.05:
+        print("Warning: Low ESS in validation data!")
+        return -np.inf
+
     iw = prob / pscore
     qq = np.quantile(iw, q=[q, 1-q])
     mask = (iw > qq[0]) & (iw < qq[1])
