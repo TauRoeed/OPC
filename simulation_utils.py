@@ -209,7 +209,8 @@ def eval_policy(model, test_data, original_policy_prob, policy):
     ipw = IPW()
     sndr = SNDR()
 
-    scores = model.predict(test_data['x_idx'])
+    # scores = model.predict(test_data['x_idx'])
+    scores = model.predict(test_data['x'])
 
     policy = policy[test_data['x_idx']]
     

@@ -36,12 +36,14 @@ class NeighborhoodModel(metaclass=ABCMeta):
         self.chunksize = chunksize
         self.fit(action_emb, context_emb, actions, context, rewards)
 
+
     def fit(self, action_emb, context_emb, actions, context, rewards):
         self.update(action_emb, context_emb, calc=False)
         self.actions = np.int32(actions)
         self.context = np.int32(context)
         self.reward = np.float32(rewards)
         self.calculate_scores()
+
 
     def update(self, action_emb, context_emb, calc=True):
         action_emb = np.divide(action_emb.T, np.linalg.norm(action_emb, axis=1))
@@ -52,15 +54,18 @@ class NeighborhoodModel(metaclass=ABCMeta):
         if calc:
             self.calculate_scores()
 
+
     def add_data(self, context, actions, rewards):
         self.actions = np.concatenate(self.actions, actions)
         self.context = np.concatenate(self.context, context)
         self.reward = np.concatenate(self.reward, rewards)
         self.calculate_scores()
     
+
     def calculate_scores(self):
         context = np.arange(self.context_similarity.shape[0])
         self.scores = self.context_convolve(context)
+
 
     def convolve(self, test_actions, test_context):
         # Preallocate output
@@ -88,6 +93,7 @@ class NeighborhoodModel(metaclass=ABCMeta):
 
         return weighted_sum / (sim_sum + 1e-8)
     
+
     def context_convolve(self, test_context):
         all_context = test_context.reshape(-1, 1) @ np.ones((1, self.action_similarity.shape[0]))
         all_context = all_context.flatten()
@@ -99,6 +105,7 @@ class NeighborhoodModel(metaclass=ABCMeta):
         eta_all = eta_all.reshape(test_context.shape[0], self.action_similarity.shape[0], 1)
         return eta_all
     
+
     def predict(self, test_context):       
         return self.scores[np.int32(test_context)]
 

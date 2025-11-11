@@ -84,7 +84,6 @@ def train(model, train_loader, scores_all,  criterion, num_epochs=1, lr=1e-4, de
 # 5. Define the training loop
 def run_train_loop(model, train_loader, optimizer, scores_all, criterion, lr=1e-4, device='cpu'):
     model.train()
-
     # (Optional) assert once:
     if torch.cuda.is_available():
         assert next(model.parameters()).is_cuda, "Model is on CPU!"
@@ -214,8 +213,8 @@ def perform_cv(ubiased_vec, estimator_vec, k=5):
     results = np.array(results)
 
     #return results.mean() + (results.std() / np.sqrt(k))
-    return np.sqrt(results.mean() + results.std()) / np.sqrt(k) # note that this is different from the CV paper...
-    # return np.sqrt(results.mean() / k)
+    # return np.sqrt(results.mean() + results.std()) / np.sqrt(k) # note that this is different from the CV paper...
+    return np.sqrt(results.mean() / k)
 
 
 def cv_score_model(val_dataset, scores_all, policy_prob, q=0.0):
@@ -228,9 +227,10 @@ def cv_score_model(val_dataset, scores_all, policy_prob, q=0.0):
 
     prob = policy_prob[users, actions].squeeze()
     weights_info = simulation_utils.get_weights_info(prob, pscore)
+
     print(f'Validation weights_info: {weights_info}')
 
-    if weights_info['ESS'] < len(reward) * 0.05:
+    if weights_info['ess'] < len(reward) * 0.01:
         print("Warning: Low ESS in validation data!")
         return -np.inf
 
@@ -260,7 +260,6 @@ def cv_score_model(val_dataset, scores_all, policy_prob, q=0.0):
     se = scipy.stats.t.ppf(0.975, len(sndr_vec)-1) * se_hat
     print(f"Standard error: {se_hat:.6f}")
     print(f"Final t_dist CI (reward +- t_0.975*se_hat): [{r_hat - se:.6f}, {r_hat + se:.6f}]")
-
 
     return r_hat - 2 * err
 
