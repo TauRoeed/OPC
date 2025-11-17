@@ -79,9 +79,14 @@ def calc_reward(dataset, policy):
     return np.array([np.sum(dataset['q_x_a'] * policy.squeeze(), axis=1).mean()])
 
 
-def generate_dataset(params, seed=12345):
+def generate_dataset(params, seed=12345, emb_a=None, emb_x=None):
     random_ = check_random_state(seed)
-    emb_a = random_.normal(size=(params["n_actions"], params["emb_dim"]))
+    
+    if emb_a is not None:
+        emb_a = np.asarray(emb_a)
+    else:
+        emb_a = random_.normal(size=(params["n_actions"], params["emb_dim"]))
+
     noise_a = random_.normal(size=(params["emb_dim"]))
     our_a = (1-params["eps"]) * emb_a + params["eps"] * noise_a
 

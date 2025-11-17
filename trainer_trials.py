@@ -543,7 +543,8 @@ def regression_trainer_trial(
                 pi_i = softmax(trial_x @ trial_a.T, axis=1)
 
                 print(f"actual reward: {calc_reward(dataset, np.expand_dims(pi_i, -1))}")
-                return cv_score_model(val_data, trial_scores_all, pi_i)
+                r_hat, err = cv_score_model(val_data, trial_scores_all, pi_i)
+                return r_hat - 2 * err
 
             # --- Run Optuna search ---
             study = optuna.create_study(direction="maximize")

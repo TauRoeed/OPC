@@ -25,6 +25,7 @@ if torch.cuda.is_available():
 
 from custom_losses import BPRLoss
 from sklearn.utils import check_random_state
+import matplotlib.pyplot as plt
 
 # implementing OPE of the IPWLearner using synthetic bandit data
 import scipy
@@ -160,12 +161,17 @@ def validation_loop(model, val_loader, scores_all, device='cpu'):
     return dict(value=avg, variance=std)
 
 
+def dros_shrinkage(iw: np.ndarray, lam: float):
+    """Doubly Robust with optimistic shrinkage."""
+    return (lam * iw) / (iw**2 + lam)
+
 
 # sndr rewards for cross validation
-def sndr_rewards(pscore, scores, policy_prob, original_policy_rewards, users, original_policy_actions):
+def sndr_rewards(pscore, scores, policy_prob, original_policy_rewards, users, original_policy_actions, lam=3.0):
         
         pi_e_at_position = policy_prob[users, original_policy_actions].squeeze()
         iw = pi_e_at_position / pscore
+        iw = dros_shrinkage(iw, lam=lam)
 
         q_hat_at_position = scores[users, original_policy_actions].squeeze()
         dm_reward = (scores * policy_prob)[users].sum(axis=1)
@@ -175,8 +181,8 @@ def sndr_rewards(pscore, scores, policy_prob, original_policy_rewards, users, or
         return r_hat
 
 
-# snips rewards for cross validation
-def snips_rewards(pscore, policy_prob, original_policy_rewards, users, original_policy_actions):
+# ipw rewards for cross validation
+def ipw_rewards(pscore, policy_prob, original_policy_rewards, users, original_policy_actions):
         
         pi_e_at_position = policy_prob[users, original_policy_actions].squeeze()
         iw = pi_e_at_position / pscore
@@ -217,7 +223,7 @@ def perform_cv(ubiased_vec, estimator_vec, k=5):
     return np.sqrt(results.mean() / k)
 
 
-def cv_score_model(val_dataset, scores_all, policy_prob, q=0.0):
+def cv_score_model(val_dataset, scores_all, policy_prob, lam=3.0):
 
     pscore = val_dataset['pscore']
     scores = scores_all.detach().cpu().numpy().squeeze()
@@ -230,24 +236,21 @@ def cv_score_model(val_dataset, scores_all, policy_prob, q=0.0):
 
     print(f'Validation weights_info: {weights_info}')
 
-    if weights_info['ess'] < len(reward) * 0.01:
-        print("Warning: Low ESS in validation data!")
-        return -np.inf
+    # iw = prob / pscore
+    
+    # qq = np.quantile(iw, q=[q, 1-q])
+    # mask = (iw > qq[0]) & (iw < qq[1])
 
-    iw = prob / pscore
-    qq = np.quantile(iw, q=[q, 1-q])
-    mask = (iw > qq[0]) & (iw < qq[1])
+    # users = users[mask]
+    # actions = actions[mask]
+    # reward = reward[mask]
+    # pscore = pscore[mask]
+    # prob = prob[mask]
 
-    users = users[mask]
-    actions = actions[mask]
-    reward = reward[mask]
-    pscore = pscore[mask]
-    prob = prob[mask]
+    sndr_vec = sndr_rewards(pscore, scores, policy_prob, reward, users, actions, lam=lam)
+    ipw_vec = ipw_rewards(pscore, policy_prob, reward, users, actions)
 
-    sndr_vec = sndr_rewards(pscore, scores, policy_prob, reward, users, actions)
-    snips_vec = snips_rewards(pscore, policy_prob, reward, users, actions)
-
-    err = perform_cv(sndr_vec, snips_vec, k=100)
+    err = perform_cv(sndr_vec, ipw_vec, k=100)
     
     r_hat = sndr_vec.mean()
     se_hat = sndr_vec.std() / np.sqrt(len(sndr_vec))
@@ -261,7 +264,11 @@ def cv_score_model(val_dataset, scores_all, policy_prob, q=0.0):
     print(f"Standard error: {se_hat:.6f}")
     print(f"Final t_dist CI (reward +- t_0.975*se_hat): [{r_hat - se:.6f}, {r_hat + se:.6f}]")
 
-    return r_hat - 2 * err
+    if weights_info['ess'] < len(reward) * 0.01:
+        print("Warning: Low ESS in validation data!")
+        return -np.inf, np.inf
+    
+    return r_hat, err
 
 
 def fit_bpr(model, data_loader, loss_fn=BPRLoss(), num_epochs=5, lr=0.001, device=device):
@@ -328,3 +335,192 @@ def fit_bpr(model, data_loader, loss_fn=BPRLoss(), num_epochs=5, lr=0.001, devic
                 flush=True,
             )
             
+
+def compute_statistics_and_plots(df, n_bins=20):
+    """
+    Computes:
+      - Pearson correlation
+      - Spearman rank correlations
+      - NDCG(score, actual)
+      - NDCG(estimated, actual)
+
+    Generates:
+      - scatter
+      - hexbin
+      - KDE (raw)
+      - KDE (centered)
+      - Log-KDE + fitted log-normal PDF
+      - Centered Log-KDE + fitted log-normal PDF
+      - calibration curve
+    """
+
+    import numpy as np
+    import matplotlib.pyplot as plt
+    from scipy.stats import gaussian_kde, spearmanr, lognorm
+
+    # ===============================
+    # Helper functions
+    # ===============================
+    def dcg(relevances):
+        rel = np.asarray(relevances)
+        return np.sum((2**rel - 1) / np.log2(np.arange(1, len(rel)+1) + 1))
+
+    def ndcg(scores, rewards):
+        scores = np.asarray(scores)
+        rewards = np.asarray(rewards)
+        order = np.argsort(scores)[::-1]
+        ranked_rel = rewards[order]
+        ideal = dcg(np.sort(rewards)[::-1])
+        return dcg(ranked_rel) / ideal if ideal > 0 else 0.0
+
+    # shorthand
+    score = df["value"].values
+    est = df["user_attrs_r_hat"].values
+    actual = df["user_attrs_actual_reward"].values
+
+    # ===============================
+    # Correlations
+    # ===============================
+    pearson_corr = np.corrcoef(score, actual)[0, 1]
+    spearman_score_actual = spearmanr(score, actual).correlation
+    spearman_est_actual = spearmanr(est, actual).correlation
+
+    ndcg_score_vs_actual = ndcg(score, actual)
+    ndcg_estimated_vs_actual = ndcg(est, actual)
+
+    # ===============================
+    # Scatter
+    # ===============================
+    plt.figure(figsize=(6,5))
+    plt.scatter(score, actual, alpha=0.4)
+    plt.xlabel("Score")
+    plt.ylabel("Actual Reward")
+    plt.title("Scatter: Score vs Actual Reward")
+    plt.grid(True)
+    plt.show()
+
+    # ===============================
+    # Hexbin
+    # ===============================
+    plt.figure(figsize=(6,5))
+    hb = plt.hexbin(score, actual, gridsize=40, cmap='viridis', mincnt=1)
+    plt.colorbar(hb, label="Count")
+    plt.xlabel("Score")
+    plt.ylabel("Actual Reward")
+    plt.title("Hexbin: Score vs Actual Reward")
+    plt.show()
+
+    # ===============================
+    # KDE (raw)
+    # ===============================
+    def kde(values):
+        kde_obj = gaussian_kde(values)
+        xs = np.linspace(values.min(), values.max(), 300)
+        return xs, kde_obj(xs)
+
+    plt.figure(figsize=(6,5))
+    xs, ys = kde(score); plt.plot(xs, ys, label="Score KDE")
+    xs, ys = kde(est);   plt.plot(xs, ys, label="Estimated Reward KDE")
+    xs, ys = kde(actual);plt.plot(xs, ys, label="Actual Reward KDE")
+    plt.legend(); plt.grid(True)
+    plt.title("KDE Distributions")
+    plt.show()
+
+    # ===============================
+    # Centered KDE
+    # ===============================
+    plt.figure(figsize=(6,5))
+    xs, ys = kde(score - score.mean()); plt.plot(xs, ys, label="Score (centered)")
+    xs, ys = kde(est - est.mean());     plt.plot(xs, ys, label="Estimated (centered)")
+    xs, ys = kde(actual - actual.mean()); plt.plot(xs, ys, label="Actual (centered)")
+    plt.legend(); plt.grid(True)
+    plt.title("Centered KDE Distributions")
+    plt.show()
+
+    # ===============================
+    # Log-KDE + fitted Log-Normal PDFs
+    # ===============================
+    eps = 1e-8
+
+    def log_kde(vals):
+        logvals = np.log(vals + eps)
+        kde_obj = gaussian_kde(logvals)
+        xs = np.linspace(logvals.min(), logvals.max(), 500)
+        return xs, kde_obj(xs), logvals
+
+    def lognormal_pdf_fit(logvals, xs):
+        # Fit lognormal parameters using raw values
+        sigma, loc, scale = lognorm.fit(np.exp(logvals), floc=0)
+        pdf = lognorm.pdf(np.exp(xs), sigma, loc=0, scale=scale) * np.exp(xs)
+        return pdf, (sigma, scale)
+
+    # Raw log-KDE plot
+    plt.figure(figsize=(7,5))
+
+    for arr, label in [(score, "Score"), (est, "Estimated"), (actual, "Actual")]:
+        xs, ys, logvals = log_kde(arr)
+        plt.plot(xs, ys, label=f"{label} Log-KDE", linewidth=2)
+
+        # Fit true lognormal
+        pdf, params = lognormal_pdf_fit(logvals, xs)
+        plt.plot(xs, pdf, '--', linewidth=1.5, label=f"{label} LogNormal fit")
+
+    plt.title("Log-KDE + Log-Normal Fit")
+    plt.xlabel("log(Value)")
+    plt.ylabel("Density")
+    plt.legend()
+    plt.grid(True)
+    plt.show()
+
+    # ===============================
+    # Centered Log-KDE + fits
+    # ===============================
+    plt.figure(figsize=(7,5))
+
+    for arr, label in [
+        (score - score.mean(), "Score (centered)"),
+        (est - est.mean(),   "Estimated (centered)"),
+        (actual - actual.mean(), "Actual (centered)")
+    ]:
+        xs, ys, logvals = log_kde(arr - arr.min() + eps)  # shift to positive for log
+        plt.plot(xs, ys, label=f"{label} Log-KDE", linewidth=2)
+
+        pdf, params = lognormal_pdf_fit(logvals, xs)
+        plt.plot(xs, pdf, '--', linewidth=1.5, label=f"{label} LogNormal fit")
+
+    plt.title("Centered Log-KDE + Log-Normal Fit")
+    plt.xlabel("log(Value Shifted)")
+    plt.ylabel("Density")
+    plt.legend()
+    plt.grid(True)
+    plt.show()
+
+    # ===============================
+    # Calibration curve
+    # ===============================
+    df_sorted = df.sort_values("value")
+    bins = np.array_split(df_sorted, n_bins)
+    avg_pred = [b["value"].mean() for b in bins]
+    avg_actual = [b["user_attrs_actual_reward"].mean() for b in bins]
+
+    plt.figure(figsize=(6,5))
+    plt.plot(avg_pred, avg_actual, marker="o", label="Calibration Curve")
+    lo, hi = min(avg_pred), max(avg_pred)
+    plt.plot([lo, hi], [lo, hi], 'k--', label="Perfect Calibration")
+    plt.xlabel("Mean Score (bin)")
+    plt.ylabel("Mean Actual Reward (bin)")
+    plt.title("Calibration Curve")
+    plt.legend()
+    plt.grid(True)
+    plt.show()
+
+    # ===============================
+    # Return metrics
+    # ===============================
+    return {
+        "pearson_corr": pearson_corr,
+        "spearman_score_actual": spearman_score_actual,
+        "spearman_est_actual": spearman_est_actual,
+        "ndcg_score_vs_actual_reward": ndcg_score_vs_actual,
+        "ndcg_estimated_vs_actual_reward": ndcg_estimated_vs_actual,
+    }
