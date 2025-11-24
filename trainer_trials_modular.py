@@ -689,11 +689,12 @@ def regression_trainer_trial(
                 print(
                     f"actual reward: {r}"
                 )
-                r_hat, err = cv_score_model(val_data, trial_scores_all, pi_i)
+                r_hat, err, weight_info = cv_score_model(val_data, trial_scores_all, pi_i)
                 
                 trial.set_user_attr("r_hat", r_hat)
                 trial.set_user_attr("q_error", err)
                 trial.set_user_attr("actual_reward", r)
+                trial.set_user_attr("ess", weight_info['ess'])
 
                 return r_hat - 2 * err
 
@@ -787,4 +788,4 @@ def regression_trainer_trial(
         # Aggregate across runs
         results[train_size] = _mean_dict(trial_dicts_this_size)
 
-    return pd.DataFrame.from_dict(results, orient="index"), study.trials_dataframe()[["value", "user_attrs_actual_reward", "user_attrs_q_error", "user_attrs_r_hat"]]
+    return pd.DataFrame.from_dict(results, orient="index"), study.trials_dataframe()[["value", "user_attrs_actual_reward", "user_attrs_q_error", "user_attrs_r_hat", "user_attrs_ess"]]
