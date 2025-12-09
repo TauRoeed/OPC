@@ -193,34 +193,71 @@ def ipw_rewards(pscore, policy_prob, original_policy_rewards, users, original_po
         return r_hat
 
 
-def perform_cv(ubiased_vec, estimator_vec, k=5):
-    n = len(ubiased_vec)
-    ratio = np.var(estimator_vec) / (np.var(ubiased_vec) + np.var(estimator_vec) + 1e-6)
-
-    if ratio == 0 or ratio == 1 or np.isnan(ratio):
-       ratio = 0.5
-    
-    ratio = max(0.2, ratio)
-    ratio = min(0.8, ratio)
-
-    estimator_size = int(n * ratio)
+def perform_cv(unbiased_vec, estimator_vec, B=100):
     results = []
+    for b in range(B):
+        m = int(len(unbiased_vec)**(0.7))
+        indices = np.random.default_rng().permutation(m)
 
-    # Computing k-fold CV error estimates:
-    for i in range(k):
-        
-        indices = np.random.default_rng().permutation(n)
-        estimator_idx = indices[:estimator_size]
-        unbiased_idx = indices[estimator_size:]
-        res = (np.mean(ubiased_vec[unbiased_idx]) - np.mean(estimator_vec[estimator_idx]))**2
+        res = perform_cv_once(
+            unbiased_vec[indices],
+            estimator_vec[indices],
+            k=100
+        )
 
         results.append(res)
 
-    results = np.array(results)
+    return np.array(results).mean()
 
-    #return results.mean() + (results.std() / np.sqrt(k))
-    # return np.sqrt(results.mean() + results.std()) / np.sqrt(k) # note that this is different from the CV paper...
-    return np.sqrt(results.mean() / k)
+
+def split_and_calculate(u_vec, e_vec, estimator_size):
+    n = len(u_vec)
+
+    w = np.ones(n)
+    exp = random_.exponential(scale=1.0, size=n)
+
+    indices = np.random.default_rng().permutation(n)
+    estimator_idx = indices[:estimator_size]
+    unbiased_idx = indices[estimator_size:]
+
+    unbiased_estimate = u_vec[unbiased_idx] @ w[unbiased_idx] / w[unbiased_idx].sum()
+    estimator_estimate = e_vec[estimator_idx] @ w[estimator_idx] / w[estimator_idx].sum()
+    res = (unbiased_estimate - estimator_estimate)
+
+    unbiased_estimate = u_vec[unbiased_idx] @ exp[unbiased_idx] / exp[unbiased_idx].sum()
+    estimator_estimate = e_vec[estimator_idx] @ exp[estimator_idx] / exp[estimator_idx].sum()
+    res_exp = (unbiased_estimate - estimator_estimate) 
+
+    return res, res_exp
+
+
+def perform_cv_once(ubiased_vec, estimator_vec, k=100):
+    n = len(ubiased_vec)
+    ratio = np.var(estimator_vec) / (np.var(ubiased_vec) + np.var(estimator_vec) + 1e-6)
+    # exp_draw = random_.exponential(scale=1.0, size=n)
+
+    if ratio == 0 or ratio == 1 or np.isnan(ratio):
+       ratio = 0.5
+
+    ratio = max(1/n, ratio)
+    ratio = min((n-1)/n, ratio)
+
+    estimator_size = int(n * ratio)
+    results = []
+    is_pos = []
+
+    # Computing k-fold CV error estimates:
+    for i in range(k):
+        res_exp = split_and_calculate(
+            ubiased_vec,
+            estimator_vec,
+            estimator_size
+                            )
+
+    results = np.array(results)
+    sign = np.sign(np.array(is_pos).mean())
+
+    return sign * np.sqrt(results.mean()) / np.sqrt(k)
 
 
 def cv_score_model(val_dataset, scores_all, policy_prob, lam=3.0):
@@ -236,22 +273,11 @@ def cv_score_model(val_dataset, scores_all, policy_prob, lam=3.0):
 
     print(f'Validation weights_info: {weights_info}')
 
-    # iw = prob / pscore
-    
-    # qq = np.quantile(iw, q=[q, 1-q])
-    # mask = (iw > qq[0]) & (iw < qq[1])
-
-    # users = users[mask]
-    # actions = actions[mask]
-    # reward = reward[mask]
-    # pscore = pscore[mask]
-    # prob = prob[mask]
-
     sndr_vec = sndr_rewards(pscore, scores, policy_prob, reward, users, actions, lam=lam)
     ipw_vec = ipw_rewards(pscore, policy_prob, reward, users, actions)
 
-    err = perform_cv(sndr_vec, ipw_vec, k=100)
-    
+    err = perform_cv(sndr_vec, ipw_vec, B=15)
+
     r_hat = sndr_vec.mean()
     se_hat = sndr_vec.std() / np.sqrt(len(sndr_vec))
 
@@ -266,7 +292,7 @@ def cv_score_model(val_dataset, scores_all, policy_prob, lam=3.0):
 
     if weights_info['ess'] < len(reward) * 0.01:
         print("Warning: Low ESS in validation data!")
-        return -np.inf, np.inf, weights_info
+        return -np.inf, -np.inf, weights_info
     
     return r_hat, err, weights_info
 

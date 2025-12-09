@@ -54,7 +54,6 @@ from models import (
 from training_utils import (
     train,
     validation_loop,
-    cv_score_model,
 )
 
 from custom_losses import (
@@ -62,6 +61,8 @@ from custom_losses import (
     IPWPolicyLoss,
     KLPolicyLoss,
 )
+
+from model_scoring import score_model_modular
 
 random_state = 12345
 random_ = check_random_state(random_state)
@@ -689,14 +690,20 @@ def regression_trainer_trial(
                 print(
                     f"actual reward: {r}"
                 )
-                r_hat, err, weight_info = cv_score_model(val_data, trial_scores_all, pi_i)
-                
+                scores_dict, scores_array, weight_info = score_model_modular(val_data, trial_scores_all, pi_i)
+                r_hat = scores_dict['dr_naive_mean']
+                err = scores_dict['dr_naive_se']
+
+                value = r_hat - 2 * err  # conservative estimate
+
+                trial.set_user_attr("all_values", scores_array)
+                trial.set_user_attr("scores_dict", scores_dict)
                 trial.set_user_attr("r_hat", r_hat)
                 trial.set_user_attr("q_error", err)
                 trial.set_user_attr("actual_reward", r)
-                trial.set_user_attr("ess", weight_info['ess'])
+                trial.set_user_attr("ess", weight_info["ess"])
 
-                return r_hat - 2 * err
+                return value
 
             # --- Run Optuna search ---
             study = optuna.create_study(direction="maximize")
@@ -787,5 +794,17 @@ def regression_trainer_trial(
 
         # Aggregate across runs
         results[train_size] = _mean_dict(trial_dicts_this_size)
+        
+    trial_df = study.trials_dataframe()[["value", 
+                                         "user_attrs_actual_reward", 
+                                         "user_attrs_q_error", 
+                                         "user_attrs_r_hat", 
+                                         "user_attrs_ess",                                          
+                                         "user_attrs_scores_dict", 
+                                         "user_attrs_all_values"
+                                         ]]
 
-    return pd.DataFrame.from_dict(results, orient="index"), study.trials_dataframe()[["value", "user_attrs_actual_reward", "user_attrs_q_error", "user_attrs_r_hat", "user_attrs_ess"]]
+    trial_df['user_attrs_actual_reward'] = trial_df['user_attrs_actual_reward'].apply(lambda x:x[0])
+    trial_df = trial_df[trial_df['value'] > 0]
+
+    return pd.DataFrame.from_dict(results, orient="index"), trial_df

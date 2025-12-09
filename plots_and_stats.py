@@ -170,19 +170,20 @@ def plot_error_hover(estimated_error, actual_error, ESS,
                      title="Interactive Error vs Actual Error (ESS-colored)",
                      x_label="Estimated Error",
                      y_label="Actual Error"):
+    
     df_plot = pd.DataFrame({
-        "Estimated Error": estimated_error,
-        "Actual Error": actual_error,
+        f"{x_label}": estimated_error,
+        f"{y_label}": actual_error,
         "ESS": ESS
     })
 
     fig = px.scatter(
         df_plot,
-        x="Estimated Error",
-        y="Actual Error",
+        x=f"{x_label}",
+        y=f"{y_label}",
         color="ESS",
         color_continuous_scale="Viridis",
-        hover_data=["Estimated Error", "Actual Error", "ESS"],
+        hover_data=[f"{x_label}", f"{y_label}", "ESS"],
         title=title,
     )
 
@@ -245,7 +246,7 @@ def compute_statistics_and_plots(df, n_bins=20):
     ess = df["user_attrs_ess"].values
 
     err_hat = df["user_attrs_q_error"].values
-    err = abs(actual - est)
+    err = actual - est
 
     # metrics
     cor = compute_correlations(score, actual, est)
@@ -264,7 +265,11 @@ def compute_statistics_and_plots(df, n_bins=20):
 
     plot_ess_heatmap_scatter(err_hat, err, ess)
 
-    plot_error_hover(score, actual, ess)
+    plot_error_hover(score, actual, ess, 
+                     title="Interactive Score vs Actual Reward (ESS-colored)",
+                    x_label="Score",
+                    y_label="Actual Reward")
+    
     plot_error_hover(err_hat, err, ess,
                     title="Interactive Estimated vs Actual Error (ESS-colored)",
                     x_label="Estimated Error",
