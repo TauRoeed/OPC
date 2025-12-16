@@ -17,6 +17,12 @@ def get_scores_dict(
     dr_boot_mean,
     dr_boot_std,
     dr_boot_ci,
+    dr_uni_mean,
+    dr_uni_std,
+    dr_uni_ci,
+    ipw_uni_mean,
+    ipw_uni_std,
+    ipw_uni_ci,
     ipw_boot_mean,
     ipw_boot_std,
     ipw_boot_ci,
@@ -44,6 +50,17 @@ def get_scores_dict(
         "dr_boot_std": dr_boot_std,
         "dr_boot_ci_low": dr_boot_ci[0],
         "dr_boot_ci_high": dr_boot_ci[1],
+
+        "dr_uni_mean": dr_uni_mean,
+        "dr_uni_std": dr_uni_std,
+        "dr_uni_ci_low": dr_uni_ci[0],
+        "dr_uni_ci_high": dr_uni_ci[1],
+
+        # ---- Uniform IPW ----
+        "ipw_uni_mean": ipw_uni_mean,
+        "ipw_uni_std": ipw_uni_std,
+        "ipw_uni_ci_low": ipw_uni_ci[0],
+        "ipw_uni_ci_high": ipw_uni_ci[1],
 
         # ---- Bootstrap IPW ----
         "ipw_boot_mean": ipw_boot_mean,
@@ -115,6 +132,38 @@ def ipw_rewards(
     iw = pi_e_at_position / pscore
     r_hat = iw * original_policy_rewards
     return r_hat
+
+
+
+def uniform_bootstrap_mean(
+    values: np.ndarray,
+    n_bootstrap: int = 500,
+    m = 0.7,
+    random_state: int | None = None,
+):
+    """
+    Exponential (Bayesian) bootstrap for the mean of per-sample values.
+
+    Returns:
+        mean_est: float, bootstrap mean of the mean
+        std_est: float, bootstrap std of the mean
+        ci: tuple (low, high), 95% percentile CI
+        all_samples: np.ndarray of length n_bootstrap
+    """
+    rng = np.random.default_rng(random_state)
+    n = len(values)
+    n_samples = int(n*m)
+    boot_samples = np.empty(n_bootstrap, dtype=float)
+
+    for b in range(n_bootstrap):
+        boot_sample = values[rng.choice(n, size=n_samples, replace=True)]
+        boot_samples[b] = np.mean(boot_sample)
+
+    mean_est = boot_samples.mean()
+    std_est = boot_samples.std(ddof=1)
+    low, high = np.percentile(boot_samples, [2.5, 97.5])
+
+    return mean_est, std_est, (low, high), boot_samples
 
 
 def exp_bootstrap_mean(
@@ -316,6 +365,7 @@ def score_model_modular(
     dr_naive_mean = dr_vec.mean()
     dr_naive_se = dr_vec.std(ddof=1) / np.sqrt(len(dr_vec))
     t_crit = scipy.stats.t.ppf(0.975, len(dr_vec) - 1)
+
     dr_naive_ci = (
         dr_naive_mean - t_crit * dr_naive_se,
         dr_naive_mean + t_crit * dr_naive_se,
@@ -331,6 +381,18 @@ def score_model_modular(
         ipw_vec,
         n_bootstrap=n_bootstrap,
         random_state=None if random_state is None else random_state + 7,
+    )
+    
+    dr_uni_mean, dr_uni_std, dr_uni_ci, _ = uniform_bootstrap_mean(
+        dr_vec,
+        n_bootstrap=n_bootstrap,
+        random_state=None if random_state is None else random_state + 3,
+    )
+    
+    ipw_uni_mean, ipw_uni_std, ipw_uni_ci, _ = uniform_bootstrap_mean(
+        ipw_vec,
+        n_bootstrap=n_bootstrap,
+        random_state=None if random_state is None else random_state + 5,
     )
 
     # ----------- CV: DR vs IPW (uniform weights) -----------
@@ -361,6 +423,7 @@ def score_model_modular(
     loss_uniform = max(
         cv_stats_uniform["rmse"], abs(cv_stats_uniform["bias_lb_signed"])
     )
+
     loss_exp = max(cv_stats_exp["rmse"], abs(cv_stats_exp["bias_lb_signed"]))
 
     score_naive_minus_cv_uniform = dr_naive_mean - loss_uniform
@@ -374,6 +437,12 @@ def score_model_modular(
         dr_boot_mean=dr_boot_mean,
         dr_boot_std=dr_boot_std,
         dr_boot_ci=dr_boot_ci,
+        dr_uni_mean=dr_uni_mean,
+        dr_uni_std=dr_uni_std,
+        dr_uni_ci=dr_uni_ci,
+        ipw_uni_mean=ipw_uni_mean,
+        ipw_uni_std=ipw_uni_std,
+        ipw_uni_ci=ipw_uni_ci,
         ipw_boot_mean=ipw_boot_mean,
         ipw_boot_std=ipw_boot_std,
         ipw_boot_ci=ipw_boot_ci,

@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 
 import numpy as np
-from scipy.stats import spearmanr
+from scipy.stats import spearmanr, kendalltau
 from scipy.stats import gaussian_kde, lognorm
 import pandas as pd
 
@@ -18,114 +18,79 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from scipy import stats
 
-def unpack_scores_dict(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Take the raw study df (with 'user_attrs_scores_dict') and return
-    a new DataFrame with flattened score_* columns.
-    """
-    if "user_attrs_scores_dict" not in df.columns:
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+
+# ----------------------------
+# Helpers
+# ----------------------------
+def _maybe_unpack_scores_dict(df: pd.DataFrame, scores_dict_col: str) -> pd.DataFrame:
+    """If scores_dict_col exists, expand it into columns. Otherwise return df copy."""
+    if scores_dict_col not in df.columns:
         return df.copy()
 
-    def parse_scores_dict(s: str):
-        import numpy as np
-        return eval(s, {"np": np})
+    def _parse(x):
+        if isinstance(x, dict):
+            return x
+        if isinstance(x, str):
+            # stored with np.float64 etc; allow np
+            return eval(x, {"np": np})
+        raise TypeError(f"Unsupported scores dict type: {type(x)}")
 
-    df = df.copy()
-    df["scores_dict"] = df["user_attrs_scores_dict"].apply(parse_scores_dict)
-    scores_df = pd.json_normalize(df["scores_dict"])
-    scores_df.columns = [f"score_{c}" for c in scores_df.columns]
+    df2 = df.copy()
+    sd = df2[scores_dict_col].apply(_parse)
+    flat = pd.json_normalize(sd)
+    # keep original names (dr_naive_mean etc) rather than prefixing
+    df2 = pd.concat([df2.drop(columns=[scores_dict_col]), flat], axis=1)
+    return df2
 
-    full_df = pd.concat([df.drop(columns=["user_attrs_scores_dict"]), scores_df], axis=1)
-    return full_df
 
+def plot_calibration_and_rank_table(df: pd.DataFrame, cols: list, reward_col: str):
+    """Plot calibration curves and rank tables for specified score columns."""
+    df = _maybe_unpack_scores_dict(df, "user_attrs_scores_dict")
+    df[reward_col] = df[reward_col] - df[reward_col].min()
+    rank_df = pd.DataFrame(index=cols, columns='Spearman-Rank Kendall-Tau'.split())
+    for col in cols:
+        df[col] = df[col] - df[col].min()
+        # if 'ipw' in col.lower():
+            # df[col] = -1 * df[col]  # invert IPW scores for ranking
 
-def plot_ope_study_diagnostics(
-    df: pd.DataFrame,
-    score_cols: list[str] | None = None,
-    true_col: str = "user_attrs_actual_reward",   # <<<<<<<< UPDATED HERE
-    est_col: str = "user_attrs_r_hat",            # your DR-shrink estimate
-):
-    """
-    Given the study df, unpack scores and produce diagnostic plots comparing
-    score_* metrics to actual rewards and estimation errors.
-
-    true_col: what you're trying to approximate (ground truth).
-    est_col:  your estimator (DR shrink by default).
-    """
-
-    full_df = unpack_scores_dict(df)
-
-    # --- derived metrics ---
-    full_df["true_value"] = full_df[true_col]
-    full_df["est_value"] = full_df[est_col]
-    full_df["error"] = full_df["est_value"] - full_df["true_value"]
-    full_df["abs_error"] = full_df["error"].abs()
-    full_df["regret"] = full_df["true_value"] - full_df["est_value"]
-
-    # choose default score columns if not provided
-    if score_cols is None:
-        candidates = [
-            "score_dr_naive_mean",
-            "score_dr_boot_mean",
-            "score_ipw_boot_mean",
-            "score_score_naive_minus_cv_uniform",
-            "score_score_naive_minus_cv_exp",
-        ]
-        score_cols = [c for c in candidates if c in full_df.columns]
-        if not score_cols:
-            score_cols = [c for c in full_df.columns if c.startswith("score_")]
-
-    # -------------------------------
-    # 1. Estimator vs ground truth
-    # -------------------------------
-    plt.figure()
-    plt.scatter(full_df["true_value"], full_df["est_value"], alpha=0.7)
-    lo = min(full_df["true_value"].min(), full_df["est_value"].min())
-    hi = max(full_df["true_value"].max(), full_df["est_value"].max())
-    plt.plot([lo, hi], [lo, hi])
-    plt.xlabel(f"True value ({true_col})")
-    plt.ylabel(f"Estimated value ({est_col})")
-    plt.title("Estimated vs True Value")
-    plt.tight_layout()
-
-    # -------------------------------
-    # 2. For each score: vs truth & vs abs error
-    # -------------------------------
-    for col in score_cols:
-
-        # score vs actual reward
-        plt.figure()
-        plt.scatter(full_df[col], full_df["true_value"], alpha=0.7)
-        plt.xlabel(col)
-        plt.ylabel(true_col)
-        plt.title(f"{col} vs {true_col}")
-        plt.tight_layout()
-        plot_ranked_reward_curve(full_df[col].values, full_df["true_value"].values, full_df[col].values, window_size=1)
-    # -------------------------------
-    # 3. Correlations
-    # -------------------------------
-    corr_true = []
-    corr_neg_abs_err = []
-
-    for col in score_cols:
-        corr_true.append(full_df[[col, "true_value"]].corr().iloc[0, 1])
-        corr_neg_abs_err.append(
-            full_df[[col, "abs_error"]].corr().iloc[0, 1] * -1.0
+        print(f"Plotting calibration for: {col}")
+        plot_ranked_reward_curve(
+            df[col].values,
+            df[reward_col].values,
+            df[col].values,
+            window_size=1,
+            label1="Actual Reward",
+            label2=f"Estimated Reward by {col}"
         )
+        spearman, tau = rank_agreement(df[col].values, df[reward_col].values)
+        rank_df.loc[col, 'Spearman-Rank'] = spearman
+        rank_df.loc[col, 'Kendall-Tau'] = tau
 
-    x = np.arange(len(score_cols))
+    return rank_df
 
-    plt.figure()
-    plt.bar(x - 0.15, corr_true, width=0.3, label=f"corr(score, {true_col})")
-    plt.bar(x + 0.15, corr_neg_abs_err, width=0.3, label="corr(score, -abs_error)")
-    plt.xticks(x, score_cols, rotation=45, ha="right")
-    plt.ylabel("Correlation")
-    plt.title(f"Correlation of Scoring Rules with {true_col} / -Abs Error")
-    plt.legend()
-    plt.tight_layout()
 
-    return full_df
+
+def rank_agreement(score, true_value):
+    score = np.asarray(score, dtype=float)
+    true_value = np.asarray(true_value, dtype=float)
+
+    mask = np.isfinite(score) & np.isfinite(true_value)
+
+    rho, _ = spearmanr(score[mask], true_value[mask])
+    tau, _ = kendalltau(score[mask], true_value[mask])
+
+    return rho, tau
+
+
 
 
 def compute_correlations(score, actual, est):
@@ -182,12 +147,12 @@ def plot_ess_heatmap_scatter(score, actual, ess):
     plt.show()
 
 
-def plot_ranked_reward_curve(score, actual, est, window_size = 9):
+def plot_ranked_reward_curve(score, actual, est, window_size = 9, label1="Actual", label2="Estimated"):
     order = np.argsort(score)[::-1]
     weights = np.ones(window_size) / window_size
     plt.figure(figsize=(8,5))
-    plt.plot(np.convolve(actual[order], weights, mode='valid'), label="Actual Reward", linewidth=2)
-    plt.plot(np.convolve(est[order], weights, mode='valid'), label="Estimated Reward", linewidth=2, alpha=0.7)
+    plt.plot(np.convolve(actual[order], weights, mode='valid'), label=label1, linewidth=2)
+    plt.plot(np.convolve(est[order], weights, mode='valid'), label=label2, linewidth=2, alpha=0.7)
     plt.title("Ranked Reward Curve (Sorted by Score)")
     plt.xlabel("Rank")
     plt.ylabel("Reward")
@@ -260,7 +225,7 @@ def plot_log_kde_with_lognormal_fit(values_list, labels):
     plt.show()
 
 
-def plot_calibration_curve(score, actual, n_bins=20):
+def plot_calibration_curve(score, actual, n_bins=20, x_label="Mean Score (bin)", y_label="Mean Actual Reward (bin)"):   
     order = np.argsort(score)
     sorted_score = score[order]
     sorted_actual = actual[order]
@@ -274,8 +239,8 @@ def plot_calibration_curve(score, actual, n_bins=20):
     lo, hi = min(avg_pred), max(avg_pred)
     plt.plot([lo, hi], [lo, hi], 'k--', label="Perfect calibration")
     plt.title("Calibration Curve")
-    plt.xlabel("Mean Score (bin)")
-    plt.ylabel("Mean Actual Reward (bin)")
+    plt.xlabel(x_label)
+    plt.ylabel(y_label)
     plt.grid(True)
     plt.legend()
     plt.show()
