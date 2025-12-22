@@ -55,12 +55,8 @@ def _maybe_unpack_scores_dict(df: pd.DataFrame, scores_dict_col: str) -> pd.Data
 def plot_calibration_and_rank_table(df: pd.DataFrame, cols: list, reward_col: str):
     """Plot calibration curves and rank tables for specified score columns."""
     df = _maybe_unpack_scores_dict(df, "user_attrs_scores_dict")
-    df[reward_col] = df[reward_col] - df[reward_col].min()
     rank_df = pd.DataFrame(index=cols, columns='Spearman-Rank Kendall-Tau'.split())
     for col in cols:
-        df[col] = df[col] - df[col].min()
-        # if 'ipw' in col.lower():
-            # df[col] = -1 * df[col]  # invert IPW scores for ranking
 
         print(f"Plotting calibration for: {col}")
         plot_ranked_reward_curve(

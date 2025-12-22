@@ -808,3 +808,107 @@ def regression_trainer_trial(
     trial_df = trial_df[trial_df['value'] > 0]
 
     return pd.DataFrame.from_dict(results, orient="index"), trial_df
+
+
+
+def generate_policies(num_policies, pi_0):
+    policies = []
+    n_users, n_actions = pi_0.shape
+
+    for i in range(num_policies):
+        
+        noise = np.random.normal(0, 1, size=(n_users, n_actions))
+        noise = softmax(noise, axis=1)
+        alpha = np.random.uniform(0, 1)
+        pi_i = (1 - alpha) * pi_0 + alpha * noise
+        # pi_i = softmax(pi_i, axis=1)
+        policies.append(pi_i)
+
+    return policies
+
+
+def random_policy_trainer_trial(
+    train_size,
+    dataset,
+    n_policies=50,
+    val_size=2000,
+):
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    torch.backends.cudnn.benchmark = torch.cuda.is_available()
+    if torch.cuda.is_available():
+        torch.set_float32_matmul_precision("high")
+    
+    results = {}
+
+    # ===== Unpack dataset =====
+    our_x_orig = dataset["our_x"]
+    our_a_orig = dataset["our_a"]
+    n_actions = dataset["n_actions"]
+
+    T = lambda x: torch.as_tensor(x, device=device, dtype=torch.float32)
+
+    # ===== Baseline row =====
+    pi_0 = softmax(our_x_orig @ our_a_orig.T, axis=1)
+
+    simulation_data = create_simulation_data_from_pi(
+        dataset,
+        pi_0,
+        train_size + val_size,
+        random_state=train_size + 17
+    )
+
+    idx_train = np.arange(train_size)
+    train_data = get_train_data(
+        n_actions, train_size, simulation_data, idx_train, our_x_orig
+    )
+    val_idx = np.arange(val_size) + train_size
+    val_data = get_train_data(
+        n_actions, val_size, simulation_data, val_idx, our_x_orig
+    )
+    df = pd.DataFrame(columns=[
+                                "value", 
+                                "user_attrs_actual_reward", 
+                                "user_attrs_q_error", 
+                                "user_attrs_r_hat", 
+                                "user_attrs_ess",                                          
+                                "user_attrs_scores_dict", 
+                                "user_attrs_all_values"
+                            ])
+    t0 = time.time()
+    regression_model = RegressionModel(
+        n_actions=n_actions,
+        action_context=our_a_orig,  # IMPORTANT: action embeddings
+        base_model=LogisticRegression(random_state=12345),
+    )
+
+    regression_model.fit(train_data["x"], train_data["a"], train_data["r"])
+    print(f"[Regression] Baseline regression model fit time: {time.time() - t0:.2f}s")
+
+    q_hat_all = regression_model.predict(our_x_orig)
+
+    scores_all = torch.as_tensor(q_hat_all, device=device, dtype=torch.float32)
+    policies = generate_policies(num_policies=n_policies, pi_0=pi_0)
+    # ===== Main loop over training sizes =====
+    for pi_i in policies:
+
+        scores_dict, scores_array, weight_info = score_model_modular(val_data, scores_all, pi_i)
+        r_hat = scores_dict['dr_naive_mean']
+        err = scores_dict['dr_naive_se']
+        r = calc_reward(dataset, np.expand_dims(pi_i, -1))[0]
+        value = r_hat - 2 * err  # conservative estimate
+        new_row = pd.DataFrame([{
+            "value": float(value),
+            "user_attrs_actual_reward": float(r),
+            "user_attrs_q_error": float(err),
+            "user_attrs_r_hat": float(r_hat),
+            "user_attrs_ess": float(weight_info["ess"]),
+            "user_attrs_scores_dict": scores_dict,
+            "user_attrs_all_values": scores_array
+        }])
+
+        df = pd.concat([df, new_row], ignore_index=True)
+
+    df = df[df['value'] > 0]
+
+    return df, df

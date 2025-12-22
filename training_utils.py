@@ -15,7 +15,6 @@ print(f"Using device: {device}")
 
 import torch.nn.functional as F
 import torch.optim as optim
-from torch.utils.data import DataLoader, Dataset
 
 # Top of notebook (once)
 torch.backends.cudnn.benchmark = torch.cuda.is_available()
@@ -30,9 +29,6 @@ import matplotlib.pyplot as plt
 # implementing OPE of the IPWLearner using synthetic bandit data
 import scipy
 from scipy.special import softmax
-# import debugpy
-import numpy as np
-import simulation_utils
 
 random_state=12345
 random_ = check_random_state(random_state)
@@ -159,142 +155,6 @@ def validation_loop(model, val_loader, scores_all, device='cpu'):
     std = torch.stack(estimated_rewards).std().item()
 
     return dict(value=avg, variance=std)
-
-
-def dros_shrinkage(iw: np.ndarray, lam: float):
-    """Doubly Robust with optimistic shrinkage."""
-    return (lam * iw) / (iw**2 + lam)
-
-
-# sndr rewards for cross validation
-def sndr_rewards(pscore, scores, policy_prob, original_policy_rewards, users, original_policy_actions, lam=3.0):
-        
-        pi_e_at_position = policy_prob[users, original_policy_actions].squeeze()
-        iw = pi_e_at_position / pscore
-        iw = dros_shrinkage(iw, lam=lam)
-
-        q_hat_at_position = scores[users, original_policy_actions].squeeze()
-        dm_reward = (scores * policy_prob)[users].sum(axis=1)
-        
-        r_hat = ((iw * (original_policy_rewards - q_hat_at_position))) + dm_reward
-
-        return r_hat
-
-
-# ipw rewards for cross validation
-def ipw_rewards(pscore, policy_prob, original_policy_rewards, users, original_policy_actions):
-        
-        pi_e_at_position = policy_prob[users, original_policy_actions].squeeze()
-        iw = pi_e_at_position / pscore
-
-         # reinforce trick step
-        r_hat = ((iw * (original_policy_rewards)))
-
-        return r_hat
-
-
-def perform_cv(unbiased_vec, estimator_vec, B=100):
-    results = []
-    for b in range(B):
-        m = int(len(unbiased_vec)**(0.7))
-        indices = np.random.default_rng().permutation(m)
-
-        res = perform_cv_once(
-            unbiased_vec[indices],
-            estimator_vec[indices],
-            k=100
-        )
-
-        results.append(res)
-
-    return np.array(results).mean()
-
-
-def split_and_calculate(u_vec, e_vec, estimator_size):
-    n = len(u_vec)
-
-    w = np.ones(n)
-    exp = random_.exponential(scale=1.0, size=n)
-
-    indices = np.random.default_rng().permutation(n)
-    estimator_idx = indices[:estimator_size]
-    unbiased_idx = indices[estimator_size:]
-
-    unbiased_estimate = u_vec[unbiased_idx] @ w[unbiased_idx] / w[unbiased_idx].sum()
-    estimator_estimate = e_vec[estimator_idx] @ w[estimator_idx] / w[estimator_idx].sum()
-    res = (unbiased_estimate - estimator_estimate)
-
-    unbiased_estimate = u_vec[unbiased_idx] @ exp[unbiased_idx] / exp[unbiased_idx].sum()
-    estimator_estimate = e_vec[estimator_idx] @ exp[estimator_idx] / exp[estimator_idx].sum()
-    res_exp = (unbiased_estimate - estimator_estimate) 
-
-    return res, res_exp
-
-
-def perform_cv_once(ubiased_vec, estimator_vec, k=100):
-    n = len(ubiased_vec)
-    ratio = np.var(estimator_vec) / (np.var(ubiased_vec) + np.var(estimator_vec) + 1e-6)
-    # exp_draw = random_.exponential(scale=1.0, size=n)
-
-    if ratio == 0 or ratio == 1 or np.isnan(ratio):
-       ratio = 0.5
-
-    ratio = max(1/n, ratio)
-    ratio = min((n-1)/n, ratio)
-
-    estimator_size = int(n * ratio)
-    results = []
-    is_pos = []
-
-    # Computing k-fold CV error estimates:
-    for i in range(k):
-        res_exp = split_and_calculate(
-            ubiased_vec,
-            estimator_vec,
-            estimator_size
-                            )
-
-    results = np.array(results)
-    sign = np.sign(np.array(is_pos).mean())
-
-    return sign * np.sqrt(results.mean()) / np.sqrt(k)
-
-
-def cv_score_model(val_dataset, scores_all, policy_prob, lam=3.0):
-
-    pscore = val_dataset['pscore']
-    scores = scores_all.detach().cpu().numpy().squeeze()
-    users = val_dataset['x_idx']
-    reward = val_dataset['r']
-    actions = val_dataset['a']
-
-    prob = policy_prob[users, actions].squeeze()
-    weights_info = simulation_utils.get_weights_info(prob, pscore)
-
-    print(f'Validation weights_info: {weights_info}')
-
-    sndr_vec = sndr_rewards(pscore, scores, policy_prob, reward, users, actions, lam=lam)
-    ipw_vec = ipw_rewards(pscore, policy_prob, reward, users, actions)
-
-    err = perform_cv(sndr_vec, ipw_vec, B=15)
-
-    r_hat = sndr_vec.mean()
-    se_hat = sndr_vec.std() / np.sqrt(len(sndr_vec))
-
-    print(f"Estimated reward: {r_hat:.6f}")
-
-    print(f"Cross-validated error: {err:.6f}")
-    print(f"Final score CI (reward +- 2*error): [{r_hat - 2 * err:.6f}, {r_hat + 2 * err:.6f}]")
-
-    se = scipy.stats.t.ppf(0.975, len(sndr_vec)-1) * se_hat
-    print(f"Standard error: {se_hat:.6f}")
-    print(f"Final t_dist CI (reward +- t_0.975*se_hat): [{r_hat - se:.6f}, {r_hat + se:.6f}]")
-
-    if weights_info['ess'] < len(reward) * 0.01:
-        print("Warning: Low ESS in validation data!")
-        return -np.inf, -np.inf, weights_info
-    
-    return r_hat, err, weights_info
 
 
 def fit_bpr(model, data_loader, loss_fn=BPRLoss(), num_epochs=5, lr=0.001, device=device):
