@@ -317,6 +317,7 @@ def cv_error_between_estimators(
         "bias_lb_signed": bias_lb_signed,
     }
 
+
 def score_model_modular(
     val_dataset: dict,
     scores_all: torch.Tensor,
@@ -340,7 +341,7 @@ def score_model_modular(
     scores = scores_all.detach().cpu().numpy().squeeze()
     prob = policy_prob[users, actions].squeeze()
     weights_info = simulation_utils.get_weights_info(prob, pscore)
-    print(f"Validation weights_info: {weights_info}")
+    # print(f"Validation weights_info: {weights_info}")
 
     # ----------- Per-round contributions -----------
     dr_vec = dr_shrinkage_rewards(
@@ -468,10 +469,10 @@ def score_model_modular(
         dtype=float,
     )
 
-    # ----------- ESS safeguard -----------
-    if weights_info["ess"] < len(reward) * 0.01:
-        print("Warning: Low ESS — returning -inf for main score.")
-        scores_dict["dr_naive_mean"] = -np.inf
-        scores_array[0] = -np.inf
+    # # ----------- ESS safeguard -----------
+    # if weights_info["ess"] < len(reward) * 0.01:
+    #     print("Warning: Low ESS — returning -inf for main score.")
+    #     scores_dict["dr_naive_mean"] = -np.inf
+    #     scores_array[0] = -np.inf
 
     return scores_dict, scores_array, weights_info

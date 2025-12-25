@@ -811,16 +811,19 @@ def regression_trainer_trial(
 
 
 
-def generate_policies(num_policies, pi_0):
+def generate_policies(num_policies, pi_0, pi_oracle):
     policies = []
     n_users, n_actions = pi_0.shape
 
     for i in range(num_policies):
-        
-        noise = np.random.normal(0, 1, size=(n_users, n_actions))
-        noise = softmax(noise, axis=1)
+        noise = random_.normal(size=(n_users, n_actions))
+        noise_p = softmax(noise, axis=1)
+
         alpha = np.random.uniform(0, 1)
-        pi_i = (1 - alpha) * pi_0 + alpha * noise
+        beta = np.random.uniform(0, 1 - alpha)
+        
+        # pi_i = (1 - alpha) * pi_0 + alpha * pi_oracle
+        pi_i = (1 - alpha - beta) * pi_0 + alpha * noise_p + beta * pi_oracle
         # pi_i = softmax(pi_i, axis=1)
         policies.append(pi_i)
 
@@ -844,12 +847,15 @@ def random_policy_trainer_trial(
     # ===== Unpack dataset =====
     our_x_orig = dataset["our_x"]
     our_a_orig = dataset["our_a"]
+    true_x = dataset["emb_x"]
+    true_a = dataset["emb_a"]
     n_actions = dataset["n_actions"]
 
     T = lambda x: torch.as_tensor(x, device=device, dtype=torch.float32)
 
     # ===== Baseline row =====
     pi_0 = softmax(our_x_orig @ our_a_orig.T, axis=1)
+    pi_oracle = softmax(true_x @ true_a.T, axis=1)
 
     simulation_data = create_simulation_data_from_pi(
         dataset,
@@ -888,9 +894,10 @@ def random_policy_trainer_trial(
     q_hat_all = regression_model.predict(our_x_orig)
 
     scores_all = torch.as_tensor(q_hat_all, device=device, dtype=torch.float32)
-    policies = generate_policies(num_policies=n_policies, pi_0=pi_0)
+    policies = generate_policies(num_policies=n_policies, pi_0=pi_0, pi_oracle=pi_oracle)
     # ===== Main loop over training sizes =====
-    for pi_i in policies:
+    tq = tqdm(policies)
+    for pi_i in tq:
 
         scores_dict, scores_array, weight_info = score_model_modular(val_data, scores_all, pi_i)
         r_hat = scores_dict['dr_naive_mean']
@@ -908,6 +915,7 @@ def random_policy_trainer_trial(
         }])
 
         df = pd.concat([df, new_row], ignore_index=True)
+        tq.set_description(f"Validation weights_info: {weight_info}")
 
     df = df[df['value'] > 0]
 
