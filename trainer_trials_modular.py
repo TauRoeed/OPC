@@ -903,7 +903,7 @@ def random_policy_trainer_trial(
         r_hat = scores_dict['dr_naive_mean']
         err = scores_dict['dr_naive_se']
         r = calc_reward(dataset, np.expand_dims(pi_i, -1))[0]
-        value = r_hat - 2 * err  # conservative estimate
+        value = scores_dict['dr_naive_ci_low'] # conservative estimate
         new_row = pd.DataFrame([{
             "value": float(value),
             "user_attrs_actual_reward": float(r),
