@@ -153,15 +153,19 @@ def uniform_bootstrap_mean(
     rng = np.random.default_rng(random_state)
     n = len(values)
     n_samples = int(n*m)
-    boot_samples = np.empty(n_bootstrap, dtype=float)
+    boot_samples = np.empty((n_bootstrap, 3), dtype=float)
 
     for b in range(n_bootstrap):
         boot_sample = values[rng.choice(n, size=n_samples, replace=True)]
-        boot_samples[b] = np.mean(boot_sample)
+        mu, se = np.mean(boot_sample), np.std(boot_sample, ddof=1)
+        boot_samples[b, 0] = mu
+        boot_samples[b, 1] = se
+        boot_samples[b, 2] = mu - scipy.stats.t.ppf(0.975, n_samples - 1) * (se / np.sqrt(n_samples))
 
-    mean_est = boot_samples.mean()
-    std_est = boot_samples.std(ddof=1)
-    low, high = np.percentile(boot_samples, [2.5, 97.5])
+    mean_est = boot_samples[:, 0].mean()
+    std_est = boot_samples[:, 1].mean()
+    high = np.percentile(boot_samples, [97.5])
+    low = boot_samples[:,2].mean()
 
     return mean_est, std_est, (low, high), boot_samples
 
@@ -182,16 +186,21 @@ def exp_bootstrap_mean(
     """
     rng = np.random.default_rng(random_state)
     n = len(values)
-    boot_samples = np.empty(n_bootstrap, dtype=float)
+    boot_samples = np.empty((n_bootstrap, 3), dtype=float)
 
     for b in range(n_bootstrap):
         weights = rng.exponential(scale=1.0, size=n)
-        weights = weights / weights.sum()
-        boot_samples[b] = np.sum(weights * values)
+        # weights = weights / weights.sum()
+        mu, se = np.mean(weights * values), np.std(weights * values, ddof=1) / np.sqrt(n)
+        boot_samples[b, 0] = mu
+        boot_samples[b, 1] = se
+        boot_samples[b, 2] = mu - scipy.stats.t.ppf(0.975, n - 1) * (se / np.sqrt(n))
 
-    mean_est = boot_samples.mean()
-    std_est = boot_samples.std(ddof=1)
+
+    mean_est = boot_samples[:, 0].mean()
+    std_est = boot_samples[:, 1].mean()
     low, high = np.percentile(boot_samples, [2.5, 97.5])
+    low = boot_samples[:,2].mean()
 
     return mean_est, std_est, (low, high), boot_samples
 

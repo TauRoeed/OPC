@@ -811,7 +811,7 @@ def regression_trainer_trial(
 
 
 
-def generate_policies(num_policies, pi_0, pi_oracle):
+def generate_policies(num_policies, pi_0, pi_oracle, use_random=True, use_oracle=True, jaws=False):
     policies = []
     n_users, n_actions = pi_0.shape
 
@@ -819,9 +819,17 @@ def generate_policies(num_policies, pi_0, pi_oracle):
         noise = random_.normal(size=(n_users, n_actions))
         noise_p = softmax(noise, axis=1)
 
-        alpha = np.random.uniform(0, 1)
-        beta = np.random.uniform(0, 1 - alpha)
-        
+        alpha = np.random.uniform(0, 1) * use_random
+        beta = np.random.uniform(0, 1 - alpha) * use_oracle
+
+        if jaws:
+            p = np.random.uniform(0, 1)
+            if p > 0.5:
+                beta = 0.0
+            else:
+                alpha = 0.0
+                beta = np.random.uniform(0, 1)
+
         # pi_i = (1 - alpha) * pi_0 + alpha * pi_oracle
         pi_i = (1 - alpha - beta) * pi_0 + alpha * noise_p + beta * pi_oracle
         # pi_i = softmax(pi_i, axis=1)
@@ -835,6 +843,9 @@ def random_policy_trainer_trial(
     dataset,
     n_policies=50,
     val_size=2000,
+    use_random=True,
+    use_oracle=True,
+    jaws=False,
 ):
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -894,7 +905,7 @@ def random_policy_trainer_trial(
     q_hat_all = regression_model.predict(our_x_orig)
 
     scores_all = torch.as_tensor(q_hat_all, device=device, dtype=torch.float32)
-    policies = generate_policies(num_policies=n_policies, pi_0=pi_0, pi_oracle=pi_oracle)
+    policies = generate_policies(num_policies=n_policies, pi_0=pi_0, pi_oracle=pi_oracle, use_random=use_random, use_oracle=use_oracle, jaws=jaws)
     # ===== Main loop over training sizes =====
     tq = tqdm(policies)
     for pi_i in tq:
@@ -911,7 +922,10 @@ def random_policy_trainer_trial(
             "user_attrs_r_hat": float(r_hat),
             "user_attrs_ess": float(weight_info["ess"]),
             "user_attrs_scores_dict": scores_dict,
-            "user_attrs_all_values": scores_array
+            "user_attrs_all_values": scores_array,
+            'ipw': scores_dict['ipw_uni_mean'],
+            "sign_uni": scores_dict['cv_signed_rmse_uniform'],
+            "sign_exp": scores_dict['cv_signed_rmse_exp']
         }])
 
         df = pd.concat([df, new_row], ignore_index=True)
