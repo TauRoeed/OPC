@@ -550,13 +550,15 @@ def regression_trainer_trial(
     original_policy_prob = np.expand_dims(pi_0, -1)
 
     simulation_data = create_simulation_data_from_pi(
-        dataset, pi_0, val_size, random_state=0
+        dataset, pi_0, val_size + val_size, random_state=0
     )
+    
     train_data = get_train_data(
         n_actions, val_size, simulation_data, np.arange(val_size), our_x_orig
     )
+
     val_data = get_train_data(
-        n_actions, val_size, simulation_data, np.arange(val_size), our_x_orig
+        n_actions, val_size, simulation_data, np.arange(val_size) + val_size, our_x_orig
     )
 
     t0 = time.time()
@@ -603,11 +605,18 @@ def regression_trainer_trial(
                 train_size + val_size,
                 random_state=(run + 1) * (train_size + 17),
             )
-
-            idx_train = np.arange(train_size)
-            train_data = get_train_data(
-                n_actions, train_size, simulation_data, idx_train, our_x_orig
+            reg_size = int(0.5 * train_size)
+            reg_data_idx = np.arange(reg_size)
+            
+            reg_data = get_train_data(
+                n_actions, reg_size, simulation_data, reg_data_idx, our_x_orig
             )
+
+            idx_train = np.arange(reg_size) + reg_size
+            train_data = get_train_data(
+                n_actions, train_size - reg_size, simulation_data, idx_train, our_x_orig
+            )
+
             val_idx = np.arange(val_size) + train_size
             val_data = get_train_data(
                 n_actions, val_size, simulation_data, val_idx, our_x_orig
@@ -619,6 +628,7 @@ def regression_trainer_trial(
                 train_data["r"],
                 original_policy_prob,
             )
+
             num_workers = 4 if torch.cuda.is_available() else 0
 
             # --- Define Optuna objective ---
@@ -637,8 +647,9 @@ def regression_trainer_trial(
                     action_context=our_a_orig,
                     base_model=LogisticRegression(random_state=12345),
                 )
+            
                 trial_reg_model.fit(
-                    train_data["x"], train_data["a"], train_data["r"]
+                    reg_data["x"], reg_data["a"], reg_data["r"]
                 )
 
                 # Predict q_hat for ALL users (static scores)
@@ -694,7 +705,7 @@ def regression_trainer_trial(
                 r_hat = scores_dict['dr_naive_mean']
                 err = scores_dict['dr_naive_se']
 
-                value = r_hat - 2 * err  # conservative estimate
+                value = scores_dict['dr_naive_ci_low']  # conservative estimate
 
                 trial.set_user_attr("all_values", scores_array)
                 trial.set_user_attr("scores_dict", scores_dict)

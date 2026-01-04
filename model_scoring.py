@@ -419,7 +419,7 @@ def score_model_modular(
 
     # ----------- CV: DR vs IPW (exponential weights) -----------
     cv_stats_exp = cv_error_between_estimators(
-        unbiased_vec=dr_vec,
+        unbiased_vec=dr_vec,    
         estimator_vec=ipw_vec,
         n_outer=15,
         n_inner=100,
@@ -470,8 +470,8 @@ def score_model_modular(
             dr_naive_mean,
             dr_boot_mean,
             ipw_boot_mean,
-            cv_stats_uniform["rmse"],
-            cv_stats_exp["rmse"],
+            cv_stats_uniform["signed_rmse"],
+            cv_stats_exp["signed_rmse"],
             score_naive_minus_cv_uniform,
             score_naive_minus_cv_exp,
         ],

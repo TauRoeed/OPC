@@ -321,6 +321,8 @@ def compute_statistics_and_plots(df, n_bins=20):
     actual = df["user_attrs_actual_reward"].values
     ess = df["user_attrs_ess"].values
 
+    err_est_sign = df['user_attrs_all_values'].apply(lambda x: str(x).split()[-2][:-1]).astype(float).values
+
     err_hat = df["user_attrs_q_error"].values
     err = actual - est
 
@@ -330,26 +332,39 @@ def compute_statistics_and_plots(df, n_bins=20):
     err_metrics = compute_error_metrics(actual, est)
 
     # plots
-    plot_ranked_reward_curve(score, actual, est)
-    plot_ess_heatmap_scatter(score, actual, ess)
-
-    plot_kde([score, est, actual], ["Score", "Estimated", "Actual"])
-    plot_centered_kde([score, est, actual], ["Score", "Estimated", "Actual"])
-    plot_log_kde_with_lognormal_fit([score, est, actual], ["Score", "Estimated", "Actual"])
-    plot_calibration_curve(score, actual)
-    plot_error_plots(actual, est, score)
-
-    plot_ess_heatmap_scatter(err_hat, err, ess)
-
-    plot_error_hover(score, actual, ess, 
-                     title="Interactive Score vs Actual Reward (ESS-colored)",
-                    x_label="Score",
-                    y_label="Actual Reward")
+    idx = err_est_sign > 0
+    plot_ranked_reward_curve(score, actual, score)
     
-    plot_error_hover(err_hat, err, ess,
-                    title="Interactive Estimated vs Actual Error (ESS-colored)",
-                    x_label="Estimated Error",
-                    y_label="Actual Error")
+    plot_ess_heatmap_scatter(score, actual, ess)
+    plot_ess_heatmap_scatter(score[idx], actual[idx], err_est_sign[idx])
+    
+    # plot_kde([score, est, actual], ["Score", "Estimated", "Actual"])
+    # plot_centered_kde([score, est, actual], ["Score", "Estimated", "Actual"])
+    # plot_log_kde_with_lognormal_fit([score, est, actual], ["Score", "Estimated", "Actual"])
+    # plot_calibration_curve(score, actual)
+    # plot_error_plots(actual, est, score)
+
+    # plot_ess_heatmap_scatter(err_hat, err, ess)
+
+    # plot_error_hover(score, actual, ess, 
+    #                  title="Interactive Score vs Actual Reward (ESS-colored)",
+    #                  x_label="Score",
+    #                  y_label="Actual Reward")
+
+    plot_error_hover(score, actual, ((idx * 2) - 1),
+                     title="Interactive Score vs Actual Reward (CV-Err-colored)",
+                     x_label="Score",
+                     y_label="Actual Reward")
+    
+    # plot_error_hover(est[idx], actual[idx], err_est_sign[idx],
+    #                  title="Interactive Positive Error Estimated vs Actual Reward (CV-Err-colored)",
+    #                  x_label="Estimated Reward",
+    #                  y_label="Actual Reward")
+    
+    # plot_error_hover(err_hat, err, ess,
+    #                 title="Interactive Estimated vs Actual Error (ESS-colored)",
+    #                 x_label="Estimated Error",
+    #                 y_label="Actual Error")
 
     # ===============================
     # Return metrics
