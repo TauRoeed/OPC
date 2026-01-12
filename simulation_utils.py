@@ -240,7 +240,6 @@ def eval_policy(model, test_data, original_policy_prob, policy):
     return np.array(res)
 
 
-
 def calc_gini(x):
     sorted_x = np.sort(x)
     n = sorted_x.size

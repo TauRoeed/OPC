@@ -14,6 +14,7 @@ from sklearn.utils import check_random_state
 from scipy.special import softmax
 from abc import ABCMeta
 
+
 """Regression Model Class for Estimating Mean Reward Functions."""
 from dataclasses import dataclass
 from typing import Optional
@@ -108,7 +109,6 @@ class NeighborhoodModel(metaclass=ABCMeta):
 
     def predict(self, test_context):       
         return self.scores[np.int32(test_context)]
-
 
 
 class LinearTransform(nn.Module):
@@ -282,73 +282,6 @@ class LinearCFModel(nn.Module):
             user_transform=self.user_transform,
             action_transform=self.action_transform
             )
-
-
-class BPRModel(nn.Module):
-    def __init__(self, num_users, num_actions, embedding_dim, 
-                 initial_user_embeddings=None, initial_actions_embeddings=None):
-        super(BPRModel, self).__init__()
-
-        self.actions = torch.arange(num_actions)
-        self.users = torch.arange(num_users)
-        
-        # Initialize user and actions embeddings
-        if initial_user_embeddings is None:
-            self.user_embeddings = nn.Embedding(num_users, embedding_dim)
-        else:
-            # If initial embeddings are provided, set them as the embeddings
-            self.user_embeddings = nn.Embedding.from_pretrained(initial_user_embeddings, freeze=False)
-        
-        if initial_actions_embeddings is None:
-            self.actions_embeddings = nn.Embedding(num_actions, embedding_dim)
-        else:
-            # If initial embeddings are provided, set them as the embeddings
-            self.actions_embeddings = nn.Embedding.from_pretrained(initial_actions_embeddings, freeze=False)
-
-
-    def forward(self, user_ids, pos_action_ids, neg_action_ids):
-        user_embeds = self.user_embeddings(user_ids)
-        pos_action_embeds = self.actions_embeddings(pos_action_ids)
-        neg_action_embeds = self.actions_embeddings(neg_action_ids)
-
-        # Compute dot product between user and action embeddings
-        pos_scores = (user_embeds * pos_action_embeds).sum(dim=1)
-        neg_scores = (user_embeds * neg_action_embeds).sum(dim=1)
-
-        return pos_scores, neg_scores
-    
-    def calc_scores(self, user_ids):
-        # Ensure user_ids is on the same device as the model
-        device = self.user_embeddings.weight.device
-        user_ids = user_ids.to(device)
-
-        # Get user embeddings
-        user_embedding = self.user_embeddings(user_ids)
-
-        # Ensure self.actions is on the same device
-        actions = self.actions.to(device)
-
-        # Get action embeddings
-        actions_embedding = self.actions_embeddings(actions)
-
-        # Compute dot product scores
-        scores = user_embedding @ actions_embedding.T
-
-        # Return softmaxed scores
-        return F.softmax(scores, dim=1).unsqueeze(-1)
-        
-    def to(self, device):
-        # Move the module itself
-        super().to(device)
-        self.actions = self.actions.to(device)
-        self.users = self.users.to(device)
-        return self
-    
-    def seg_emb(self):
-        return self.user_embeddings.weight, self.actions_embeddings.weight
-
-# Copyright (c) Yuta Saito, Yusuke Narita, and ZOZO Technologies, Inc. All rights reserved.
-# Licensed under the Apache 2.0 License.
 
 @dataclass
 class RegressionModel(BaseEstimator):
