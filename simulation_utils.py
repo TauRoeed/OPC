@@ -17,8 +17,6 @@ from torch.utils.data import Dataset, DataLoader
 from sklearn.utils import check_random_state
 
 from sklearn.utils import check_random_state
-from models import BPRModel
-from training_utils import fit_bpr
 from scipy.special import softmax
 
 
