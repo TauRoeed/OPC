@@ -60,12 +60,13 @@ def show_item_neighbors(
         if fields is None:
             fields = [c for c in item_info.columns][:5]  # default: first few columns
         print("Query metadata:")
-        print(item_info.loc[[item_id], fields])
+        print(item_info.loc[[item2idx[item_id]], fields])
 
     print(f"\nTop {k} nearest neighbors:")
     for rank, (nid, sim) in enumerate(zip(neighbors, top_sims), 1):
         line = f"{rank:2d}. {nid}   sim={float(sim):.4f}"
         if item_info is not None:
+            nid = item2idx[nid]
             meta = item_info.loc[nid]
             # show selected fields in one line if possible
             extras = []

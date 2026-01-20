@@ -21,8 +21,6 @@ torch.backends.cudnn.benchmark = torch.cuda.is_available()
 if torch.cuda.is_available():
     torch.set_float32_matmul_precision("high")  # TF32 = big speedup on Ada
 
-
-from custom_losses import BPRLoss
 from sklearn.utils import check_random_state
 import matplotlib.pyplot as plt
 

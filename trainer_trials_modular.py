@@ -46,8 +46,9 @@ from simulation_utils import (
 
 from models import (
     LinearCFModel,
+    CFModel,
+    SingleMLPTransform,
     NeighborhoodModel,
-    BPRModel,
     RegressionModel,
 )
 
@@ -659,12 +660,14 @@ def regression_trainer_trial(
                 )
 
                 # Initialize CF model
-                trial_model = LinearCFModel(
+                trial_model = CFModel(
                     n_users,
                     n_actions,
                     emb_dim,
                     initial_user_embeddings=T(our_x_orig),
                     initial_actions_embeddings=T(our_a_orig),
+                    user_transform=SingleMLPTransform(emb_dim),
+                    action_transform=SingleMLPTransform(emb_dim),
                 ).to(device)
 
                 final_train_loader = DataLoader(
@@ -743,12 +746,14 @@ def regression_trainer_trial(
             q_hat_all = regression_model.predict(our_x_orig)
             scores_all = torch.as_tensor(q_hat_all, device=device, dtype=torch.float32)
 
-            model = LinearCFModel(
+            model = CFModel(
                 n_users,
                 n_actions,
                 emb_dim,
                 initial_user_embeddings=T(our_x_orig),
                 initial_actions_embeddings=T(our_a_orig),
+                user_transform=SingleMLPTransform(emb_dim),
+                action_transform=SingleMLPTransform(emb_dim),
             ).to(device)
 
             train_loader = DataLoader(

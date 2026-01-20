@@ -1,6 +1,7 @@
 import pandas as pd
 from pathlib import Path
 from typing import Dict, Optional, Tuple, Any
+import h5py
 
 import numpy as np
 from scipy.sparse import csr_matrix
@@ -89,6 +90,114 @@ def load_myket(root: str):
     return ratings, users, items
 
 
+def load_artistwise_dfs(hdf5_path: str, *, min_plays: float = 1.0):
+    """
+    Generic artist-wise loader for LastFM or MSD.
+    No dataset flag, no CSR output, no extra assumptions.
+
+    Returns:
+      ratings: user_id, item_id (artist), rating (total plays)
+      users:   user_id
+      items:   item_id (artist)
+    """
+
+    with h5py.File(hdf5_path, "r") as f:
+        if "artist_user_plays" in f:
+            # LastFM
+            g = f["artist_user_plays"]
+            users = np.array(f["user"].asstr()[:])
+            artists = np.array(f["artist"].asstr()[:])
+
+        elif "track_user_plays" in f:
+            # MSD
+            g = f["track_user_plays"]
+            users = np.array(f["user"].asstr()[:])
+            track = np.array(f["track"].asstr()[:])
+            artists = track[:, 1] if track.ndim == 2 else track
+
+        else:
+            raise ValueError("Unknown HDF5 format")
+
+        X = csr_matrix((g["data"][:], g["indices"][:], g["indptr"][:]))
+
+    # orient to users × artists
+    if X.shape[0] != len(users):
+        X = X.T
+
+    # build triplets
+    coo = X.tocoo(copy=False)
+    ratings = pd.DataFrame({
+        "user_id": users[coo.row],
+        "item_id": artists[coo.col],
+        "rating":  coo.data.astype(np.float32),
+    })
+
+    # aggregate user × artist
+    ratings = (
+        ratings
+        .groupby(["user_id", "item_id"], as_index=False)["rating"]
+        .sum()
+    )
+
+    # filter min plays
+    if min_plays > 1:
+        ratings = ratings[ratings["rating"] >= float(min_plays)]
+
+    ratings = ratings.reset_index(drop=True)
+
+    users_df = pd.DataFrame({"user_id": ratings["user_id"].unique()})
+    items_df = pd.DataFrame({"item_id": ratings["item_id"].unique()})
+
+    return ratings, users_df, items_df
+
+
+
+def load_anime_dfs(root: str, min_rating: float = 7.0) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """
+    Expects:
+      root/Anime.csv
+      root/Rating.csv
+
+    Returns:
+      ratings: user_id, item_id, rating
+      users:   user_id
+      items:   item_id + metadata
+    """
+    root = Path(root)
+
+    items = pd.read_csv(root / "anime.csv")
+    ratings = pd.read_csv(root / "rating.csv")
+
+    # Canonical naming
+    items = items.rename(columns={
+        "anime_id": "item_id",
+        "name": "title",
+        "genre": "genres",
+    })
+
+    ratings = ratings.rename(columns={
+        "anime_id": "item_id",
+    })
+
+    # Keep canonical columns (plus rating)
+    ratings = ratings[["user_id", "item_id", "rating"]].copy()
+    ratings = ratings[(ratings["rating"] >= min_rating) | (ratings["rating"] == -1)].reset_index(drop=True)
+
+    users = (
+        ratings[["user_id"]]
+        .drop_duplicates()
+        .sort_values("user_id")
+        .reset_index(drop=True)
+    )
+
+    # Keep all metadata columns in items (good for sanity checks / neighbors)
+    # Ensure item_id is present and unique-ish
+    items["item_id"] = items["item_id"].astype(int)
+    items = items.drop_duplicates("item_id").reset_index(drop=True)
+
+    return ratings, users, items
+
+
 @dataclass
 class InteractionData:
     X: csr_matrix
@@ -121,20 +230,20 @@ def build_csr_from_interactions(
     df = interactions[[user_col, item_col] + ([value_col] if value_col else [])].copy()
 
     # ---- items: allow strings or ints ----
-    item_codes, idx2item = pd.factorize(df[item_col], sort=False)
-    item2idx = {idx2item[k]: int(k) for k in range(len(idx2item))}
+    item_codes, idx2item = pd.factorize(df[item_col], sort=True)
+    item2idx = {idx2item[k]: np.int32(k) for k in range(len(idx2item))}
 
     # ---- users: either factorize or treat as already indices ----
     if assume_users_are_indices:
-        u_idx = df[user_col].astype(int).to_numpy()
-        idx2user = np.arange(u_idx.max() + 1, dtype=int)
-        user2idx = {int(k): int(k) for k in idx2user}  # identity map
+        u_idx = df[user_col].astype(np.int32).to_numpy()
+        idx2user = np.arange(u_idx.max() + 1, dtype=np.int32)
+        user2idx = {np.int32(k): np.int32(k) for k in idx2user}  # identity map
     else:
-        user_codes, idx2user = pd.factorize(df[user_col], sort=False)
-        u_idx = user_codes.astype(int)
-        user2idx = {idx2user[k]: int(k) for k in range(len(idx2user))}
+        user_codes, idx2user = pd.factorize(df[user_col], sort=True)
+        u_idx = user_codes.astype(np.int32)
+        user2idx = {idx2user[k]: np.int32(k) for k in range(len(idx2user))}
 
-    i_idx = item_codes.astype(int)
+    i_idx = item_codes.astype(np.int32)
 
     if value_col is None:
         data = np.ones(len(df), dtype=np.float32)

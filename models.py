@@ -111,6 +111,74 @@ class NeighborhoodModel(metaclass=ABCMeta):
         return self.scores[np.int32(test_context)]
 
 
+class PairMLPScorer(nn.Module):
+    """
+    Non-linear scorer for (user, item) embedding pairs.
+    """
+    def __init__(
+        self,
+        embedding_dim: int,
+        hidden_mult: int = 4,
+        dropout: float = 0.1,
+    ):
+        super().__init__()
+        h = hidden_mult * embedding_dim
+
+        self.net = nn.Sequential(
+            nn.Linear(3 * embedding_dim, h),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(h, h),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(h, 1),
+        )
+
+    def forward(self, u: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
+        """
+        u: (B, d)
+        v: (B, d)
+
+        returns: (B,) scores
+        """
+        x = torch.cat([u, v, u * v], dim=-1)
+        return self.net(x).squeeze(-1)
+
+
+class SingleMLPTransform(nn.Module):
+    """
+    Shape-preserving non-linear embedding transform.
+
+    y = x + MLP(LN(x))
+
+    Works for users or items.
+    """
+    def __init__(
+        self,
+        embedding_dim: int,
+        hidden_mult: int = 2,
+        dropout: float = 0.1,
+    ):
+        super().__init__()
+        h = hidden_mult * embedding_dim
+
+        self.ln = nn.LayerNorm(embedding_dim)
+        self.mlp = nn.Sequential(
+            nn.Linear(embedding_dim, h),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(h, embedding_dim),
+            nn.Dropout(dropout),
+        )
+
+    def forward(self, x: torch.Tensor, idx: torch.Tensor) -> torch.Tensor:
+        """
+        x: (..., d)
+        returns: (..., d)
+        """
+        return x + self.mlp(self.ln(x))
+
+
 class LinearTransform(nn.Module):
     def __init__(self, embedding_size, embedding_dim):
         super(LinearTransform, self).__init__()
@@ -282,6 +350,7 @@ class LinearCFModel(nn.Module):
             user_transform=self.user_transform,
             action_transform=self.action_transform
             )
+
 
 @dataclass
 class RegressionModel(BaseEstimator):
