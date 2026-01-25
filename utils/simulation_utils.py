@@ -21,7 +21,7 @@ from scipy.special import softmax
 
 
 # import open bandit pipeline (obp)
-from estimators import (
+from models.estimators import (
     SelfNormalizedInverseProbabilityWeighting as IPW,
     DirectMethod as DM,
     DoublyRobust as DR,
