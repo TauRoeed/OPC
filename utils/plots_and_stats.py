@@ -346,15 +346,15 @@ def compute_statistics_and_plots(df, n_bins=20):
 
     # plot_ess_heatmap_scatter(err_hat, err, ess)
 
-    # plot_error_hover(score, actual, ess, 
-    #                  title="Interactive Score vs Actual Reward (ESS-colored)",
-    #                  x_label="Score",
-    #                  y_label="Actual Reward")
-
-    plot_error_hover(score, actual, ((idx * 2) - 1),
-                     title="Interactive Score vs Actual Reward (CV-Err-colored)",
+    plot_error_hover(score, actual, ess, 
+                     title="Interactive Score vs Actual Reward (ESS-colored)",
                      x_label="Score",
                      y_label="Actual Reward")
+
+    # plot_error_hover(score, actual, ((idx * 2) - 1),
+    #                  title="Interactive Score vs Actual Reward (CV-Err-colored)",
+    #                  x_label="Score",
+    #                  y_label="Actual Reward")
     
     # plot_error_hover(est[idx], actual[idx], err_est_sign[idx],
     #                  title="Interactive Positive Error Estimated vs Actual Reward (CV-Err-colored)",

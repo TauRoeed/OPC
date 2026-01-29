@@ -27,13 +27,14 @@ from sklearn.utils import check_random_state
 from sklearn.linear_model import LogisticRegression
 import matplotlib.pyplot as plt
 from scipy.special import softmax
+from utils.policies import CandidateSoftmaxDotPolicy, generate_policies
 import optuna
 
-from estimators import (
+from models.estimators import (
     DirectMethod as DM,
 )
 
-from simulation_utils import (
+from utils.simulation_utils import (
     eval_policy,
     generate_dataset,
     create_simulation_data_from_pi,
@@ -42,9 +43,10 @@ from simulation_utils import (
     CustomCFDataset,
     calc_reward,
     get_weights_info,
+    create_simulation_data_from_policy,
 )
 
-from models import (
+from models.models import (
     LinearCFModel,
     CFModel,
     SingleMLPTransform,
@@ -52,19 +54,15 @@ from models import (
     RegressionModel,
 )
 
-from training_utils import (
+from training.training_utils import (
     train,
-    validation_loop,
 )
 
-from custom_losses import (
-    SNDRPolicyLoss,
-    IPWPolicyLoss,
-    KLPolicyLoss,
+from models.custom_losses import (
+    KLPolicyLoss
 )
 
-from model_scoring import score_model_modular
-
+from models.model_scoring import score_model_modular, score_model_modular_large
 random_state = 12345
 random_ = check_random_state(random_state)
 
@@ -136,6 +134,7 @@ def generate_train_val_split(dataset, pi_0, train_size, val_size, run, user_cont
     train_data = get_train_data(
         n_actions, train_size, simulation_data, idx_train, user_context
     )
+
     val_data = get_train_data(
         n_actions, val_size, simulation_data, idx_val, user_context
     )
@@ -827,31 +826,11 @@ def regression_trainer_trial(
 
 
 
-def generate_policies(num_policies, pi_0, pi_oracle, use_random=True, use_oracle=True, jaws=False):
-    policies = []
-    n_users, n_actions = pi_0.shape
 
-    for i in range(num_policies):
-        noise = random_.normal(size=(n_users, n_actions))
-        noise_p = softmax(noise, axis=1)
-
-        alpha = np.random.uniform(0, 1) * use_random
-        beta = np.random.uniform(0, 1 - alpha) * use_oracle
-
-        if jaws:
-            p = np.random.uniform(0, 1)
-            if p > 0.5:
-                beta = 0.0
-            else:
-                alpha = 0.0
-                beta = np.random.uniform(0, 1)
-
-        # pi_i = (1 - alpha) * pi_0 + alpha * pi_oracle
-        pi_i = (1 - alpha - beta) * pi_0 + alpha * noise_p + beta * pi_oracle
-        # pi_i = softmax(pi_i, axis=1)
-        policies.append(pi_i)
-
-    return policies
+# --------------------------------------------------------------------
+# Random / oracle / baseline mixture policies live in policies.py.
+# This file only consumes policy objects.
+# --------------------------------------------------------------------
 
 
 def random_policy_trainer_trial(
@@ -862,91 +841,137 @@ def random_policy_trainer_trial(
     use_random=True,
     use_oracle=True,
     jaws=False,
+    K_candidates=256,
+    n_bootstrap=500,
+    n_dm_mc=32,
+    seed=12345,
 ):
+    """Evaluate a set of randomly generated mixture policies at scale.
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    torch.backends.cudnn.benchmark = torch.cuda.is_available()
-    if torch.cuda.is_available():
-        torch.set_float32_matmul_precision("high")
-    
-    results = {}
+    Assumptions (per the refactor work):
+      - dataset includes 'env' (with reward_prob(users, actions))
+      - simulation_utils provides create_simulation_data_from_policy + get_train_data
+      - score_model_modular_large exists in model_scoring.py
+      - policies are generated as objects via policies.generate_policies
+    """
 
     # ===== Unpack dataset =====
     our_x_orig = dataset["our_x"]
     our_a_orig = dataset["our_a"]
     true_x = dataset["emb_x"]
     true_a = dataset["emb_a"]
-    n_actions = dataset["n_actions"]
+    n_actions = int(dataset["n_actions"])
+    n_users = int(dataset["n_users"])
 
-    T = lambda x: torch.as_tensor(x, device=device, dtype=torch.float32)
+    # ===== Logging policy (baseline) and oracle policy as objects =====
+    pi0_policy = CandidateSoftmaxDotPolicy(
+        user_emb=our_x_orig,
+        item_emb=our_a_orig,
+        n_actions=n_actions,
+        K=K_candidates,
+        rng=np.random.default_rng(seed + 1),
+    )
+    oracle_policy = CandidateSoftmaxDotPolicy(
+        user_emb=true_x,
+        item_emb=true_a,
+        n_actions=n_actions,
+        K=K_candidates,
+        rng=np.random.default_rng(seed + 2),
+    )
 
-    # ===== Baseline row =====
-    pi_0 = softmax(our_x_orig @ our_a_orig.T, axis=1)
-    pi_oracle = softmax(true_x @ true_a.T, axis=1)
-
-    simulation_data = create_simulation_data_from_pi(
-        dataset,
-        pi_0,
-        train_size + val_size,
-        random_state=train_size + 17
+    # ===== Simulate logged bandit data using logging policy =====
+    simulation_data = create_simulation_data_from_policy(
+        dataset=dataset,
+        policy=pi0_policy,
+        n_samples=int(train_size + val_size),
+        random_state=seed + train_size + 17,
     )
 
     idx_train = np.arange(train_size)
     train_data = get_train_data(
         n_actions, train_size, simulation_data, idx_train, our_x_orig
     )
+
     val_idx = np.arange(val_size) + train_size
     val_data = get_train_data(
         n_actions, val_size, simulation_data, val_idx, our_x_orig
     )
-    df = pd.DataFrame(columns=[
-                                "value", 
-                                "user_attrs_actual_reward", 
-                                "user_attrs_q_error", 
-                                "user_attrs_r_hat", 
-                                "user_attrs_ess",                                          
-                                "user_attrs_scores_dict", 
-                                "user_attrs_all_values"
-                            ])
+
+    # ===== Fit Q-model (pairwise; do NOT materialize q_hat_all) =====
     t0 = time.time()
     regression_model = RegressionModel(
         n_actions=n_actions,
-        action_context=our_a_orig,  # IMPORTANT: action embeddings
-        base_model=LogisticRegression(random_state=12345),
+        action_context=our_a_orig,
+        base_model=LogisticRegression(random_state=seed),
     )
 
     regression_model.fit(train_data["x"], train_data["a"], train_data["r"])
-    print(f"[Regression] Baseline regression model fit time: {time.time() - t0:.2f}s")
+    print(f"[Regression] fit time: {time.time() - t0:.2f}s")
 
-    q_hat_all = regression_model.predict(our_x_orig)
+    # ===== Generate candidate policies (objects) =====
+    policies = generate_policies(
+        num_policies=n_policies,
+        pi0_policy=pi0_policy,
+        oracle_policy=oracle_policy,
+        n_actions=n_actions,
+        use_random=use_random,
+        use_oracle=use_oracle,
+        jaws=jaws,
+        K_candidates=K_candidates,
+        seed=seed + 999,
+    )
 
-    scores_all = torch.as_tensor(q_hat_all, device=device, dtype=torch.float32)
-    policies = generate_policies(num_policies=n_policies, pi_0=pi_0, pi_oracle=pi_oracle, use_random=use_random, use_oracle=use_oracle, jaws=jaws)
-    # ===== Main loop over training sizes =====
+    df = pd.DataFrame(
+        columns=[
+            "value",
+            "user_attrs_actual_reward",
+            "user_attrs_q_error",
+            "user_attrs_r_hat",
+            "user_attrs_ess",
+            "user_attrs_scores_dict",
+            "user_attrs_all_values",
+            "ipw",
+            "sign_uni",
+            "sign_exp",
+        ]
+    )
+
     tq = tqdm(policies)
     for pi_i in tq:
+        scores_dict, scores_array, weight_info = score_model_modular_large(
+            val_dataset=val_data,
+            regression_model=regression_model,
+            policy=pi_i,
+            lam_dr=3.0,
+            n_bootstrap=n_bootstrap,
+            n_dm_mc=n_dm_mc,
+            random_state=seed + 123,
+        )
 
-        scores_dict, scores_array, weight_info = score_model_modular(val_data, scores_all, pi_i)
-        r_hat = scores_dict['dr_naive_mean']
-        err = scores_dict['dr_naive_se']
-        r = calc_reward(dataset, np.expand_dims(pi_i, -1))[0]
-        value = scores_dict['dr_naive_ci_low'] # conservative estimate
-        new_row = pd.DataFrame([{
-            "value": float(value),
-            "user_attrs_actual_reward": float(r),
-            "user_attrs_q_error": float(err),
-            "user_attrs_r_hat": float(r_hat),
+        # conservative estimate
+        value = float(scores_dict["dr_naive_ci_low"])
+        r_hat = float(scores_dict["dr_naive_mean"])
+        err = float(scores_dict["dr_naive_se"])
+
+        # actual policy value estimate on the same val users
+        a_mc, _ = pi_i.sample_actions(val_data["x_idx"])
+        r_actual = float(dataset["env"].reward_prob(val_data["x_idx"], a_mc).mean())
+
+        df.loc[len(df)] = {
+            "value": value,
+            "user_attrs_actual_reward": r_actual,
+            "user_attrs_q_error": err,
+            "user_attrs_r_hat": r_hat,
             "user_attrs_ess": float(weight_info["ess"]),
             "user_attrs_scores_dict": scores_dict,
             "user_attrs_all_values": scores_array,
-            'ipw': scores_dict['ipw_uni_mean'],
-            "sign_uni": scores_dict['cv_signed_rmse_uniform'],
-            "sign_exp": scores_dict['cv_signed_rmse_exp']
-        }])
+            "ipw": float(scores_dict["ipw_uni_mean"]),
+            "sign_uni": float(scores_dict["cv_signed_rmse_uniform"]),
+            "sign_exp": float(scores_dict["cv_signed_rmse_exp"]),
+        }
+        desc = f"ESS={weight_info['ess']:.4f}, (Max wi, Min_wi)=({weight_info['max_wi']:.2f}, {weight_info['min_wi']:.2f})"
+        desc += f" value={value:.4f} ± {err:.4f}, r_actual={r_actual:.4f}"
+        tq.set_description(desc)
 
-        df = pd.concat([df, new_row], ignore_index=True)
-        tq.set_description(f"Validation weights_info: {weight_info}")
-
-    df = df[df['value'] > 0]
-
+    df = df[df["value"] > 0]
     return df, df

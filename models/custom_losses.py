@@ -1,12 +1,10 @@
 import warnings
 warnings.filterwarnings("ignore")
-from copy import deepcopy
 
 import sys
 sys.path.append("/code")
 
 import torch
-# device = torch.device('cpu')
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
 
@@ -14,13 +12,6 @@ print(f"Using device: {device}")
 # import debugpy
 import torch.nn as nn
 import torch.nn.functional as F
-
-from sklearn.utils import check_random_state
-
-# implementing OPE of the IPWLearner using synthetic bandit data
-
-
-from scipy.special import softmax
 
 
 class IPWPolicyLoss(nn.Module):

@@ -133,7 +133,6 @@ def ipw_rewards(
     return r_hat
 
 
-
 def uniform_bootstrap_mean(
     values: np.ndarray,
     n_bootstrap: int = 500,
@@ -482,5 +481,198 @@ def score_model_modular(
     #     print("Warning: Low ESS — returning -inf for main score.")
     #     scores_dict["dr_naive_mean"] = -np.inf
     #     scores_array[0] = -np.inf
+
+    return scores_dict, scores_array, weights_info
+
+
+def dr_shrinkage_rewards_logged(
+    pscore: np.ndarray,
+    pi_e_prob: np.ndarray,
+    q_hat_factual: np.ndarray,
+    dm_reward: np.ndarray,
+    reward: np.ndarray,
+    lam: float = 3.0,
+) -> np.ndarray:
+    iw = pi_e_prob / (pscore + 1e-12)
+    iw = dros_shrinkage(iw, lam=lam)
+    return dm_reward + iw * (reward - q_hat_factual)
+
+
+def ipw_rewards_logged(
+    pscore: np.ndarray,
+    pi_e_prob: np.ndarray,
+    reward: np.ndarray,
+) -> np.ndarray:
+    iw = pi_e_prob / (pscore + 1e-12)
+    return iw * reward
+
+
+def estimate_dm_reward_mc(policy, regression_model, x_context: np.ndarray, users: np.ndarray, n_mc: int = 32, rng=None):
+    """
+    Monte Carlo estimate of DM term: E_{a~pi}[ q_hat(x_u, a) ] per user.
+    Requires RegressionModel.predict_pairs(x_context, a_idx) (we add a safe fallback below).
+    """
+    rng = np.random.default_rng() if rng is None else rng
+    users = np.asarray(users, dtype=np.int64)
+    x_context = np.asarray(x_context)
+    n = users.shape[0]
+
+    acc = np.zeros(n, dtype=np.float64)
+    for _ in range(int(n_mc)):
+        a_samp, _ = policy.sample_actions(users)
+        acc += regression_model.predict_pairs(x_context, a_samp).astype(np.float64)
+    return acc / max(int(n_mc), 1)
+
+
+def score_model_modular_large(
+    val_dataset: dict,
+    regression_model,
+    policy,
+    lam_dr: float = 3.0,
+    n_bootstrap: int = 500,
+    n_dm_mc: int = 32,
+    random_state: int | None = None,
+):
+    """
+    Same outputs as score_model_modular, but scalable:
+    - val_dataset has logged tuples: x_idx, x, a, r, pscore
+    - regression_model predicts only pairwise
+    - policy provides prob_actions(x_idx, a) and sample_actions(x_idx)
+    """
+    import scipy  # local import to match your style
+
+    pscore = np.asarray(val_dataset["pscore"], dtype=np.float64)
+    users = np.asarray(val_dataset["x_idx"], dtype=np.int64)
+    x = np.asarray(val_dataset["x"], dtype=np.float32)
+    reward = np.asarray(val_dataset["r"], dtype=np.float64)
+    actions = np.asarray(val_dataset["a"], dtype=np.int64)
+
+    # pi_e(a|u) for logged actions
+    pi_e_prob = policy.prob_actions(users, actions).astype(np.float64)
+    weights_info = simulation_utils.get_weights_info(pi_e_prob, pscore)
+
+    # factual q_hat(x_u, a_logged)
+    q_hat_factual = regression_model.predict_pairs(x, actions).astype(np.float64)
+
+    # DM term via MC
+    dm_reward = estimate_dm_reward_mc(
+        policy=policy,
+        regression_model=regression_model,
+        x_context=x,
+        users=users,
+        n_mc=n_dm_mc,
+        rng=np.random.default_rng(random_state),
+    )
+
+    # per-sample vectors
+    dr_vec = dr_shrinkage_rewards_logged(
+        pscore=pscore,
+        pi_e_prob=pi_e_prob,
+        q_hat_factual=q_hat_factual,
+        dm_reward=dm_reward,
+        reward=reward,
+        lam=lam_dr,
+    )
+
+    ipw_vec = ipw_rewards_logged(
+        pscore=pscore,
+        pi_e_prob=pi_e_prob,
+        reward=reward,
+    )
+
+    # Naive DR + CI
+    dr_naive_mean = float(dr_vec.mean())
+    dr_naive_se = float(dr_vec.std(ddof=1) / np.sqrt(len(dr_vec)))
+    t_crit = scipy.stats.t.ppf(0.975, len(dr_vec) - 1)
+    dr_naive_ci = (
+        dr_naive_mean - float(t_crit) * dr_naive_se,
+        dr_naive_mean + float(t_crit) * dr_naive_se,
+    )
+
+    # Bootstrap (re-use your exact functions)
+    dr_boot_mean, dr_boot_std, dr_boot_ci, _ = exp_bootstrap_mean(
+        dr_vec, n_bootstrap=n_bootstrap, random_state=random_state
+    )
+    ipw_boot_mean, ipw_boot_std, ipw_boot_ci, _ = exp_bootstrap_mean(
+        ipw_vec,
+        n_bootstrap=n_bootstrap,
+        random_state=None if random_state is None else random_state + 7,
+    )
+
+    dr_uni_mean, dr_uni_std, dr_uni_ci, _ = uniform_bootstrap_mean(
+        dr_vec,
+        n_bootstrap=n_bootstrap,
+        random_state=None if random_state is None else random_state + 3,
+    )
+    ipw_uni_mean, ipw_uni_std, ipw_uni_ci, _ = uniform_bootstrap_mean(
+        ipw_vec,
+        n_bootstrap=n_bootstrap,
+        random_state=None if random_state is None else random_state + 5,
+    )
+
+    # CV stats (unchanged)
+    cv_stats_uniform = cv_error_between_estimators(
+        unbiased_vec=dr_vec,
+        estimator_vec=ipw_vec,
+        n_outer=15,
+        n_inner=100,
+        m_exponent=0.7,
+        use_exponential=False,
+        alpha=0.05,
+        random_state=random_state,
+    )
+    cv_stats_exp = cv_error_between_estimators(
+        unbiased_vec=dr_vec,
+        estimator_vec=ipw_vec,
+        n_outer=15,
+        n_inner=100,
+        m_exponent=0.7,
+        use_exponential=True,
+        alpha=0.05,
+        random_state=None if random_state is None else random_state + 11,
+    )
+
+    loss_uniform = max(cv_stats_uniform["rmse"], abs(cv_stats_uniform["bias_lb_signed"]))
+    loss_exp = max(cv_stats_exp["rmse"], abs(cv_stats_exp["bias_lb_signed"]))
+
+    score_naive_minus_cv_uniform = dr_naive_mean - loss_uniform
+    score_naive_minus_cv_exp = dr_naive_mean - loss_exp
+
+    scores_dict = get_scores_dict(
+        dr_naive_mean=dr_naive_mean,
+        dr_naive_ci=dr_naive_ci,
+        dr_naive_se=dr_naive_se,
+        dr_boot_mean=dr_boot_mean,
+        dr_boot_std=dr_boot_std,
+        dr_boot_ci=dr_boot_ci,
+        dr_uni_mean=dr_uni_mean,
+        dr_uni_std=dr_uni_std,
+        dr_uni_ci=dr_uni_ci,
+        ipw_uni_mean=ipw_uni_mean,
+        ipw_uni_std=ipw_uni_std,
+        ipw_uni_ci=ipw_uni_ci,
+        ipw_boot_mean=ipw_boot_mean,
+        ipw_boot_std=ipw_boot_std,
+        ipw_boot_ci=ipw_boot_ci,
+        cv_stats_uniform=cv_stats_uniform,
+        cv_stats_exp=cv_stats_exp,
+        loss_uniform=loss_uniform,
+        loss_exp=loss_exp,
+        score_naive_minus_cv_uniform=score_naive_minus_cv_uniform,
+        score_naive_minus_cv_exp=score_naive_minus_cv_exp,
+    )
+
+    scores_array = np.array(
+        [
+            dr_naive_mean,
+            dr_boot_mean,
+            ipw_boot_mean,
+            cv_stats_uniform["signed_rmse"],
+            cv_stats_exp["signed_rmse"],
+            score_naive_minus_cv_uniform,
+            score_naive_minus_cv_exp,
+        ],
+        dtype=float,
+    )
 
     return scores_dict, scores_array, weights_info

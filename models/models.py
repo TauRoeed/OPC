@@ -666,6 +666,31 @@ class RegressionModel(BaseEstimator):
             q_hat[test_idx, :, :] = self.predict(context=context[test_idx])
         return q_hat
 
+    def predict_pairs(self, context: np.ndarray, action: np.ndarray, pos: int = 0) -> np.ndarray:
+        """
+        Predict q_hat for logged pairs (context[i], action[i]) at a single position.
+        Returns shape (n,).
+        """
+        context = np.asarray(context)
+        action = np.asarray(action, dtype=int)
+
+        assert context.shape[0] == action.shape[0], "context and action must have same length"
+        assert 0 <= pos < self.len_list, f"pos must be in [0, {self.len_list-1}]"
+
+        X = self._pre_process_for_reg_model(
+            context=context,
+            action=action,
+            action_context=self.action_context,
+        )
+
+        model = self.base_model_list[pos]
+        q_hat = (
+            model.predict_proba(X)[:, 1]
+            if is_classifier(model)
+            else model.predict(X)
+        )
+        return q_hat
+
     def _pre_process_for_reg_model(
         self,
         context: np.ndarray,

@@ -1,11 +1,7 @@
 import numpy as np
 from numpy.random import default_rng
 from scipy.sparse import csr_matrix
-
-
-import numpy as np
-from numpy.random import default_rng
-from scipy.sparse import csr_matrix
+import os
 from tqdm.auto import trange
 
 
@@ -220,6 +216,17 @@ class BayesianPersonalizedRanking:
         return self
 
     # ---------- inference ----------
+
+    def save_embeddings(self, user_path: str, item_path: str):
+        """Save user and item factors as .npy files."""
+        if self.user_factors is None or self.item_factors is None:
+            raise RuntimeError("Call fit() before save_embeddings().")
+        
+        os.makedirs(os.path.dirname(user_path), exist_ok=True)
+        os.makedirs(os.path.dirname(item_path), exist_ok=True)
+
+        np.save(user_path, self.user_factors)
+        np.save(item_path, self.item_factors)
 
     def recommend(self, user_items: csr_matrix, userid: int, N: int = 10, filter_seen: bool = True):
         if self.user_factors is None or self.item_factors is None:
