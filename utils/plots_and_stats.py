@@ -298,7 +298,7 @@ def plot_error_plots(actual, est, score):
     plt.show()
 
 
-def compute_statistics_and_plots(df, n_bins=20):
+def compute_statistics_and_plots(df, n_bins=20, full_plot=True):
     """
     Computes:
       - Pearson correlation
@@ -333,42 +333,23 @@ def compute_statistics_and_plots(df, n_bins=20):
 
     # plots
     idx = err_est_sign > 0
-    plot_ranked_reward_curve(score, actual, score)
+    if full_plot:
+        plot_ranked_reward_curve(score, actual, score)
+        
+        plot_ess_heatmap_scatter(score, actual, ess)
+        plot_ess_heatmap_scatter(score[idx], actual[idx], err_est_sign[idx])
     
-    plot_ess_heatmap_scatter(score, actual, ess)
-    plot_ess_heatmap_scatter(score[idx], actual[idx], err_est_sign[idx])
-    
-    # plot_kde([score, est, actual], ["Score", "Estimated", "Actual"])
-    # plot_centered_kde([score, est, actual], ["Score", "Estimated", "Actual"])
-    # plot_log_kde_with_lognormal_fit([score, est, actual], ["Score", "Estimated", "Actual"])
-    # plot_calibration_curve(score, actual)
-    # plot_error_plots(actual, est, score)
+        plot_error_hover(score, actual, ess, 
+                        title="Interactive Score vs Actual Reward (ESS-colored)",
+                        x_label="Score",
+                        y_label="Actual Reward")
 
-    # plot_ess_heatmap_scatter(err_hat, err, ess)
-
-    plot_error_hover(score, actual, ess, 
-                     title="Interactive Score vs Actual Reward (ESS-colored)",
-                     x_label="Score",
-                     y_label="Actual Reward")
-
-    # plot_error_hover(score, actual, ((idx * 2) - 1),
-    #                  title="Interactive Score vs Actual Reward (CV-Err-colored)",
-    #                  x_label="Score",
-    #                  y_label="Actual Reward")
-    
-    # plot_error_hover(est[idx], actual[idx], err_est_sign[idx],
-    #                  title="Interactive Positive Error Estimated vs Actual Reward (CV-Err-colored)",
-    #                  x_label="Estimated Reward",
-    #                  y_label="Actual Reward")
-    
-    # plot_error_hover(err_hat, err, ess,
-    #                 title="Interactive Estimated vs Actual Error (ESS-colored)",
-    #                 x_label="Estimated Error",
-    #                 y_label="Actual Error")
-
-    # ===============================
-    # Return metrics
-    # ===============================
-    print("Correlation Metrics:", cor)
-    print("NDCG Metrics:", ndcg_vals)
-    print("Error Metrics:", err_metrics)
+        # ===============================
+        # Return metrics
+        # ===============================
+        print("Correlation Metrics:", cor)
+        print("NDCG Metrics:", ndcg_vals)
+        print("Error Metrics:", err_metrics)
+    else:
+        plot_ess_heatmap_scatter(score, actual, ess)
+                

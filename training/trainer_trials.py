@@ -26,10 +26,14 @@ if torch.cuda.is_available():
 from sklearn.utils import check_random_state
 from sklearn.linear_model import LogisticRegression
 import matplotlib.pyplot as plt
+
 from scipy.special import softmax
-from utils.policies import CandidateSoftmaxDotPolicy, generate_policies
 import optuna
 
+from utils.policies import Policy, generate_policies
+from utils.plots_and_stats import compute_statistics_and_plots
+
+from models.model_scoring import score_model_modular_large
 from models.estimators import (
     DirectMethod as DM,
 )
@@ -41,6 +45,7 @@ from utils.simulation_utils import (
     get_train_data,
     get_opl_results_dict,
     CustomCFDataset,
+    CustomCFDatasetPS,
     calc_reward,
     get_weights_info,
     create_simulation_data_from_policy,
@@ -49,6 +54,7 @@ from utils.simulation_utils import (
 from models.models import (
     LinearCFModel,
     CFModel,
+    MLPRewardModel,
     SingleMLPTransform,
     NeighborhoodModel,
     RegressionModel,
@@ -825,102 +831,136 @@ def regression_trainer_trial(
     return pd.DataFrame.from_dict(results, orient="index"), trial_df
 
 
-
-
 # --------------------------------------------------------------------
 # Random / oracle / baseline mixture policies live in policies.py.
 # This file only consumes policy objects.
 # --------------------------------------------------------------------
 
-
 def random_policy_trainer_trial(
-    train_size,
-    dataset,
-    n_policies=50,
-    val_size=2000,
-    use_random=True,
-    use_oracle=True,
-    jaws=False,
-    K_candidates=256,
-    n_bootstrap=500,
-    n_dm_mc=32,
-    seed=12345,
+    train_size: int,
+    dataset: dict,
+    n_policies: int = 50,
+    val_size: int = 2000,
+    use_random: bool = True,
+    use_oracle: bool = True,
+    jaws: bool = False,
+    n_bootstrap: int = 500,
+    n_dm_mc: int = 32,
+    chunk_size=2048,
+    seed: int = 12345,
 ):
-    """Evaluate a set of randomly generated mixture policies at scale.
+    """
+    Evaluate a set of mixture policies at scale (exact full-softmax over all actions).
 
-    Assumptions (per the refactor work):
-      - dataset includes 'env' (with reward_prob(users, actions))
-      - simulation_utils provides create_simulation_data_from_policy + get_train_data
-      - score_model_modular_large exists in model_scoring.py
-      - policies are generated as objects via policies.generate_policies
+    Requirements:
+      - dataset contains:
+          our_x, our_a, emb_x, emb_a, n_actions, n_users, env
+        optionally:
+          user_prior (length n_users) to sample users in simulation
+      - create_simulation_data_from_policy(policy=...) logs (x_idx, a, r, pscore, x)
+      - score_model_modular_large consumes policy objects with:
+          sample_actions(users), prob_actions(users, actions)
+      - RegressionModel has predict_pairs fixed to use base_model_list like predict()
     """
 
-    # ===== Unpack dataset =====
-    our_x_orig = dataset["our_x"]
-    our_a_orig = dataset["our_a"]
-    true_x = dataset["emb_x"]
-    true_a = dataset["emb_a"]
+    # ----- unpack -----
+    our_x = dataset["our_x"]
+    our_a = dataset["our_a"]
+    emb_x = dataset["emb_x"]
+    emb_a = dataset["emb_a"]
     n_actions = int(dataset["n_actions"])
     n_users = int(dataset["n_users"])
 
-    # ===== Logging policy (baseline) and oracle policy as objects =====
-    pi0_policy = CandidateSoftmaxDotPolicy(
-        user_emb=our_x_orig,
-        item_emb=our_a_orig,
-        n_actions=n_actions,
-        K=K_candidates,
+    # ----- policies (exact full softmax over all items) -----
+    pi0_policy = Policy(
+        n_users=n_users,
+        n_items=n_actions,
+        user_emb=our_x,
+        item_emb=our_a,
+        emb_dim=our_x.shape[1],
+        temperature=1.0,
+        user_chunk=chunk_size,
         rng=np.random.default_rng(seed + 1),
     )
-    oracle_policy = CandidateSoftmaxDotPolicy(
-        user_emb=true_x,
-        item_emb=true_a,
-        n_actions=n_actions,
-        K=K_candidates,
+
+    oracle_policy = Policy(
+        n_users=n_users,
+        n_items=n_actions,
+        user_emb=emb_x,
+        item_emb=emb_a,
+        emb_dim=emb_x.shape[1],
+        temperature=1.0,
+        user_chunk=chunk_size,
         rng=np.random.default_rng(seed + 2),
     )
 
-    # ===== Simulate logged bandit data using logging policy =====
+    # noise policy: random per run, fixed within run; dim=1 (valid as “random latent factor”)
+    noise_policy = Policy(
+        n_users=n_users,
+        n_items=n_actions,
+        user_emb=None,
+        item_emb=None,
+        emb_dim=1,
+        temperature=1.0,
+        user_chunk=chunk_size,
+        rng=np.random.default_rng(seed + 3),
+    )
+
+    # ----- simulate logged data using logging policy -----
     simulation_data = create_simulation_data_from_policy(
         dataset=dataset,
         policy=pi0_policy,
         n_samples=int(train_size + val_size),
-        random_state=seed + train_size + 17,
+        random_state=int(seed + train_size + 17),
     )
 
-    idx_train = np.arange(train_size)
-    train_data = get_train_data(
-        n_actions, train_size, simulation_data, idx_train, our_x_orig
-    )
+    idx_train = np.arange(train_size, dtype=np.int64)
+    train_data = get_train_data(n_actions, train_size, simulation_data, idx_train, our_x)
 
-    val_idx = np.arange(val_size) + train_size
-    val_data = get_train_data(
-        n_actions, val_size, simulation_data, val_idx, our_x_orig
-    )
+    idx_val = np.arange(val_size, dtype=np.int64) + train_size
+    val_data = get_train_data(n_actions, val_size, simulation_data, idx_val, our_x)
 
-    # ===== Fit Q-model (pairwise; do NOT materialize q_hat_all) =====
+    # ----- fit Q model (pairwise usage in scorer) -----
+    # t0 = time.time()
+    # regression_model = RegressionModel(
+    #     n_actions=n_actions,
+    #     action_context=our_a,
+    #     base_model=LogisticRegression(random_state=seed),
+    # )
+    # regression_model.fit(train_data["x"], train_data["a"], train_data["r"])
+    # print(f"[Regression] fit time: {time.time() - t0:.2f}s")
     t0 = time.time()
-    regression_model = RegressionModel(
+    regression_model = MLPRewardModel(
         n_actions=n_actions,
-        action_context=our_a_orig,
-        base_model=LogisticRegression(random_state=seed),
+        action_context=our_a,      # (n_actions, d_action)
+        hidden_dims=[64, 16],            # one hidden layer
+        dropout=0.2,
+        epochs=15,
+        lr=1e-3,
+        batch_size=8192,
+        device="cuda",             # or "cpu"
     )
 
-    regression_model.fit(train_data["x"], train_data["a"], train_data["r"])
-    print(f"[Regression] fit time: {time.time() - t0:.2f}s")
+    regression_model.fit(
+        context=train_data["x"],   # (n_rounds, d_context)
+        action=train_data["a"],    # (n_rounds,)
+        reward=train_data["r"],    # (n_rounds,)
+    )
+    print(f"[Regression-MLP] fit time: {time.time() - t0:.2f}s")
 
-    # ===== Generate candidate policies (objects) =====
+    # ----- generate mixture policies (same alpha/beta/jaws logic) -----
     policies = generate_policies(
         num_policies=n_policies,
-        pi0_policy=pi0_policy,
+        base_policy=pi0_policy,
         oracle_policy=oracle_policy,
-        n_actions=n_actions,
+        noise_policy=noise_policy,
         use_random=use_random,
         use_oracle=use_oracle,
         jaws=jaws,
-        K_candidates=K_candidates,
         seed=seed + 999,
     )
 
+    # ----- results df -----
     df = pd.DataFrame(
         columns=[
             "value",
@@ -948,14 +988,14 @@ def random_policy_trainer_trial(
             random_state=seed + 123,
         )
 
-        # conservative estimate
         value = float(scores_dict["dr_naive_ci_low"])
         r_hat = float(scores_dict["dr_naive_mean"])
         err = float(scores_dict["dr_naive_se"])
 
-        # actual policy value estimate on the same val users
-        a_mc, _ = pi_i.sample_actions(val_data["x_idx"])
-        r_actual = float(dataset["env"].reward_prob(val_data["x_idx"], a_mc).mean())
+        # "actual" (MC) on the validation users
+        users_val = np.asarray(val_data["x_idx"], dtype=np.int64)
+        a_mc, _ = pi_i.sample_actions(users_val)
+        r_actual = float(dataset["env"].reward_prob(users_val, a_mc).mean())
 
         df.loc[len(df)] = {
             "value": value,
@@ -969,9 +1009,241 @@ def random_policy_trainer_trial(
             "sign_uni": float(scores_dict["cv_signed_rmse_uniform"]),
             "sign_exp": float(scores_dict["cv_signed_rmse_exp"]),
         }
-        desc = f"ESS={weight_info['ess']:.4f}, (Max wi, Min_wi)=({weight_info['max_wi']:.2f}, {weight_info['min_wi']:.2f})"
-        desc += f" value={value:.4f} ± {err:.4f}, r_actual={r_actual:.4f}"
-        tq.set_description(desc)
+
+        tq.set_description(
+            f"ESS={weight_info['ess']:.2f} "
+            f"(max_wi, min_wi)=({weight_info['max_wi']:.2f}, {weight_info['min_wi']:.2f}) "
+            f"value={value:.4f}±{err:.4f} r_actual={r_actual:.4f}"
+        )
+        # compute_statistics_and_plots(df, full_plot=False)
 
     df = df[df["value"] > 0]
     return df, df
+
+
+def predict_qhat_all_chunked(reward_model, user_contexts, chunk_size=4096):
+    n_users = user_contexts.shape[0]
+    outs = []
+    for s in range(0, n_users, chunk_size):
+        e = min(n_users, s + chunk_size)
+        q = reward_model.predict(user_contexts[s:e])
+        q = np.asarray(q)
+        if q.ndim == 2:
+            q = q[..., None]
+        outs.append(q)
+    return np.concatenate(outs, axis=0)
+
+
+def mlp_trial_reward_fit_once(
+    train_size: int,
+    dataset: dict,
+    val_size: int = 2000,
+    n_trials: int = 20,
+    reg_frac: float = 0.5,         # part of train used to fit reward model once
+    user_chunk: int = 2048,
+    qhat_chunk: int = 4096,
+    seed: int = 12345,
+    # keep eval same as random_trial:
+    lam_dr: float = 3.0,
+    n_bootstrap: int = 500,
+    n_dm_mc: int = 32,
+    # reward model fixed hyperparams (since fitted once):
+    rm_hidden_dims=(64, 16),
+    rm_dropout=0.2,
+    rm_epochs=15,
+    rm_lr=1e-3,
+    rm_batch_size=8192,
+):
+    """
+    Fit reward model ONCE, then Optuna tunes CF training only.
+    Evaluation matches random_policy_trainer_trial (score_model_modular_large).
+    """
+
+    our_x = dataset["our_x"]
+    our_a = dataset["our_a"]
+    n_users = int(dataset["n_users"])
+    n_actions = int(dataset["n_actions"])
+    emb_dim = int(dataset["emb_dim"])
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    torch.backends.cudnn.benchmark = torch.cuda.is_available()
+    if torch.cuda.is_available():
+        torch.set_float32_matmul_precision("high")
+
+    # ---------------------------
+    # Logging policy (Policy object)
+    # ---------------------------
+    logging_policy = Policy(
+        n_users=n_users,
+        n_items=n_actions,
+        user_emb=our_x,
+        item_emb=our_a,
+        emb_dim=our_x.shape[1],
+        temperature=1.0,
+        user_chunk=user_chunk,
+        rng=np.random.default_rng(seed + 1),
+    )
+
+    # ---------------------------
+    # Simulate logged data once
+    # ---------------------------
+    sim = create_simulation_data_from_policy(
+        dataset=dataset,
+        policy=logging_policy,
+        n_samples=int(train_size + val_size),
+        random_state=int(seed + train_size + 17),
+    )
+
+    idx_train = np.arange(train_size, dtype=np.int64)
+    idx_val = np.arange(val_size, dtype=np.int64) + train_size
+
+    train_full = get_train_data(n_actions, train_size, sim, idx_train, our_x)
+    val_data   = get_train_data(n_actions, val_size, sim, idx_val, our_x)
+
+    # ---------------------------
+    # Split train: reward-model fit vs CF fit
+    # ---------------------------
+    reg_size = int(reg_frac * train_size)
+    reg_idx = np.arange(reg_size, dtype=np.int64)
+    cf_idx  = np.arange(train_size - reg_size, dtype=np.int64) + reg_size
+
+    reg_data = get_train_data(n_actions, reg_size, sim, reg_idx, our_x)
+    cf_data  = get_train_data(n_actions, train_size - reg_size, sim, cf_idx, our_x)
+
+    # ---------------------------
+    # Fit reward model ONCE
+    # ---------------------------
+    reward_model = MLPRewardModel(
+        n_actions=n_actions,
+        action_context=our_a,
+        hidden_dims=list(rm_hidden_dims),
+        dropout=rm_dropout,
+        epochs=rm_epochs,
+        lr=rm_lr,
+        batch_size=rm_batch_size,
+        device=str(device),
+    )
+    reward_model.fit(
+        context=reg_data["x"],
+        action=reg_data["a"],
+        reward=reg_data["r"],
+    )
+
+    # Precompute q_hat_all ONCE (chunked)
+    q_hat_all = predict_qhat_all_chunked(reward_model, our_x, chunk_size=qhat_chunk)
+    scores_all = torch.as_tensor(q_hat_all, device=device, dtype=torch.float32)
+
+    # ---------------------------
+    # CF dataset + loader settings
+    # ---------------------------
+    cf_dataset = CustomCFDatasetPS(
+        cf_data["x_idx"],
+        cf_data["a"],
+        cf_data["r"],
+        cf_data["pscore"],   # <-- scalar propensity per logged sample
+    )
+    num_workers = 4 if torch.cuda.is_available() else 0
+
+    # ---------------------------
+    # Optuna objective: CF only
+    # ---------------------------
+    def objective(trial):
+        lr = trial.suggest_float("lr", 1e-4, 5e-3, log=True)
+        epochs = trial.suggest_int("num_epochs", 1, 10)
+        batch_size = trial.suggest_categorical("batch_size", [128, 256, 512, 1024])
+        lr_decay = trial.suggest_float("lr_decay", 0.8, 1.0)
+
+        model = CFModel(
+            n_users,
+            n_actions,
+            emb_dim,
+            initial_user_embeddings=torch.as_tensor(our_x, device=device, dtype=torch.float32),
+            initial_actions_embeddings=torch.as_tensor(our_a, device=device, dtype=torch.float32),
+            user_transform=SingleMLPTransform(emb_dim),
+            action_transform=SingleMLPTransform(emb_dim),
+        ).to(device)
+
+        loader = DataLoader(
+            cf_dataset,
+            batch_size=batch_size,
+            shuffle=True,
+            pin_memory=torch.cuda.is_available(),
+            num_workers=num_workers,
+            persistent_workers=bool(num_workers),
+        )
+
+        current_lr = lr
+        for ep in range(epochs):
+            if ep > 0:
+                current_lr *= lr_decay
+            train(
+                model,
+                loader,
+                scores_all,
+                criterion=KLPolicyLoss(),
+                num_epochs=1,
+                lr=current_lr,
+                device=str(device),
+            )
+
+        learned_x_t, learned_a_t = model.get_params()
+        learned_policy = Policy(
+            n_users=n_users,
+            n_items=n_actions,
+            user_emb=learned_x_t.detach().cpu().numpy(),
+            item_emb=learned_a_t.detach().cpu().numpy(),
+            emb_dim=emb_dim,
+            temperature=1.0,
+            user_chunk=user_chunk,
+            rng=np.random.default_rng(seed + 1000 + trial.number),
+        )
+
+        # evaluate exactly like random_trial
+        scores_dict, scores_array, weight_info = score_model_modular_large(
+            val_dataset=val_data,
+            regression_model=reward_model,
+            policy=learned_policy,
+            lam_dr=lam_dr,
+            n_bootstrap=n_bootstrap,
+            n_dm_mc=n_dm_mc,
+            random_state=seed + 123 + trial.number,
+        )
+
+        value = float(scores_dict["dr_naive_ci_low"])
+        r_hat = float(scores_dict["dr_naive_mean"])
+        err   = float(scores_dict["dr_naive_se"])
+        ess   = float(weight_info["ess"])
+
+        # "actual" on validation users (same as random_trial)
+        users_val = np.asarray(val_data["x_idx"], dtype=np.int64)
+        a_mc, _ = learned_policy.sample_actions(users_val)
+        r_actual = float(dataset["env"].reward_prob(users_val, a_mc).mean())
+
+        trial.set_user_attr("all_values", scores_array)
+        trial.set_user_attr("scores_dict", scores_dict)
+        trial.set_user_attr("r_hat", r_hat)
+        trial.set_user_attr("q_error", err)
+        trial.set_user_attr("actual_reward", r_actual)
+        trial.set_user_attr("ess", ess)
+
+        return value
+
+    # ---------------------------
+    # Run Optuna
+    # ---------------------------
+    study = optuna.create_study(direction="maximize")
+    study.optimize(objective, n_trials=n_trials, show_progress_bar=True)
+
+    trial_df = study.trials_dataframe()[[
+        "value",
+        "user_attrs_actual_reward",
+        "user_attrs_q_error",
+        "user_attrs_r_hat",
+        "user_attrs_ess",
+        "user_attrs_scores_dict",
+        "user_attrs_all_values",
+    ]].copy()
+    trial_df = trial_df[trial_df["value"] > 0]
+
+    summary = {"best_value": float(study.best_value), **study.best_params}
+    return pd.DataFrame([summary]), trial_df

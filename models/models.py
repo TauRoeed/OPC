@@ -7,6 +7,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.utils.data import DataLoader, TensorDataset
 
 from sklearn.utils import check_random_state
 # from memory_profiler import profile
@@ -16,10 +17,9 @@ from abc import ABCMeta
 
 
 """Regression Model Class for Estimating Mean Reward Functions."""
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional
 
-import numpy as np
 from sklearn.base import BaseEstimator
 from sklearn.base import clone
 from sklearn.base import is_classifier
@@ -350,6 +350,149 @@ class LinearCFModel(nn.Module):
             user_transform=self.user_transform,
             action_transform=self.action_transform
             )
+
+
+class _OneHiddenMLP(nn.Module):
+    def __init__(self, in_dim: int, hidden_dims: np.array, dropout: float = 0.2):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(in_dim, hidden_dims[0]),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_dims[0], hidden_dims[1]),
+            nn.ReLU(),
+            nn.Linear(hidden_dims[1], 1),
+        )
+
+    def forward(self, x):
+        return self.net(x).squeeze(-1)  # (B,)
+
+
+@dataclass
+class MLPRewardModel:
+    """
+    Replacement for RegressionModel using a 1-hidden-layer MLP on concatenated [context, action_emb].
+
+    Methods:
+      - fit(context, action, reward)
+      - predict(context) -> (n, n_actions, len_list)
+      - predict_pairs(context, action) -> (n,)
+    """
+    n_actions: int
+    action_context: np.ndarray                 # (n_actions, d_action)
+    len_list: int = 1
+
+    hidden_dims: np.ndarray = field(default_factory=lambda: np.array([64, 16]))
+    dropout: float = 0.2
+    lr: float = 1e-3
+    weight_decay: float = 0.0
+    batch_size: int = 8192
+    epochs: int = 5
+    device: str = "cuda" if torch.cuda.is_available() else "cpu"
+
+    def __post_init__(self):
+        # keep on CPU at construction time (avoids triggering CUDA init here)
+        self.action_context_t = torch.tensor(self.action_context, dtype=torch.float32)  # CPU
+        self.model = None
+
+
+    def _ensure_on_device(self):
+        # move tensors/model lazily when first used
+        if self.device.startswith("cuda"):
+            dev = torch.device(self.device)
+        else:
+            dev = torch.device("cpu")
+
+        if self.action_context_t.device != dev:
+            self.action_context_t = self.action_context_t.to(dev)
+        if self.model is not None and next(self.model.parameters()).device != dev:
+            self.model = self.model.to(dev)
+
+
+    def _build_model(self, d_context: int):
+        d_action = self.action_context_t.shape[1]
+        self.model = _OneHiddenMLP(d_context + d_action, np.array(self.hidden_dims), self.dropout).to(self.device)
+        self.opt = torch.optim.AdamW(self.model.parameters(), lr=self.lr, weight_decay=self.weight_decay)
+        self.loss_fn = nn.BCEWithLogitsLoss()
+
+    @torch.no_grad()
+    def predict_pairs(self, context: np.ndarray, action: np.ndarray, pos: int = 0) -> np.ndarray:
+        # pos kept for API compatibility; ignored (single model shared across positions)
+        ctx = torch.tensor(context, dtype=torch.float32, device=self.device)
+        act = torch.tensor(action, dtype=torch.long, device=self.device)
+        aemb = self.action_context_t[act]
+        x = torch.cat([ctx, aemb], dim=1)
+        logits = self.model(x)
+        probs = torch.sigmoid(logits)
+        return probs.detach().cpu().numpy()
+
+    def fit(self, context: np.ndarray, action: np.ndarray, reward: np.ndarray, **kwargs) -> None:
+        # kwargs ignored (pscore, position, action_dist) for simplicity
+        self._ensure_on_device()
+        context = np.asarray(context, dtype=np.float32)
+        action = np.asarray(action, dtype=np.int64)
+        reward = np.asarray(reward, dtype=np.float32)
+
+        if self.model is None:
+            self._build_model(d_context=context.shape[1])
+
+        ctx = torch.tensor(context, dtype=torch.float32)
+        act = torch.tensor(action, dtype=torch.long)
+        y = torch.tensor(reward, dtype=torch.float32)
+
+        ds = TensorDataset(ctx, act, y)
+        dl = DataLoader(ds, batch_size=self.batch_size, shuffle=True, drop_last=False)
+
+        self.model.train()
+        for _ in range(self.epochs):
+            for ctx_b, act_b, y_b in dl:
+                ctx_b = ctx_b.to(self.device)
+                act_b = act_b.to(self.device)
+                y_b = y_b.to(self.device)
+
+                aemb = self.action_context_t[act_b]
+                x = torch.cat([ctx_b, aemb], dim=1)
+
+                logits = self.model(x)
+                loss = self.loss_fn(logits, y_b)
+
+                self.opt.zero_grad(set_to_none=True)
+                loss.backward()
+                self.opt.step()
+
+    @torch.no_grad()
+    def predict(self, context: np.ndarray) -> np.ndarray:
+        """
+        Returns q_hat with shape (n, n_actions, len_list) like the original RegressionModel.
+        """
+        context = np.asarray(context, dtype=np.float32)
+        n = context.shape[0]
+
+        ctx = torch.tensor(context, dtype=torch.float32, device=self.device)
+        A = self.action_context_t  # (n_actions, d_action)
+
+        # build all (context, action) pairs in a batched way: (n*n_actions, d_ctx+d_act)
+        # do it chunked to avoid big memory spikes
+        out = np.zeros((n, self.n_actions, self.len_list), dtype=np.float32)
+
+        self.model.eval()
+
+        chunk = 2048  # contexts per chunk
+        for s in range(0, n, chunk):
+            e = min(s + chunk, n)
+            ctx_c = ctx[s:e]                     # (B, d_ctx)
+            B = ctx_c.shape[0]
+
+            # expand to (B, n_actions, *)
+            ctx_exp = ctx_c[:, None, :].expand(B, self.n_actions, ctx_c.shape[1])
+            act_exp = A[None, :, :].expand(B, self.n_actions, A.shape[1])
+
+            x = torch.cat([ctx_exp, act_exp], dim=2).reshape(-1, ctx_c.shape[1] + A.shape[1])
+            probs = torch.sigmoid(self.model(x)).reshape(B, self.n_actions)
+
+            out[s:e, :, 0] = probs.detach().cpu().numpy()
+
+        return out
 
 
 @dataclass

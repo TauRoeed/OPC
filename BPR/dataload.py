@@ -274,3 +274,35 @@ def build_csr_from_interactions(
         idx2item=idx2item,
         item_info=item_info_aligned,
     )
+
+
+def save_user_interaction_counts(
+    save_path: str,
+    ratings_df: pd.DataFrame,
+    user2idx: dict,
+    user_col: str = "user_id",
+):
+    """
+    Saves per-user interaction counts aligned to user2idx.
+
+    Output:
+      counts[i] = number of rows in ratings_df with user_id whose index is i
+
+    Saved as:
+      save_path (np.ndarray, int64)
+    """
+    save_path = Path(save_path)
+    save_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # count interactions per raw user_id
+    counts_by_user = ratings_df[user_col].value_counts(dropna=False)
+
+    n_users = len(user2idx)
+    counts = np.zeros(n_users, dtype=np.int64)
+
+    for uid, c in counts_by_user.items():
+        if uid in user2idx:
+            counts[user2idx[uid]] = int(c)
+
+    np.save(save_path, counts)
+    return counts

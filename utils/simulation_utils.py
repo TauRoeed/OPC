@@ -49,6 +49,26 @@ class CustomCFDataset(Dataset):
         return user, action, reward, action_dist
 
 
+class CustomCFDatasetPS(Dataset):
+    """
+    Returns per-sample propensity (pscore) instead of full action distribution.
+    """
+    def __init__(self, user_idx, action_idx, rewards, pscore):
+        self.user_idx = user_idx
+        self.action_idx = action_idx
+        self.rewards = rewards
+        self.pscore = pscore
+
+    def __len__(self):
+        return len(self.rewards)
+
+    def __getitem__(self, i):
+        user = torch.tensor(int(self.user_idx[i]))
+        action = torch.tensor(int(self.action_idx[i]))
+        reward = torch.tensor(float(self.rewards[i]), dtype=torch.double)
+        pscore = torch.tensor(float(self.pscore[i]), dtype=torch.double)
+        return user, action, reward, pscore
+
 # ----------------------------
 # Scalable environment
 # ----------------------------
@@ -63,11 +83,13 @@ class SyntheticBanditEnv:
     def reward_prob(self, users: np.ndarray, actions: np.ndarray) -> np.ndarray:
         users = np.asarray(users, dtype=np.int64)
         actions = np.asarray(actions, dtype=np.int64)
+
         x = self.emb_x[users]
         a = self.emb_a[actions]
+
         logits = (x * a).sum(axis=1) / max(self.temperature, 1e-8)
-        logits = logits + float(self.ctr)
-        return 1.0 / (1.0 + np.exp(-logits))
+
+        return 1.0 / ((1.0 /float(self.ctr)) + np.exp(-logits))
 
 
 # ----------------------------
@@ -97,10 +119,68 @@ def get_weights_info(policy, original_policy_prob):
     )
 
 
-# ----------------------------
+# -
+# --------------------------
 # Reward computation
 # ----------------------------
-def calc_reward(dataset: dict, policy):
+def calc_reward(dataset: dict, policy, chunk_size: int = 5000):
+    """
+    Directly compute policy value in chunks to save memory.
+
+    Cases:
+    1) Dense policy matrix + dataset["q_x_a"] available -> exact value.
+    2) Policy object + dataset["env"] available -> direct expectation over users,
+       chunked to avoid memory issues.
+
+    Returns: np.array([value])
+    """
+
+    # -------------------------------------------------
+    # Case 1: dense policy matrix + q_x_a (exact)
+    # -------------------------------------------------
+    if isinstance(policy, np.ndarray):
+        if "q_x_a" not in dataset:
+            raise ValueError("Dense policy requires dataset['q_x_a'].")
+
+        pol = policy.squeeze()          # (n_users, n_actions)
+        q = dataset["q_x_a"]            # (n_users, n_actions)
+
+        val = np.sum(q * pol, axis=1).mean()
+        return np.array([float(val)])
+
+    # -------------------------------------------------
+    # Case 2: policy object + env (direct, chunked)
+    # -------------------------------------------------
+    if "env" not in dataset:
+        raise ValueError("Policy object requires dataset['env'].")
+
+    env = dataset["env"]
+    n_users = int(dataset["n_users"])
+    prior = dataset.get("user_prior", np.ones(n_users))
+
+    total = 0.0
+    count = 0
+
+    for start in range(0, n_users, chunk_size):
+        end = min(n_users, start + chunk_size)
+        users = np.arange(start, end, dtype=np.int64)
+
+        # Sample one action per user from the policy
+        actions, _ = policy.sample_actions(users)
+
+        # Get reward probabilities for these (user, action) pairs
+        probs = env.reward_prob(users, actions)
+        probs = np.asarray(probs, dtype=np.float64).reshape(-1)
+
+        probs = probs * prior[users]  # weight by user prior
+        total += probs.sum()
+        count += probs.shape[0]
+
+    val = total / (max(count, 1) * sum(prior))  # normalize by total user mass
+    return np.array([float(val)])
+
+
+def calc_reward_mc(dataset: dict, policy, n_sim=30):
     """Compute / estimate the value of a policy.
 
     - If dataset contains 'q_x_a' and policy is a dense matrix, returns exact value.
@@ -121,23 +201,25 @@ def calc_reward(dataset: dict, policy):
     n_users = int(dataset["n_users"])
     user_prior = dataset.get("user_prior", None)
     rng = np.random.default_rng(12345)
+    p = 0.0
 
-    n_mc = min(10000, n_users)
-    if user_prior is None:
+    for i in range(n_sim):
+        n_mc = min(10000, n_users)
+        # if user_prior is None:
         users = rng.integers(0, n_users, size=n_mc, endpoint=False)
-    else:
-        users = rng.choice(np.arange(n_users), size=n_mc, replace=True, p=user_prior)
+        # else:
+            # users = rng.choice(np.arange(n_users), size=n_mc, replace=True, p=user_prior)
+        actions, _ = policy.sample_actions(users)
+        p += env.reward_prob(users, actions)
 
-    actions, _ = policy.sample_actions(users)
-    p = env.reward_prob(users, actions)
-    return np.array([float(p.mean())])
-
+        return np.array([float(p / n_sim)])
 
 # ----------------------------
 # Dataset generation
 # ----------------------------
-def generate_dataset(params, seed=12345, emb_a=None, emb_x=None, materialize_q_x_a: bool = False,
-                     dtype=np.float32, store_original: bool = False, make_user_prior: bool = False):
+def generate_dataset(params, seed=12345, emb_a=None, emb_x=None, user_prior=None, 
+                     materialize_q_x_a: bool = False, dtype=np.float32, 
+                     store_original: bool = False):
     random_ = check_random_state(seed)
 
     # embeddings
@@ -150,6 +232,14 @@ def generate_dataset(params, seed=12345, emb_a=None, emb_x=None, materialize_q_x
         emb_x = np.load(emb_x) if isinstance(emb_x, str) else np.asarray(emb_x)
     else:
         emb_x = random_.normal(size=(params["n_users"], params["emb_dim"])).astype(dtype)
+
+    # Example: lognormal-ish “activity” distribution
+    if user_prior is not None:
+        user_prior = np.load(user_prior) if isinstance(user_prior, str) else np.asarray(user_prior)
+    else:
+        user_prior = random_.exponential(scale=1.0, size=(params["n_users"],)).astype(dtype)
+    
+    user_prior = user_prior / user_prior.sum()
 
     # noisy "our" embeddings (don’t allocate extra copies unless asked)
     noise_a = random_.normal(size=(emb_a.shape)).astype(dtype)
@@ -168,36 +258,27 @@ def generate_dataset(params, seed=12345, emb_a=None, emb_x=None, materialize_q_x
         const = 1.0 / float(params["ctr"])
         q_x_a = (1.0 / (const + np.exp(-score))).astype(dtype)
 
-    # optional user_prior
-    user_prior = None
-    if make_user_prior:
-        logits = random_.normal(size=(params["n_users"],)).astype(dtype)
-        logits -= logits.max()
-        exp = np.exp(logits)
-        user_prior = (exp / exp.sum()).astype(dtype)
-
     dataset = dict(
-        emb_a=emb_a,
-        our_a=our_a,
-        emb_x=emb_x,
-        our_x=our_x,
+        emb_a=emb_a.astype(dtype),
+        our_a=our_a.astype(dtype),
+        emb_x=emb_x.astype(dtype),
+        our_x=our_x.astype(dtype),
         n_actions=int(emb_a.shape[0]),
         n_users=int(emb_x.shape[0]),
         emb_dim=int(emb_x.shape[1]),
         env=env,
+        user_prior=user_prior,
     )
 
     if store_original:
-        dataset["original_a"] = our_a.copy()
-        dataset["original_x"] = our_x.copy()
-
-    if make_user_prior:
-        dataset["user_prior"] = user_prior
+        dataset["original_a"] = our_a.copy().astype(dtype)
+        dataset["original_x"] = our_x.copy().astype(dtype)
 
     if materialize_q_x_a:
         dataset["q_x_a"] = q_x_a
 
     return dataset
+
 
 # ----------------------------
 # Simulation: dense policy (legacy) and policy object (scalable)

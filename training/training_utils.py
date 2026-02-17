@@ -83,16 +83,16 @@ def run_train_loop(model, train_loader, optimizer, scores_all, criterion, lr=1e-
     if torch.cuda.is_available():
         assert next(model.parameters()).is_cuda, "Model is on CPU!"
 
-    for step, (user_idx, action_idx, rewards, original_prob) in enumerate(train_loader, 1):
+    for step, (user_idx, action_idx, rewards, pscore) in enumerate(train_loader, 1):
         # Move batch to device
         user_idx      = user_idx.to(device, non_blocking=True)
         action_idx    = action_idx.to(device, non_blocking=True)
         rewards       = rewards.to(device, non_blocking=True)
-        original_prob = original_prob.to(device, non_blocking=True)
+        pscore        = pscore.to(device, non_blocking=True)
 
         # PROBE: assert batch is on CUDA when available
         if torch.cuda.is_available():
-            assert user_idx.is_cuda and action_idx.is_cuda and rewards.is_cuda and original_prob.is_cuda, \
+            assert user_idx.is_cuda and action_idx.is_cuda and rewards.is_cuda and pscore.is_cuda, \
                 "Batch tensors not on CUDA"
 
         # Forward
@@ -102,8 +102,6 @@ def run_train_loop(model, train_loader, optimizer, scores_all, criterion, lr=1e-
             print(f"NaN in policy : (, step {step})")
             break
             
-        pscore = original_prob[torch.arange(user_idx.shape[0], device=device), action_idx]
-
         # *** Replace CPU round-trip with precomputed GPU lookup ***
         # scores = torch.tensor(neighborhood_model.predict(user_idx.cpu().numpy()), device=device)
 
@@ -131,14 +129,12 @@ def validation_loop(model, val_loader, scores_all, device='cpu'):
     estimated_rewards = []
 
     with torch.no_grad():
-        for user_idx, action_idx, rewards, original_prob in val_loader:
+        for user_idx, action_idx, rewards, pscore in val_loader:
             user_idx      = user_idx.to(device, non_blocking=True)
             action_idx    = action_idx.to(device, non_blocking=True)
             rewards       = rewards.to(device, non_blocking=True)
-            original_prob = original_prob.to(device, non_blocking=True)
-
+            pscore        = pscore.to(device, non_blocking=True)
             policy = model(user_idx)
-            pscore = original_prob[torch.arange(user_idx.shape[0], device=device), action_idx.long()]
 
             # scores on GPU via lookup
             scores = scores_all[user_idx.long()]
