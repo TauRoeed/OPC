@@ -8,6 +8,122 @@ from utils import simulation_utils
 random_state = 12345
 random_ = check_random_state(random_state)
 
+from models.models import RegressionModel, MLPRewardModel
+import numpy as np
+import pandas as pd
+from sklearn.linear_model import LogisticRegression
+
+def compare_reward_models_mae_over_sizes(
+    dataset: dict,
+    train_sizes: list[int],
+    val_size: int = 50_000,
+    seed: int = 12345,
+    n_bootstrap: int = 50,
+    mlp_ctor=None,
+    mlp_kwargs=None,
+    lr_kwargs=None,
+):
+    """
+    Compare RegressionModel (sklearn LR) vs MLPRewardModel across train sizes.
+
+    Metric: MAE on (x,a) pairs against ground-truth q_x_a.
+    Uncertainty: bootstrap SE of MAE over validation pairs.
+
+    Parameters
+    ----------
+    dataset: dict with keys at least:
+        - our_x: (n_users, d)
+        - our_a: (n_actions, d_action)  (used by both models)
+        - q_x_a: (n_users, n_actions)   (ground truth reward probability)
+        - n_users, n_actions
+    train_sizes: list of ints (#logged samples used to fit q model)
+    val_size: int (#pairs to evaluate MAE on)
+    seed: RNG seed
+    n_bootstrap: int (#bootstrap resamples for SE)
+    mlp_ctor: class or callable constructing the MLP reward model
+        e.g. mlp_ctor=MLPRewardModel
+    mlp_kwargs: dict passed to mlp_ctor
+    lr_kwargs: dict passed to LogisticRegression
+
+    Returns
+    -------
+    pd.DataFrame with columns:
+        train_size, mae_lr, se_lr, mae_mlp, se_mlp
+    """
+    
+    rng = np.random.default_rng(seed)
+    mlp_kwargs = mlp_kwargs or {}
+    lr_kwargs = lr_kwargs or {}
+
+    n_users = int(dataset["n_users"])
+    n_actions = int(dataset["n_actions"])
+    X_users = dataset["our_x"]
+    q_x_a = dataset["q_x_a"]
+    our_a = dataset["our_a"]
+
+    # --- fixed validation set of (user, action) pairs ---
+    val_users = rng.integers(0, n_users, size=val_size, dtype=np.int32)
+    val_actions = rng.integers(0, n_actions, size=val_size, dtype=np.int32)
+    val_context = X_users[val_users]
+    val_q_true = q_x_a[val_users, val_actions].astype(np.float32)
+
+    # bootstrap index matrix (reused for both models for fair SE)
+    boot_idx = [rng.integers(0, val_size, size=val_size, dtype=np.int32) for _ in range(n_bootstrap)]
+
+    rows = []
+
+    for m in train_sizes:
+        # --- generate logged training data (uniform actions/users) ---
+        tr_users = rng.integers(0, n_users, size=m, dtype=np.int32)
+        tr_actions = rng.integers(0, n_actions, size=m, dtype=np.int32)
+        tr_context = X_users[tr_users]
+        tr_q = q_x_a[tr_users, tr_actions].astype(np.float32)
+        tr_reward = (rng.random(m) < tr_q).astype(np.float32)
+
+        # ===== 1) Logistic regression baseline via RegressionModel API =====
+        # If you still have your RegressionModel class available:
+        regression_model = RegressionModel(
+            n_actions=n_actions,
+            action_context=our_a,
+            base_model=LogisticRegression(max_iter=200, **lr_kwargs),
+        )
+        regression_model.fit(tr_context, tr_actions, tr_reward)
+
+        pred_lr = regression_model.predict_pairs(val_context, val_actions).astype(np.float32)
+        mae_lr = float(np.mean(np.abs(pred_lr - val_q_true)))
+
+        maes_lr = []
+        for idx in boot_idx:
+            maes_lr.append(float(np.mean(np.abs(pred_lr[idx] - val_q_true[idx]))))
+        se_lr = float(np.std(maes_lr, ddof=1))
+
+        # ===== 2) MLP reward model =====
+        assert mlp_ctor is not None, "Pass mlp_ctor=MLPRewardModel (your class) to compare against LR."
+        mlp_model = mlp_ctor(
+            n_actions=n_actions,
+            action_context=our_a,
+            **mlp_kwargs,
+        )
+        mlp_model.fit(tr_context, tr_actions, tr_reward)
+
+        pred_mlp = mlp_model.predict_pairs(val_context, val_actions).astype(np.float32)
+        mae_mlp = float(np.mean(np.abs(pred_mlp - val_q_true)))
+
+        maes_mlp = []
+        for idx in boot_idx:
+            maes_mlp.append(float(np.mean(np.abs(pred_mlp[idx] - val_q_true[idx]))))
+        se_mlp = float(np.std(maes_mlp, ddof=1))
+
+        rows.append({
+            "train_size": int(m),
+            "mae_lr": mae_lr,
+            "se_lr": se_lr,
+            "mae_mlp": mae_mlp,
+            "se_mlp": se_mlp,
+        })
+
+    return pd.DataFrame(rows).sort_values("train_size").reset_index(drop=True)
+
 
 def get_scores_dict(
     dr_naive_mean,

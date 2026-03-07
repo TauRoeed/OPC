@@ -156,32 +156,30 @@ class SingleMLPTransform(nn.Module):
     def __init__(
         self,
         embedding_dim: int,
-        hidden_mult: int = 2,
+        hidden: int = 64,
         dropout: float = 0.1,
     ):
         super().__init__()
-        h = hidden_mult * embedding_dim
-
         self.ln = nn.LayerNorm(embedding_dim)
         self.mlp = nn.Sequential(
-            nn.Linear(embedding_dim, h),
+            nn.Linear(embedding_dim, hidden),
             nn.GELU(),
             nn.Dropout(dropout),
-            nn.Linear(h, embedding_dim),
+            nn.Linear(hidden, embedding_dim),
             nn.Dropout(dropout),
         )
 
-    def forward(self, x: torch.Tensor, idx: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, idx=None):
         """
         x: (..., d)
         returns: (..., d)
-        """
+        """        
         return x + self.mlp(self.ln(x))
 
 
 class LinearTransform(nn.Module):
     def __init__(self, embedding_size, embedding_dim):
-        super(LinearTransform, self).__init__()
+        super().__init__()
         self.delta = nn.Parameter(torch.zeros((embedding_size, embedding_dim)))
 
     def forward(self, x, idx=None):
@@ -203,7 +201,7 @@ class CFModel(nn.Module):
                  user_transform=None, action_transform=None, 
                  eps_greedy=1e-4):
 
-        super(CFModel, self).__init__()
+        super().__init__()
 
         self.user_transform = user_transform
         self.action_transform = action_transform
@@ -296,7 +294,7 @@ class LinearCFModel(nn.Module):
     def __init__(self, num_users, num_actions, embedding_dim, 
                  initial_user_embeddings=None, initial_actions_embeddings=None,
                  user_transform=None, action_transform=None):
-        super(LinearCFModel, self).__init__()
+        super().__init__()
 
         if user_transform is not None:
             self.user_transform = user_transform
@@ -382,12 +380,12 @@ class MLPRewardModel:
     action_context: np.ndarray                 # (n_actions, d_action)
     len_list: int = 1
 
-    hidden_dims: np.ndarray = field(default_factory=lambda: np.array([64, 16]))
-    dropout: float = 0.2
-    lr: float = 1e-3
-    weight_decay: float = 0.0
-    batch_size: int = 8192
-    epochs: int = 5
+    hidden_dims: np.ndarray = field(default_factory=lambda: np.array([4, 18]))
+    dropout: float = 0.3
+    lr: float = 0.003
+    weight_decay: float = 5e-5
+    batch_size: int = 2048
+    epochs: int = 20
     device: str = "cuda" if torch.cuda.is_available() else "cpu"
 
     def __post_init__(self):
@@ -410,9 +408,9 @@ class MLPRewardModel:
 
 
     def _build_model(self, d_context: int):
-        d_action = self.action_context_t.shape[1]
-        self.model = _OneHiddenMLP(d_context + d_action, np.array(self.hidden_dims), self.dropout).to(self.device)
-        self.opt = torch.optim.AdamW(self.model.parameters(), lr=self.lr, weight_decay=self.weight_decay)
+        # self.model = _OneHiddenMLP(d_context * 3, np.array(self.hidden_dims), self.dropout).to(self.device)
+        self.model = _OneHiddenMLP(d_context, np.array(self.hidden_dims), self.dropout).to(self.device)
+        self.opt = torch.optim.Adam(self.model.parameters(), lr=self.lr)
         self.loss_fn = nn.BCEWithLogitsLoss()
 
     @torch.no_grad()
@@ -421,7 +419,8 @@ class MLPRewardModel:
         ctx = torch.tensor(context, dtype=torch.float32, device=self.device)
         act = torch.tensor(action, dtype=torch.long, device=self.device)
         aemb = self.action_context_t[act]
-        x = torch.cat([ctx, aemb], dim=1)
+        # x = torch.cat([ctx, aemb, ctx * aemb], dim=1)
+        x = ctx * aemb
         logits = self.model(x)
         probs = torch.sigmoid(logits)
         return probs.detach().cpu().numpy()
@@ -451,7 +450,8 @@ class MLPRewardModel:
                 y_b = y_b.to(self.device)
 
                 aemb = self.action_context_t[act_b]
-                x = torch.cat([ctx_b, aemb], dim=1)
+                # x = torch.cat([ctx_b, aemb, ctx_b * aemb], dim=1)
+                x = ctx_b * aemb
 
                 logits = self.model(x)
                 loss = self.loss_fn(logits, y_b)
@@ -487,7 +487,8 @@ class MLPRewardModel:
             ctx_exp = ctx_c[:, None, :].expand(B, self.n_actions, ctx_c.shape[1])
             act_exp = A[None, :, :].expand(B, self.n_actions, A.shape[1])
 
-            x = torch.cat([ctx_exp, act_exp], dim=2).reshape(-1, ctx_c.shape[1] + A.shape[1])
+            # x = torch.cat([ctx_exp, act_exp, ctx_exp * act_exp], dim=2).reshape(-1, ctx_c.shape[1] + A.shape[1])
+            x = (ctx_exp * act_exp).reshape(-1, ctx_c.shape[1])
             probs = torch.sigmoid(self.model(x)).reshape(B, self.n_actions)
 
             out[s:e, :, 0] = probs.detach().cpu().numpy()

@@ -15,7 +15,7 @@ from models.estimators import (
     DoublyRobust as DR,
     SelfNormalizedDoublyRobust as SNDR,
 )
-
+from utils.policies import _softmax_rows
 
 # ----------------------------
 # Dataset helpers
@@ -123,61 +123,67 @@ def get_weights_info(policy, original_policy_prob):
 # --------------------------
 # Reward computation
 # ----------------------------
-def calc_reward(dataset: dict, policy, chunk_size: int = 5000):
+def calc_reward(dataset: dict, policy, chunk_size: int = 2048):
     """
-    Directly compute policy value in chunks to save memory.
+    Exact policy value computation without materializing full dense matrix.
 
-    Cases:
-    1) Dense policy matrix + dataset["q_x_a"] available -> exact value.
-    2) Policy object + dataset["env"] available -> direct expectation over users,
-       chunked to avoid memory issues.
+    Computes:
+        V(pi) = sum_u prior[u] * sum_a pi(a|u) * q(u,a)
 
-    Returns: np.array([value])
+    Fully chunked over users for memory safety.
     """
 
-    # -------------------------------------------------
-    # Case 1: dense policy matrix + q_x_a (exact)
-    # -------------------------------------------------
+    # -------------------------------
+    # Case 1: Dense policy matrix
+    # -------------------------------
     if isinstance(policy, np.ndarray):
         if "q_x_a" not in dataset:
             raise ValueError("Dense policy requires dataset['q_x_a'].")
 
-        pol = policy.squeeze()          # (n_users, n_actions)
-        q = dataset["q_x_a"]            # (n_users, n_actions)
+        pol = policy.squeeze()              # (n_users, n_actions)
+        q = dataset["q_x_a"]                # (n_users, n_actions)
 
         val = np.sum(q * pol, axis=1).mean()
         return np.array([float(val)])
 
-    # -------------------------------------------------
-    # Case 2: policy object + env (direct, chunked)
-    # -------------------------------------------------
+    # -------------------------------
+    # Case 2: Policy object
+    # -------------------------------
     if "env" not in dataset:
         raise ValueError("Policy object requires dataset['env'].")
 
     env = dataset["env"]
     n_users = int(dataset["n_users"])
-    prior = dataset.get("user_prior", np.ones(n_users))
+    n_actions = int(dataset["n_actions"])
+    prior = dataset.get("user_prior", np.ones(n_users, dtype=np.float64))
+    prior = prior.astype(np.float64)
+    prior /= prior.sum()   # normalize once
 
-    total = 0.0
-    count = 0
+    total_value = 0.0
 
     for start in range(0, n_users, chunk_size):
-        end = min(n_users, start + chunk_size)
+        end = min(start + chunk_size, n_users)
         users = np.arange(start, end, dtype=np.int64)
 
-        # Sample one action per user from the policy
-        actions, _ = policy.sample_actions(users)
+        # ---- Compute policy probabilities (full softmax block) ----
+        logits = policy._logits_block(users)        # (b, A)
+        probs = _softmax_rows(logits)               # (b, A)
 
-        # Get reward probabilities for these (user, action) pairs
-        probs = env.reward_prob(users, actions)
-        probs = np.asarray(probs, dtype=np.float64).reshape(-1)
+        # ---- Compute reward probabilities for ALL actions ----
+        # Create action grid
+        b = end - start
+        users_rep = np.repeat(users, n_actions)
+        actions_rep = np.tile(np.arange(n_actions), b)
 
-        probs = probs * prior[users]  # weight by user prior
-        total += probs.sum()
-        count += probs.shape[0]
+        rewards = env.reward_prob(users_rep, actions_rep)
+        rewards = rewards.reshape(b, n_actions)     # (b, A)
 
-    val = total / (max(count, 1) * sum(prior))  # normalize by total user mass
-    return np.array([float(val)])
+        # ---- Expected reward per user ----
+        user_values = np.sum(probs * rewards, axis=1)  # (b,)
+
+        total_value += np.sum(user_values * prior[users])
+
+    return float(total_value)
 
 
 def calc_reward_mc(dataset: dict, policy, n_sim=30):
@@ -214,6 +220,62 @@ def calc_reward_mc(dataset: dict, policy, n_sim=30):
 
         return np.array([float(p / n_sim)])
 
+
+
+def generate_noised_embeddings(
+    X: np.ndarray,               # (n, d)
+    n_clusters: int,
+    eps1: float,
+    eps2: float,
+    seed: int = 12345,
+    chunk_size: int = 100_000,
+    sigma1: float = 1.0,
+    sigma2: float = 1.0,
+) -> np.ndarray:
+    """
+    Returns:
+      X_noised: (n, d)
+      centroids: (n_clusters, d)  # random centroids sampled this call
+    """
+    rng = np.random.default_rng(seed)
+    X = X.astype(np.float32, copy=False)
+
+    n, d = X.shape
+
+    # random (d,d) transform for general-noise mean
+    W = rng.normal(0.0, 1.0, size=(d, d)).astype(np.float32)
+
+    # random centroids sampled per call
+    centroids = rng.normal(0.0, 1.0, size=(n_clusters, d)).astype(np.float32)
+    centroid_noise = rng.normal(0.0, 1.0, size=(n_clusters, d)).astype(np.float32)
+    c_norm2 = np.sum(centroids * centroids, axis=1)  # (k,)
+
+    X_out = np.empty_like(X, dtype=np.float32)
+
+    for s in range(0, n, chunk_size):
+        e = min(n, s + chunk_size)
+        Xb = X[s:e]
+        b = e - s
+
+        # ---- nearest centroid id (b,) ----
+        x_norm2 = np.sum(Xb * Xb, axis=1, keepdims=True)  # (b,1)
+        dist2 = x_norm2 - 2.0 * (Xb @ centroids.T) + c_norm2[None, :]  # (b,k)
+        cid = np.argmin(dist2, axis=1)
+
+        # ---- general noise: Gaussian around mean1 = XW ----
+        mean1 = Xb @ W
+        noise1 = mean1 + sigma1 * rng.normal(0.0, 1.0, size=(b, d)).astype(np.float32)
+
+        # ---- cluster noise: Gaussian around mean2 = nearest centroid ----
+        mean2 = centroid_noise[cid]
+        noise2 = mean2 + sigma2 * rng.normal(0.0, 1.0, size=(b, d)).astype(np.float32)
+
+        # ---- mixing ----
+        X_out[s:e] = (1.0 - eps1 - eps2) * Xb + eps1 * noise1 + eps2 * noise2
+
+    return X_out
+
+
 # ----------------------------
 # Dataset generation
 # ----------------------------
@@ -242,11 +304,21 @@ def generate_dataset(params, seed=12345, emb_a=None, emb_x=None, user_prior=None
     user_prior = user_prior / user_prior.sum()
 
     # noisy "our" embeddings (don’t allocate extra copies unless asked)
-    noise_a = random_.normal(size=(emb_a.shape)).astype(dtype)
-    our_a = ((1 - params["eps"]) * emb_a + params["eps"] * noise_a).astype(dtype)
+    our_a = generate_noised_embeddings(
+        X=emb_a,
+        n_clusters=params["n_clusters"],
+        eps1=params["eps1"],
+        eps2=params["eps2"],
+        seed=seed
+    )
 
-    noise_x = random_.normal(size=(emb_x.shape)).astype(dtype)
-    our_x = ((1 - params["eps"]) * emb_x + params["eps"] * noise_x).astype(dtype)
+    our_x = generate_noised_embeddings(
+        X=emb_x,
+        n_clusters=params["n_clusters"],
+        eps1=params["eps1"],
+        eps2=params["eps2"],
+        seed=seed + 1
+    )
 
     # env always available
     env = SyntheticBanditEnv(emb_x=emb_x, emb_a=emb_a, ctr=float(params.get("ctr", 0.0)))

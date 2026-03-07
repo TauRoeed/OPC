@@ -643,9 +643,9 @@ def regression_trainer_trial(
                 lr = trial.suggest_float("lr", 1e-4, 1e-1, log=True)
                 epochs = trial.suggest_int("num_epochs", 1, 10)
                 trial_batch_size = trial.suggest_categorical(
-                    "batch_size", [64, 128, 256, 512]
+                    "batch_size", [1024, 2048, 4096, 8192]
                 )
-                lr_decay = trial.suggest_float("lr_decay", 0.8, 1.0)
+                lr_decay = trial.suggest_float("lr_decay", 1e-5, 1e-3, log=True)
 
                 # Regression model (instead of neighborhood)
                 trial_reg_model = RegressionModel(
@@ -921,32 +921,32 @@ def random_policy_trainer_trial(
     val_data = get_train_data(n_actions, val_size, simulation_data, idx_val, our_x)
 
     # ----- fit Q model (pairwise usage in scorer) -----
-    # t0 = time.time()
-    # regression_model = RegressionModel(
-    #     n_actions=n_actions,
-    #     action_context=our_a,
-    #     base_model=LogisticRegression(random_state=seed),
-    # )
-    # regression_model.fit(train_data["x"], train_data["a"], train_data["r"])
-    # print(f"[Regression] fit time: {time.time() - t0:.2f}s")
     t0 = time.time()
-    regression_model = MLPRewardModel(
+    regression_model = RegressionModel(
         n_actions=n_actions,
-        action_context=our_a,      # (n_actions, d_action)
-        hidden_dims=[64, 16],            # one hidden layer
-        dropout=0.2,
-        epochs=15,
-        lr=1e-3,
-        batch_size=8192,
-        device="cuda",             # or "cpu"
+        action_context=our_a,
+        base_model=LogisticRegression(random_state=seed),
     )
+    regression_model.fit(train_data["x"], train_data["a"], train_data["r"])
+    print(f"[Regression] fit time: {time.time() - t0:.2f}s")
+    # t0 = time.time()
+    # regression_model = MLPRewardModel(
+    #     n_actions=n_actions,
+    #     action_context=our_a,      # (n_actions, d_action)
+    #     hidden_dims=[64, 16],            # one hidden layer
+    #     dropout=0.2,
+    #     epochs=15,
+    #     lr=1e-3,
+    #     batch_size=8192,
+    #     device="cuda",             # or "cpu"
+    # )
 
-    regression_model.fit(
-        context=train_data["x"],   # (n_rounds, d_context)
-        action=train_data["a"],    # (n_rounds,)
-        reward=train_data["r"],    # (n_rounds,)
-    )
-    print(f"[Regression-MLP] fit time: {time.time() - t0:.2f}s")
+    # regression_model.fit(
+    #     context=train_data["x"],   # (n_rounds, d_context)
+    #     action=train_data["a"],    # (n_rounds,)
+    #     reward=train_data["r"],    # (n_rounds,)
+    # )
+    # print(f"[Regression-MLP] fit time: {time.time() - t0:.2f}s")
 
     # ----- generate mixture policies (same alpha/beta/jaws logic) -----
     policies = generate_policies(
@@ -993,9 +993,7 @@ def random_policy_trainer_trial(
         err = float(scores_dict["dr_naive_se"])
 
         # "actual" (MC) on the validation users
-        users_val = np.asarray(val_data["x_idx"], dtype=np.int64)
-        a_mc, _ = pi_i.sample_actions(users_val)
-        r_actual = float(dataset["env"].reward_prob(users_val, a_mc).mean())
+        r_actual = calc_reward(dataset, pi_i, chunk_size=chunk_size)
 
         df.loc[len(df)] = {
             "value": value,
@@ -1045,14 +1043,8 @@ def mlp_trial_reward_fit_once(
     seed: int = 12345,
     # keep eval same as random_trial:
     lam_dr: float = 3.0,
-    n_bootstrap: int = 500,
-    n_dm_mc: int = 32,
-    # reward model fixed hyperparams (since fitted once):
-    rm_hidden_dims=(64, 16),
-    rm_dropout=0.2,
-    rm_epochs=15,
-    rm_lr=1e-3,
-    rm_batch_size=8192,
+    n_bootstrap: int = 1,
+    n_dm_mc: int = 1,
 ):
     """
     Fit reward model ONCE, then Optuna tunes CF training only.
@@ -1084,6 +1076,8 @@ def mlp_trial_reward_fit_once(
         rng=np.random.default_rng(seed + 1),
     )
 
+    initial_reward = calc_reward(dataset, logging_policy, chunk_size=user_chunk)
+    print(f"Initial reward: {initial_reward:.6f}")
     # ---------------------------
     # Simulate logged data once
     # ---------------------------
@@ -1097,7 +1091,7 @@ def mlp_trial_reward_fit_once(
     idx_train = np.arange(train_size, dtype=np.int64)
     idx_val = np.arange(val_size, dtype=np.int64) + train_size
 
-    train_full = get_train_data(n_actions, train_size, sim, idx_train, our_x)
+    # train_full = get_train_data(n_actions, train_size, sim, idx_train, our_x)
     val_data   = get_train_data(n_actions, val_size, sim, idx_val, our_x)
 
     # ---------------------------
@@ -1113,21 +1107,28 @@ def mlp_trial_reward_fit_once(
     # ---------------------------
     # Fit reward model ONCE
     # ---------------------------
+    t0 = time.time()
     reward_model = MLPRewardModel(
         n_actions=n_actions,
         action_context=our_a,
-        hidden_dims=list(rm_hidden_dims),
-        dropout=rm_dropout,
-        epochs=rm_epochs,
-        lr=rm_lr,
-        batch_size=rm_batch_size,
         device=str(device),
     )
+
     reward_model.fit(
         context=reg_data["x"],
         action=reg_data["a"],
         reward=reg_data["r"],
     )
+    print(f"[MLPRewardModel] fit time: {time.time() - t0:.2f}s")
+    # t0 = time.time()
+    # reward_model = RegressionModel(
+    #     n_actions=n_actions,
+    #     action_context=our_a,  # IMPORTANT: action embeddings
+    #     base_model=LogisticRegression(random_state=12345),
+    # )
+    # reward_model.fit(reg_data["x"], reg_data["a"], reg_data["r"])
+
+    # print(f"[Regression] Baseline regression model fit time: {time.time() - t0:.2f}s")
 
     # Precompute q_hat_all ONCE (chunked)
     q_hat_all = predict_qhat_all_chunked(reward_model, our_x, chunk_size=qhat_chunk)
@@ -1142,25 +1143,30 @@ def mlp_trial_reward_fit_once(
         cf_data["r"],
         cf_data["pscore"],   # <-- scalar propensity per logged sample
     )
-    num_workers = 4 if torch.cuda.is_available() else 0
+    num_workers = 12 if torch.cuda.is_available() else 0
 
     # ---------------------------
     # Optuna objective: CF only
     # ---------------------------
     def objective(trial):
-        lr = trial.suggest_float("lr", 1e-4, 5e-3, log=True)
+        # lr = trial.suggest_float("lr", 1e-4, 5e-3, log=True)
+        lr = trial.suggest_float("lr", 1e-4, 1e-1, log=True)
         epochs = trial.suggest_int("num_epochs", 1, 10)
-        batch_size = trial.suggest_categorical("batch_size", [128, 256, 512, 1024])
+        hidden = trial.suggest_int("hidden", 4, 32)
+        dropout = trial.suggest_float("dropout", 0.0, 0.4)
+        batch_size = trial.suggest_categorical(
+            "batch_size", [1024, 2048, 4096, 8192]
+        )
         lr_decay = trial.suggest_float("lr_decay", 0.8, 1.0)
-
+        
         model = CFModel(
             n_users,
             n_actions,
             emb_dim,
             initial_user_embeddings=torch.as_tensor(our_x, device=device, dtype=torch.float32),
             initial_actions_embeddings=torch.as_tensor(our_a, device=device, dtype=torch.float32),
-            user_transform=SingleMLPTransform(emb_dim),
-            action_transform=SingleMLPTransform(emb_dim),
+            user_transform=SingleMLPTransform(emb_dim, hidden=hidden, dropout=dropout),
+            action_transform=SingleMLPTransform(emb_dim, hidden=hidden, dropout=dropout),
         ).to(device)
 
         loader = DataLoader(
@@ -1187,6 +1193,7 @@ def mlp_trial_reward_fit_once(
             )
 
         learned_x_t, learned_a_t = model.get_params()
+
         learned_policy = Policy(
             n_users=n_users,
             n_items=n_actions,
@@ -1214,10 +1221,7 @@ def mlp_trial_reward_fit_once(
         err   = float(scores_dict["dr_naive_se"])
         ess   = float(weight_info["ess"])
 
-        # "actual" on validation users (same as random_trial)
-        users_val = np.asarray(val_data["x_idx"], dtype=np.int64)
-        a_mc, _ = learned_policy.sample_actions(users_val)
-        r_actual = float(dataset["env"].reward_prob(users_val, a_mc).mean())
+        r_actual = calc_reward(dataset, learned_policy, chunk_size=user_chunk)
 
         trial.set_user_attr("all_values", scores_array)
         trial.set_user_attr("scores_dict", scores_dict)
@@ -1226,7 +1230,12 @@ def mlp_trial_reward_fit_once(
         trial.set_user_attr("actual_reward", r_actual)
         trial.set_user_attr("ess", ess)
 
+        del loader
+        torch.cuda.empty_cache()
+
+        print(f"actual reward={r_actual:6f}, score={value:6f}")
         return value
+        # return r_actual
 
     # ---------------------------
     # Run Optuna
@@ -1246,4 +1255,5 @@ def mlp_trial_reward_fit_once(
     trial_df = trial_df[trial_df["value"] > 0]
 
     summary = {"best_value": float(study.best_value), **study.best_params}
-    return pd.DataFrame([summary]), trial_df
+    
+    return pd.DataFrame([summary]), trial_df, initial_reward

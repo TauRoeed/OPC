@@ -82,7 +82,7 @@ def run_train_loop(model, train_loader, optimizer, scores_all, criterion, lr=1e-
     # (Optional) assert once:
     if torch.cuda.is_available():
         assert next(model.parameters()).is_cuda, "Model is on CPU!"
-
+    
     for step, (user_idx, action_idx, rewards, pscore) in enumerate(train_loader, 1):
         # Move batch to device
         user_idx      = user_idx.to(device, non_blocking=True)

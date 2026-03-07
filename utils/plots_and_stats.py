@@ -128,7 +128,7 @@ def compute_error_metrics(actual, est):
     }
 
 
-def plot_ess_heatmap_scatter(score, actual, ess):
+def plot_ess_heatmap_scatter(score, actual, ess, h_lines=None):
     plt.figure(figsize=(8,6))
     sc = plt.scatter(
         score, actual,
@@ -140,6 +140,10 @@ def plot_ess_heatmap_scatter(score, actual, ess):
     plt.ylabel("Actual Reward")
     plt.title("ESS Heatmap Scatter")
     plt.grid(True)
+    if h_lines is not None:
+        for h in h_lines:
+            plt.axhline(y=h, color='red', linestyle='--')
+
     plt.show()
 
 
@@ -243,6 +247,7 @@ def plot_calibration_curve(score, actual, n_bins=20, x_label="Mean Score (bin)",
 
 
 def plot_error_hover(estimated_error, actual_error, ESS,
+                     h_lines=None,
                      title="Interactive Error vs Actual Error (ESS-colored)",
                      x_label="Estimated Error",
                      y_label="Actual Error"):
@@ -273,32 +278,49 @@ def plot_error_hover(estimated_error, actual_error, ESS,
     )
 
     # key change: specify renderer that doesn't need nbformat
+    if h_lines is not None:
+        for h in h_lines:
+            fig.add_hline(y=h, line_dash="dash", line_color="red")
+            
     fig.show(renderer="browser")
 
 
-def plot_error_plots(actual, est, score):
-    err = actual - est
+def plot_error_plots(actual, est, score, ess):
+    x_err = np.abs(score - est)
 
-    # error histogram
-    plt.figure(figsize=(6,5))
-    plt.hist(err, bins=40, alpha=0.7)
-    plt.title("Error Distribution (actual - estimated)")
-    plt.xlabel("Error")
-    plt.ylabel("Count")
-    plt.grid(True)
-    plt.show()
+    plt.figure(figsize=(8, 6))
 
-    # error vs score
-    plt.figure(figsize=(6,5))
-    plt.scatter(score, err, alpha=0.4)
-    plt.title("Error vs Score")
+    sc = plt.scatter(
+        est,
+        actual,
+        c=ess,
+        cmap="viridis",
+        s=40,
+        alpha=0.7,
+        edgecolors="none"
+    )
+
+    plt.errorbar(
+        est,
+        actual,
+        xerr=x_err,
+        fmt="none",          # important: don't redraw points
+        ecolor="gray",
+        alpha=0.3,
+        capsize=2
+    )
+
+    plt.colorbar(sc, label="ESS")
+
     plt.xlabel("Score")
-    plt.ylabel("Error")
+    plt.ylabel("Actual Reward")
+    plt.title("ESS Heatmap Scatter with Error Bars")
     plt.grid(True)
+    plt.tight_layout()
     plt.show()
 
 
-def compute_statistics_and_plots(df, n_bins=20, full_plot=True):
+def compute_statistics_and_plots(df, h_lines=None, n_bins=20, full_plot=True, ESS_threshold=0.0):
     """
     Computes:
       - Pearson correlation
@@ -332,21 +354,23 @@ def compute_statistics_and_plots(df, n_bins=20, full_plot=True):
     err_metrics = compute_error_metrics(actual, est)
 
     # plots
-    idx = err_est_sign > 0
+    # idx = err_est_sign > 0
+    idx = ess > ESS_threshold
     if full_plot:
-        plot_ranked_reward_curve(score, actual, score)
+        plot_ranked_reward_curve(score[idx], actual[idx], score[idx])
         
-        plot_ess_heatmap_scatter(score, actual, ess)
-        plot_ess_heatmap_scatter(score[idx], actual[idx], err_est_sign[idx])
+        plot_ess_heatmap_scatter(score[idx], actual[idx], ess[idx], h_lines=h_lines)
+        plot_error_plots(actual[idx], est[idx], score[idx], ess[idx])
+        # plot_ess_heatmap_scatter(score[idx], actual[idx], err_est_sign[idx])
     
-        plot_error_hover(score, actual, ess, 
+        plot_error_hover(score[idx], actual[idx], ess[idx], h_lines=h_lines,
                         title="Interactive Score vs Actual Reward (ESS-colored)",
                         x_label="Score",
                         y_label="Actual Reward")
 
-        # ===============================
-        # Return metrics
-        # ===============================
+        # # ===============================
+        # # Return metrics
+        # # ===============================
         print("Correlation Metrics:", cor)
         print("NDCG Metrics:", ndcg_vals)
         print("Error Metrics:", err_metrics)
