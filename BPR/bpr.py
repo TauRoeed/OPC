@@ -228,6 +228,32 @@ class BayesianPersonalizedRanking:
         np.save(user_path, self.user_factors)
         np.save(item_path, self.item_factors)
 
+    def save_artifacts(
+        self,
+        user_path: str,
+        item_path: str,
+        *,
+        item_metadata: np.ndarray | None = None,
+        item_metadata_path: str | None = None,
+        user_metadata: np.ndarray | None = None,
+        user_metadata_path: str | None = None,
+    ):
+        """
+        Save BPR embeddings and optional metadata matrices.
+
+        Metadata is optional by design: datasets without standalone user metadata
+        can skip user metadata paths/arrays.
+        """
+        self.save_embeddings(user_path=user_path, item_path=item_path)
+
+        if item_metadata is not None and item_metadata_path is not None:
+            os.makedirs(os.path.dirname(item_metadata_path), exist_ok=True)
+            np.save(item_metadata_path, np.asarray(item_metadata, dtype=np.float32))
+
+        if user_metadata is not None and user_metadata_path is not None:
+            os.makedirs(os.path.dirname(user_metadata_path), exist_ok=True)
+            np.save(user_metadata_path, np.asarray(user_metadata, dtype=np.float32))
+
     def recommend(self, user_items: csr_matrix, userid: int, N: int = 10, filter_seen: bool = True):
         if self.user_factors is None or self.item_factors is None:
             raise RuntimeError("Call fit() before recommend().")

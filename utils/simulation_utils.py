@@ -7,6 +7,7 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 from sklearn.utils import check_random_state
+from sklearn.cluster import MiniBatchKMeans
 from scipy.special import softmax
 
 from models.estimators import (
@@ -222,8 +223,133 @@ def calc_reward_mc(dataset: dict, policy, n_sim=30):
 
 
 
+def generate_linear_transform_noise(
+    X: np.ndarray,
+    *,
+    seed: int = 12345,
+    sigma: float = 1.0,
+    chunk_size: int = 100_000,
+) -> np.ndarray:
+
+    """Return one general noise vector per row (item/user)."""
+    rng = np.random.default_rng(seed)
+    X = X.astype(np.float32, copy=False)
+    n, d = X.shape
+    W = rng.normal(0.0, 1.0, size=(d, d)).astype(np.float32)
+    out = np.empty_like(X, dtype=np.float32)
+    for s in range(0, n, chunk_size):
+        e = min(n, s + chunk_size)
+        Xb = X[s:e]
+        b = e - s
+        mean = Xb @ W
+        out[s:e] = mean + sigma * rng.normal(0.0, 1.0, size=(b, d)).astype(np.float32)
+    return out
+
+
+def generate_random_cluster_template_noise(
+    X: np.ndarray,
+    *,
+    n_clusters: int,
+    seed: int = 12345,
+    sigma: float = 1.0,
+    chunk_size: int = 100_000,
+) -> np.ndarray:
+    """Legacy random-cluster template noise (one vector per row)."""
+    rng = np.random.default_rng(seed)
+    X = X.astype(np.float32, copy=False)
+    n, d = X.shape
+    centroids = rng.normal(0.0, 1.0, size=(n_clusters, d)).astype(np.float32)
+    templates = rng.normal(0.0, 1.0, size=(n_clusters, d)).astype(np.float32)
+    c_norm2 = np.sum(centroids * centroids, axis=1)
+    out = np.empty_like(X, dtype=np.float32)
+
+    for s in range(0, n, chunk_size):
+        e = min(n, s + chunk_size)
+        Xb = X[s:e]
+        b = e - s
+        x_norm2 = np.sum(Xb * Xb, axis=1, keepdims=True)
+        dist2 = x_norm2 - 2.0 * (Xb @ centroids.T) + c_norm2[None, :]
+        cid = np.argmin(dist2, axis=1)
+        mean = templates[cid]
+        out[s:e] = mean + sigma * rng.normal(0.0, 1.0, size=(b, d)).astype(np.float32)
+    return out
+
+
+def generate_kmeans_cluster_template_noise(
+    X: np.ndarray,
+    *,
+    n_clusters: int,
+    seed: int = 12345,
+    sigma: float = 1.0,
+) -> np.ndarray:
+    """KMeans cluster-template noise (one vector per row)."""
+    rng = np.random.default_rng(seed)
+    X = X.astype(np.float32, copy=False)
+    n, d = X.shape
+    kmeans = MiniBatchKMeans(
+        n_clusters=int(n_clusters),
+        random_state=int(seed),
+        batch_size=min(10_000, max(256, n)),
+        n_init=10,
+        reassignment_ratio=0.0,
+    )
+    cluster_ids = kmeans.fit_predict(X).astype(np.int32)
+    templates = rng.normal(0.0, 1.0, size=(n_clusters, d)).astype(np.float32)
+    mean = templates[cluster_ids]
+    return (mean + sigma * rng.normal(0.0, 1.0, size=(n, d)).astype(np.float32)).astype(np.float32)
+
+
+def generate_metadata_projection_noise(
+    metadata: np.ndarray,
+    *,
+    out_dim: int,
+    seed: int = 12345,
+    sigma: float = 1.0,
+    chunk_size: int = 100_000,
+) -> np.ndarray:
+    """
+    Metadata-based noise: project metadata into embedding space and add Gaussian noise.
+    Returns one noise vector per row.
+    """
+    rng = np.random.default_rng(seed)
+    M = np.asarray(metadata, dtype=np.float32)
+    if M.ndim != 2:
+        raise ValueError("metadata must be a 2D array.")
+    n, m_dim = M.shape
+    if m_dim == 0:
+        return np.zeros((n, out_dim), dtype=np.float32)
+
+    Wm = rng.normal(0.0, 1.0, size=(m_dim, out_dim)).astype(np.float32)
+    out = np.empty((n, out_dim), dtype=np.float32)
+    for s in range(0, n, chunk_size):
+        e = min(n, s + chunk_size)
+        Mb = M[s:e]
+        b = e - s
+        mean = Mb @ Wm
+        out[s:e] = mean + sigma * rng.normal(0.0, 1.0, size=(b, out_dim)).astype(np.float32)
+    return out
+
+
+def mix_ground_truth_with_noises(
+    X_gt: np.ndarray,
+    noise_vecs: list[np.ndarray],
+    epsilons: list[float],
+) -> np.ndarray:
+    """
+    Compose embeddings:
+      gt * (1 - sum(eps)) + sum_i (noise_i * eps_i)
+    """
+    if len(noise_vecs) != len(epsilons):
+        raise ValueError("noise_vecs and epsilons must have same length.")
+    eps_sum = float(np.sum(epsilons))
+    out = (1.0 - eps_sum) * X_gt.astype(np.float32, copy=False)
+    for noise, eps in zip(noise_vecs, epsilons):
+        out = out + float(eps) * noise.astype(np.float32, copy=False)
+    return out.astype(np.float32, copy=False)
+
+
 def generate_noised_embeddings(
-    X: np.ndarray,               # (n, d)
+    X: np.ndarray,
     n_clusters: int,
     eps1: float,
     eps2: float,
@@ -231,56 +357,43 @@ def generate_noised_embeddings(
     chunk_size: int = 100_000,
     sigma1: float = 1.0,
     sigma2: float = 1.0,
+    noise_mode: str = "random_centroids",
 ) -> np.ndarray:
     """
-    Returns:
-      X_noised: (n, d)
-      centroids: (n_clusters, d)  # random centroids sampled this call
+    Backward-compatible wrapper around split noise generators.
     """
-    rng = np.random.default_rng(seed)
     X = X.astype(np.float32, copy=False)
-
-    n, d = X.shape
-
-    # random (d,d) transform for general-noise mean
-    W = rng.normal(0.0, 1.0, size=(d, d)).astype(np.float32)
-
-    # random centroids sampled per call
-    centroids = rng.normal(0.0, 1.0, size=(n_clusters, d)).astype(np.float32)
-    centroid_noise = rng.normal(0.0, 1.0, size=(n_clusters, d)).astype(np.float32)
-    c_norm2 = np.sum(centroids * centroids, axis=1)  # (k,)
-
-    X_out = np.empty_like(X, dtype=np.float32)
-
-    for s in range(0, n, chunk_size):
-        e = min(n, s + chunk_size)
-        Xb = X[s:e]
-        b = e - s
-
-        # ---- nearest centroid id (b,) ----
-        x_norm2 = np.sum(Xb * Xb, axis=1, keepdims=True)  # (b,1)
-        dist2 = x_norm2 - 2.0 * (Xb @ centroids.T) + c_norm2[None, :]  # (b,k)
-        cid = np.argmin(dist2, axis=1)
-
-        # ---- general noise: Gaussian around mean1 = XW ----
-        mean1 = Xb @ W
-        noise1 = mean1 + sigma1 * rng.normal(0.0, 1.0, size=(b, d)).astype(np.float32)
-
-        # ---- cluster noise: Gaussian around mean2 = nearest centroid ----
-        mean2 = centroid_noise[cid]
-        noise2 = mean2 + sigma2 * rng.normal(0.0, 1.0, size=(b, d)).astype(np.float32)
-
-        # ---- mixing ----
-        X_out[s:e] = (1.0 - eps1 - eps2) * Xb + eps1 * noise1 + eps2 * noise2
-
-    return X_out
+    noise1 = generate_linear_transform_noise(
+        X,
+        seed=seed,
+        sigma=sigma1,
+        chunk_size=chunk_size,
+    )
+    if noise_mode == "random_centroids":
+        noise2 = generate_random_cluster_template_noise(
+            X,
+            n_clusters=n_clusters,
+            seed=seed + 73,
+            sigma=sigma2,
+            chunk_size=chunk_size,
+        )
+    elif noise_mode == "kmeans_templates":
+        noise2 = generate_kmeans_cluster_template_noise(
+            X,
+            n_clusters=n_clusters,
+            seed=seed + 73,
+            sigma=sigma2,
+        )
+    else:
+        raise ValueError(f"Unsupported noise_mode='{noise_mode}'.")
+    return mix_ground_truth_with_noises(X, [noise1, noise2], [eps1, eps2])
 
 
 # ----------------------------
 # Dataset generation
 # ----------------------------
 def generate_dataset(params, seed=12345, emb_a=None, emb_x=None, user_prior=None, 
-                     materialize_q_x_a: bool = False, dtype=np.float32, 
+                     metadata_a=None, metadata_x=None, materialize_q_x_a: bool = False, dtype=np.float32, 
                      store_original: bool = False):
     random_ = check_random_state(seed)
 
@@ -303,25 +416,116 @@ def generate_dataset(params, seed=12345, emb_a=None, emb_x=None, user_prior=None
     
     user_prior = user_prior / user_prior.sum()
 
-    # noisy "our" embeddings (don’t allocate extra copies unless asked)
-    our_a = generate_noised_embeddings(
-        X=emb_a,
-        n_clusters=params["n_clusters"],
-        eps1=params["eps1"],
-        eps2=params["eps2"],
-        seed=seed
+    # split noise generation + composition:
+    # gt * (1 - sum(eps)) + sum_i (noise_i * eps_i)
+    noise_mode = params.get("noise_mode", "random_centroids")
+    sigma1 = float(params.get("sigma1", 1.0))
+    sigma2 = float(params.get("sigma2", 1.0))
+    sigma_meta = float(params.get("sigma_meta", 1.0))
+    chunk_size = int(params.get("noise_chunk_size", 100_000))
+
+    item_noise_linear = generate_linear_transform_noise(
+        emb_a,
+        seed=seed,
+        sigma=sigma1,
+        chunk_size=chunk_size,
     )
 
-    our_x = generate_noised_embeddings(
-        X=emb_x,
-        n_clusters=params["n_clusters"],
-        eps1=params["eps1"],
-        eps2=params["eps2"],
-        seed=seed + 1
+    user_noise_linear = generate_linear_transform_noise(
+        emb_x,
+        seed=seed + 1,
+        sigma=sigma1,
+        chunk_size=chunk_size,
     )
+
+    if noise_mode == "kmeans_templates":
+        item_noise_cluster = generate_kmeans_cluster_template_noise(
+            emb_a,
+            n_clusters=params["n_clusters"],
+            seed=seed + 73,
+            sigma=sigma2,
+        )
+
+        user_noise_cluster = generate_kmeans_cluster_template_noise(
+            emb_x,
+            n_clusters=params["n_clusters"],
+            seed=seed + 74,
+            sigma=sigma2,
+        )
+
+    elif noise_mode == "random_centroids":
+        item_noise_cluster = generate_random_cluster_template_noise(
+            emb_a,
+            n_clusters=params["n_clusters"],
+            seed=seed + 73,
+            sigma=sigma2,
+            chunk_size=chunk_size,
+        )
+        user_noise_cluster = generate_random_cluster_template_noise(
+            emb_x,
+            n_clusters=params["n_clusters"],
+            seed=seed + 74,
+            sigma=sigma2,
+            chunk_size=chunk_size,
+        )
+        
+    else:
+        raise ValueError(f"Unsupported noise_mode='{noise_mode}'.")
+
+    eps1 = float(params["eps1"])
+    eps2 = float(params["eps2"])
+    item_noises = [item_noise_linear, item_noise_cluster]
+    user_noises = [user_noise_linear, user_noise_cluster]
+    item_eps = [eps1, eps2]
+    user_eps = [eps1, eps2]
+
+    eps_meta = float(params.get("eps_meta", 0.0))
+    if eps_meta > 0.0:
+        if metadata_a is None:
+            metadata_a = params.get("metadata_a", None)
+        if metadata_x is None:
+            metadata_x = params.get("metadata_x", None)
+
+        meta_a_arr = None
+        meta_x_arr = None
+        if metadata_a is not None:
+            meta_a_arr = np.load(metadata_a) if isinstance(metadata_a, str) else np.asarray(metadata_a)
+            if meta_a_arr.shape[0] != emb_a.shape[0]:
+                raise ValueError("metadata_a rows must match emb_a rows.")
+            item_noises.append(
+                generate_metadata_projection_noise(
+                    meta_a_arr,
+                    out_dim=emb_a.shape[1],
+                    seed=seed + 131,
+                    sigma=sigma_meta,
+                    chunk_size=chunk_size,
+                )
+            )
+            item_eps.append(eps_meta)
+
+        if metadata_x is not None:
+            meta_x_arr = np.load(metadata_x) if isinstance(metadata_x, str) else np.asarray(metadata_x)
+            if meta_x_arr.shape[0] != emb_x.shape[0]:
+                raise ValueError("metadata_x rows must match emb_x rows.")
+            user_noises.append(
+                generate_metadata_projection_noise(
+                    meta_x_arr,
+                    out_dim=emb_x.shape[1],
+                    seed=seed + 132,
+                    sigma=sigma_meta,
+                    chunk_size=chunk_size,
+                )
+            )
+            user_eps.append(eps_meta)
+
+        if meta_a_arr is None and meta_x_arr is None:
+            raise ValueError("eps_meta > 0 but no metadata_a/metadata_x was provided.")
+
+    our_a = mix_ground_truth_with_noises(emb_a, item_noises, item_eps)
+    our_x = mix_ground_truth_with_noises(emb_x, user_noises, user_eps)
 
     # env always available
-    env = SyntheticBanditEnv(emb_x=emb_x, emb_a=emb_a, ctr=float(params.get("ctr", 0.0)))
+    env = SyntheticBanditEnv(emb_x=emb_x, emb_a=emb_a, ctr=float(params.get("ctr", 0.05)))
 
     # optional q_x_a (dangerous!)
     q_x_a = None

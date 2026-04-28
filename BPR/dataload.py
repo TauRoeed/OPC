@@ -8,6 +8,57 @@ from scipy.sparse import csr_matrix
 
 from dataclasses import dataclass
 
+
+# Dataset-specific metadata schema. Each dataset can expose different metadata
+# columns/dimensions; we intentionally do not enforce a shared global size.
+DATASET_METADATA_CONFIG = {
+    "ml": {
+        "item_id_col": "item_id",
+        "item_numeric_cols": [],
+        "item_categorical_cols": ["genres"],
+        "item_multivalue_sep": {"genres": "|"},
+        "user_id_col": "user_id",
+        "user_numeric_cols": ["age", "occupation"],
+        "user_categorical_cols": ["gender"],
+    },
+    "myket": {
+        "item_id_col": "item_id",
+        "item_numeric_cols": [],
+        "item_categorical_cols": ["category"],
+        "item_multivalue_sep": {},
+        "user_id_col": "user_id",
+        "user_numeric_cols": [],
+        "user_categorical_cols": [],
+    },
+    "anime": {
+        "item_id_col": "item_id",
+        "item_numeric_cols": ["members", "episodes", "rating"],
+        "item_categorical_cols": ["type", "source", "genres"],
+        "item_multivalue_sep": {"genres": ","},
+        "user_id_col": "user_id",
+        "user_numeric_cols": [],
+        "user_categorical_cols": [],
+    },
+    "lastfm": {
+        "item_id_col": "item_id",
+        "item_numeric_cols": [],
+        "item_categorical_cols": [],
+        "item_multivalue_sep": {},
+        "user_id_col": "user_id",
+        "user_numeric_cols": [],
+        "user_categorical_cols": [],
+    },
+    "msd": {
+        "item_id_col": "item_id",
+        "item_numeric_cols": [],
+        "item_categorical_cols": [],
+        "item_multivalue_sep": {},
+        "user_id_col": "user_id",
+        "user_numeric_cols": [],
+        "user_categorical_cols": [],
+    },
+}
+
 def load_movielens_1m(ml1m_dir: str):
     """
     ml1m_dir should be the folder that contains:
@@ -264,7 +315,7 @@ def build_csr_from_interactions(
         # make same dtype as idx2item
         info["item_id"] = info["item_id"].astype(type(idx2item[0]))
         info = info.drop_duplicates("item_id").set_index("item_id")
-        item_info_aligned = info.reindex(idx2item).reset_index()
+        item_info_aligned = info.reindex(idx2item).rename_axis("item_id").reset_index()
 
     return InteractionData(
         X=X,
@@ -306,3 +357,157 @@ def save_user_interaction_counts(
 
     np.save(save_path, counts)
     return counts
+
+
+def _normalize_numeric_column(s: pd.Series) -> np.ndarray:
+    vals = pd.to_numeric(s, errors="coerce").fillna(0.0).astype(np.float32).to_numpy()
+    if vals.size == 0:
+        return vals.reshape(-1, 1)
+    std = float(vals.std())
+    if std < 1e-8:
+        return vals.reshape(-1, 1)
+    return ((vals - vals.mean()) / std).astype(np.float32).reshape(-1, 1)
+
+
+def _encode_metadata_frame(
+    df: pd.DataFrame,
+    *,
+    numeric_cols: list[str],
+    categorical_cols: list[str],
+    multivalue_sep: Optional[dict[str, str]] = None,
+) -> np.ndarray:
+    multivalue_sep = multivalue_sep or {}
+    blocks = []
+
+    for c in numeric_cols:
+        if c in df.columns:
+            blocks.append(_normalize_numeric_column(df[c]))
+
+    for c in categorical_cols:
+        if c not in df.columns:
+            continue
+        source = df[c].fillna("").astype(str)
+        if c in multivalue_sep:
+            sep = multivalue_sep[c]
+            tokens = source.str.split(sep)
+            one_hot = tokens.str.join("|").str.get_dummies(sep="|")
+            if "" in one_hot.columns:
+                one_hot = one_hot.drop(columns=[""])
+            blocks.append(one_hot.astype(np.float32).to_numpy())
+        else:
+            one_hot = pd.get_dummies(source, prefix=c, dtype=np.float32)
+            blocks.append(one_hot.to_numpy())
+
+    if not blocks:
+        return np.zeros((len(df), 0), dtype=np.float32)
+    return np.concatenate(blocks, axis=1).astype(np.float32, copy=False)
+
+
+def build_metadata_matrices(
+    dataset_name: str,
+    *,
+    item_info: pd.DataFrame,
+    idx2item: np.ndarray,
+    users_df: Optional[pd.DataFrame] = None,
+    idx2user: Optional[np.ndarray] = None,
+) -> tuple[np.ndarray, Optional[np.ndarray]]:
+    cfg = DATASET_METADATA_CONFIG.get(dataset_name)
+    if cfg is None:
+        raise ValueError(f"Unknown dataset_name '{dataset_name}'.")
+
+    item_id_col = cfg.get("item_id_col", "item_id")
+    info = item_info.copy()
+    if item_id_col not in info.columns:
+        # tolerate common aliases in upstream dataframes
+        for candidate in ("item_id", "movie_id"):
+            if candidate in info.columns:
+                item_id_col = candidate
+                break
+    if item_id_col not in info.columns:
+        raise ValueError(f"item_info must contain '{item_id_col}' for dataset '{dataset_name}'.")
+
+    info[item_id_col] = info[item_id_col].astype(type(idx2item[0]))
+    info = info.drop_duplicates(item_id_col).set_index(item_id_col)
+    item_aligned = info.reindex(idx2item).reset_index(drop=True)
+
+    item_meta = _encode_metadata_frame(
+        item_aligned,
+        numeric_cols=cfg.get("item_numeric_cols", []),
+        categorical_cols=cfg.get("item_categorical_cols", []),
+        multivalue_sep=cfg.get("item_multivalue_sep", {}),
+    )
+
+    user_meta = None
+    if users_df is not None and idx2user is not None:
+        user_numeric_cols = cfg.get("user_numeric_cols", [])
+        user_categorical_cols = cfg.get("user_categorical_cols", [])
+        if user_numeric_cols or user_categorical_cols:
+            user_id_col = cfg.get("user_id_col", "user_id")
+            if user_id_col not in users_df.columns:
+                user_id_col = "user_id"
+            if user_id_col not in users_df.columns:
+                raise ValueError(f"users_df must contain '{user_id_col}' for dataset '{dataset_name}'.")
+
+            users = users_df.copy()
+            users[user_id_col] = users[user_id_col].astype(type(idx2user[0]))
+            users = users.drop_duplicates(user_id_col).set_index(user_id_col)
+            users_aligned = users.reindex(idx2user).reset_index(drop=True)
+            user_meta = _encode_metadata_frame(
+                users_aligned,
+                numeric_cols=user_numeric_cols,
+                categorical_cols=user_categorical_cols,
+                multivalue_sep={},
+            )
+
+    return item_meta, user_meta
+
+
+def save_metadata_artifacts(
+    output_dir: str,
+    dataset_name: str,
+    *,
+    item_metadata: np.ndarray,
+    user_metadata: Optional[np.ndarray],
+) -> dict[str, Path]:
+    output = Path(output_dir)
+    output.mkdir(parents=True, exist_ok=True)
+
+    item_path = output / f"{dataset_name}_item_metadata.npy"
+    np.save(item_path, item_metadata.astype(np.float32, copy=False))
+
+    out_paths = {"item_metadata": item_path}
+    if user_metadata is not None:
+        user_path = output / f"{dataset_name}_user_metadata.npy"
+        np.save(user_path, user_metadata.astype(np.float32, copy=False))
+        out_paths["user_metadata"] = user_path
+
+    return out_paths
+
+
+def build_and_save_metadata_artifacts(
+    dataset_name: str,
+    *,
+    output_dir: str,
+    interaction_data: InteractionData,
+    users_df: Optional[pd.DataFrame] = None,
+) -> tuple[np.ndarray, Optional[np.ndarray], dict[str, Path]]:
+    """
+    Build index-aligned metadata matrices and save .npy artifacts.
+
+    Returns:
+      item_metadata, user_metadata_or_none, path_dict
+    """
+    item_metadata, user_metadata = build_metadata_matrices(
+        dataset_name,
+        item_info=interaction_data.item_info,
+        idx2item=interaction_data.idx2item,
+        users_df=users_df,
+        idx2user=interaction_data.idx2user,
+    )
+    paths = save_metadata_artifacts(
+        output_dir,
+        dataset_name,
+        item_metadata=item_metadata,
+        user_metadata=user_metadata,
+    )
+    return item_metadata, user_metadata, paths
