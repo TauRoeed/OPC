@@ -28,6 +28,7 @@ from sklearn.linear_model import LogisticRegression
 import matplotlib.pyplot as plt
 
 from scipy.special import softmax
+from scipy.stats import t as student_t
 import optuna
 
 from utils.policies import Policy, generate_policies
@@ -98,6 +99,35 @@ class IndexToContextModelWrapper:
 
 
 # --------------------------------------------------------------------
+# Validation sizing + numeric precision helpers
+# --------------------------------------------------------------------
+def resolve_validation_size(
+    train_size: int,
+    *,
+    val_size: int | None = None,
+    val_frac: float | None = None,
+    val_min: int = 5000,
+    val_max: int | None = None,
+) -> int:
+    """
+    Number of logged validation trajectories.
+
+    - If ``val_size`` is set: fixed count (legacy / explicit).
+    - Else: ``round(val_frac * train_size)``, clamped to ``[val_min, val_max]``.
+    """
+    train_size = int(train_size)
+    if val_size is not None:
+        v = int(val_size)
+    else:
+        frac = 0.15 if val_frac is None else float(val_frac)
+        v = int(round(frac * max(train_size, 1)))
+        v = max(int(val_min), v)
+        if val_max is not None:
+            v = min(int(val_max), v)
+    return max(v, 1)
+
+
+# --------------------------------------------------------------------
 # Shared utility: robust mean over dict list
 # --------------------------------------------------------------------
 def _mean_dict(dicts):
@@ -111,6 +141,181 @@ def _mean_dict(dicts):
         stacked = np.stack(vals, axis=0)
         out[k] = np.mean(stacked, axis=0)
     return out
+
+
+def _aggregate_runs_by_validation_score(dicts, score_key: str = "selection_val_score"):
+    """
+    Pick metrics from the run whose Optuna validation objective was best, and add
+    *_runs_mean for every metric averaged across runs (excluding score_key).
+
+    Primary columns (policy_rewards, conv_dr, ...) are from the winning run — the
+    regime you get after selecting hyperparameters by validation score per run, then
+    choosing the best run by that same score.
+    """
+    if not dicts:
+        return {}
+    stripped = [{k: v for k, v in d.items() if k != score_key} for d in dicts]
+    runs_mean = _mean_dict(stripped)
+
+    scores = []
+    for d in dicts:
+        s = d.get(score_key, float("-inf"))
+        try:
+            sf = float(np.asarray(s).reshape(-1)[0])
+            if not np.isfinite(sf):
+                sf = float("-inf")
+        except Exception:
+            sf = float("-inf")
+        scores.append(sf)
+    idx = int(np.argmax(scores))
+    best = dict(dicts[idx])
+    win_score = best.pop(score_key, float("nan"))
+
+    out = {}
+    for k, v in best.items():
+        out[k] = v
+    out[score_key] = win_score
+    for k, v in runs_mean.items():
+        out[f"{k}_runs_mean"] = v
+    return out
+
+
+def _resolve_logged_pscore(train_data, original_policy_prob, mode="logged"):
+    """
+    Unify propensity handling across trial trainers.
+    mode:
+      - "logged": use behavior propensity from logged data.
+      - "uniform": force pscore=1.0 (explicit no-propensity training).
+    """
+    if mode == "uniform":
+        return np.ones_like(train_data["r"], dtype=np.float32)
+
+    if "pscore" in train_data and train_data["pscore"] is not None:
+        return np.asarray(train_data["pscore"], dtype=np.float32)
+
+    return np.asarray(
+        original_policy_prob[train_data["x_idx"], train_data["a"]].squeeze(),
+        dtype=np.float32,
+    )
+
+
+def _build_cf_dataset(train_data, original_policy_prob, propensity_mode="logged"):
+    pscore = _resolve_logged_pscore(
+        train_data=train_data,
+        original_policy_prob=original_policy_prob,
+        mode=propensity_mode,
+    )
+    return CustomCFDatasetPS(
+        train_data["x_idx"],
+        train_data["a"],
+        train_data["r"],
+        pscore,
+    )
+
+
+def _simulate_from_embedding_policy(dataset, our_x, our_a, n_samples, random_state):
+    """Sample logged bandit data without materializing dense pi (n_users x n_actions)."""
+    rng = int(random_state) % (2**31 - 1)
+    logging_policy = Policy(
+        n_users=int(dataset["n_users"]),
+        n_items=int(dataset["n_actions"]),
+        user_emb=our_x,
+        item_emb=our_a,
+        emb_dim=int(our_x.shape[1]),
+        temperature=1.0,
+        user_chunk=2048,
+        rng=np.random.default_rng(rng),
+    )
+    return create_simulation_data_from_policy(
+        dataset=dataset,
+        policy=logging_policy,
+        n_samples=int(n_samples),
+        random_state=int(random_state),
+    )
+
+
+def _softmax_action_probs_stable(logits, axis=1, min_floor: float = 1e-15):
+    """Softmax in float64, floor, renormalize — avoids float32 underflow on large |A|."""
+    x = np.asarray(logits, dtype=np.float64)
+    p = softmax(x, axis=axis)
+    p = np.maximum(p, min_floor)
+    p /= np.sum(p, axis=axis, keepdims=True)
+    return p.astype(np.float32)
+
+
+def predict_regression_qhat_chunked(
+    regression_model, user_context, chunk_size: int = 256
+):
+    """RegressionModel.predict over users in chunks; returns float32 (n_users, n_actions, len_list)."""
+    n_users = int(user_context.shape[0])
+    n_list = int(regression_model.len_list)
+    out = np.zeros((n_users, int(regression_model.n_actions), n_list), dtype=np.float32)
+    for s in range(0, n_users, chunk_size):
+        e = min(n_users, s + chunk_size)
+        q = regression_model.predict(user_context[s:e])
+        out[s:e] = np.asarray(q, dtype=np.float32)
+    return out
+
+
+def _batched_pi_at_logged_actions(user_emb, item_emb, user_ids, action_ids, chunk_size=4096):
+    """Per-row pi(a_i|x_i) for logged (user_ids, action_ids) without full softmax matrix."""
+    user_ids = np.asarray(user_ids, dtype=np.int64).reshape(-1)
+    action_ids = np.asarray(action_ids, dtype=np.int64).reshape(-1)
+    out = np.empty(len(user_ids), dtype=np.float32)
+    xw = np.asarray(user_emb, dtype=np.float32)
+    aw = np.asarray(item_emb, dtype=np.float32)
+    for s in range(0, len(user_ids), chunk_size):
+        e = min(len(user_ids), s + chunk_size)
+        logits = xw[user_ids[s:e]] @ aw.T
+        prob = _softmax_action_probs_stable(logits, axis=1)
+        loc = np.arange(e - s, dtype=np.int64)
+        out[s:e] = prob[loc, action_ids[s:e]]
+    return out
+
+
+def cv_score_model(val_data, trial_scores_all, user_emb, item_emb):
+    """
+    Conservative validation score:
+    r_hat - tdist * se
+    Uses only validation rows (no dense n_users x n_actions policy matrix).
+    """
+    pscore = np.asarray(val_data["pscore"], dtype=np.float32)
+    users = np.asarray(val_data["x_idx"], dtype=np.int64)
+    reward = np.asarray(val_data["r"], dtype=np.float32)
+    actions = np.asarray(val_data["a"], dtype=np.int64)
+
+    scores = np.asarray(trial_scores_all.detach().cpu().numpy(), dtype=np.float32).squeeze()
+    xw = np.asarray(user_emb, dtype=np.float32)
+    aw = np.asarray(item_emb, dtype=np.float32)
+    logits = xw[users] @ aw.T
+    pi_val = _softmax_action_probs_stable(logits, axis=1)
+    scores_val = scores[users]
+    loc = np.arange(len(users), dtype=np.int64)
+    pi_e_at_position = np.asarray(pi_val[loc, actions].squeeze(), dtype=np.float32)
+    iw = pi_e_at_position / (pscore + 1e-12)
+    q_hat_factual = np.asarray(scores_val[loc, actions].squeeze(), dtype=np.float32)
+    dm_reward = np.asarray((scores_val * pi_val).sum(axis=1), dtype=np.float32)
+
+    dr_vec = dm_reward + iw * (reward - q_hat_factual)
+    n = max(len(dr_vec), 2)
+    r_hat = float(dr_vec.mean())
+    se = float(dr_vec.std(ddof=1) / np.sqrt(n))
+    tcrit = float(student_t.ppf(0.975, n - 1))
+    return r_hat - tcrit * se
+
+
+def _policy_reward_from_embeddings(dataset, user_emb, item_emb, seed=12345):
+    pi_obj = Policy(
+        n_users=int(dataset["n_users"]),
+        n_items=int(dataset["n_actions"]),
+        user_emb=user_emb,
+        item_emb=item_emb,
+        emb_dim=int(dataset["emb_dim"]),
+        temperature=1.0,
+        user_chunk=2048,
+        rng=np.random.default_rng(seed),
+    )
+    return calc_reward(dataset, pi_obj)
 
 
 # --------------------------------------------------------------------
@@ -168,11 +373,26 @@ def get_trial_results(
     dm,
 ):
     t0 = time.time()
-    policy = np.expand_dims(softmax(our_x @ our_a.T, axis=1), -1)
-    policy_reward = calc_reward(dataset, policy)
+    # Val-aligned softmax only (avoid dense n_users x n_actions matrix).
+    uids = np.asarray(val_data["x_idx"], dtype=np.int64)
+    xw = np.asarray(our_x[uids], dtype=np.float32)
+    aw = np.asarray(our_a, dtype=np.float32)
+    logits = xw @ aw.T
+    policy_val = np.expand_dims(_softmax_action_probs_stable(logits, axis=1), -1)
+    policy_object = Policy(
+        n_users=int(dataset["n_users"]),
+        n_items=int(dataset["n_actions"]),
+        user_emb=our_x,
+        item_emb=our_a,
+        emb_dim=int(dataset["emb_dim"]),
+        temperature=1.0,
+        user_chunk=2048,
+        rng=np.random.default_rng(12345),
+    )
+    policy_reward = calc_reward(dataset, policy_object)
 
     # eval_policy expects model.predict(x_idx)
-    eval_metrics = eval_policy(neighberhoodmodel, val_data, original_policy_prob, policy)
+    eval_metrics = eval_policy(neighberhoodmodel, val_data, original_policy_prob, policy_val)
 
     action_diff_to_real = np.sqrt(np.mean((emb_a - our_a) ** 2))
     action_delta = np.sqrt(np.mean((original_a - our_a) ** 2))
@@ -190,9 +410,9 @@ def get_trial_results(
         ]
     )
 
-    # DM with regression model
+    # DM with regression model (needs 3D action_dist: n x n_actions x len_list)
     reg_dm = dm.estimate_policy_value(
-        policy[val_data["x_idx"]], regression_model.predict(val_data["x"])
+        policy_val, regression_model.predict(val_data["x"])
     )
     reg_results = np.array([reg_dm])
     conv_results = np.array([row])
@@ -210,9 +430,13 @@ def neighberhoodmodel_trainer_trial(
     train_sizes,
     dataset,
     batch_size,
-    val_size=2000,
-    n_trials=10,
+    val_size=None,
+    val_frac=0.15,
+    val_min=5000,
+    val_max=None,
+    n_trials=20,
     prev_best_params=None,
+    propensity_mode="logged",
 ):
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -239,20 +463,28 @@ def neighberhoodmodel_trainer_trial(
     all_user_indices = np.arange(n_users, dtype=np.int64)
     T = lambda x: torch.as_tensor(x, device=device, dtype=torch.float32)
 
-    # ===== baseline (sample size = 0) using get_trial_results =====
-    pi_0 = softmax(our_x_orig @ our_a_orig.T, axis=1)
-    original_policy_prob = np.expand_dims(pi_0, -1)
-
-    simulation_data = create_simulation_data_from_pi(
-        dataset, pi_0, val_size, random_state=0
+    train_sizes_list = [int(x) for x in train_sizes]
+    base_train = min(train_sizes_list) if train_sizes_list else 10_000
+    v_baseline = resolve_validation_size(
+        base_train,
+        val_size=val_size,
+        val_frac=val_frac,
+        val_min=val_min,
+        val_max=val_max,
     )
+
+    # ===== baseline (sample size = 0) using get_trial_results =====
+    simulation_data = _simulate_from_embedding_policy(
+        dataset, our_x_orig, our_a_orig, v_baseline * 2, random_state=0
+    )
+    original_policy_prob = None
 
     # use same data for train/val just to generate the baseline row
     train_data = get_train_data(
-        n_actions, val_size, simulation_data, np.arange(val_size), our_x_orig
+        n_actions, v_baseline, simulation_data, np.arange(v_baseline), our_x_orig
     )
     val_data = get_train_data(
-        n_actions, val_size, simulation_data, np.arange(val_size), our_x_orig
+        n_actions, v_baseline, simulation_data, np.arange(v_baseline), our_x_orig
     )
 
     t0 = time.time()
@@ -286,37 +518,42 @@ def neighberhoodmodel_trainer_trial(
     for train_size in train_sizes:
         trial_dicts_this_size = []
         best_hyperparams_by_size[train_size] = {}
+        v = resolve_validation_size(
+            int(train_size),
+            val_size=val_size,
+            val_frac=val_frac,
+            val_min=val_min,
+            val_max=val_max,
+        )
 
         for run in range(num_runs):
-            print(f"\n=== [Neighborhood] Train size {train_size}, run {run} ===")
+            print(f"\n=== [Neighborhood] Train size {train_size}, run {run} (val_size={v}) ===")
 
             # --- resample for this run ---
-            pi_0 = softmax(our_x_orig @ our_a_orig.T, axis=1)
-            original_policy_prob = np.expand_dims(pi_0, -1)
-
-            simulation_data = create_simulation_data_from_pi(
+            simulation_data = _simulate_from_embedding_policy(
                 dataset,
-                pi_0,
-                train_size + val_size,
+                our_x_orig,
+                our_a_orig,
+                int(train_size) + v,
                 random_state=(run + 1) * (train_size + 17),
             )
+            original_policy_prob = None
 
             idx_train = np.arange(train_size)
             train_data = get_train_data(
                 n_actions, train_size, simulation_data, idx_train, our_x_orig
             )
-            val_idx = np.arange(val_size) + train_size
+            val_idx = np.arange(v) + train_size
             val_data = get_train_data(
-                n_actions, val_size, simulation_data, val_idx, our_x_orig
+                n_actions, v, simulation_data, val_idx, our_x_orig
             )
 
             num_workers = 4 if torch.cuda.is_available() else 0
 
-            cf_dataset = CustomCFDataset(
-                train_data["x_idx"],
-                train_data["a"],
-                train_data["r"],
-                original_policy_prob,
+            cf_dataset = _build_cf_dataset(
+                train_data=train_data,
+                original_policy_prob=original_policy_prob,
+                propensity_mode=propensity_mode,
             )
 
             # --- Optuna objective bound to this run's data ---
@@ -386,24 +623,22 @@ def neighberhoodmodel_trainer_trial(
                 trial_x = trial_x.detach().cpu().numpy()
                 trial_a = trial_a.detach().cpu().numpy()
 
-                pi_i = softmax(trial_x @ trial_a.T, axis=1)
                 train_actions = train_data["a"]
                 train_users = train_data["x_idx"]
+                pi_e_tr = _batched_pi_at_logged_actions(
+                    trial_x, trial_a, train_users, train_actions
+                )
+                pscore_tr = np.asarray(train_data["pscore"], dtype=np.float32)
 
                 print(
                     "Train wi info: {}".format(
-                        get_weights_info(
-                            pi_i[train_users, train_actions],
-                            original_policy_prob[train_users, train_actions],
-                        )
+                        get_weights_info(pi_e_tr, pscore_tr)
                     )
                 )
-                print(
-                    f"actual reward: {calc_reward(dataset, np.expand_dims(pi_i, -1))}"
-                )
+                print(f"actual reward: {_policy_reward_from_embeddings(dataset, trial_x, trial_a)}")
 
                 # validation reward for selection (you had cv_score_model)
-                return cv_score_model(val_data, trial_scores_all, pi_i)
+                return cv_score_model(val_data, trial_scores_all, trial_x, trial_a)
 
             # --- run Optuna for this run ---
             study = optuna.create_study(direction="maximize")
@@ -430,7 +665,7 @@ def neighberhoodmodel_trainer_trial(
                 train_data["x"],
                 train_data["a"],
                 train_data["r"],
-                original_policy_prob[train_data["x_idx"], train_data["a"]].squeeze(),
+                np.asarray(train_data["pscore"], dtype=np.float32),
             )
 
             neighberhoodmodel = NeighborhoodModel(
@@ -497,19 +732,24 @@ def neighberhoodmodel_trainer_trial(
                 original_a,  # original clean refs
                 dataset,
                 val_data,  # this run's val split
-                original_policy_prob,
+                None,
                 neighberhoodmodel,
                 regression_model,
                 dm,
             )
+            trial_res = {
+                **trial_res,
+                "val_size": float(v),
+                "selection_val_score": float(study.best_value),
+            }
 
             trial_dicts_this_size.append(trial_res)
 
             # memory hygiene
             torch.cuda.empty_cache()
 
-        # === aggregate per-run results (mean) and store under this train_size ===
-        results[train_size] = _mean_dict(trial_dicts_this_size)
+        # Primary metrics = run with best validation objective; *_runs_mean = mean across runs.
+        results[train_size] = _aggregate_runs_by_validation_score(trial_dicts_this_size)
 
     return pd.DataFrame.from_dict(results, orient="index"), best_hyperparams_by_size
 
@@ -523,9 +763,13 @@ def regression_trainer_trial(
     train_sizes,
     dataset,
     batch_size,
-    val_size=2000,
-    n_trials=10,
+    val_size=None,
+    val_frac=0.15,
+    val_min=5000,
+    val_max=None,
+    n_trials=20,
     prev_best_params=None,
+    propensity_mode="logged",
 ):
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -537,6 +781,7 @@ def regression_trainer_trial(
     results = {}
     best_hyperparams_by_size = {}
     last_best_params = prev_best_params if prev_best_params is not None else None
+    last_optuna_study = None
 
     # ===== Unpack dataset =====
     our_x_orig = dataset["our_x"]
@@ -551,20 +796,28 @@ def regression_trainer_trial(
 
     T = lambda x: torch.as_tensor(x, device=device, dtype=torch.float32)
 
-    # ===== Baseline row =====
-    pi_0 = softmax(our_x_orig @ our_a_orig.T, axis=1)
-    original_policy_prob = np.expand_dims(pi_0, -1)
-
-    simulation_data = create_simulation_data_from_pi(
-        dataset, pi_0, val_size + val_size, random_state=0
+    train_sizes_list = [int(x) for x in train_sizes]
+    base_train = min(train_sizes_list) if train_sizes_list else 10_000
+    v_baseline = resolve_validation_size(
+        base_train,
+        val_size=val_size,
+        val_frac=val_frac,
+        val_min=val_min,
+        val_max=val_max,
     )
+
+    # ===== Baseline row =====
+    simulation_data = _simulate_from_embedding_policy(
+        dataset, our_x_orig, our_a_orig, v_baseline + v_baseline, random_state=0
+    )
+    original_policy_prob = None
     
     train_data = get_train_data(
-        n_actions, val_size, simulation_data, np.arange(val_size), our_x_orig
+        n_actions, v_baseline, simulation_data, np.arange(v_baseline), our_x_orig
     )
 
     val_data = get_train_data(
-        n_actions, val_size, simulation_data, np.arange(val_size) + val_size, our_x_orig
+        n_actions, v_baseline, simulation_data, np.arange(v_baseline) + v_baseline, our_x_orig
     )
 
     t0 = time.time()
@@ -588,29 +841,36 @@ def regression_trainer_trial(
         original_a,
         dataset,
         val_data,
-        original_policy_prob,
+        None,
         wrapped_reg_model,  # for eval_policy
         regression_model,  # for reg_dm
         dm,
     )
+    results[0]["val_size"] = float(v_baseline)
 
     # ===== Main loop over training sizes =====
     for train_size in train_sizes:
         trial_dicts_this_size = []
         best_hyperparams_by_size[train_size] = {}
+        v = resolve_validation_size(
+            int(train_size),
+            val_size=val_size,
+            val_frac=val_frac,
+            val_min=val_min,
+            val_max=val_max,
+        )
 
         for run in range(num_runs):
-            print(f"\n=== [Regression] Training size {train_size}, run {run} ===")
+            print(f"\n=== [Regression] Training size {train_size}, run {run} (val_size={v}) ===")
 
-            pi_0 = softmax(our_x_orig @ our_a_orig.T, axis=1)
-            original_policy_prob = np.expand_dims(pi_0, -1)
-
-            simulation_data = create_simulation_data_from_pi(
+            simulation_data = _simulate_from_embedding_policy(
                 dataset,
-                pi_0,
-                train_size + val_size,
+                our_x_orig,
+                our_a_orig,
+                int(train_size) + v,
                 random_state=(run + 1) * (train_size + 17),
             )
+            original_policy_prob = None
             reg_size = int(0.5 * train_size)
             reg_data_idx = np.arange(reg_size)
             
@@ -623,16 +883,15 @@ def regression_trainer_trial(
                 n_actions, train_size - reg_size, simulation_data, idx_train, our_x_orig
             )
 
-            val_idx = np.arange(val_size) + train_size
+            val_idx = np.arange(v) + train_size
             val_data = get_train_data(
-                n_actions, val_size, simulation_data, val_idx, our_x_orig
+                n_actions, v, simulation_data, val_idx, our_x_orig
             )
 
-            cf_dataset = CustomCFDataset(
-                train_data["x_idx"],
-                train_data["a"],
-                train_data["r"],
-                original_policy_prob,
+            cf_dataset = _build_cf_dataset(
+                train_data=train_data,
+                original_policy_prob=None,
+                propensity_mode=propensity_mode,
             )
 
             num_workers = 4 if torch.cuda.is_available() else 0
@@ -658,10 +917,14 @@ def regression_trainer_trial(
                     reg_data["x"], reg_data["a"], reg_data["r"]
                 )
 
-                # Predict q_hat for ALL users (static scores)
-                trial_q_hat = trial_reg_model.predict(our_x_orig)  # (n_users, n_actions, 1)
+                # Predict q_hat for ALL users (static scores), chunked to limit RAM.
+                trial_q_hat = predict_regression_qhat_chunked(
+                    trial_reg_model, our_x_orig, chunk_size=256
+                )
                 trial_scores_all = torch.as_tensor(
-                    trial_q_hat, device=device, dtype=torch.float32
+                    np.asarray(trial_q_hat, dtype=np.float32),
+                    device=device,
+                    dtype=torch.float32,
                 )
 
                 # Initialize CF model
@@ -704,23 +967,41 @@ def regression_trainer_trial(
                     trial_x.detach().cpu().numpy(),
                     trial_a.detach().cpu().numpy(),
                 )
-                pi_i = softmax(trial_x @ trial_a.T, axis=1)
-                r = calc_reward(dataset, np.expand_dims(pi_i, -1))
+                r = _policy_reward_from_embeddings(dataset, trial_x, trial_a)
                 print(
                     f"actual reward: {r}"
                 )
-                scores_dict, scores_array, weight_info = score_model_modular(val_data, trial_scores_all, pi_i)
-                r_hat = scores_dict['dr_naive_mean']
-                err = scores_dict['dr_naive_se']
+                pscore = np.asarray(val_data["pscore"], dtype=np.float32)
+                users = np.asarray(val_data["x_idx"], dtype=np.int64)
+                reward = np.asarray(val_data["r"], dtype=np.float32)
+                actions = np.asarray(val_data["a"], dtype=np.int64)
 
-                value = scores_dict['dr_naive_ci_low']  # conservative estimate
+                tx = np.asarray(trial_x, dtype=np.float32)
+                ta = np.asarray(trial_a, dtype=np.float32)
+                pi_val = _softmax_action_probs_stable(tx[users] @ ta.T, axis=1)
+                scores_val = np.asarray(
+                    trial_scores_all[users].detach().cpu().numpy(),
+                    dtype=np.float32,
+                ).squeeze()
+                loc = np.arange(len(users), dtype=np.int64)
+                pi_e_at_position = np.asarray(pi_val[loc, actions].squeeze(), dtype=np.float32)
+                iw = pi_e_at_position / (pscore + 1e-12)
+                q_hat_factual = np.asarray(scores_val[loc, actions].squeeze(), dtype=np.float32)
+                dm_reward = np.asarray((scores_val * pi_val).sum(axis=1), dtype=np.float32)
 
-                trial.set_user_attr("all_values", scores_array)
-                trial.set_user_attr("scores_dict", scores_dict)
+                dr_vec = dm_reward + iw * (reward - q_hat_factual)
+                n = max(len(dr_vec), 2)
+                r_hat = float(dr_vec.mean())
+                err = float(dr_vec.std(ddof=1) / np.sqrt(n))
+                tcrit = float(student_t.ppf(0.975, n - 1))
+                value = r_hat - tcrit * err
+
+                trial.set_user_attr("all_values", [r_hat, err, value])
+                trial.set_user_attr("scores_dict", {"r_hat": r_hat, "se": err, "ci_low": value})
                 trial.set_user_attr("r_hat", r_hat)
                 trial.set_user_attr("q_error", err)
                 trial.set_user_attr("actual_reward", r)
-                trial.set_user_attr("ess", weight_info["ess"])
+                trial.set_user_attr("ess", float((iw.sum() ** 2) / ((iw ** 2).sum() + 1e-12)))
 
                 return value
 
@@ -730,6 +1011,7 @@ def regression_trainer_trial(
                 study.enqueue_trial(last_best_params)
 
             study.optimize(objective, n_trials=n_trials, show_progress_bar=True)
+            last_optuna_study = study
 
             best_params = study.best_params
             last_best_params = best_params
@@ -748,8 +1030,14 @@ def regression_trainer_trial(
                 train_data["x"], train_data["a"], train_data["r"]
             )
 
-            q_hat_all = regression_model.predict(our_x_orig)
-            scores_all = torch.as_tensor(q_hat_all, device=device, dtype=torch.float32)
+            q_hat_all = predict_regression_qhat_chunked(
+                regression_model, our_x_orig, chunk_size=256
+            )
+            scores_all = torch.as_tensor(
+                np.asarray(q_hat_all, dtype=np.float32),
+                device=device,
+                dtype=torch.float32,
+            )
 
             model = CFModel(
                 n_users,
@@ -804,31 +1092,91 @@ def regression_trainer_trial(
                 original_a,
                 dataset,
                 val_data,
-                original_policy_prob,
+                None,
                 wrapped_reg_model,
                 regression_model,
                 dm,
             )
+            trial_res = {
+                **trial_res,
+                "val_size": float(v),
+                "selection_val_score": float(study.best_value),
+            }
 
             trial_dicts_this_size.append(trial_res)
             torch.cuda.empty_cache()
 
-        # Aggregate across runs
-        results[train_size] = _mean_dict(trial_dicts_this_size)
-        
-    trial_df = study.trials_dataframe()[["value", 
-                                         "user_attrs_actual_reward", 
-                                         "user_attrs_q_error", 
-                                         "user_attrs_r_hat", 
-                                         "user_attrs_ess",                                          
-                                         "user_attrs_scores_dict", 
-                                         "user_attrs_all_values"
-                                         ]]
+        # Primary metrics = run with best validation objective; *_runs_mean = mean across runs.
+        results[train_size] = _aggregate_runs_by_validation_score(trial_dicts_this_size)
 
-    trial_df['user_attrs_actual_reward'] = trial_df['user_attrs_actual_reward'].apply(lambda x:x[0])
-    trial_df = trial_df[trial_df['value'] > 0]
+    # Last Optuna study (largest train_size, last run) — for opc_trials.csv debugging only.
+    trial_df = pd.DataFrame()
+    if last_optuna_study is not None:
+        try:
+            trial_df = last_optuna_study.trials_dataframe()
+            cols = [
+                c
+                for c in (
+                    "value",
+                    "user_attrs_actual_reward",
+                    "user_attrs_q_error",
+                    "user_attrs_r_hat",
+                    "user_attrs_ess",
+                    "user_attrs_scores_dict",
+                    "user_attrs_all_values",
+                )
+                if c in trial_df.columns
+            ]
+            if cols:
+                trial_df = trial_df[cols]
+            if "user_attrs_actual_reward" in trial_df.columns:
+                trial_df = trial_df.copy()
+                trial_df["user_attrs_actual_reward"] = trial_df[
+                    "user_attrs_actual_reward"
+                ].apply(
+                    lambda x: float(x[0])
+                    if isinstance(x, (list, tuple, np.ndarray))
+                    else float(x)
+                )
+            if "value" in trial_df.columns:
+                trial_df = trial_df[trial_df["value"] > 0]
+        except Exception:
+            trial_df = pd.DataFrame()
 
     return pd.DataFrame.from_dict(results, orient="index"), trial_df
+
+
+def no_propensity_trainer_trial(
+    num_runs,
+    num_neighbors,
+    train_sizes,
+    dataset,
+    batch_size,
+    val_size=None,
+    val_frac=0.15,
+    val_min=5000,
+    val_max=None,
+    n_trials=20,
+    prev_best_params=None,
+):
+    """
+    Explicit no-propensity baseline with parity to regression trainer:
+    same model family, same search budget, same train/val splits.
+    """
+    return regression_trainer_trial(
+        num_runs=num_runs,
+        num_neighbors=num_neighbors,
+        train_sizes=train_sizes,
+        dataset=dataset,
+        batch_size=batch_size,
+        val_size=val_size,
+        val_frac=val_frac,
+        val_min=val_min,
+        val_max=val_max,
+        n_trials=n_trials,
+        prev_best_params=prev_best_params,
+        propensity_mode="uniform",
+    )
 
 
 # --------------------------------------------------------------------

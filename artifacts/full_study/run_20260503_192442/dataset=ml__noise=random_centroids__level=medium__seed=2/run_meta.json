@@ -1,0 +1,34 @@
+{
+  "dataset": "ml",
+  "noise_mode": "random_centroids",
+  "noise_level": "medium",
+  "seed": 2,
+  "params": {
+    "n_users": 6040,
+    "n_actions": 3706,
+    "emb_dim": 64,
+    "n_clusters": 60,
+    "eps1": 0.1,
+    "eps2": 0.15,
+    "eps_meta": 0.05,
+    "sigma1": 1.0,
+    "sigma2": 1.0,
+    "sigma_meta": 1.0,
+    "noise_mode": "random_centroids",
+    "ctr": 0.05
+  },
+  "train_sizes": [
+    5000,
+    25000,
+    50000,
+    100000,
+    1000000
+  ],
+  "n_trials": 5,
+  "num_runs": 1,
+  "batch_size": 2048,
+  "val_size_fixed": null,
+  "val_frac": 0.15,
+  "val_min": 5000,
+  "val_max": null
+}

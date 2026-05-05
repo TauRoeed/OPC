@@ -99,14 +99,20 @@ class SyntheticBanditEnv:
 def calc_gini(x: np.ndarray) -> float:
     sorted_x = np.sort(x)
     n = sorted_x.size
+    s = float(np.sum(sorted_x))
+    if n == 0 or s == 0.0 or not np.isfinite(s):
+        return float("nan")
     cum_weights = np.arange(1, n + 1, dtype=sorted_x.dtype)
     numerator = np.sum((2 * cum_weights - n - 1) * sorted_x)
-    denominator = n * np.sum(sorted_x)
+    denominator = n * s
     return float(numerator / denominator)
 
 
 def calc_ESS(x: np.ndarray) -> float:
-    return float(x.sum() ** 2 / (x ** 2).sum())
+    denom = float(np.sum(x**2))
+    if denom == 0.0 or not np.isfinite(denom):
+        return float("nan")
+    return float(x.sum() ** 2 / denom)
 
 
 def get_weights_info(policy, original_policy_prob):
@@ -115,9 +121,19 @@ def get_weights_info(policy, original_policy_prob):
     return dict(
         gini=calc_gini(iw),
         ess=calc_ESS(iw),
-        max_wi=float(iw.max()),
-        min_wi=float(iw.min()),
+        max_wi=float(np.nanmax(iw)),
+        min_wi=float(np.nanmin(iw)),
     )
+
+
+def floor_renorm_action_dist(p: np.ndarray, min_prob: float = 1e-15) -> np.ndarray:
+    """Floor tiny probs and renormalize rows so float32 softmax tails do not become all-zero."""
+    x = np.asarray(p, dtype=np.float64)
+    if x.ndim == 2:
+        x = np.expand_dims(x, -1)
+    x = np.maximum(x, min_prob)
+    x /= np.sum(x, axis=1, keepdims=True)
+    return x.astype(np.float32)
 
 
 # -
@@ -672,18 +688,55 @@ def eval_policy(model, test_data, original_policy_prob, policy):
     ipw = IPW()
     sndr = SNDR()
 
-    scores = model.predict(test_data["x"])
-    policy = policy[test_data["x_idx"]]
-
+    scores = np.asarray(model.predict(test_data["x"]), dtype=np.float32)
+    policy_in = np.asarray(policy, dtype=np.float32)
+    if policy_in.ndim == 2:
+        policy_in = np.expand_dims(policy_in, -1)
+    policy_in = floor_renorm_action_dist(policy_in)
     actions = test_data["a"]
-    pscore = original_policy_prob[test_data["x_idx"], actions].squeeze()
-    pi_e_at_position = policy[test_data["x_idx"], actions].squeeze()
+    # Prefer logged propensities when present (avoids dense n_users x n_actions pi_b).
+    if test_data.get("pscore") is not None:
+        pscore = np.asarray(test_data["pscore"], dtype=np.float32).squeeze()
+    else:
+        if original_policy_prob is None:
+            raise ValueError("eval_policy needs test_data['pscore'] or original_policy_prob")
+        pscore = original_policy_prob[test_data["x_idx"], actions].squeeze()
+
+    pol = policy_in.squeeze(-1) if policy_in.ndim == 3 else policy_in
+    # If policy rows already align 1:1 with test rows (e.g. val-only softmax), do not re-index.
+    if pol.shape[0] == len(actions):
+        policy_rows = pol
+    else:
+        policy_rows = pol[test_data["x_idx"]]
+
+    local_idx = np.arange(len(actions), dtype=np.int64)
+    pi_e_at_position = policy_rows[local_idx, actions].squeeze()
 
     res = []
-    res.append(dm.estimate_policy_value(policy, scores))
-    res.append(dr.estimate_policy_value(test_data["r"], test_data["a"], policy, scores, pscore=pscore))
-    res.append(ipw.estimate_policy_value(test_data["r"], test_data["a"], policy, pscore=pscore))
-    res.append(sndr.estimate_policy_value(test_data["r"], test_data["a"], policy, scores, pscore=pscore))
+    res.append(
+        dm.estimate_policy_value(
+            policy_in, estimated_rewards_by_reg_model=scores
+        )
+    )
+    res.append(
+        dr.estimate_policy_value(
+            test_data["r"],
+            test_data["a"],
+            policy_in,
+            estimated_rewards_by_reg_model=scores,
+            pscore=pscore,
+        )
+    )
+    res.append(ipw.estimate_policy_value(test_data["r"], test_data["a"], policy_in, pscore=pscore))
+    res.append(
+        sndr.estimate_policy_value(
+            test_data["r"],
+            test_data["a"],
+            policy_in,
+            estimated_rewards_by_reg_model=scores,
+            pscore=pscore,
+        )
+    )
 
     print(f"Num samples is {len(test_data['r'])}")
     print(get_weights_info(pi_e_at_position, pscore))
