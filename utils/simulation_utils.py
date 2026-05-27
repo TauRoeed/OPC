@@ -226,16 +226,17 @@ def calc_reward_mc(dataset: dict, policy, n_sim=30):
     rng = np.random.default_rng(12345)
     p = 0.0
 
-    for i in range(n_sim):
+    for _ in range(n_sim):
         n_mc = min(10000, n_users)
-        # if user_prior is None:
-        users = rng.integers(0, n_users, size=n_mc, endpoint=False)
-        # else:
-            # users = rng.choice(np.arange(n_users), size=n_mc, replace=True, p=user_prior)
+        if user_prior is None:
+            users = rng.integers(0, n_users, size=n_mc, endpoint=False)
+        else:
+            users = rng.choice(np.arange(n_users), size=n_mc, replace=True, p=user_prior)
         actions, _ = policy.sample_actions(users)
-        p += env.reward_prob(users, actions)
+        # Aggregate to scalar expected reward estimate per draw.
+        p += float(np.mean(env.reward_prob(users, actions)))
 
-        return np.array([float(p / n_sim)])
+    return np.array([float(p / max(int(n_sim), 1))])
 
 
 
@@ -562,6 +563,8 @@ def generate_dataset(params, seed=12345, emb_a=None, emb_x=None, user_prior=None
         user_prior=user_prior,
     )
 
+    dataset["policy_temperature"] = float(params.get("policy_temperature", 1.0))
+
     if store_original:
         dataset["original_a"] = our_a.copy().astype(dtype)
         dataset["original_x"] = our_x.copy().astype(dtype)
@@ -692,6 +695,7 @@ def eval_policy(model, test_data, original_policy_prob, policy):
     policy_in = np.asarray(policy, dtype=np.float32)
     if policy_in.ndim == 2:
         policy_in = np.expand_dims(policy_in, -1)
+
     policy_in = floor_renorm_action_dist(policy_in)
     actions = test_data["a"]
     # Prefer logged propensities when present (avoids dense n_users x n_actions pi_b).
@@ -701,6 +705,8 @@ def eval_policy(model, test_data, original_policy_prob, policy):
         if original_policy_prob is None:
             raise ValueError("eval_policy needs test_data['pscore'] or original_policy_prob")
         pscore = original_policy_prob[test_data["x_idx"], actions].squeeze()
+    
+    print(f"PScore time: {time.time() - t0} seconds")
 
     pol = policy_in.squeeze(-1) if policy_in.ndim == 3 else policy_in
     # If policy rows already align 1:1 with test rows (e.g. val-only softmax), do not re-index.
@@ -708,6 +714,8 @@ def eval_policy(model, test_data, original_policy_prob, policy):
         policy_rows = pol
     else:
         policy_rows = pol[test_data["x_idx"]]
+
+    # print(f"Policy rows time: {time.time() - t0} seconds")
 
     local_idx = np.arange(len(actions), dtype=np.int64)
     pi_e_at_position = policy_rows[local_idx, actions].squeeze()
@@ -718,6 +726,7 @@ def eval_policy(model, test_data, original_policy_prob, policy):
             policy_in, estimated_rewards_by_reg_model=scores
         )
     )
+    # print(f"DM time: {time.time() - t0} seconds")
     res.append(
         dr.estimate_policy_value(
             test_data["r"],
@@ -727,7 +736,10 @@ def eval_policy(model, test_data, original_policy_prob, policy):
             pscore=pscore,
         )
     )
+    # print(f"DR time: {time.time() - t0} seconds")
     res.append(ipw.estimate_policy_value(test_data["r"], test_data["a"], policy_in, pscore=pscore))
+    # print(f"IPW time: {time.time() - t0} seconds")
+    
     res.append(
         sndr.estimate_policy_value(
             test_data["r"],
@@ -737,9 +749,10 @@ def eval_policy(model, test_data, original_policy_prob, policy):
             pscore=pscore,
         )
     )
-
+    # print(f"SNDR time: {time.time() - t0} seconds")
     print(f"Num samples is {len(test_data['r'])}")
     print(get_weights_info(pi_e_at_position, pscore))
+    # print(f"get_weights_info time: {time.time() - t0} seconds")
     print(f"Eval time: {time.time() - t0} seconds")
     return np.array(res)
 

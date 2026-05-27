@@ -8,3 +8,9 @@ OBPEnv/
 
 # Old typo-ed file
 requirmnents.txt
+
+# Generated data artifacts
+BPR/embeddings/*.npy
+datasets/**/*.hdf5
+datasets/**/*.dat
+datasets/**/*.csv

@@ -20,14 +20,49 @@ from abc import ABCMeta
 from dataclasses import dataclass, field
 from typing import Optional
 
-from sklearn.base import BaseEstimator
-from sklearn.base import clone
-from sklearn.base import is_classifier
+from sklearn.base import BaseEstimator, ClassifierMixin, clone, is_classifier
 from sklearn.model_selection import KFold
 from sklearn.utils import check_random_state
 from sklearn.utils import check_scalar
 
 from utils.saito_helpers import check_bandit_feedback_inputs
+
+
+class _ConstantBinaryProbaClassifier(BaseEstimator, ClassifierMixin):
+    """When training labels are a single class, ``LogisticRegression`` cannot fit; this mirrors ``predict_proba[:, 1]``."""
+
+    def __init__(self, p_positive: float = 0.5):
+        self.p_positive = float(p_positive)
+
+    def fit(self, X, y=None, sample_weight=None):
+        return self
+
+    def predict_proba(self, X):
+        n = X.shape[0]
+        p = float(np.clip(self.p_positive, 1e-8, 1.0 - 1e-8))
+        return np.column_stack(
+            [np.full(n, 1.0 - p, dtype=np.float64), np.full(n, p, dtype=np.float64)]
+        )
+
+    def predict(self, X):
+        return (self.predict_proba(X)[:, 1] >= 0.5).astype(int)
+
+
+def _fit_classifier_handling_single_class(
+    estimator: BaseEstimator,
+    X: np.ndarray,
+    y: np.ndarray,
+    sample_weight: Optional[np.ndarray] = None,
+) -> BaseEstimator:
+    y = np.asarray(y, dtype=np.float64).ravel()
+    if is_classifier(estimator) and len(np.unique(y)) < 2:
+        p = float(np.clip(np.mean(y), 1e-6, 1.0 - 1e-6))
+        return _ConstantBinaryProbaClassifier(p_positive=p).fit(X, y)
+    if sample_weight is None:
+        estimator.fit(X, y)
+    else:
+        estimator.fit(X, y, sample_weight=sample_weight)
+    return estimator
 
 
 class NeighborhoodModel(metaclass=ABCMeta):
@@ -643,21 +678,30 @@ class RegressionModel(BaseEstimator):
             if X.shape[0] == 0:
                 raise ValueError(f"No training data at position {pos_}")
             # train the base model according to the given `fitting method`
+            y_sub = np.asarray(reward[idx], dtype=np.float64).ravel()
             if self.fitting_method == "normal":
-                self.base_model_list[pos_].fit(X, reward[idx])
+                self.base_model_list[pos_] = _fit_classifier_handling_single_class(
+                    self.base_model_list[pos_], X, y_sub
+                )
             else:
                 action_dist_at_pos = action_dist[np.arange(n), action, pos_][idx]
                 if self.fitting_method == "iw":
                     sample_weight = action_dist_at_pos / pscore[idx]
-                    self.base_model_list[pos_].fit(
-                        X, reward[idx], sample_weight=sample_weight
+                    self.base_model_list[pos_] = _fit_classifier_handling_single_class(
+                        self.base_model_list[pos_],
+                        X,
+                        y_sub,
+                        sample_weight=sample_weight,
                     )
                 elif self.fitting_method == "mrdr":
                     sample_weight = action_dist_at_pos
                     sample_weight *= 1.0 - pscore[idx]
                     sample_weight /= pscore[idx] ** 2
-                    self.base_model_list[pos_].fit(
-                        X, reward[idx], sample_weight=sample_weight
+                    self.base_model_list[pos_] = _fit_classifier_handling_single_class(
+                        self.base_model_list[pos_],
+                        X,
+                        y_sub,
+                        sample_weight=sample_weight,
                     )
 
     def predict(self, context: np.ndarray) -> np.ndarray:

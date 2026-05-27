@@ -22,6 +22,9 @@ class Policy:
     Exact full-softmax dot-product policy over ALL items:
       logits(u,a) = (user_emb[u] · item_emb[a]) / temperature
 
+    Temperature scales logits before softmax (default 1.0). Full-study runs pass
+    ``policy_temperature`` via ``generate_dataset`` into ``dataset["policy_temperature"]``.
+
     You can set embeddings per run. If embeddings are None, they are generated randomly.
 
     - sample_actions(users): samples a ~ pi(.|u) and returns exact p(a|u)

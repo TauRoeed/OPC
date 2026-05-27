@@ -4,6 +4,7 @@ from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
 
+import os
 import numpy as np
 import pandas as pd
 import sys
@@ -22,6 +23,20 @@ torch.backends.cudnn.benchmark = torch.cuda.is_available()
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 if torch.cuda.is_available():
     torch.set_float32_matmul_precision("high")
+
+
+def _dataloader_num_workers() -> int:
+    """DataLoader worker processes. Default 0 avoids EMFILE when nested under
+    ProcessPoolExecutor / many Optuna trials (each trial used num_workers>0 before).
+    Set OPC_DATALOADER_WORKERS to a small integer (e.g. 2) to re-enable prefetch."""
+    raw = os.environ.get("OPC_DATALOADER_WORKERS", "").strip()
+    if raw != "":
+        try:
+            return max(0, int(raw))
+        except ValueError:
+            pass
+    return 0
+
 
 from sklearn.utils import check_random_state
 from sklearn.linear_model import LogisticRegression
@@ -48,6 +63,7 @@ from utils.simulation_utils import (
     CustomCFDataset,
     CustomCFDatasetPS,
     calc_reward,
+    calc_reward_mc,
     get_weights_info,
     create_simulation_data_from_policy,
 )
@@ -66,8 +82,12 @@ from training.training_utils import (
 )
 
 from models.custom_losses import (
-    KLPolicyLoss
+    KLPolicyLoss,
 )
+
+
+def _kl_policy_loss(gamma: float, use_log_trick: bool = True) -> KLPolicyLoss:
+    return KLPolicyLoss(gamma=float(gamma), use_log_trick=use_log_trick)
 
 from models.model_scoring import score_model_modular, score_model_modular_large
 random_state = 12345
@@ -153,7 +173,7 @@ def _aggregate_runs_by_validation_score(dicts, score_key: str = "selection_val_s
     choosing the best run by that same score.
     """
     if not dicts:
-        return {}
+        return {}, -1
     stripped = [{k: v for k, v in d.items() if k != score_key} for d in dicts]
     runs_mean = _mean_dict(stripped)
 
@@ -177,7 +197,104 @@ def _aggregate_runs_by_validation_score(dicts, score_key: str = "selection_val_s
     out[score_key] = win_score
     for k, v in runs_mean.items():
         out[f"{k}_runs_mean"] = v
-    return out
+    return out, idx
+
+
+def _append_csv(path, df: pd.DataFrame):
+    """Append rows to a CSV, writing header only if the file doesn't exist yet."""
+    if path is None or df is None or df.empty:
+        return
+    p = Path(path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    df.to_csv(p, mode="a", header=not p.exists(), index=False)
+
+
+def _study_trials_long(
+    study,
+    method_label: str,
+    train_size: int,
+    run_idx: int,
+    best_trial_number: int | None = None,
+    ctr: float | None = None,
+    initial_reward: float | None = None,
+):
+    """Flatten an Optuna study into a long-format DataFrame for replayable logs."""
+    rows = []
+    if study is None:
+        return pd.DataFrame()
+    ctr_v = float(ctr) if ctr is not None else float("nan")
+    ir_v = float(initial_reward) if initial_reward is not None else float("nan")
+    for t in study.trials:
+        attrs = t.user_attrs or {}
+        params = t.params or {}
+        rows.append(
+            {
+                "method": method_label,
+                "train_size": int(train_size),
+                "run": int(run_idx),
+                "trial_number": int(t.number),
+                "ctr": ctr_v,
+                "initial_reward": ir_v,
+                "value": (
+                    float(t.value)
+                    if t.value is not None and np.isfinite(t.value)
+                    else float("nan")
+                ),
+                "r_hat": float(attrs.get("r_hat", float("nan"))),
+                "r_hat_train": float(attrs.get("r_hat_train", float("nan"))),
+                "q_error": float(attrs.get("q_error", float("nan"))),
+                "ess": float(attrs.get("ess", float("nan"))),
+                "ess_train": float(attrs.get("ess_train", float("nan"))),
+                "actual_reward": float(
+                    np.asarray(attrs.get("actual_reward", float("nan"))).reshape(-1)[0]
+                )
+                if attrs.get("actual_reward") is not None
+                else float("nan"),
+                "param_lr": float(params.get("lr", float("nan"))),
+                "param_num_epochs": int(params.get("num_epochs", -1)),
+                "param_batch_size": int(params.get("batch_size", -1)),
+                "param_lr_decay": float(params.get("lr_decay", float("nan"))),
+                "param_kl_gamma": float(params.get("kl_gamma", float("nan"))),
+                "param_use_log_trick": int(bool(params.get("use_log_trick", True))),
+                "param_num_neighbors": int(params.get("num_neighbors", -1)),
+                "is_best_in_run": bool(
+                    best_trial_number is not None and t.number == best_trial_number
+                ),
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def _nan_posthoc_eval_metrics() -> dict:
+    """Placeholder metrics when ``slim`` skips ``get_trial_results``."""
+    keys = (
+        "policy_rewards",
+        "ipw",
+        "reg_dm",
+        "conv_dm",
+        "conv_dr",
+        "conv_sndr",
+        "ipw_var",
+        "reg_dm_var",
+        "conv_dm_var",
+        "conv_dr_var",
+        "conv_sndr_var",
+        "action_diff_to_real",
+        "action_delta",
+        "context_diff_to_real",
+        "context_delta",
+    )
+    return {k: float("nan") for k in keys}
+
+
+def _enqueue_with_kl_gamma(last_best: dict | None, kl_default: float = 0.05) -> dict | None:
+    """Optuna enqueue compatibility when new search dims were added."""
+    if last_best is None:
+        return None
+    merged = dict(last_best)
+    merged.setdefault("kl_gamma", float(kl_default))
+    merged.setdefault("use_log_trick", True)
+    return merged
 
 
 def _resolve_logged_pscore(train_data, original_policy_prob, mode="logged"):
@@ -213,6 +330,11 @@ def _build_cf_dataset(train_data, original_policy_prob, propensity_mode="logged"
     )
 
 
+def _policy_temperature(dataset: dict) -> float:
+    """Softmax temperature for Policy logits (dot-product policies). Default 1.0."""
+    return float(dataset.get("policy_temperature", 1.0))
+
+
 def _simulate_from_embedding_policy(dataset, our_x, our_a, n_samples, random_state):
     """Sample logged bandit data without materializing dense pi (n_users x n_actions)."""
     rng = int(random_state) % (2**31 - 1)
@@ -222,7 +344,7 @@ def _simulate_from_embedding_policy(dataset, our_x, our_a, n_samples, random_sta
         user_emb=our_x,
         item_emb=our_a,
         emb_dim=int(our_x.shape[1]),
-        temperature=1.0,
+        temperature=_policy_temperature(dataset),
         user_chunk=2048,
         rng=np.random.default_rng(rng),
     )
@@ -257,23 +379,37 @@ def predict_regression_qhat_chunked(
     return out
 
 
-def _batched_pi_at_logged_actions(user_emb, item_emb, user_ids, action_ids, chunk_size=4096):
+def _batched_pi_at_logged_actions(
+    user_emb,
+    item_emb,
+    user_ids,
+    action_ids,
+    chunk_size=4096,
+    policy_temperature: float = 1.0,
+):
     """Per-row pi(a_i|x_i) for logged (user_ids, action_ids) without full softmax matrix."""
     user_ids = np.asarray(user_ids, dtype=np.int64).reshape(-1)
     action_ids = np.asarray(action_ids, dtype=np.int64).reshape(-1)
     out = np.empty(len(user_ids), dtype=np.float32)
     xw = np.asarray(user_emb, dtype=np.float32)
     aw = np.asarray(item_emb, dtype=np.float32)
+    pt = max(float(policy_temperature), 1e-8)
     for s in range(0, len(user_ids), chunk_size):
         e = min(len(user_ids), s + chunk_size)
-        logits = xw[user_ids[s:e]] @ aw.T
+        logits = (xw[user_ids[s:e]] @ aw.T) / pt
         prob = _softmax_action_probs_stable(logits, axis=1)
         loc = np.arange(e - s, dtype=np.int64)
         out[s:e] = prob[loc, action_ids[s:e]]
     return out
 
 
-def cv_score_model(val_data, trial_scores_all, user_emb, item_emb):
+def cv_score_model(
+    val_data,
+    trial_scores_all,
+    user_emb,
+    item_emb,
+    policy_temperature: float = 1.0,
+):
     """
     Conservative validation score:
     r_hat - tdist * se
@@ -287,7 +423,8 @@ def cv_score_model(val_data, trial_scores_all, user_emb, item_emb):
     scores = np.asarray(trial_scores_all.detach().cpu().numpy(), dtype=np.float32).squeeze()
     xw = np.asarray(user_emb, dtype=np.float32)
     aw = np.asarray(item_emb, dtype=np.float32)
-    logits = xw[users] @ aw.T
+    pt = max(float(policy_temperature), 1e-8)
+    logits = (xw[users] @ aw.T) / pt
     pi_val = _softmax_action_probs_stable(logits, axis=1)
     scores_val = scores[users]
     loc = np.arange(len(users), dtype=np.int64)
@@ -304,6 +441,36 @@ def cv_score_model(val_data, trial_scores_all, user_emb, item_emb):
     return r_hat - tcrit * se
 
 
+def _split_dr_vec_and_ess(
+    split_data: dict,
+    trial_x: np.ndarray,
+    trial_a: np.ndarray,
+    trial_scores_all: torch.Tensor,
+    dataset: dict,
+) -> tuple[np.ndarray, float]:
+    """DR per-row vector and IW ESS on a logged split (train or val)."""
+    pscore = np.asarray(split_data["pscore"], dtype=np.float32)
+    users = np.asarray(split_data["x_idx"], dtype=np.int64)
+    reward = np.asarray(split_data["r"], dtype=np.float32)
+    actions = np.asarray(split_data["a"], dtype=np.int64)
+    tx = np.asarray(trial_x, dtype=np.float32)
+    ta = np.asarray(trial_a, dtype=np.float32)
+    pt = max(_policy_temperature(dataset), 1e-8)
+    pi_val = _softmax_action_probs_stable((tx[users] @ ta.T) / pt, axis=1)
+    scores_val = np.asarray(
+        trial_scores_all[users].detach().cpu().numpy(),
+        dtype=np.float32,
+    ).squeeze()
+    loc = np.arange(len(users), dtype=np.int64)
+    pi_e_at_position = np.asarray(pi_val[loc, actions].squeeze(), dtype=np.float32)
+    iw = pi_e_at_position / (pscore + 1e-12)
+    q_hat_factual = np.asarray(scores_val[loc, actions].squeeze(), dtype=np.float32)
+    dm_reward = np.asarray((scores_val * pi_val).sum(axis=1), dtype=np.float32)
+    dr_vec = dm_reward + iw * (reward - q_hat_factual)
+    ess = float((iw.sum() ** 2) / ((iw**2).sum() + 1e-12))
+    return dr_vec, ess
+
+
 def _policy_reward_from_embeddings(dataset, user_emb, item_emb, seed=12345):
     pi_obj = Policy(
         n_users=int(dataset["n_users"]),
@@ -311,11 +478,19 @@ def _policy_reward_from_embeddings(dataset, user_emb, item_emb, seed=12345):
         user_emb=user_emb,
         item_emb=item_emb,
         emb_dim=int(dataset["emb_dim"]),
-        temperature=1.0,
+        temperature=_policy_temperature(dataset),
         user_chunk=2048,
         rng=np.random.default_rng(seed),
     )
     return calc_reward(dataset, pi_obj)
+
+
+def _dataset_log_constants(dataset, our_x, our_a):
+    """CTR from env (oracle setting in sim) and exact true reward for logging embeddings."""
+    env = dataset.get("env")
+    ctr = float(getattr(env, "ctr", np.nan)) if env is not None else float("nan")
+    initial_reward = float(_policy_reward_from_embeddings(dataset, our_x, our_a))
+    return {"ctr": ctr, "initial_reward": initial_reward}
 
 
 # --------------------------------------------------------------------
@@ -371,13 +546,16 @@ def get_trial_results(
     neighberhoodmodel,
     regression_model,
     dm,
+    policy_reward_mode: str = "exact",
+    policy_reward_mc_sim: int = 8,
 ):
     t0 = time.time()
     # Val-aligned softmax only (avoid dense n_users x n_actions matrix).
     uids = np.asarray(val_data["x_idx"], dtype=np.int64)
     xw = np.asarray(our_x[uids], dtype=np.float32)
     aw = np.asarray(our_a, dtype=np.float32)
-    logits = xw @ aw.T
+    pt = max(_policy_temperature(dataset), 1e-8)
+    logits = (xw @ aw.T) / pt
     policy_val = np.expand_dims(_softmax_action_probs_stable(logits, axis=1), -1)
     policy_object = Policy(
         n_users=int(dataset["n_users"]),
@@ -385,12 +563,19 @@ def get_trial_results(
         user_emb=our_x,
         item_emb=our_a,
         emb_dim=int(dataset["emb_dim"]),
-        temperature=1.0,
+        temperature=_policy_temperature(dataset),
         user_chunk=2048,
         rng=np.random.default_rng(12345),
     )
-    policy_reward = calc_reward(dataset, policy_object)
-
+    if policy_reward_mode == "mc":
+        policy_reward = calc_reward_mc(
+            dataset,
+            policy_object,
+            n_sim=max(1, int(policy_reward_mc_sim)),
+        )
+    else:
+        policy_reward = calc_reward(dataset, policy_object)
+    print(f"Policy reward time: {time.time() - t0} seconds")
     # eval_policy expects model.predict(x_idx)
     eval_metrics = eval_policy(neighberhoodmodel, val_data, original_policy_prob, policy_val)
 
@@ -399,6 +584,7 @@ def get_trial_results(
     context_diff_to_real = np.sqrt(np.mean((emb_x - our_x) ** 2))
     context_delta = np.sqrt(np.mean((original_x - our_x) ** 2))
 
+    t0 = time.time()
     row = np.concatenate(
         [
             np.atleast_1d(policy_reward),
@@ -414,6 +600,7 @@ def get_trial_results(
     reg_dm = dm.estimate_policy_value(
         policy_val, regression_model.predict(val_data["x"])
     )
+    print(f"Reg DM time: {time.time() - t0} seconds")
     reg_results = np.array([reg_dm])
     conv_results = np.array([row])
 
@@ -437,6 +624,9 @@ def neighberhoodmodel_trainer_trial(
     n_trials=20,
     prev_best_params=None,
     propensity_mode="logged",
+    log_paths: dict | None = None,
+    method_label: str = "neighborhood",
+    slim: bool = False,
 ):
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -459,6 +649,8 @@ def neighberhoodmodel_trainer_trial(
     n_users = dataset["n_users"]
     n_actions = dataset["n_actions"]
     emb_dim = dataset["emb_dim"]
+
+    _log_constants = _dataset_log_constants(dataset, our_x_orig, our_a_orig)
 
     all_user_indices = np.arange(n_users, dtype=np.int64)
     T = lambda x: torch.as_tensor(x, device=device, dtype=torch.float32)
@@ -548,7 +740,7 @@ def neighberhoodmodel_trainer_trial(
                 n_actions, v, simulation_data, val_idx, our_x_orig
             )
 
-            num_workers = 4 if torch.cuda.is_available() else 0
+            num_workers = _dataloader_num_workers()
 
             cf_dataset = _build_cf_dataset(
                 train_data=train_data,
@@ -567,6 +759,10 @@ def neighberhoodmodel_trainer_trial(
                 )
                 trial_num_neighbors = trial.suggest_int("num_neighbors", 3, 15)
                 lr_decay = trial.suggest_float("lr_decay", 0.8, 1.0)
+                kl_gamma = trial.suggest_float("kl_gamma", 1e-4, 0.5, log=True)
+                trial_use_log_trick = trial.suggest_categorical(
+                    "use_log_trick", [True, False]
+                )
 
                 trial_neigh_model = NeighborhoodModel(
                     train_data["x_idx"],
@@ -613,7 +809,9 @@ def neighberhoodmodel_trainer_trial(
                         trial_model,
                         final_train_loader,
                         trial_scores_all,
-                        criterion=KLPolicyLoss(),
+                        criterion=_kl_policy_loss(
+                            kl_gamma, use_log_trick=trial_use_log_trick
+                        ),
                         num_epochs=1,
                         lr=current_lr,
                         device=str(device),
@@ -626,7 +824,11 @@ def neighberhoodmodel_trainer_trial(
                 train_actions = train_data["a"]
                 train_users = train_data["x_idx"]
                 pi_e_tr = _batched_pi_at_logged_actions(
-                    trial_x, trial_a, train_users, train_actions
+                    trial_x,
+                    trial_a,
+                    train_users,
+                    train_actions,
+                    policy_temperature=_policy_temperature(dataset),
                 )
                 pscore_tr = np.asarray(train_data["pscore"], dtype=np.float32)
 
@@ -638,22 +840,45 @@ def neighberhoodmodel_trainer_trial(
                 print(f"actual reward: {_policy_reward_from_embeddings(dataset, trial_x, trial_a)}")
 
                 # validation reward for selection (you had cv_score_model)
-                return cv_score_model(val_data, trial_scores_all, trial_x, trial_a)
+                return cv_score_model(
+                    val_data,
+                    trial_scores_all,
+                    trial_x,
+                    trial_a,
+                    policy_temperature=_policy_temperature(dataset),
+                )
 
             # --- run Optuna for this run ---
             study = optuna.create_study(direction="maximize")
 
             if last_best_params is not None:
-                study.enqueue_trial(last_best_params)
+                study.enqueue_trial(_enqueue_with_kl_gamma(last_best_params))
 
             study.optimize(objective, n_trials=n_trials, show_progress_bar=True)
 
             best_params = study.best_params
             last_best_params = best_params
+            best_trial_number = (
+                int(study.best_trial.number) if study.best_trial is not None else None
+            )
             best_hyperparams_by_size[train_size][run] = {
                 "params": best_params,
                 "reward": study.best_value,
             }
+
+            if log_paths is not None and log_paths.get("trials") is not None:
+                _append_csv(
+                    log_paths["trials"],
+                    _study_trials_long(
+                        study,
+                        method_label=method_label,
+                        train_size=int(train_size),
+                        run_idx=int(run),
+                        best_trial_number=best_trial_number,
+                        ctr=_log_constants["ctr"],
+                        initial_reward=_log_constants["initial_reward"],
+                    ),
+                )
 
             # --- final training with best params on this run’s data ---
             regression_model = RegressionModel(
@@ -711,7 +936,10 @@ def neighberhoodmodel_trainer_trial(
                     model,
                     train_loader,
                     scores_all,
-                    criterion=KLPolicyLoss(),
+                    criterion=_kl_policy_loss(
+                        best_params.get("kl_gamma", 0.05),
+                        use_log_trick=bool(best_params.get("use_log_trick", True)),
+                    ),
                     num_epochs=1,
                     lr=current_lr,
                     device=str(device),
@@ -722,25 +950,29 @@ def neighberhoodmodel_trainer_trial(
             learned_x = learned_x_t.detach().cpu().numpy()
             learned_a = learned_a_t.detach().cpu().numpy()
 
-            # --- produce the per-run result via get_trial_results ---
-            trial_res = get_trial_results(
-                learned_x,
-                learned_a,  # learned (policy) embeddings
-                emb_x,
-                emb_a,  # ground-truth embedding refs
-                original_x,
-                original_a,  # original clean refs
-                dataset,
-                val_data,  # this run's val split
-                None,
-                neighberhoodmodel,
-                regression_model,
-                dm,
-            )
+            if slim:
+                trial_res = _nan_posthoc_eval_metrics()
+            else:
+                # --- produce the per-run result via get_trial_results ---
+                trial_res = get_trial_results(
+                    learned_x,
+                    learned_a,  # learned (policy) embeddings
+                    emb_x,
+                    emb_a,  # ground-truth embedding refs
+                    original_x,
+                    original_a,  # original clean refs
+                    dataset,
+                    val_data,  # this run's val split
+                    None,
+                    neighberhoodmodel,
+                    regression_model,
+                    dm,
+                )
             trial_res = {
                 **trial_res,
                 "val_size": float(v),
                 "selection_val_score": float(study.best_value),
+                **_log_constants,
             }
 
             trial_dicts_this_size.append(trial_res)
@@ -749,7 +981,65 @@ def neighberhoodmodel_trainer_trial(
             torch.cuda.empty_cache()
 
         # Primary metrics = run with best validation objective; *_runs_mean = mean across runs.
-        results[train_size] = _aggregate_runs_by_validation_score(trial_dicts_this_size)
+        agg, win_idx = _aggregate_runs_by_validation_score(trial_dicts_this_size)
+        results[train_size] = agg
+
+        if log_paths is not None and log_paths.get("runs") is not None:
+            rows = []
+            for ridx, d in enumerate(trial_dicts_this_size):
+                row = {
+                    "method": method_label,
+                    "train_size": int(train_size),
+                    "run": ridx,
+                    "is_winning_run": bool(ridx == win_idx),
+                }
+                for k, v_ in d.items():
+                    arr = np.asarray(v_)
+                    row[k] = float(arr.reshape(-1)[0]) if arr.size == 1 else v_
+                # For slim mode, also attach weights info and actual reward for the winning run only.
+                if slim and ridx == win_idx:
+                    train_size_int = int(train_size)
+                    v = resolve_validation_size(
+                        train_size_int,
+                        val_size=val_size,
+                        val_frac=val_frac,
+                        val_min=val_min,
+                        val_max=val_max,
+                    )
+                    simulation_data = _simulate_from_embedding_policy(
+                        dataset,
+                        our_x_orig,
+                        our_a_orig,
+                        train_size_int + v,
+                        random_state=(ridx + 1) * (train_size_int + 17),
+                    )
+                    idx_train = np.arange(train_size_int)
+                    train_data = get_train_data(
+                        n_actions, train_size_int, simulation_data, idx_train, our_x_orig
+                    )
+                    train_actions = train_data["a"]
+                    train_users = train_data["x_idx"]
+                    pi_e_tr = _batched_pi_at_logged_actions(
+                        trial_dicts_this_size[ridx].get("our_x", our_x_orig),
+                        trial_dicts_this_size[ridx].get("our_a", our_a_orig),
+                        train_users,
+                        train_actions,
+                        policy_temperature=_policy_temperature(dataset),
+                    )
+                    pscore_tr = np.asarray(train_data.get("pscore"), dtype=np.float32)
+                    wi = get_weights_info(pi_e_tr, pscore_tr)
+                    for k2, v2 in wi.items():
+                        row[f"weights_{k2}"] = float(v2)
+                    # actual reward of the chosen policy
+                    row["actual_reward_selected"] = float(
+                        _policy_reward_from_embeddings(
+                            dataset,
+                            trial_dicts_this_size[ridx].get("our_x", our_x_orig),
+                            trial_dicts_this_size[ridx].get("our_a", our_a_orig),
+                        )
+                    )
+                rows.append(row)
+            _append_csv(log_paths["runs"], pd.DataFrame(rows))
 
     return pd.DataFrame.from_dict(results, orient="index"), best_hyperparams_by_size
 
@@ -770,7 +1060,18 @@ def regression_trainer_trial(
     n_trials=20,
     prev_best_params=None,
     propensity_mode="logged",
+    log_paths: dict | None = None,
+    method_label: str = "opc",
+    slim: bool = False,
+    policy_reward_mode: str = "exact",
+    policy_reward_mc_sim: int = 8,
 ):
+    """
+    OPC / no-propensity trainer with Optuna over CF hyperparameters.
+
+    ``slim``: always writes ``trials_long`` (all hyperparameters per trial). Skips only
+    the heavy post-hoc ``get_trial_results`` pass (full-catalog reward + val DM/DR/IPW/SNDR).
+    """
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     torch.backends.cudnn.benchmark = torch.cuda.is_available()
@@ -780,6 +1081,7 @@ def regression_trainer_trial(
     dm = DM()
     results = {}
     best_hyperparams_by_size = {}
+    last_trials_export = pd.DataFrame()
     last_best_params = prev_best_params if prev_best_params is not None else None
     last_optuna_study = None
 
@@ -793,6 +1095,10 @@ def regression_trainer_trial(
     n_users = dataset["n_users"]
     n_actions = dataset["n_actions"]
     emb_dim = dataset["emb_dim"]
+
+    _log_constants = _dataset_log_constants(
+        dataset, our_x_orig, our_a_orig
+    )
 
     T = lambda x: torch.as_tensor(x, device=device, dtype=torch.float32)
 
@@ -832,21 +1138,27 @@ def regression_trainer_trial(
     # wrap for eval_policy
     wrapped_reg_model = IndexToContextModelWrapper(regression_model, our_x_orig)
 
-    results[0] = get_trial_results(
-        our_x_orig,
-        our_a_orig,
-        emb_x,
-        emb_a,
-        original_x,
-        original_a,
-        dataset,
-        val_data,
-        None,
-        wrapped_reg_model,  # for eval_policy
-        regression_model,  # for reg_dm
-        dm,
-    )
+    if slim:
+        results[0] = _nan_posthoc_eval_metrics()
+    else:
+        results[0] = get_trial_results(
+            our_x_orig,
+            our_a_orig,
+            emb_x,
+            emb_a,
+            original_x,
+            original_a,
+            dataset,
+            val_data,
+            None,
+            wrapped_reg_model,  # for eval_policy
+            regression_model,  # for reg_dm
+            dm,
+            policy_reward_mode=policy_reward_mode,
+            policy_reward_mc_sim=policy_reward_mc_sim,
+        )
     results[0]["val_size"] = float(v_baseline)
+    results[0].update(_log_constants)
 
     # ===== Main loop over training sizes =====
     for train_size in train_sizes:
@@ -894,17 +1206,21 @@ def regression_trainer_trial(
                 propensity_mode=propensity_mode,
             )
 
-            num_workers = 4 if torch.cuda.is_available() else 0
+            num_workers = _dataloader_num_workers()
 
             # --- Define Optuna objective ---
             def objective(trial):
                 print(f"\n[Regression] Optuna Trial {trial.number}")
-                lr = trial.suggest_float("lr", 1e-4, 1e-1, log=True)
-                epochs = trial.suggest_int("num_epochs", 1, 10)
+                lr = trial.suggest_float("lr", 1e-4, 1e-3, log=True)
+                epochs = trial.suggest_int("num_epochs", 5, 25)
                 trial_batch_size = trial.suggest_categorical(
                     "batch_size", [1024, 2048, 4096, 8192]
                 )
                 lr_decay = trial.suggest_float("lr_decay", 1e-5, 1e-3, log=True)
+                kl_gamma = trial.suggest_float("kl_gamma", 1e-4, 0.5, log=True)
+                trial_use_log_trick = trial.suggest_categorical(
+                    "use_log_trick", [True, False]
+                )
 
                 # Regression model (instead of neighborhood)
                 trial_reg_model = RegressionModel(
@@ -955,7 +1271,9 @@ def regression_trainer_trial(
                         trial_model,
                         final_train_loader,
                         trial_scores_all,
-                        criterion=KLPolicyLoss(),
+                        criterion=_kl_policy_loss(
+                            kl_gamma, use_log_trick=trial_use_log_trick
+                        ),
                         num_epochs=1,
                         lr=current_lr,
                         device=str(device),
@@ -971,54 +1289,62 @@ def regression_trainer_trial(
                 print(
                     f"actual reward: {r}"
                 )
-                pscore = np.asarray(val_data["pscore"], dtype=np.float32)
-                users = np.asarray(val_data["x_idx"], dtype=np.int64)
-                reward = np.asarray(val_data["r"], dtype=np.float32)
-                actions = np.asarray(val_data["a"], dtype=np.int64)
-
-                tx = np.asarray(trial_x, dtype=np.float32)
-                ta = np.asarray(trial_a, dtype=np.float32)
-                pi_val = _softmax_action_probs_stable(tx[users] @ ta.T, axis=1)
-                scores_val = np.asarray(
-                    trial_scores_all[users].detach().cpu().numpy(),
-                    dtype=np.float32,
-                ).squeeze()
-                loc = np.arange(len(users), dtype=np.int64)
-                pi_e_at_position = np.asarray(pi_val[loc, actions].squeeze(), dtype=np.float32)
-                iw = pi_e_at_position / (pscore + 1e-12)
-                q_hat_factual = np.asarray(scores_val[loc, actions].squeeze(), dtype=np.float32)
-                dm_reward = np.asarray((scores_val * pi_val).sum(axis=1), dtype=np.float32)
-
-                dr_vec = dm_reward + iw * (reward - q_hat_factual)
+                dr_vec, ess_val = _split_dr_vec_and_ess(
+                    val_data, trial_x, trial_a, trial_scores_all, dataset
+                )
+                dr_vec_tr, ess_train = _split_dr_vec_and_ess(
+                    train_data, trial_x, trial_a, trial_scores_all, dataset
+                )
                 n = max(len(dr_vec), 2)
                 r_hat = float(dr_vec.mean())
+                r_hat_train = float(dr_vec_tr.mean())
                 err = float(dr_vec.std(ddof=1) / np.sqrt(n))
                 tcrit = float(student_t.ppf(0.975, n - 1))
                 value = r_hat - tcrit * err
 
                 trial.set_user_attr("all_values", [r_hat, err, value])
-                trial.set_user_attr("scores_dict", {"r_hat": r_hat, "se": err, "ci_low": value})
+                trial.set_user_attr(
+                    "scores_dict",
+                    {"r_hat": r_hat, "r_hat_train": r_hat_train, "se": err, "ci_low": value},
+                )
                 trial.set_user_attr("r_hat", r_hat)
+                trial.set_user_attr("r_hat_train", r_hat_train)
                 trial.set_user_attr("q_error", err)
                 trial.set_user_attr("actual_reward", r)
-                trial.set_user_attr("ess", float((iw.sum() ** 2) / ((iw ** 2).sum() + 1e-12)))
+                trial.set_user_attr("ess", ess_val)
+                trial.set_user_attr("ess_train", ess_train)
 
                 return value
 
             # --- Run Optuna search ---
             study = optuna.create_study(direction="maximize")
             if last_best_params is not None:
-                study.enqueue_trial(last_best_params)
+                study.enqueue_trial(_enqueue_with_kl_gamma(last_best_params))
 
             study.optimize(objective, n_trials=n_trials, show_progress_bar=True)
             last_optuna_study = study
 
             best_params = study.best_params
             last_best_params = best_params
+            best_trial_number = (
+                int(study.best_trial.number) if study.best_trial is not None else None
+            )
             best_hyperparams_by_size[train_size][run] = {
                 "params": best_params,
                 "reward": study.best_value,
             }
+
+            if log_paths is not None and log_paths.get("trials") is not None:
+                last_trials_export = _study_trials_long(
+                    study,
+                    method_label=method_label,
+                    train_size=int(train_size),
+                    run_idx=int(run),
+                    best_trial_number=best_trial_number,
+                    ctr=_log_constants["ctr"],
+                    initial_reward=_log_constants["initial_reward"],
+                )
+                _append_csv(log_paths["trials"], last_trials_export)
 
             # --- Final training with best params ---
             regression_model = RegressionModel(
@@ -1066,82 +1392,117 @@ def regression_trainer_trial(
                     model,
                     train_loader,
                     scores_all,
-                    criterion=KLPolicyLoss(),
+                    criterion=_kl_policy_loss(
+                        best_params.get("kl_gamma", 0.05),
+                        use_log_trick=bool(best_params.get("use_log_trick", True)),
+                    ),
                     num_epochs=1,
                     lr=current_lr,
                     device=str(device),
                 )
 
-            # Extract learned embeddings
             learned_x_t, learned_a_t = model.get_params()
             learned_x = learned_x_t.detach().cpu().numpy()
             learned_a = learned_a_t.detach().cpu().numpy()
 
-            # Wrap regression model so eval_policy uses context instead of idx
             wrapped_reg_model = IndexToContextModelWrapper(
                 regression_model, our_x_orig
             )
 
-            # Evaluate results
-            trial_res = get_trial_results(
-                learned_x,
-                learned_a,
-                emb_x,
-                emb_a,
-                original_x,
-                original_a,
-                dataset,
-                val_data,
-                None,
-                wrapped_reg_model,
-                regression_model,
-                dm,
-            )
+            if slim:
+                trial_res = _nan_posthoc_eval_metrics()
+            else:
+                trial_res = get_trial_results(
+                    learned_x,
+                    learned_a,
+                    emb_x,
+                    emb_a,
+                    original_x,
+                    original_a,
+                    dataset,
+                    val_data,
+                    None,
+                    wrapped_reg_model,
+                    regression_model,
+                    dm,
+                    policy_reward_mode=policy_reward_mode,
+                    policy_reward_mc_sim=policy_reward_mc_sim,
+                )
             trial_res = {
                 **trial_res,
                 "val_size": float(v),
                 "selection_val_score": float(study.best_value),
+                **_log_constants,
             }
 
             trial_dicts_this_size.append(trial_res)
             torch.cuda.empty_cache()
 
         # Primary metrics = run with best validation objective; *_runs_mean = mean across runs.
-        results[train_size] = _aggregate_runs_by_validation_score(trial_dicts_this_size)
+        agg, win_idx = _aggregate_runs_by_validation_score(trial_dicts_this_size)
+        results[train_size] = agg
 
-    # Last Optuna study (largest train_size, last run) — for opc_trials.csv debugging only.
-    trial_df = pd.DataFrame()
-    if last_optuna_study is not None:
-        try:
-            trial_df = last_optuna_study.trials_dataframe()
-            cols = [
-                c
-                for c in (
-                    "value",
-                    "user_attrs_actual_reward",
-                    "user_attrs_q_error",
-                    "user_attrs_r_hat",
-                    "user_attrs_ess",
-                    "user_attrs_scores_dict",
-                    "user_attrs_all_values",
-                )
-                if c in trial_df.columns
-            ]
-            if cols:
-                trial_df = trial_df[cols]
-            if "user_attrs_actual_reward" in trial_df.columns:
-                trial_df = trial_df.copy()
-                trial_df["user_attrs_actual_reward"] = trial_df[
-                    "user_attrs_actual_reward"
-                ].apply(
-                    lambda x: float(x[0])
-                    if isinstance(x, (list, tuple, np.ndarray))
-                    else float(x)
-                )
-            if "value" in trial_df.columns:
-                trial_df = trial_df[trial_df["value"] > 0]
-        except Exception:
-            trial_df = pd.DataFrame()
+        if log_paths is not None and log_paths.get("runs") is not None:
+            rows = []
+            for ridx, d in enumerate(trial_dicts_this_size):
+                row = {
+                    "method": method_label,
+                    "train_size": int(train_size),
+                    "run": ridx,
+                    "is_winning_run": bool(ridx == win_idx),
+                }
+                for k, v_ in d.items():
+                    arr = np.asarray(v_)
+                    row[k] = float(arr.reshape(-1)[0]) if arr.size == 1 else v_
+                if slim and ridx == win_idx:
+                    train_size_int = int(train_size)
+                    v = resolve_validation_size(
+                        train_size_int,
+                        val_size=val_size,
+                        val_frac=val_frac,
+                        val_min=val_min,
+                        val_max=val_max,
+                    )
+                    simulation_data = _simulate_from_embedding_policy(
+                        dataset,
+                        our_x_orig,
+                        our_a_orig,
+                        train_size_int + v,
+                        random_state=(ridx + 1) * (train_size_int + 17),
+                    )
+                    idx_train = np.arange(train_size_int)
+                    train_data = get_train_data(
+                        n_actions, train_size_int, simulation_data, idx_train, our_x_orig
+                    )
+                    train_actions = train_data["a"]
+                    train_users = train_data["x_idx"]
+                    pi_e_tr = _batched_pi_at_logged_actions(
+                        trial_dicts_this_size[ridx].get("our_x", our_x_orig),
+                        trial_dicts_this_size[ridx].get("our_a", our_a_orig),
+                        train_users,
+                        train_actions,
+                        policy_temperature=_policy_temperature(dataset),
+                    )
+                    pscore_tr = np.asarray(train_data.get("pscore"), dtype=np.float32)
+                    wi = get_weights_info(pi_e_tr, pscore_tr)
+                    for k2, v2 in wi.items():
+                        row[f"weights_{k2}"] = float(v2)
+                    row["actual_reward_selected"] = float(
+                        _policy_reward_from_embeddings(
+                            dataset,
+                            trial_dicts_this_size[ridx].get("our_x", our_x_orig),
+                            trial_dicts_this_size[ridx].get("our_a", our_a_orig),
+                        )
+                    )
+                rows.append(row)
+            _append_csv(log_paths["runs"], pd.DataFrame(rows))
+
+    # opc_trials.csv: same hyperparameter columns as trials_long (last run).
+    trial_df = (
+        last_trials_export
+        if not last_trials_export.empty
+        else pd.DataFrame()
+    )
 
     return pd.DataFrame.from_dict(results, orient="index"), trial_df
 
@@ -1158,6 +1519,11 @@ def no_propensity_trainer_trial(
     val_max=None,
     n_trials=20,
     prev_best_params=None,
+    log_paths: dict | None = None,
+    method_label: str = "no_propensity",
+    policy_reward_mode: str = "exact",
+    policy_reward_mc_sim: int = 8,
+    slim: bool = False,
 ):
     """
     Explicit no-propensity baseline with parity to regression trainer:
@@ -1176,6 +1542,11 @@ def no_propensity_trainer_trial(
         n_trials=n_trials,
         prev_best_params=prev_best_params,
         propensity_mode="uniform",
+        log_paths=log_paths,
+        method_label=method_label,
+        policy_reward_mode=policy_reward_mode,
+        policy_reward_mc_sim=policy_reward_mc_sim,
+        slim=slim,
     )
 
 
@@ -1219,6 +1590,8 @@ def random_policy_trainer_trial(
     n_actions = int(dataset["n_actions"])
     n_users = int(dataset["n_users"])
 
+    policy_temp = float(dataset.get("policy_temperature", 1.0))
+
     # ----- policies (exact full softmax over all items) -----
     pi0_policy = Policy(
         n_users=n_users,
@@ -1226,7 +1599,7 @@ def random_policy_trainer_trial(
         user_emb=our_x,
         item_emb=our_a,
         emb_dim=our_x.shape[1],
-        temperature=1.0,
+        temperature=policy_temp,
         user_chunk=chunk_size,
         rng=np.random.default_rng(seed + 1),
     )
@@ -1237,7 +1610,7 @@ def random_policy_trainer_trial(
         user_emb=emb_x,
         item_emb=emb_a,
         emb_dim=emb_x.shape[1],
-        temperature=1.0,
+        temperature=policy_temp,
         user_chunk=chunk_size,
         rng=np.random.default_rng(seed + 2),
     )
@@ -1249,7 +1622,7 @@ def random_policy_trainer_trial(
         user_emb=None,
         item_emb=None,
         emb_dim=1,
-        temperature=1.0,
+        temperature=policy_temp,
         user_chunk=chunk_size,
         rng=np.random.default_rng(seed + 3),
     )
@@ -1419,7 +1792,7 @@ def mlp_trial_reward_fit_once(
         user_emb=our_x,
         item_emb=our_a,
         emb_dim=our_x.shape[1],
-        temperature=1.0,
+        temperature=_policy_temperature(dataset),
         user_chunk=user_chunk,
         rng=np.random.default_rng(seed + 1),
     )
@@ -1491,7 +1864,7 @@ def mlp_trial_reward_fit_once(
         cf_data["r"],
         cf_data["pscore"],   # <-- scalar propensity per logged sample
     )
-    num_workers = 12 if torch.cuda.is_available() else 0
+    num_workers = _dataloader_num_workers()
 
     # ---------------------------
     # Optuna objective: CF only
@@ -1506,7 +1879,9 @@ def mlp_trial_reward_fit_once(
             "batch_size", [1024, 2048, 4096, 8192]
         )
         lr_decay = trial.suggest_float("lr_decay", 0.8, 1.0)
-        
+        kl_gamma = trial.suggest_float("kl_gamma", 1e-4, 0.5, log=True)
+        trial_use_log_trick = trial.suggest_categorical("use_log_trick", [True, False])
+
         model = CFModel(
             n_users,
             n_actions,
@@ -1534,7 +1909,7 @@ def mlp_trial_reward_fit_once(
                 model,
                 loader,
                 scores_all,
-                criterion=KLPolicyLoss(),
+                criterion=_kl_policy_loss(kl_gamma, use_log_trick=trial_use_log_trick),
                 num_epochs=1,
                 lr=current_lr,
                 device=str(device),
@@ -1548,7 +1923,7 @@ def mlp_trial_reward_fit_once(
             user_emb=learned_x_t.detach().cpu().numpy(),
             item_emb=learned_a_t.detach().cpu().numpy(),
             emb_dim=emb_dim,
-            temperature=1.0,
+            temperature=float(dataset.get("policy_temperature", 1.0)),
             user_chunk=user_chunk,
             rng=np.random.default_rng(seed + 1000 + trial.number),
         )
