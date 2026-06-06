@@ -18,6 +18,7 @@ from mpl_toolkits.mplot3d import Axes3D  # noqa: F401  # registers 3d projection
 from training.load_run_trials import load_run_trials
 
 LOG_PARAMS = frozenset({"param_lr", "param_lr_decay"})
+NON_NUMERIC_PARAMS = frozenset({"param_policy_loss"})
 
 SCATTER3D_PAIRS: list[tuple[str, str]] = [
     ("param_lr", "param_lr_decay"),
@@ -57,9 +58,19 @@ def _beat_mask(df: pd.DataFrame) -> pd.Series:
     return (a > i0) & a.notna() & i0.notna()
 
 
+def _numeric_param_cols(df: pd.DataFrame) -> list[str]:
+    cols = [c for c in df.columns if c.startswith("param_") and c not in NON_NUMERIC_PARAMS]
+    cols.sort()
+    keep = []
+    for c in cols:
+        v = pd.to_numeric(df[c], errors="coerce")
+        if v.notna().any():
+            keep.append(c)
+    return keep
+
+
 def plot_actual_vs_each_hyperparam(df: pd.DataFrame, out: Path) -> None:
-    param_cols = [c for c in df.columns if c.startswith("param_")]
-    param_cols.sort()
+    param_cols = _numeric_param_cols(df)
     if not param_cols:
         raise ValueError("no param_* columns in trials_long")
 
@@ -79,8 +90,14 @@ def plot_actual_vs_each_hyperparam(df: pd.DataFrame, out: Path) -> None:
     axes_flat = axes.ravel()
 
     for ax, pc in zip(axes_flat, param_cols):
-        x = sub[pc].to_numpy()
+        x = pd.to_numeric(sub[pc], errors="coerce").to_numpy()
         b = beat.to_numpy()
+        ok = np.isfinite(x) & np.isfinite(y)
+        if not np.any(ok):
+            ax.set_title(f"actual_reward vs {pc} (no data)")
+            ax.set_visible(False)
+            continue
+        x, y, b = x[ok], y[ok], b[ok]
         ax.scatter(x[~b], y[~b], alpha=0.75, s=22, c="C0", edgecolors="none", label="actual ≤ initial")
         ax.scatter(x[b], y[b], alpha=0.75, s=22, c="tab:green", edgecolors="none", label="actual > initial")
         if pc in LOG_PARAMS:
@@ -114,7 +131,11 @@ def plot_scatter3d_pairs(df: pd.DataFrame, out_dir: Path) -> None:
     z = pd.to_numeric(sub["actual_reward"], errors="coerce").to_numpy()
     b = beat.to_numpy()
 
-    pairs = [(px, py) for px, py in SCATTER3D_PAIRS if px in sub.columns and py in sub.columns]
+    pairs = [
+        (px, py)
+        for px, py in SCATTER3D_PAIRS
+        if px in sub.columns and py in sub.columns and px not in NON_NUMERIC_PARAMS and py not in NON_NUMERIC_PARAMS
+    ]
     for px, py in pairs:
         for c in (px, py):
             sub[c] = pd.to_numeric(sub[c], errors="coerce")
@@ -196,7 +217,7 @@ def main() -> None:
     for label, sub in groups:
         out_dir = out_root / label if label else out_root
         out_dir.mkdir(parents=True, exist_ok=True)
-        param_cols = [c for c in sub.columns if c.startswith("param_")]
+        param_cols = _numeric_param_cols(sub)
         if not param_cols:
             print(
                 f"skip hyperparam figures for {out_dir}: no param_* columns "

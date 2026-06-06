@@ -14,43 +14,70 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
+def _align_policy_scores(scores, policy_prob):
+    """(batch, n_actions) tensors; squeeze trailing singleton dims."""
+    if policy_prob.dim() == 3 and policy_prob.shape[-1] == 1:
+        policy_prob = policy_prob.squeeze(-1)
+    if scores.dim() == 3 and scores.shape[-1] == 1:
+        scores = scores.squeeze(-1)
+    return scores, policy_prob
+
+
+def policy_grad_surrogate(pi_at_action, use_log_trick=True, log_eps=1e-10):
+    """Policy-gradient factor at the logged action.
+
+    ``use_log_trick=True``: REINFORCE with ``log(pi)`` (legacy).
+    ``False``: direct probability surrogate (matches KL non-log path).
+    """
+    pi = pi_at_action.squeeze().clamp(min=log_eps)
+    if use_log_trick:
+        return torch.log(pi)
+    return pi
+
+
 class IPWPolicyLoss(nn.Module):
-    def __init__(self, log_eps=1e-10):
+    def __init__(self, log_eps=1e-10, use_log_trick=True):
         super(IPWPolicyLoss, self).__init__()
         self.log_eps = log_eps
+        self.use_log_trick = bool(use_log_trick)
 
     def forward(self, pscore, scores, policy_prob, original_policy_rewards, original_policy_actions):
         n = original_policy_actions.shape[0]
+        scores, policy_prob = _align_policy_scores(scores, policy_prob)
 
         pi_e_at_position = policy_prob[torch.arange(n), original_policy_actions].squeeze()
         iw = pi_e_at_position / pscore
         iw = iw.detach()
-        log_pi = torch.log(pi_e_at_position).squeeze()
-        
-        # reinforce trick step
-        reinforce_grad = iw * original_policy_rewards * log_pi
-        
+        grad_term = policy_grad_surrogate(
+            pi_e_at_position, self.use_log_trick, self.log_eps
+        )
+
+        reinforce_grad = iw * original_policy_rewards * grad_term
+
         return reinforce_grad.mean()
-    
+
 
 class SNDRPolicyLoss(nn.Module):
-    def __init__(self, log_eps=1e-10):
+    def __init__(self, log_eps=1e-10, use_log_trick=True):
         super(SNDRPolicyLoss, self).__init__()
         self.log_eps = log_eps
+        self.use_log_trick = bool(use_log_trick)
 
     def forward(self, pscore, scores, policy_prob, original_policy_rewards, original_policy_actions):
         n = original_policy_actions.shape[0]
+        scores, policy_prob = _align_policy_scores(scores, policy_prob)
 
         pi_e_at_position = policy_prob[torch.arange(n), original_policy_actions].squeeze()
         iw = pi_e_at_position / pscore
         iw = iw.detach()
         q_hat_at_position = scores[torch.arange(n), original_policy_actions].squeeze()
         dm_reward = (scores * policy_prob.detach()).sum(dim=1)
-        log_pi = torch.log(pi_e_at_position).squeeze()
-        
-        # reinforce trick step
+        grad_term = policy_grad_surrogate(
+            pi_e_at_position, self.use_log_trick, self.log_eps
+        )
+
         r_hat = ((iw * (original_policy_rewards - q_hat_at_position)) / iw.sum()) + dm_reward
-        reinforce_grad = r_hat * log_pi
+        reinforce_grad = r_hat * grad_term
 
         return reinforce_grad.mean()
     
@@ -112,6 +139,7 @@ class KLPolicyLoss(nn.Module):
 
     def forward(self, pscore, scores, policy_prob, original_policy_rewards, original_policy_actions):
         n = original_policy_actions.shape[0]
+        scores, policy_prob = _align_policy_scores(scores, policy_prob)
 
         pi_e_at_position = policy_prob[torch.arange(n), original_policy_actions].squeeze()
         iw = pi_e_at_position / pscore

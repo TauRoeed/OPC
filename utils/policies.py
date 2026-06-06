@@ -1,5 +1,8 @@
 from __future__ import annotations
 import numpy as np
+from tqdm import tqdm
+
+from utils.chunk_progress import iter_action_blocks
 
 
 def _softmax_rows(logits: np.ndarray) -> np.ndarray:
@@ -17,20 +20,36 @@ def _sample_categorical_rows(probs: np.ndarray, rng: np.random.Generator) -> tup
     return j.astype(np.int64), p_chosen.astype(np.float64)
 
 
+def _logsumexp_action_chunks(
+    user_emb_block: np.ndarray,
+    item_emb: np.ndarray,
+    temperature: float,
+    action_chunk: int,
+) -> np.ndarray:
+    """Per-row logsumexp over all items; peak (n_rows, action_chunk)."""
+    pt = max(float(temperature), 1e-8)
+    n_rows = int(user_emb_block.shape[0])
+    n_items = int(item_emb.shape[0])
+    acc = np.full(n_rows, -np.inf, dtype=np.float64)
+    for a0, a1 in iter_action_blocks(
+        n_items,
+        action_chunk,
+        desc="logsumexp pi",
+        n_rows=n_rows,
+    ):
+        logits = (user_emb_block @ item_emb[a0:a1].T) / pt
+        m = logits.max(axis=1)
+        s = np.exp(logits - m[:, None]).sum(axis=1)
+        acc = np.logaddexp(acc, m + np.log(s + 1e-300))
+    return acc
+
+
 class Policy:
     """
     Exact full-softmax dot-product policy over ALL items:
       logits(u,a) = (user_emb[u] · item_emb[a]) / temperature
 
-    Temperature scales logits before softmax (default 1.0). Full-study runs pass
-    ``policy_temperature`` via ``generate_dataset`` into ``dataset["policy_temperature"]``.
-
-    You can set embeddings per run. If embeddings are None, they are generated randomly.
-
-    - sample_actions(users): samples a ~ pi(.|u) and returns exact p(a|u)
-    - prob_actions(users, actions): returns exact pi(actions[i]|users[i]) for logged actions
-
-    No candidate sets. No Monte-Carlo. Chunked by users for memory safety.
+    Chunked on users and items; peak matrix (user_chunk, action_chunk).
     """
 
     def __init__(
@@ -41,7 +60,8 @@ class Policy:
         item_emb: np.ndarray | None = None,
         emb_dim: int = 1,
         temperature: float = 1.0,
-        user_chunk: int = 1024,
+        user_chunk: int = 3500,
+        action_chunk: int = 3500,
         rng: np.random.Generator | None = None,
     ):
         self.n_users = int(n_users)
@@ -49,15 +69,12 @@ class Policy:
         self.emb_dim = int(emb_dim)
         self.temperature = float(temperature)
         self.user_chunk = int(user_chunk)
+        self.action_chunk = int(action_chunk)
         self.rng = np.random.default_rng() if rng is None else rng
 
         self.set_embeddings(user_emb=user_emb, item_emb=item_emb)
 
     def set_embeddings(self, user_emb: np.ndarray | None, item_emb: np.ndarray | None) -> None:
-        """
-        Set/replace embeddings. If None, generate random embeddings.
-        Intended use: call this once per run to swap in base/oracle/noise embeddings.
-        """
         if user_emb is None:
             user_emb = self.rng.normal(size=(self.n_users, self.emb_dim)).astype(np.float32)
         else:
@@ -76,52 +93,81 @@ class Policy:
         self.user_emb = user_emb
         self.item_emb = item_emb
 
-    def _logits_block(self, users_block: np.ndarray) -> np.ndarray:
-        u = self.user_emb[users_block]                       # (b, d)
-        logits = (u @ self.item_emb.T).astype(np.float64)     # (b, A)
-        logits /= max(self.temperature, 1e-8)
-        return logits
+    def _probs_block(self, users_block: np.ndarray) -> np.ndarray:
+        """Softmax probs for users_block; built from (user_chunk, action_chunk) logits."""
+        u = self.user_emb[users_block]
+        n_rows = int(u.shape[0])
+        n_items = self.n_items
+        ac = self.action_chunk
+        pt = max(self.temperature, 1e-8)
+        out = np.zeros((n_rows, n_items), dtype=np.float64)
+        for a0, a1 in iter_action_blocks(
+            n_items,
+            ac,
+            desc="policy probs block",
+            n_rows=n_rows,
+        ):
+            logits = (u @ self.item_emb[a0:a1].T).astype(np.float64) / pt
+            out[:, a0:a1] = _softmax_rows(logits)
+        return out
 
     def sample_actions(self, users: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        """Exact categorical sample via streaming Gumbel-max (no full n_items probs)."""
         users = np.asarray(users, dtype=np.int64)
         n = users.shape[0]
         actions_out = np.empty(n, dtype=np.int64)
         p_out = np.empty(n, dtype=np.float64)
+        pt = max(self.temperature, 1e-8)
+        ac = self.action_chunk
 
         for start in range(0, n, self.user_chunk):
             end = min(start + self.user_chunk, n)
             ub = users[start:end]
-            logits = self._logits_block(ub)       # (b, A)
-            probs = _softmax_rows(logits)         # (b, A)
-            a, p = _sample_categorical_rows(probs, self.rng)
-            actions_out[start:end] = a
-            p_out[start:end] = p
+            for i, uid in enumerate(ub):
+                u = self.user_emb[int(uid) : int(uid) + 1]
+                best_score = -np.inf
+                best_a = 0
+                for a0 in range(0, self.n_items, ac):
+                    a1 = min(self.n_items, a0 + ac)
+                    logits = (u @ self.item_emb[a0:a1].T).astype(np.float64) / pt
+                    gumbel = -np.log(-np.log(self.rng.random(size=(1, a1 - a0)) + 1e-30) + 1e-30)
+                    scores = logits + gumbel
+                    loc = int(np.argmax(scores))
+                    sc = float(scores[0, loc])
+                    if sc > best_score:
+                        best_score = sc
+                        best_a = a0 + loc
+                actions_out[start + i] = best_a
+            p_out[start:end] = self.prob_actions(ub, actions_out[start:end])
 
         return actions_out, p_out
 
     def prob_actions(self, users: np.ndarray, actions: np.ndarray) -> np.ndarray:
-        """
-        Exact pi(actions[i] | users[i]) under full softmax over ALL items.
-        Deterministic: no randomness.
-        """
         users = np.asarray(users, dtype=np.int64)
         actions = np.asarray(actions, dtype=np.int64)
         assert users.shape == actions.shape, "users/actions must be same shape"
         n = users.shape[0]
         out = np.empty(n, dtype=np.float64)
+        pt = max(self.temperature, 1e-8)
 
         for start in range(0, n, self.user_chunk):
             end = min(start + self.user_chunk, n)
             ub = users[start:end]
             ab = actions[start:end]
-            logits = self._logits_block(ub)  # (b, A)
-
-            # stable logsumexp per row
-            m = logits.max(axis=1, keepdims=True)
-            lse = (m + np.log(np.exp(logits - m).sum(axis=1, keepdims=True))).squeeze(1)  # (b,)
-
-            logit_a = logits[np.arange(end - start), ab]  # (b,)
-            out[start:end] = np.exp(logit_a - lse)
+            u_emb = self.user_emb[ub]
+            log_denom = _logsumexp_action_chunks(
+                u_emb, self.item_emb, pt, self.action_chunk
+            )
+            logit_a = np.empty(end - start, dtype=np.float64)
+            for a0 in range(0, self.n_items, self.action_chunk):
+                a1 = min(self.n_items, a0 + self.action_chunk)
+                mask = (ab >= a0) & (ab < a1)
+                if not np.any(mask):
+                    continue
+                logits = (u_emb[mask] @ self.item_emb[a0:a1].T) / pt
+                loc = (ab[mask] - a0).astype(np.int64)
+                logit_a[np.where(mask)[0]] = logits[np.arange(mask.sum()), loc]
+            out[start:end] = np.exp(logit_a - log_denom)
 
         return out
 
@@ -172,7 +218,6 @@ class MixturePolicy:
         if mO.any():
             actions[mO], _ = self.pO.sample_actions(users[mO])
 
-        # exact mixture propensity for chosen actions
         p = self.prob_actions(users, actions)
         return actions, p
 
@@ -195,12 +240,6 @@ def generate_policies(
     jaws: bool = False,
     seed: int = 12345,
 ) -> list[MixturePolicy]:
-    """
-    Same alpha/beta/jaws logic as your original generate_policies(),
-    but returns MixturePolicy objects with exact propensities.
-
-    noise_policy can be re-initialized per run (fixed within run).
-    """
     rng = np.random.default_rng(seed)
     policies: list[MixturePolicy] = []
 

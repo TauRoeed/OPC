@@ -96,16 +96,22 @@ def run_train_loop(model, train_loader, optimizer, scores_all, criterion, lr=1e-
                 "Batch tensors not on CUDA"
 
         # Forward
-        policy = model(user_idx)  # stays on device
+        policy = model(user_idx)  # (batch, n_actions) or (batch, n_actions, 1)
+        if policy.dim() == 3 and policy.shape[-1] == 1:
+            policy = policy.squeeze(-1)
 
         if torch.isnan(policy).max().item() == True:
             print(f"NaN in policy : (, step {step})")
             break
-            
-        # *** Replace CPU round-trip with precomputed GPU lookup ***
-        # scores = torch.tensor(neighborhood_model.predict(user_idx.cpu().numpy()), device=device)
 
-        scores = scores_all[user_idx.long()]   # <-- from section A
+        scores = scores_all[user_idx.long()]
+        if scores.dim() == 3 and scores.shape[-1] == 1:
+            scores = scores.squeeze(-1)
+        if scores.shape[-1] != policy.shape[-1]:
+            raise RuntimeError(
+                f"scores/policy action dim mismatch: scores {tuple(scores.shape)} "
+                f"vs policy {tuple(policy.shape)} (check regression catalog n_actions)"
+            )
 
         optimizer.zero_grad()
 

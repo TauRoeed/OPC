@@ -16,7 +16,8 @@ from models.estimators import (
     DoublyRobust as DR,
     SelfNormalizedDoublyRobust as SNDR,
 )
-from utils.policies import _softmax_rows
+from utils.policies import _logsumexp_action_chunks
+from utils.chunk_progress import iter_user_action_blocks
 
 # ----------------------------
 # Dataset helpers
@@ -178,26 +179,34 @@ def calc_reward(dataset: dict, policy, chunk_size: int = 2048):
 
     total_value = 0.0
 
-    for start in range(0, n_users, chunk_size):
-        end = min(start + chunk_size, n_users)
-        users = np.arange(start, end, dtype=np.int64)
-
-        # ---- Compute policy probabilities (full softmax block) ----
-        logits = policy._logits_block(users)        # (b, A)
-        probs = _softmax_rows(logits)               # (b, A)
-
-        # ---- Compute reward probabilities for ALL actions ----
-        # Create action grid
+    action_chunk = int(getattr(policy, "action_chunk", chunk_size))
+    pt = max(float(getattr(policy, "temperature", 1.0)), 1e-8)
+    user_values = None
+    users = None
+    for start, end, a0, a1 in iter_user_action_blocks(
+        n_users,
+        n_actions,
+        chunk_size,
+        action_chunk,
+        desc="policy value",
+    ):
+        if users is None or start != users[0]:
+            if user_values is not None:
+                total_value += np.sum(user_values * prior[users])
+            users = np.arange(start, end, dtype=np.int64)
+            user_values = np.zeros(end - start, dtype=np.float64)
         b = end - start
-        users_rep = np.repeat(users, n_actions)
-        actions_rep = np.tile(np.arange(n_actions), b)
-
-        rewards = env.reward_prob(users_rep, actions_rep)
-        rewards = rewards.reshape(b, n_actions)     # (b, A)
-
-        # ---- Expected reward per user ----
-        user_values = np.sum(probs * rewards, axis=1)  # (b,)
-
+        u = policy.user_emb[users]
+        log_denom = _logsumexp_action_chunks(
+            u, policy.item_emb, pt, action_chunk
+        )
+        logits = (u @ policy.item_emb[a0:a1].T).astype(np.float64) / pt
+        probs = np.exp(logits - log_denom[:, None])
+        users_rep = np.repeat(users, a1 - a0)
+        actions_rep = np.tile(np.arange(a0, a1), b)
+        rewards = env.reward_prob(users_rep, actions_rep).reshape(b, a1 - a0)
+        user_values += np.sum(probs * rewards, axis=1)
+    if user_values is not None:
         total_value += np.sum(user_values * prior[users])
 
     return float(total_value)

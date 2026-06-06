@@ -1,20 +1,32 @@
 import argparse
 import json
 import multiprocessing as mp
+import os
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
 
+
+def _parallel_worker_init() -> None:
+    """Child processes: avoid DataLoader worker explosion (EMFILE)."""
+    os.environ["OPC_IN_PARALLEL"] = "1"
+
 from training.run_full_study import (
     VALID_NOISE_AXES,
     _collect_existing_summaries,
+    _finalize_summary_df,
+    _resolve_val_size_configs,
     _run_condition,
+)
+from training.trainer_trials import (
+    DEFAULT_QHAT_ACTION_CHUNK,
+    DEFAULT_QHAT_USER_CHUNK,
 )
 
 
-def _iter_run_configs(args):
+def _iter_run_configs(args, val_size_cfg, val_label, val_root: Path):
     for dataset_name in args.datasets:
         for noise_mode in args.noise_modes:
             for noise_axis in args.noise_axes:
@@ -26,6 +38,8 @@ def _iter_run_configs(args):
                                 f"__axis={noise_axis}__level={noise_level}"
                                 f"__ctr={ctr:g}__seed={seed}"
                             )
+                            if val_label != "frac":
+                                run_key = f"{run_key}__val={val_label}"
                             yield {
                                 "dataset_name": dataset_name,
                                 "noise_mode": noise_mode,
@@ -34,10 +48,13 @@ def _iter_run_configs(args):
                                 "ctr": float(ctr),
                                 "seed": int(seed),
                                 "run_key": run_key,
+                                "run_dir": str(val_root / run_key),
+                                "val_size": val_size_cfg,
                             }
 
 
 def _execute_run(config: dict):
+    os.environ["OPC_IN_PARALLEL"] = "1"
     run_dir = Path(config["run_dir"])
     run_dir.mkdir(parents=True, exist_ok=True)
     opc_df, noprop_df, opc_trials, noprop_trials, meta = _run_condition(
@@ -61,19 +78,26 @@ def _execute_run(config: dict):
         policy_temperature=config["policy_temperature"],
         slim=bool(config.get("slim", False)),
         run_dir=run_dir,
+        policy_loss_types=tuple(config["policy_loss_types"]),
+        search_use_log_trick=bool(config.get("search_use_log_trick", True)),
+        shared_regression_size=int(config.get("shared_regression_size", 50_000)),
+        qhat_user_chunk=int(config.get("qhat_user_chunk", DEFAULT_QHAT_USER_CHUNK)),
+        qhat_action_chunk=int(
+            config.get("qhat_action_chunk", DEFAULT_QHAT_ACTION_CHUNK)
+        ),
+        require_cuda=bool(config.get("require_cuda", False)),
     )
 
-    opc_df = opc_df.reset_index().rename(columns={"index": "train_size"})
-    noprop_df = noprop_df.reset_index().rename(columns={"index": "train_size"})
-    opc_df["method"] = "opc"
-    noprop_df["method"] = "no_propensity"
-    summary_df = pd.concat([opc_df, noprop_df], ignore_index=True)
-    summary_df["dataset"] = config["dataset_name"]
-    summary_df["noise_mode"] = config["noise_mode"]
-    summary_df["noise_axis"] = config["noise_axis"]
-    summary_df["noise_level"] = config["noise_level"]
-    summary_df["seed"] = config["seed"]
-    summary_df["ctr"] = float(meta["ctr"])
+    summary_df = _finalize_summary_df(
+        opc_df,
+        noprop_df,
+        meta,
+        dataset=config["dataset_name"],
+        noise_mode=config["noise_mode"],
+        noise_axis=config["noise_axis"],
+        noise_level=config["noise_level"],
+        seed=config["seed"],
+    )
 
     summary_df.to_csv(run_dir / "summary_metrics.csv", index=False)
     opc_trials.to_csv(run_dir / "opc_trials.csv", index=False)
@@ -140,9 +164,50 @@ def main():
         help="Softmax temperature for dot-product policies. Default 1.",
     )
     parser.add_argument("--val-size", type=int, default=None)
+    parser.add_argument(
+        "--val-sizes",
+        nargs="+",
+        type=int,
+        default=None,
+        help="Sweep fixed validation sizes; each gets val_<n>/ subfolder.",
+    )
     parser.add_argument("--val-frac", type=float, default=0.15)
     parser.add_argument("--val-min", type=int, default=5000)
     parser.add_argument("--val-max", type=int, default=None)
+    parser.add_argument(
+        "--policy-losses",
+        nargs="+",
+        default=["kl"],
+        help="Policy losses: kl, ipw, sndr (multiple = Optuna categorical).",
+    )
+    parser.add_argument(
+        "--no-log-trick",
+        action="store_true",
+        help="Disable log-trick for KL/IPW/SNDR; skip Optuna tuning of use_log_trick.",
+    )
+    parser.add_argument(
+        "--shared-regression-size",
+        type=int,
+        default=50_000,
+        help="Reg slice in each reg+train+val sim; fit once on first setup, reuse.",
+    )
+    parser.add_argument(
+        "--qhat-user-chunk",
+        type=int,
+        default=DEFAULT_QHAT_USER_CHUNK,
+        help="User block for lazy q_hat (default 3500).",
+    )
+    parser.add_argument(
+        "--qhat-action-chunk",
+        type=int,
+        default=DEFAULT_QHAT_ACTION_CHUNK,
+        help="Action block for lazy q_hat (default 3500).",
+    )
+    parser.add_argument(
+        "--require-cuda",
+        action="store_true",
+        help="Fail fast if CUDA is not available in worker.",
+    )
     parser.add_argument("--emb-dir", default="BPR/embeddings")
     parser.add_argument("--out-dir", default="artifacts/full_study")
     parser.add_argument("--run-tag", default=None)
@@ -150,7 +215,10 @@ def main():
         "--max-workers",
         type=int,
         default=4,
-        help="Parallel process workers.",
+        help="Parallel process workers. Each worker loads embeddings, simulates "
+        "logged splits on demand, and runs OPC + no-propensity; large --val-sizes "
+        "or many train sizes increase RAM. Use --max-workers 1 if workers die "
+        "(OOM / 'terminated abruptly').",
     )
     parser.add_argument(
         "--slim",
@@ -168,6 +236,9 @@ def main():
     )
     parser.add_argument("--fail-fast", action="store_true", default=False)
     args = parser.parse_args()
+    policy_loss_types = tuple(str(x).lower() for x in args.policy_losses)
+    search_use_log_trick = not bool(args.no_log_trick)
+    val_size_configs = _resolve_val_size_configs(args)
 
     emb_dir = Path(args.emb_dir)
     run_tag = args.run_tag or datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -177,36 +248,53 @@ def main():
 
     failures = []
     run_configs = []
-    for base_cfg in _iter_run_configs(args):
-        run_dir = out_dir / base_cfg["run_key"]
-        summary_path = run_dir / "summary_metrics.csv"
-        if args.skip_completed and summary_path.exists():
-            print(f"Skipping completed: {base_cfg['run_key']}")
-            continue
-        cfg = {
-            **base_cfg,
-            "run_dir": str(run_dir),
-            "emb_dir": str(emb_dir),
-            "train_sizes": list(args.train_sizes),
-            "n_trials": int(args.n_trials),
-            "num_runs": int(args.num_runs),
-            "batch_size": int(args.batch_size),
-            "val_size": args.val_size,
-            "val_frac": float(args.val_frac),
-            "val_min": int(args.val_min),
-            "val_max": args.val_max,
-            "policy_reward_mode": args.policy_reward_mode,
-            "policy_reward_mc_sim": int(args.policy_reward_mc_sim),
-            "policy_temperature": float(args.policy_temperature),
-            "slim": bool(args.slim),
-        }
-        run_configs.append(cfg)
+    for val_size_cfg, val_label in val_size_configs:
+        val_root = out_dir if len(val_size_configs) == 1 else out_dir / f"val_{val_label}"
+        val_root.mkdir(parents=True, exist_ok=True)
+        for base_cfg in _iter_run_configs(args, val_size_cfg, val_label, val_root):
+            summary_path = Path(base_cfg["run_dir"]) / "summary_metrics.csv"
+            if args.skip_completed and summary_path.exists():
+                print(f"Skipping completed: {base_cfg['run_key']}")
+                continue
+            cfg = {
+                **base_cfg,
+                "emb_dir": str(emb_dir),
+                "train_sizes": list(args.train_sizes),
+                "n_trials": int(args.n_trials),
+                "num_runs": int(args.num_runs),
+                "batch_size": int(args.batch_size),
+                "val_frac": float(args.val_frac),
+                "val_min": int(args.val_min),
+                "val_max": args.val_max,
+                "policy_reward_mode": args.policy_reward_mode,
+                "policy_reward_mc_sim": int(args.policy_reward_mc_sim),
+                "policy_temperature": float(args.policy_temperature),
+                "slim": bool(args.slim),
+                "policy_loss_types": list(policy_loss_types),
+                "search_use_log_trick": search_use_log_trick,
+                "shared_regression_size": int(args.shared_regression_size),
+                "qhat_user_chunk": int(args.qhat_user_chunk),
+                "qhat_action_chunk": int(args.qhat_action_chunk),
+                "require_cuda": bool(args.require_cuda),
+            }
+            run_configs.append(cfg)
 
-    print(f"Running {len(run_configs)} conditions with max_workers={args.max_workers}")
+    max_train = max(args.train_sizes) if args.train_sizes else 0
+    max_val = max(args.val_sizes) if args.val_sizes else int(args.val_min)
+    logged_rows = int(args.shared_regression_size) + int(max_train) + int(max_val)
+    workers = max(1, int(args.max_workers))
+    if logged_rows >= 40_000 and workers > 1:
+        print(
+            f"WARNING: ~{logged_rows} logged rows per setup + reg fit; "
+            f"--max-workers {workers} often OOM on large catalogs. Use --max-workers 1.",
+            flush=True,
+        )
+    print(f"Running {len(run_configs)} conditions with max_workers={workers}")
     mp_ctx = mp.get_context("spawn")
     with ProcessPoolExecutor(
-        max_workers=max(1, int(args.max_workers)),
+        max_workers=workers,
         mp_context=mp_ctx,
+        initializer=_parallel_worker_init,
     ) as pool:
         future_to_cfg = {pool.submit(_execute_run, cfg): cfg for cfg in run_configs}
         for fut in as_completed(future_to_cfg):
@@ -239,7 +327,14 @@ def main():
                     "seeds": args.seeds,
                     "train_sizes": args.train_sizes,
                     "val_size_fixed": args.val_size,
+                    "val_sizes": args.val_sizes,
                     "val_frac": args.val_frac,
+                    "policy_loss_types": list(policy_loss_types),
+                    "no_log_trick": bool(args.no_log_trick),
+                    "shared_regression_size": int(args.shared_regression_size),
+                    "qhat_user_chunk": int(args.qhat_user_chunk),
+                    "qhat_action_chunk": int(args.qhat_action_chunk),
+                    "require_cuda": bool(args.require_cuda),
                     "val_min": args.val_min,
                     "val_max": args.val_max,
                     "policy_reward_mode": args.policy_reward_mode,
