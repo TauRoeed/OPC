@@ -8,6 +8,14 @@ from scipy.sparse import csr_matrix
 
 from dataclasses import dataclass
 
+from BPR.dataset_download import (
+    ensure_anime,
+    ensure_lastfm,
+    ensure_movielens_1m,
+    ensure_msd,
+    ensure_myket,
+)
+
 
 # Dataset-specific metadata schema. Each dataset can expose different metadata
 # columns/dimensions; we intentionally do not enforce a shared global size.
@@ -59,15 +67,17 @@ DATASET_METADATA_CONFIG = {
     },
 }
 
-def load_movielens_1m(ml1m_dir: str):
+def load_movielens_1m(ml1m_dir: str, *, download: bool = True):
     """
     ml1m_dir should be the folder that contains:
       - ratings.dat
       - users.dat
       - movies.dat
     (Often it's .../ml-1m/)
+
+    If files are missing and ``download=True``, MovieLens 1M is fetched automatically.
     """
-    ml1m_dir = Path(ml1m_dir)
+    ml1m_dir = ensure_movielens_1m(ml1m_dir, download=download)
 
     # ratings.dat: UserID::MovieID::Rating::Timestamp
     ratings = pd.read_csv(
@@ -101,13 +111,15 @@ def load_movielens_1m(ml1m_dir: str):
     return ratings, users, movies
 
 
-def load_myket(root: str):
+def load_myket(root: str, *, download: bool = True):
     """
     root/
       myket.csv
       app_info_sample.csv
+
+    If files are missing and ``download=True``, Myket files are fetched from Hugging Face.
     """
-    root = Path(root)
+    root = ensure_myket(root, download=download)
 
     # interactions (ratings equivalent)
     df = pd.read_csv(root / "myket.csv")
@@ -141,16 +153,53 @@ def load_myket(root: str):
     return ratings, users, items
 
 
-def load_artistwise_dfs(hdf5_path: str, *, min_plays: float = 1.0):
+def load_artistwise_dfs(
+    hdf5_path: str,
+    *,
+    min_plays: float = 1.0,
+    download: bool = True,
+    dataset: str | None = None,
+):
     """
     Generic artist-wise loader for LastFM or MSD.
     No dataset flag, no CSR output, no extra assumptions.
+
+    ``hdf5_path`` may be a file path or a directory (default file name is inferred
+    from ``dataset`` or the path name). Missing files are downloaded when
+    ``download=True``.
 
     Returns:
       ratings: user_id, item_id (artist), rating (total plays)
       users:   user_id
       items:   item_id (artist)
     """
+    path = Path(hdf5_path)
+    name = (dataset or path.name).lower()
+    if "msd" in name:
+        hdf5_path = ensure_msd(path, download=download)
+    elif "lastfm" in name:
+        hdf5_path = ensure_lastfm(path, download=download)
+    elif path.is_dir():
+        lastfm_candidate = path / "lastfm_360k.hdf5"
+        msd_candidate = path / "msd_taste_profile.hdf5"
+        if lastfm_candidate.exists():
+            hdf5_path = lastfm_candidate
+        elif msd_candidate.exists():
+            hdf5_path = msd_candidate
+        elif download:
+            raise ValueError(
+                f"Cannot infer HDF5 dataset under {path}. "
+                "Pass a .hdf5 file path or set dataset='lastfm'/'msd'."
+            )
+        else:
+            raise FileNotFoundError(f"No HDF5 dataset found under {path}")
+    else:
+        hdf5_path = path
+        if not hdf5_path.exists():
+            if "msd" in hdf5_path.name.lower():
+                hdf5_path = ensure_msd(hdf5_path, download=download)
+            else:
+                hdf5_path = ensure_lastfm(hdf5_path, download=download)
 
     with h5py.File(hdf5_path, "r") as f:
         if "artist_user_plays" in f:
@@ -203,18 +252,25 @@ def load_artistwise_dfs(hdf5_path: str, *, min_plays: float = 1.0):
 
 
 
-def load_anime_dfs(root: str, min_rating: float = 7.0) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+def load_anime_dfs(
+    root: str,
+    min_rating: float = 7.0,
+    *,
+    download: bool = True,
+) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
     Expects:
-      root/Anime.csv
-      root/Rating.csv
+      root/anime.csv
+      root/rating.csv
+
+    If files are missing and ``download=True``, anime files are fetched from Hugging Face.
 
     Returns:
       ratings: user_id, item_id, rating
       users:   user_id
       items:   item_id + metadata
     """
-    root = Path(root)
+    root = ensure_anime(root, download=download)
 
     items = pd.read_csv(root / "anime.csv")
     ratings = pd.read_csv(root / "rating.csv")

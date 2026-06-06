@@ -9,9 +9,40 @@ from pathlib import Path
 import pandas as pd
 
 
-def _parallel_worker_init() -> None:
-    """Child processes: avoid DataLoader worker explosion (EMFILE)."""
-    os.environ["OPC_IN_PARALLEL"] = "1"
+def _resolve_num_gpus(explicit: int | None) -> int:
+    """GPUs visible to this job (Slurm CUDA_VISIBLE_DEVICES or torch probe)."""
+    if explicit is not None and int(explicit) > 0:
+        return int(explicit)
+    visible = os.environ.get("CUDA_VISIBLE_DEVICES", "").strip()
+    if visible:
+        return max(1, len([x for x in visible.split(",") if x.strip() != ""]))
+    try:
+        import torch
+
+        return max(1, int(torch.cuda.device_count()))
+    except Exception:
+        return 1
+
+
+def _make_parallel_worker_init(num_gpus: int):
+    """Assign each pool worker a GPU before torch import (spawn-safe)."""
+    worker_slot = mp.Value("i", 0, lock=True)
+    n_gpus = max(1, int(num_gpus))
+
+    def _init() -> None:
+        os.environ["OPC_IN_PARALLEL"] = "1"
+        with worker_slot.get_lock():
+            idx = int(worker_slot.value)
+            worker_slot.value = idx + 1
+        gpu = idx % n_gpus
+        os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu)
+        print(
+            f"[worker init] pid={os.getpid()} worker={idx} "
+            f"CUDA_VISIBLE_DEVICES={gpu} (pool over {n_gpus} GPUs)",
+            flush=True,
+        )
+
+    return _init
 
 from training.run_full_study import (
     VALID_NOISE_AXES,
@@ -212,6 +243,13 @@ def main():
     parser.add_argument("--out-dir", default="artifacts/full_study")
     parser.add_argument("--run-tag", default=None)
     parser.add_argument(
+        "--num-gpus",
+        type=int,
+        default=None,
+        help="Round-robin pool workers across this many GPUs (default: count from "
+        "CUDA_VISIBLE_DEVICES or torch.cuda.device_count()).",
+    )
+    parser.add_argument(
         "--max-workers",
         type=int,
         default=4,
@@ -283,18 +321,23 @@ def main():
     max_val = max(args.val_sizes) if args.val_sizes else int(args.val_min)
     logged_rows = int(args.shared_regression_size) + int(max_train) + int(max_val)
     workers = max(1, int(args.max_workers))
+    num_gpus = _resolve_num_gpus(args.num_gpus)
     if logged_rows >= 40_000 and workers > 1:
         print(
             f"WARNING: ~{logged_rows} logged rows per setup + reg fit; "
             f"--max-workers {workers} often OOM on large catalogs. Use --max-workers 1.",
             flush=True,
         )
-    print(f"Running {len(run_configs)} conditions with max_workers={workers}")
+    print(
+        f"Running {len(run_configs)} conditions with max_workers={workers} "
+        f"over {num_gpus} GPU(s)",
+        flush=True,
+    )
     mp_ctx = mp.get_context("spawn")
     with ProcessPoolExecutor(
         max_workers=workers,
         mp_context=mp_ctx,
-        initializer=_parallel_worker_init,
+        initializer=_make_parallel_worker_init(num_gpus),
     ) as pool:
         future_to_cfg = {pool.submit(_execute_run, cfg): cfg for cfg in run_configs}
         for fut in as_completed(future_to_cfg):
@@ -341,6 +384,7 @@ def main():
                     "policy_reward_mc_sim": args.policy_reward_mc_sim,
                     "policy_temperature": args.policy_temperature,
                     "max_workers": args.max_workers,
+                    "num_gpus": num_gpus,
                 },
                 f,
                 indent=2,

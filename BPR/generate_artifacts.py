@@ -13,9 +13,9 @@ from BPR.dataload import (
 )
 
 
-def _dataset_bundle(dataset: str, root: str):
+def _dataset_bundle(dataset: str, root: str, *, download: bool = True):
     if dataset == "ml":
-        ratings, users, items = load_movielens_1m(root)
+        ratings, users, items = load_movielens_1m(root, download=download)
         data = build_csr_from_interactions(
             interactions=ratings,
             user_col="user_id",
@@ -24,7 +24,7 @@ def _dataset_bundle(dataset: str, root: str):
             item_info=items.rename(columns={"movie_id": "item_id"}),
         )
     elif dataset == "myket":
-        ratings, users, items = load_myket(root)
+        ratings, users, items = load_myket(root, download=download)
         if "category" not in items.columns and "categories" in items.columns:
             items = items.rename(columns={"categories": "category"})
         data = build_csr_from_interactions(
@@ -36,7 +36,7 @@ def _dataset_bundle(dataset: str, root: str):
             assume_users_are_indices=True,
         )
     elif dataset == "anime":
-        ratings, users, items = load_anime_dfs(root)
+        ratings, users, items = load_anime_dfs(root, download=download)
         data = build_csr_from_interactions(
             interactions=ratings,
             user_col="user_id",
@@ -45,7 +45,9 @@ def _dataset_bundle(dataset: str, root: str):
             item_info=items,
         )
     elif dataset in {"lastfm", "msd"}:
-        ratings, users, items = load_artistwise_dfs(root)
+        ratings, users, items = load_artistwise_dfs(
+            root, download=download, dataset=dataset
+        )
         data = build_csr_from_interactions(
             interactions=ratings,
             user_col="user_id",
@@ -71,9 +73,17 @@ def main():
     parser.add_argument("--mode", choices=["samples", "per_user"], default="samples")
     parser.add_argument("--samples-per-epoch", type=int, default=200_000)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument(
+        "--download",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Download missing dataset files before loading (default: true).",
+    )
     args = parser.parse_args()
 
-    ratings, users_df, interaction_data = _dataset_bundle(args.dataset, args.root)
+    ratings, users_df, interaction_data = _dataset_bundle(
+        args.dataset, args.root, download=args.download
+    )
 
     model = BayesianPersonalizedRanking(
         factors=args.factors,

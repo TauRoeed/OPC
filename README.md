@@ -28,9 +28,17 @@ pip install numpy pandas scipy scikit-learn torch optuna matplotlib tqdm
 
 If you already have an environment with these packages, skip setup.
 
+Or run everything from scratch (venv + all BPR + parallel study):
+
+```bash
+./scripts/run_from_scratch.sh
+```
+
 ## 1) BPR Fitting / Artifact Generation
 
 Use `BPR/generate_artifacts.py` to fit BPR and export all arrays needed by experiments.
+
+Datasets auto-download on first load when files are missing (`--download` is default). You can pass only a target folder/path; large music datasets (`lastfm`, `msd`) are fetched automatically too.
 
 ### Example: MovieLens 1M
 
@@ -38,14 +46,28 @@ Use `BPR/generate_artifacts.py` to fit BPR and export all arrays needed by exper
 python -m BPR.generate_artifacts \
   --dataset ml \
   --root datasets/ml-1m \
-  --emb-dir BPR/embeddings \
-  --factors 64 \
-  --epochs 20 \
-  --learning-rate 0.05 \
-  --regularization 1e-4 \
-  --mode samples \
-  --samples-per-epoch 200000 \
-  --seed 42
+  --emb-dir BPR/embeddings
+```
+
+Fresh clone (no local data yet):
+
+```bash
+python -m BPR.generate_artifacts --dataset anime --root datasets/anime
+python -m BPR.generate_artifacts --dataset myket --root datasets/myket
+python -m BPR.generate_artifacts --dataset lastfm --root datasets/lastfm/lastfm_360k.hdf5
+python -m BPR.generate_artifacts --dataset msd --root datasets/msd/msd_taste_profile.hdf5
+```
+
+Disable auto-download:
+
+```bash
+python -m BPR.generate_artifacts --dataset ml --root datasets/ml-1m --no-download
+```
+
+Smoke test all loaders:
+
+```bash
+python -m BPR.smoke_test_loaders --include-large
 ```
 
 ### Important Arguments
