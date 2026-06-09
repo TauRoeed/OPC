@@ -7,13 +7,21 @@ Use `BPR/generate_artifacts.py` to create all dataset artifacts in one pass:
 - optional user metadata matrix (only when standalone user metadata exists)
 - user interaction counts
 
-## Example
+## Per-dataset params
+
+Defaults come from `BPR/bpr_dataset_config.json` (matches `BPR/datasets.ipynb`). CLI flags override.
+
+| dataset | lr | reg | epochs | samples/epoch | data prep |
+|---------|-----|-----|--------|---------------|-----------|
+| ml | 0.05 | 1e-4 | 30 | 100k | rating ≥ 4 |
+| myket | 0.05 | 1e-4 | 30 | 150k | raw user ids |
+| lastfm | 0.1 | 1e-5 | 30 | 250k | implicit |
+| msd | 0.1 | 1e-5 | 50 | 350k | implicit |
+| anime | 0.1 | 1e-5 | 15 | 250k | min rating 7 |
 
 ```bash
-python -m BPR.generate_artifacts \
-  --dataset ml \
-  --root /home/roee/Documents/git-repos/OPC/datasets/ml-1m \
-  --emb-dir /home/roee/Documents/git-repos/OPC/BPR/embeddings
+python -m BPR.generate_artifacts --dataset ml --root datasets/ml-1m
+python -m BPR.generate_artifacts --dataset ml --config path/to/custom.json --epochs 10
 ```
 
 ## Output files

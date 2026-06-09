@@ -1,7 +1,9 @@
 import argparse
 from pathlib import Path
+from typing import Any
 
 from BPR.bpr import BayesianPersonalizedRanking
+from BPR.bpr_config import load_bpr_dataset_config, resolve_bpr_params
 from BPR.dataload import (
     build_and_save_metadata_artifacts,
     build_csr_from_interactions,
@@ -13,11 +15,22 @@ from BPR.dataload import (
 )
 
 
-def _dataset_bundle(dataset: str, root: str, *, download: bool = True):
+def _dataset_bundle(
+    dataset: str,
+    root: str,
+    *,
+    data_cfg: dict[str, Any],
+    download: bool = True,
+):
     if dataset == "ml":
         ratings, users, items = load_movielens_1m(root, download=download)
+        rating_min = data_cfg.get("rating_min")
+        interactions = ratings
+        if rating_min is not None:
+            interactions = interactions[interactions["rating"] >= float(rating_min)]
+        interactions = interactions[["user_id", "movie_id"]]
         data = build_csr_from_interactions(
-            interactions=ratings,
+            interactions=interactions,
             user_col="user_id",
             item_col="movie_id",
             value_col=None,
@@ -28,17 +41,22 @@ def _dataset_bundle(dataset: str, root: str, *, download: bool = True):
         if "category" not in items.columns and "categories" in items.columns:
             items = items.rename(columns={"categories": "category"})
         data = build_csr_from_interactions(
-            interactions=ratings,
+            interactions=ratings[["user_id", "item_id"]],
             user_col="user_id",
             item_col="item_id",
             value_col=None,
             item_info=items,
-            assume_users_are_indices=True,
+            assume_users_are_indices=bool(
+                data_cfg.get("assume_users_are_indices", False)
+            ),
         )
     elif dataset == "anime":
-        ratings, users, items = load_anime_dfs(root, download=download)
+        min_rating = float(data_cfg.get("min_rating", 7.0))
+        ratings, users, items = load_anime_dfs(
+            root, min_rating=min_rating, download=download
+        )
         data = build_csr_from_interactions(
-            interactions=ratings,
+            interactions=ratings[["user_id", "item_id"]],
             user_col="user_id",
             item_col="item_id",
             value_col=None,
@@ -48,11 +66,14 @@ def _dataset_bundle(dataset: str, root: str, *, download: bool = True):
         ratings, users, items = load_artistwise_dfs(
             root, download=download, dataset=dataset
         )
+        value_col = "rating" if data_cfg.get("use_rating_values", False) else None
         data = build_csr_from_interactions(
-            interactions=ratings,
+            interactions=ratings[["user_id", "item_id"]]
+            if value_col is None
+            else ratings,
             user_col="user_id",
             item_col="item_id",
-            value_col="rating",
+            value_col=value_col,
             item_info=items,
         )
     else:
@@ -62,17 +83,32 @@ def _dataset_bundle(dataset: str, root: str, *, download: bool = True):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Generate BPR embeddings and metadata artifacts.")
-    parser.add_argument("--dataset", choices=["ml", "myket", "anime", "lastfm", "msd"], required=True)
-    parser.add_argument("--root", required=True, help="Dataset root path (directory or HDF5 path for lastfm/msd).")
+    parser = argparse.ArgumentParser(
+        description="Generate BPR embeddings and metadata artifacts."
+    )
+    parser.add_argument(
+        "--dataset",
+        choices=["ml", "myket", "anime", "lastfm", "msd"],
+        required=True,
+    )
+    parser.add_argument(
+        "--root",
+        required=True,
+        help="Dataset root path (directory or HDF5 path for lastfm/msd).",
+    )
     parser.add_argument("--emb-dir", default="BPR/embeddings")
-    parser.add_argument("--factors", type=int, default=64)
-    parser.add_argument("--epochs", type=int, default=20)
-    parser.add_argument("--learning-rate", type=float, default=0.05)
-    parser.add_argument("--regularization", type=float, default=1e-4)
-    parser.add_argument("--mode", choices=["samples", "per_user"], default="samples")
-    parser.add_argument("--samples-per-epoch", type=int, default=200_000)
-    parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument(
+        "--config",
+        default=None,
+        help="Path to bpr_dataset_config.json (default: BPR/bpr_dataset_config.json).",
+    )
+    parser.add_argument("--factors", type=int, default=None)
+    parser.add_argument("--epochs", type=int, default=None)
+    parser.add_argument("--learning-rate", type=float, default=None)
+    parser.add_argument("--regularization", type=float, default=None)
+    parser.add_argument("--mode", choices=["samples", "per_user"], default=None)
+    parser.add_argument("--samples-per-epoch", type=int, default=None)
+    parser.add_argument("--seed", type=int, default=None, help="Maps to random_state.")
     parser.add_argument(
         "--download",
         action=argparse.BooleanOptionalAction,
@@ -81,18 +117,38 @@ def main():
     )
     args = parser.parse_args()
 
-    ratings, users_df, interaction_data = _dataset_bundle(
-        args.dataset, args.root, download=args.download
+    ds_cfg = load_bpr_dataset_config(args.dataset, config_path=args.config)
+    bpr_params = resolve_bpr_params(
+        args.dataset,
+        config_path=args.config,
+        overrides={
+            "factors": args.factors,
+            "epochs": args.epochs,
+            "learning_rate": args.learning_rate,
+            "regularization": args.regularization,
+            "mode": args.mode,
+            "samples_per_epoch": args.samples_per_epoch,
+            "random_state": args.seed,
+        },
     )
 
+    ratings, users_df, interaction_data = _dataset_bundle(
+        args.dataset,
+        args.root,
+        data_cfg=ds_cfg["data"],
+        download=args.download,
+    )
+
+    print(f"{args.dataset} BPR params: {bpr_params}")
+
     model = BayesianPersonalizedRanking(
-        factors=args.factors,
-        learning_rate=args.learning_rate,
-        regularization=args.regularization,
-        epochs=args.epochs,
-        random_state=args.seed,
-        mode=args.mode,
-        samples_per_epoch=args.samples_per_epoch,
+        factors=int(bpr_params["factors"]),
+        learning_rate=float(bpr_params["learning_rate"]),
+        regularization=float(bpr_params["regularization"]),
+        epochs=int(bpr_params["epochs"]),
+        random_state=int(bpr_params["random_state"]),
+        mode=str(bpr_params["mode"]),
+        samples_per_epoch=int(bpr_params["samples_per_epoch"]),
     )
     model.fit(interaction_data.X)
 

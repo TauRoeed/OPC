@@ -1,0 +1,72 @@
+{
+  "ml": {
+    "bpr": {
+      "factors": 32,
+      "learning_rate": 0.05,
+      "regularization": 1e-4,
+      "epochs": 30,
+      "mode": "samples",
+      "samples_per_epoch": 100000,
+      "random_state": 0
+    },
+    "data": {
+      "rating_min": 4
+    }
+  },
+  "myket": {
+    "bpr": {
+      "factors": 32,
+      "learning_rate": 0.05,
+      "regularization": 1e-4,
+      "epochs": 30,
+      "mode": "samples",
+      "samples_per_epoch": 150000,
+      "random_state": 0
+    },
+    "data": {
+      "assume_users_are_indices": false
+    }
+  },
+  "lastfm": {
+    "bpr": {
+      "factors": 32,
+      "learning_rate": 0.1,
+      "regularization": 1e-5,
+      "epochs": 30,
+      "mode": "samples",
+      "samples_per_epoch": 250000,
+      "random_state": 0
+    },
+    "data": {
+      "use_rating_values": false
+    }
+  },
+  "msd": {
+    "bpr": {
+      "factors": 32,
+      "learning_rate": 0.1,
+      "regularization": 1e-5,
+      "epochs": 50,
+      "mode": "samples",
+      "samples_per_epoch": 350000,
+      "random_state": 0
+    },
+    "data": {
+      "use_rating_values": false
+    }
+  },
+  "anime": {
+    "bpr": {
+      "factors": 32,
+      "learning_rate": 0.1,
+      "regularization": 1e-5,
+      "epochs": 15,
+      "mode": "samples",
+      "samples_per_epoch": 250000,
+      "random_state": 0
+    },
+    "data": {
+      "min_rating": 7.0
+    }
+  }
+}
