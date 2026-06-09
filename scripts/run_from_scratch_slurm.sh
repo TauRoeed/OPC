@@ -133,7 +133,7 @@ if [[ "${SKIP_STUDY:-0}" != "1" ]]; then
     --num-runs 1 \
     --batch-size 2048 \
     --policy-reward-mode exact \
-    --policy-reward-mc-sim 8 \
+    --optuna-batch-sizes 256 512 1024 2048 4096 \
     --policy-temperature 1.0 \
     --emb-dir "$EMB_DIR" \
     --out-dir "$OUT_DIR" \

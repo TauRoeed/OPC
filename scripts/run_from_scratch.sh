@@ -101,7 +101,7 @@ if [[ "${SKIP_STUDY:-0}" != "1" ]]; then
     --num-runs 1
     --batch-size 2048
     --policy-reward-mode exact
-    --policy-reward-mc-sim 8
+    --optuna-batch-sizes 256 512 1024 2048 4096
     --policy-temperature 1.0
     --val-frac 0.15
     --val-min 5000
@@ -123,8 +123,8 @@ if [[ "${SKIP_STUDY:-0}" != "1" ]]; then
       --n-trials 1
       --num-runs 1
       --batch-size 512
-      --policy-reward-mode mc
-      --policy-reward-mc-sim 2
+      --policy-reward-mode exact
+      --optuna-batch-sizes 128 256 512 1024 2048
       --val-size 500
       --emb-dir "$EMB_DIR"
       --out-dir "$OUT_DIR"

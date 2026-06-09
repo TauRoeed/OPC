@@ -118,8 +118,23 @@ from training.metrics_utils import (
 VALID_POLICY_LOSSES = ("kl", "ipw", "sndr")
 
 # Max working blocks for q_hat / softmax (user_chunk, action_chunk); no full n_users x n_actions.
-DEFAULT_QHAT_USER_CHUNK = 3500
-DEFAULT_QHAT_ACTION_CHUNK = 3500
+DEFAULT_QHAT_USER_CHUNK = 5000
+DEFAULT_QHAT_ACTION_CHUNK = 5000
+DEFAULT_OPTUNA_BATCH_SIZES = (256, 512, 1024, 2048, 4096)
+DEFAULT_NEIGHBORHOOD_OPTUNA_BATCH_SIZES = (64, 128, 256, 512)
+
+
+def _normalize_optuna_batch_sizes(
+    sizes: list[int] | tuple[int, ...] | None,
+    *,
+    default: tuple[int, ...] = DEFAULT_OPTUNA_BATCH_SIZES,
+) -> list[int]:
+    if sizes is None:
+        return list(default)
+    out = sorted({int(x) for x in sizes if int(x) > 0})
+    if not out:
+        raise ValueError("optuna_batch_sizes must contain at least one positive int")
+    return out
 
 
 def _kl_policy_loss(gamma: float, use_log_trick: bool = True) -> KLPolicyLoss:
@@ -1336,12 +1351,16 @@ def neighberhoodmodel_trainer_trial(
     method_label: str = "neighborhood",
     slim: bool = False,
     search_use_log_trick: bool = True,
+    optuna_batch_sizes: list[int] | None = None,
 ):
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     torch.backends.cudnn.benchmark = torch.cuda.is_available()
     if torch.cuda.is_available():
         torch.set_float32_matmul_precision("high")
+    trial_batch_choices = _normalize_optuna_batch_sizes(
+        optuna_batch_sizes, default=DEFAULT_NEIGHBORHOOD_OPTUNA_BATCH_SIZES
+    )
 
     dm = DM()
     results = {}
@@ -1468,7 +1487,7 @@ def neighberhoodmodel_trainer_trial(
                 lr = trial.suggest_float("lr", 1e-4, 1e-1, log=True)
                 epochs = trial.suggest_int("num_epochs", 1, 10)
                 trial_batch_size = trial.suggest_categorical(
-                    "batch_size", [64, 128, 256, 512]
+                    "batch_size", trial_batch_choices
                 )
                 trial_num_neighbors = trial.suggest_int("num_neighbors", 3, 15)
                 lr_decay = trial.suggest_float("lr_decay", 0.8, 1.0)
@@ -1642,7 +1661,7 @@ def neighberhoodmodel_trainer_trial(
 
             train_loader = DataLoader(
                 cf_dataset,
-                batch_size=batch_size,
+                batch_size=int(best_params.get("batch_size", batch_size)),
                 shuffle=True,
                 pin_memory=torch.cuda.is_available(),
                 num_workers=num_workers,
@@ -1799,6 +1818,7 @@ def regression_trainer_trial(
     qhat_user_chunk: int = DEFAULT_QHAT_USER_CHUNK,
     qhat_action_chunk: int = DEFAULT_QHAT_ACTION_CHUNK,
     require_cuda: bool = False,
+    optuna_batch_sizes: list[int] | None = None,
 ):
     """
     OPC / no-propensity trainer with Optuna over CF hyperparameters.
@@ -1829,6 +1849,7 @@ def regression_trainer_trial(
     if torch.cuda.is_available():
         torch.set_float32_matmul_precision("high")
     _log_training_device(method_label, device)
+    trial_batch_choices = _normalize_optuna_batch_sizes(optuna_batch_sizes)
 
     dm = DM()
     results = {}
@@ -2002,7 +2023,7 @@ def regression_trainer_trial(
                 lr = trial.suggest_float("lr", 1e-4, 1e-3, log=True)
                 epochs = trial.suggest_int("num_epochs", 5, 25)
                 trial_batch_size = trial.suggest_categorical(
-                    "batch_size", [1024, 2048, 4096, 8192]
+                    "batch_size", trial_batch_choices
                 )
                 lr_decay = trial.suggest_float("lr_decay", 1e-5, 1e-3, log=True)
                 kl_gamma = trial.suggest_float("kl_gamma", 1e-4, 0.5, log=True)
@@ -2150,7 +2171,7 @@ def regression_trainer_trial(
 
             train_loader = DataLoader(
                 cf_dataset,
-                batch_size=batch_size,
+                batch_size=int(best_params.get("batch_size", batch_size)),
                 shuffle=True,
                 pin_memory=torch.cuda.is_available(),
                 num_workers=num_workers,
@@ -2326,6 +2347,7 @@ def no_propensity_trainer_trial(
     qhat_user_chunk: int = DEFAULT_QHAT_USER_CHUNK,
     qhat_action_chunk: int = DEFAULT_QHAT_ACTION_CHUNK,
     require_cuda: bool = False,
+    optuna_batch_sizes: list[int] | None = None,
 ):
     """
     Explicit no-propensity baseline with parity to regression trainer:
@@ -2358,6 +2380,7 @@ def no_propensity_trainer_trial(
         qhat_user_chunk=qhat_user_chunk,
         qhat_action_chunk=qhat_action_chunk,
         require_cuda=require_cuda,
+        optuna_batch_sizes=optuna_batch_sizes,
     )
 
 
@@ -2738,7 +2761,7 @@ def mlp_trial_reward_fit_once(
         hidden = trial.suggest_int("hidden", 4, 32)
         dropout = trial.suggest_float("dropout", 0.0, 0.4)
         batch_size = trial.suggest_categorical(
-            "batch_size", [1024, 2048, 4096, 8192]
+            "batch_size", list(DEFAULT_OPTUNA_BATCH_SIZES)
         )
         lr_decay = trial.suggest_float("lr_decay", 0.8, 1.0)
         kl_gamma = trial.suggest_float("kl_gamma", 1e-4, 0.5, log=True)

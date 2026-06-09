@@ -132,6 +132,7 @@ def _run_condition(
     qhat_user_chunk: int = DEFAULT_QHAT_USER_CHUNK,
     qhat_action_chunk: int = DEFAULT_QHAT_ACTION_CHUNK,
     require_cuda: bool = False,
+    optuna_batch_sizes: list[int] | None = None,
 ):
     eps1, eps2, eps_meta = _noise_eps(noise_level, noise_axis)
     user_path, item_path, user_meta_path, item_meta_path = _dataset_paths(
@@ -249,6 +250,7 @@ def _run_condition(
         qhat_user_chunk=qhat_user_chunk,
         qhat_action_chunk=qhat_action_chunk,
         require_cuda=require_cuda,
+        optuna_batch_sizes=optuna_batch_sizes,
     )
 
     noprop_df, noprop_trials = no_propensity_trainer_trial(
@@ -277,6 +279,7 @@ def _run_condition(
         qhat_user_chunk=qhat_user_chunk,
         qhat_action_chunk=qhat_action_chunk,
         require_cuda=require_cuda,
+        optuna_batch_sizes=optuna_batch_sizes,
     )
 
     # Unified long logs for post-hoc analysis.
@@ -318,6 +321,7 @@ def _run_condition(
         "val_max": val_max,
         "policy_reward_mode": policy_reward_mode,
         "policy_reward_mc_sim": int(policy_reward_mc_sim),
+        "optuna_batch_sizes": list(optuna_batch_sizes or []),
         "slim": bool(slim),
         "policy_loss_types": list(policy_loss_types),
         "search_use_log_trick": bool(search_use_log_trick),
@@ -386,6 +390,14 @@ def main():
     parser.add_argument("--n-trials", type=int, default=20)
     parser.add_argument("--num-runs", type=int, default=3)
     parser.add_argument("--batch-size", type=int, default=2048)
+    parser.add_argument(
+        "--optuna-batch-sizes",
+        nargs="+",
+        type=int,
+        default=None,
+        help="Batch sizes for Optuna to search (default: 256 512 1024 2048 4096). "
+        "Not a sweep axis; only tunes inside each condition.",
+    )
     parser.add_argument(
         "--policy-reward-mode",
         choices=["exact", "mc"],
@@ -471,13 +483,13 @@ def main():
         "--qhat-user-chunk",
         type=int,
         default=DEFAULT_QHAT_USER_CHUNK,
-        help="User block size for lazy q_hat / softmax (default 3500).",
+        help="User/context block size for lazy q_hat / softmax (default 5000).",
     )
     parser.add_argument(
         "--qhat-action-chunk",
         type=int,
         default=DEFAULT_QHAT_ACTION_CHUNK,
-        help="Action block size for lazy q_hat / softmax (default 3500).",
+        help="Action block size for lazy q_hat / softmax (default 5000).",
     )
     parser.add_argument(
         "--require-cuda",
@@ -567,6 +579,7 @@ def main():
                                     qhat_user_chunk=args.qhat_user_chunk,
                                     qhat_action_chunk=args.qhat_action_chunk,
                                     require_cuda=bool(args.require_cuda),
+                                    optuna_batch_sizes=args.optuna_batch_sizes,
                                     )
                                 except Exception as e:
                                     failures.append({"run_key": run_key, "error": repr(e)})
@@ -618,6 +631,7 @@ def main():
                     "val_max": args.val_max,
                     "policy_reward_mode": args.policy_reward_mode,
                     "policy_reward_mc_sim": args.policy_reward_mc_sim,
+                    "optuna_batch_sizes": args.optuna_batch_sizes,
                     "policy_temperature": args.policy_temperature,
                     "policy_loss_types": list(policy_loss_types),
                     "no_log_trick": bool(args.no_log_trick),

@@ -60,8 +60,8 @@ class Policy:
         item_emb: np.ndarray | None = None,
         emb_dim: int = 1,
         temperature: float = 1.0,
-        user_chunk: int = 3500,
-        action_chunk: int = 3500,
+        user_chunk: int = 5000,
+        action_chunk: int = 5000,
         rng: np.random.Generator | None = None,
     ):
         self.n_users = int(n_users)

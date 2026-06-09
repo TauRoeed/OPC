@@ -24,25 +24,20 @@ def _resolve_num_gpus(explicit: int | None) -> int:
         return 1
 
 
-def _make_parallel_worker_init(num_gpus: int):
-    """Assign each pool worker a GPU before torch import (spawn-safe)."""
-    worker_slot = mp.Value("i", 0, lock=True)
+def _parallel_worker_init(worker_slot, num_gpus: int) -> None:
+    """Assign each pool worker a GPU before torch import (spawn-safe, picklable)."""
+    os.environ["OPC_IN_PARALLEL"] = "1"
+    with worker_slot.get_lock():
+        idx = int(worker_slot.value)
+        worker_slot.value = idx + 1
     n_gpus = max(1, int(num_gpus))
-
-    def _init() -> None:
-        os.environ["OPC_IN_PARALLEL"] = "1"
-        with worker_slot.get_lock():
-            idx = int(worker_slot.value)
-            worker_slot.value = idx + 1
-        gpu = idx % n_gpus
-        os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu)
-        print(
-            f"[worker init] pid={os.getpid()} worker={idx} "
-            f"CUDA_VISIBLE_DEVICES={gpu} (pool over {n_gpus} GPUs)",
-            flush=True,
-        )
-
-    return _init
+    gpu = idx % n_gpus
+    os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu)
+    print(
+        f"[worker init] pid={os.getpid()} worker={idx} "
+        f"CUDA_VISIBLE_DEVICES={gpu} (pool over {n_gpus} GPUs)",
+        flush=True,
+    )
 
 from training.run_full_study import (
     VALID_NOISE_AXES,
@@ -117,6 +112,7 @@ def _execute_run(config: dict):
             config.get("qhat_action_chunk", DEFAULT_QHAT_ACTION_CHUNK)
         ),
         require_cuda=bool(config.get("require_cuda", False)),
+        optuna_batch_sizes=config.get("optuna_batch_sizes"),
     )
 
     summary_df = _finalize_summary_df(
@@ -177,6 +173,14 @@ def main():
     parser.add_argument("--num-runs", type=int, default=1)
     parser.add_argument("--batch-size", type=int, default=2048)
     parser.add_argument(
+        "--optuna-batch-sizes",
+        nargs="+",
+        type=int,
+        default=None,
+        help="Batch sizes for Optuna to search (default: 256 512 1024 2048 4096). "
+        "Not a sweep axis; only tunes inside each condition.",
+    )
+    parser.add_argument(
         "--policy-reward-mode",
         choices=["exact", "mc"],
         default="exact",
@@ -226,13 +230,13 @@ def main():
         "--qhat-user-chunk",
         type=int,
         default=DEFAULT_QHAT_USER_CHUNK,
-        help="User block for lazy q_hat (default 3500).",
+        help="User/context block for lazy q_hat (default 5000).",
     )
     parser.add_argument(
         "--qhat-action-chunk",
         type=int,
         default=DEFAULT_QHAT_ACTION_CHUNK,
-        help="Action block for lazy q_hat (default 3500).",
+        help="Action block for lazy q_hat (default 5000).",
     )
     parser.add_argument(
         "--require-cuda",
@@ -301,6 +305,7 @@ def main():
                 "n_trials": int(args.n_trials),
                 "num_runs": int(args.num_runs),
                 "batch_size": int(args.batch_size),
+                "optuna_batch_sizes": args.optuna_batch_sizes,
                 "val_frac": float(args.val_frac),
                 "val_min": int(args.val_min),
                 "val_max": args.val_max,
@@ -334,10 +339,12 @@ def main():
         flush=True,
     )
     mp_ctx = mp.get_context("spawn")
+    worker_slot = mp_ctx.Value("i", 0, lock=True)
     with ProcessPoolExecutor(
         max_workers=workers,
         mp_context=mp_ctx,
-        initializer=_make_parallel_worker_init(num_gpus),
+        initializer=_parallel_worker_init,
+        initargs=(worker_slot, num_gpus),
     ) as pool:
         future_to_cfg = {pool.submit(_execute_run, cfg): cfg for cfg in run_configs}
         for fut in as_completed(future_to_cfg):
@@ -382,6 +389,7 @@ def main():
                     "val_max": args.val_max,
                     "policy_reward_mode": args.policy_reward_mode,
                     "policy_reward_mc_sim": args.policy_reward_mc_sim,
+                    "optuna_batch_sizes": args.optuna_batch_sizes,
                     "policy_temperature": args.policy_temperature,
                     "max_workers": args.max_workers,
                     "num_gpus": num_gpus,
