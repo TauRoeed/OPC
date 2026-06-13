@@ -1,0 +1,4 @@
+# Build context: only requirements.txt is needed for the env image.
+*
+
+!requirements.txt
