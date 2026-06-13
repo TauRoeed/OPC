@@ -46,17 +46,17 @@ def _apply_parallel_thread_limits(workers: int) -> int:
 
 
 def _parallel_worker_init(worker_slot, num_gpus: int) -> None:
-    """Assign each pool worker a GPU before torch import (spawn-safe, picklable)."""
+    """Round-robin workers across cuda:0..N-1 via OPC_WORKER_GPU."""
     os.environ["OPC_IN_PARALLEL"] = "1"
     with worker_slot.get_lock():
         idx = int(worker_slot.value)
         worker_slot.value = idx + 1
-    n_gpus = max(1, int(num_gpus))
-    gpu = idx % n_gpus
-    os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu)
+    n = max(1, int(num_gpus))
+    gpu_slot = idx % n
+    os.environ["OPC_WORKER_GPU"] = str(gpu_slot)
     print(
         f"[worker init] pid={os.getpid()} worker={idx} "
-        f"CUDA_VISIBLE_DEVICES={gpu} (pool over {n_gpus} GPUs)",
+        f"OPC_WORKER_GPU={gpu_slot} (pool over {n} GPUs)",
         flush=True,
     )
 

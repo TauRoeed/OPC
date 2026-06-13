@@ -20,9 +20,27 @@ from torch.utils.data import DataLoader, Dataset
 import torch.optim as optim
 
 torch.backends.cudnn.benchmark = torch.cuda.is_available()
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 if torch.cuda.is_available():
     torch.set_float32_matmul_precision("high")
+
+
+def _training_device(*, require_cuda: bool = False) -> torch.device:
+    """Pick training device; honors OPC_WORKER_GPU from parallel pool workers."""
+    if torch.cuda.is_available() and torch.cuda.device_count() > 0:
+        gpu = int(os.environ.get("OPC_WORKER_GPU", "0"))
+        if gpu < 0 or gpu >= torch.cuda.device_count():
+            gpu = 0
+        dev = torch.device(f"cuda:{gpu}")
+    else:
+        dev = torch.device("cpu")
+    if require_cuda and dev.type != "cuda":
+        raise RuntimeError(
+            "CUDA is required (--require-cuda), but torch.cuda.is_available() is False. "
+            "Use a CUDA PyTorch build (e.g. docker build --build-arg "
+            "TORCH_INDEX=https://download.pytorch.org/whl/cu124 -t opc:gpu) and "
+            "run with --gpus all."
+        )
+    return dev
 
 
 def _dataloader_num_workers() -> int:
@@ -1354,7 +1372,7 @@ def neighberhoodmodel_trainer_trial(
     optuna_batch_sizes: list[int] | None = None,
 ):
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = _training_device()
     torch.backends.cudnn.benchmark = torch.cuda.is_available()
     if torch.cuda.is_available():
         torch.set_float32_matmul_precision("high")
@@ -1840,11 +1858,7 @@ def regression_trainer_trial(
         if name not in VALID_POLICY_LOSSES:
             raise ValueError(f"Unknown policy loss '{name}'")
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    if require_cuda and device.type != "cuda":
-        raise RuntimeError(
-            "CUDA is required (--require-cuda), but torch.cuda.is_available() is False"
-        )
+    device = _training_device(require_cuda=require_cuda)
     torch.backends.cudnn.benchmark = torch.cuda.is_available()
     if torch.cuda.is_available():
         torch.set_float32_matmul_precision("high")
@@ -2663,7 +2677,7 @@ def mlp_trial_reward_fit_once(
     n_actions = int(dataset["n_actions"])
     emb_dim = int(dataset["emb_dim"])
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = _training_device()
     torch.backends.cudnn.benchmark = torch.cuda.is_available()
     if torch.cuda.is_available():
         torch.set_float32_matmul_precision("high")
