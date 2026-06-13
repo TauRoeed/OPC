@@ -59,9 +59,9 @@ PYTHON="${VENV}/bin/python"
 
 EMB_DIR="${EMB_DIR:-BPR/embeddings}"
 OUT_DIR="${OUT_DIR:-artifacts/full_study}"
-RUN_TAG="${RUN_TAG:-full_ml_myket_anime_8w_s5_slim}"
-MAX_WORKERS="${MAX_WORKERS:-8}"
-NUM_GPUS="${NUM_GPUS:-2}"
+RUN_TAG="${RUN_TAG:-full_ml_myket_anime_30w_s5_slim}"
+MAX_WORKERS="${MAX_WORKERS:-30}"
+NUM_GPUS="${NUM_GPUS:-3}"
 
 log() { echo "[run_from_scratch_slurm] $*"; }
 

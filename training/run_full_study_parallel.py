@@ -24,6 +24,27 @@ def _resolve_num_gpus(explicit: int | None) -> int:
         return 1
 
 
+def _apply_parallel_thread_limits(workers: int) -> int:
+    """Avoid CPU oversubscription when many process workers run (spawn inherits env)."""
+    if workers <= 1:
+        return 1
+    cpus = os.cpu_count() or 8
+    per_worker = max(1, min(4, cpus // workers))
+    for key in (
+        "OMP_NUM_THREADS",
+        "MKL_NUM_THREADS",
+        "OPENBLAS_NUM_THREADS",
+        "NUMEXPR_NUM_THREADS",
+    ):
+        os.environ.setdefault(key, str(per_worker))
+    print(
+        f"Parallel pool: {workers} workers; per-worker CPU threads={per_worker} "
+        f"(override via OMP_NUM_THREADS etc.)",
+        flush=True,
+    )
+    return per_worker
+
+
 def _parallel_worker_init(worker_slot, num_gpus: int) -> None:
     """Assign each pool worker a GPU before torch import (spawn-safe, picklable)."""
     os.environ["OPC_IN_PARALLEL"] = "1"
@@ -327,10 +348,13 @@ def main():
     logged_rows = int(args.shared_regression_size) + int(max_train) + int(max_val)
     workers = max(1, int(args.max_workers))
     num_gpus = _resolve_num_gpus(args.num_gpus)
+    _apply_parallel_thread_limits(workers)
+    per_gpu = workers / max(1, num_gpus)
     if logged_rows >= 40_000 and workers > 1:
         print(
             f"WARNING: ~{logged_rows} logged rows per setup + reg fit; "
-            f"--max-workers {workers} often OOM on large catalogs. Use --max-workers 1.",
+            f"--max-workers {workers} (~{per_gpu:.1f}/GPU over {num_gpus} GPUs) "
+            f"may OOM RAM/VRAM on large catalogs.",
             flush=True,
         )
     print(
