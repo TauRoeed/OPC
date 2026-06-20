@@ -28,6 +28,8 @@ import matplotlib.pyplot as plt
 import scipy
 from scipy.special import softmax
 
+from models.custom_losses import sndr_r_hat
+
 random_state=12345
 random_ = check_random_state(random_state)
 
@@ -40,8 +42,8 @@ def calc_estimated_policy_rewards(pscore, scores, policy_prob, original_policy_r
         iw = iw.detach()
         q_hat_at_position = scores[torch.arange(n), original_policy_actions].squeeze()
         dm_reward = (scores * policy_prob.detach()).sum(dim=1)
-        
-        r_hat = ((iw * (original_policy_rewards - q_hat_at_position)) / iw.sum()) + dm_reward
+
+        r_hat = sndr_r_hat(iw, original_policy_rewards, q_hat_at_position, dm_reward)
 
         var_hat = r_hat.std()
         lower_bound = r_hat.mean() - (scipy.stats.t.ppf(0.95, n - 1) * var_hat / (n ** 0.5))

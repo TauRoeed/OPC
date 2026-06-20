@@ -62,7 +62,8 @@ def grad_importance_weights(iw, use_log_trick: bool):
 
 
 def sndr_r_hat(iw, rewards, q_at_action, dm_reward):
-    return (iw * (rewards - q_at_action)).sum() / iw.sum() + dm_reward
+    """Per-row SNDR: dm_i + w_i * (r_i - q_i) / mean(w)."""
+    return dm_reward + iw * (rewards - q_at_action) / iw.mean()
 
 
 class _BanditPolicyLossBase(nn.Module):
@@ -105,7 +106,7 @@ class IPWPolicyLoss(_BanditPolicyLossBase):
         )
 
         reinforce_grad = iw_grad * original_policy_rewards * grad_term
-        return reinforce_grad.mean()
+        return (-reinforce_grad).mean()
 
 
 class SNDRPolicyLoss(_BanditPolicyLossBase):
@@ -127,7 +128,7 @@ class SNDRPolicyLoss(_BanditPolicyLossBase):
         else:
             reinforce_grad = r_hat.detach() * iw_grad * grad_term
 
-        return reinforce_grad.mean()
+        return (-reinforce_grad).mean()
 
 
 class KLPolicyLoss(_BanditPolicyLossBase):
@@ -160,4 +161,4 @@ class KLPolicyLoss(_BanditPolicyLossBase):
             pg = r_hat.detach() * iw_grad * grad_term
 
         kl = batch_mc_kl(pi_e_at_position, pscore, self.log_eps)
-        return (pg + self.gamma * kl).mean()
+        return (-pg + self.gamma * kl).mean()

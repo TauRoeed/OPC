@@ -63,13 +63,23 @@ def test_dataset_keeps_true_pscore_for_uniform_mode():
     assert np.allclose(resolved, train_data["pscore"])
 
 
-def test_sndr_r_hat_no_prop_is_direct_residual_mean_plus_dm():
+def test_sndr_r_hat_uniform_is_per_row_dm_plus_residual():
     rewards = torch.tensor([1.0, 0.0, 1.0, 0.5])
     q = torch.tensor([0.2, 0.3, 0.8, 0.4])
     dm = torch.tensor([0.1, 0.2, 0.3, 0.4])
     iw = torch.ones(4)
     r_hat = sndr_r_hat(iw, rewards, q, dm)
-    expected = (rewards - q).mean() + dm
+    expected = dm + (rewards - q)
+    assert torch.allclose(r_hat, expected)
+
+
+def test_sndr_r_hat_logged_normalizes_by_mean_iw():
+    rewards = torch.tensor([1.0, 0.0])
+    q = torch.tensor([0.2, 0.5])
+    dm = torch.tensor([0.1, 0.2])
+    iw = torch.tensor([2.0, 4.0])
+    r_hat = sndr_r_hat(iw, rewards, q, dm)
+    expected = dm + iw * (rewards - q) / iw.mean()
     assert torch.allclose(r_hat, expected)
 
 
@@ -84,13 +94,17 @@ def test_kl_uniform_uses_iw_one_for_dr_but_true_pscore_for_kl():
 
     with torch.no_grad():
         loss_val = kl_loss(pscore, scores, policy, rewards, actions)
-    assert torch.allclose(loss_val, (r_hat.detach() * torch.log(pi_e)).mean(), atol=1e-5)
+    assert torch.allclose(
+        loss_val, -(r_hat.detach() * torch.log(pi_e)).mean(), atol=1e-5
+    )
 
     kl_only = batch_mc_kl(pi_e, pscore)
     kl_loss_g = KLPolicyLoss(gamma=1.0, propensity_mode="uniform", use_log_trick=True)
     with torch.no_grad():
         full = kl_loss_g(pscore, scores, policy, rewards, actions)
-    assert torch.allclose(full, (r_hat.detach() * torch.log(pi_e)).mean() + kl_only, atol=1e-5)
+    assert torch.allclose(
+        full, -(r_hat.detach() * torch.log(pi_e)).mean() + kl_only, atol=1e-5
+    )
 
 
 def test_grad_flow_log_trick_vs_direct():
@@ -123,7 +137,7 @@ def test_ipw_no_prop_no_log_is_constant_wrt_policy():
     _, policy, scores, actions, rewards, pscore = _batch(seed=3)
     ipw = IPWPolicyLoss(use_log_trick=False, propensity_mode="uniform")
     loss = ipw(pscore, scores, policy, rewards, actions)
-    assert torch.allclose(loss, rewards.mean())
+    assert torch.allclose(loss, -rewards.mean())
     assert not loss.requires_grad
 
 
