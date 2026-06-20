@@ -155,8 +155,16 @@ def _normalize_optuna_batch_sizes(
     return out
 
 
-def _kl_policy_loss(gamma: float, use_log_trick: bool = True) -> KLPolicyLoss:
-    return KLPolicyLoss(gamma=float(gamma), use_log_trick=use_log_trick)
+def _kl_policy_loss(
+    gamma: float,
+    use_log_trick: bool = True,
+    propensity_mode: str = "logged",
+) -> KLPolicyLoss:
+    return KLPolicyLoss(
+        gamma=float(gamma),
+        use_log_trick=use_log_trick,
+        propensity_mode=propensity_mode,
+    )
 
 
 def _policy_loss_from_name(
@@ -164,14 +172,25 @@ def _policy_loss_from_name(
     *,
     kl_gamma: float = 0.05,
     use_log_trick: bool = True,
+    propensity_mode: str = "logged",
 ):
     name = str(loss_name).lower()
     if name == "kl":
-        return _kl_policy_loss(kl_gamma, use_log_trick=use_log_trick)
+        return _kl_policy_loss(
+            kl_gamma,
+            use_log_trick=use_log_trick,
+            propensity_mode=propensity_mode,
+        )
     if name == "ipw":
-        return IPWPolicyLoss(use_log_trick=use_log_trick)
+        return IPWPolicyLoss(
+            use_log_trick=use_log_trick,
+            propensity_mode=propensity_mode,
+        )
     if name == "sndr":
-        return SNDRPolicyLoss(use_log_trick=use_log_trick)
+        return SNDRPolicyLoss(
+            use_log_trick=use_log_trick,
+            propensity_mode=propensity_mode,
+        )
     raise ValueError(f"Unknown policy loss '{loss_name}'; expected one of {VALID_POLICY_LOSSES}")
 
 
@@ -713,14 +732,13 @@ def _enqueue_with_kl_gamma(
 
 def _resolve_logged_pscore(train_data, original_policy_prob, mode="logged"):
     """
-    Unify propensity handling across trial trainers.
-    mode:
-      - "logged": use behavior propensity from logged data.
-      - "uniform": force pscore=1.0 (explicit no-propensity training).
-    """
-    if mode == "uniform":
-        return np.ones_like(train_data["r"], dtype=np.float32)
+    Behavior propensity pi_b(a|x) at the logged action.
 
+    ``mode`` is accepted for API compatibility; always returns true logged
+    propensities. Importance-weight bypass (iw=1) is handled in the loss via
+    ``propensity_mode="uniform"``.
+    """
+    _ = mode
     if "pscore" in train_data and train_data["pscore"] is not None:
         return np.asarray(train_data["pscore"], dtype=np.float32)
 
@@ -731,10 +749,11 @@ def _resolve_logged_pscore(train_data, original_policy_prob, mode="logged"):
 
 
 def _build_cf_dataset(train_data, original_policy_prob, propensity_mode="logged"):
+    _ = propensity_mode
     pscore = _resolve_logged_pscore(
         train_data=train_data,
         original_policy_prob=original_policy_prob,
-        mode=propensity_mode,
+        mode="logged",
     )
     return CustomCFDatasetPS(
         train_data["x_idx"],
@@ -1560,7 +1579,9 @@ def neighberhoodmodel_trainer_trial(
                         final_train_loader,
                         trial_scores_all,
                         criterion=_kl_policy_loss(
-                            kl_gamma, use_log_trick=trial_use_log_trick
+                            kl_gamma,
+                            use_log_trick=trial_use_log_trick,
+                            propensity_mode=propensity_mode,
                         ),
                         num_epochs=1,
                         lr=current_lr,
@@ -1697,6 +1718,7 @@ def neighberhoodmodel_trainer_trial(
                     criterion=_kl_policy_loss(
                         best_params.get("kl_gamma", 0.05),
                         use_log_trick=bool(best_params.get("use_log_trick", True)),
+                        propensity_mode=propensity_mode,
                     ),
                     num_epochs=1,
                     lr=current_lr,
@@ -2085,6 +2107,7 @@ def regression_trainer_trial(
                             trial_policy_loss,
                             kl_gamma=kl_gamma,
                             use_log_trick=trial_use_log_trick,
+                            propensity_mode=propensity_mode,
                         ),
                         num_epochs=1,
                         lr=current_lr,
@@ -2204,6 +2227,7 @@ def regression_trainer_trial(
                         best_params.get("policy_loss", policy_loss_types[0]),
                         kl_gamma=best_params.get("kl_gamma", 0.05),
                         use_log_trick=bool(best_params.get("use_log_trick", True)),
+                        propensity_mode=propensity_mode,
                     ),
                     num_epochs=1,
                     lr=current_lr,
