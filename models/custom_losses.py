@@ -46,11 +46,7 @@ def importance_weights(pi_e_at_action, pscore, use_iw: bool, log_eps=1e-10):
 
 
 def policy_grad_surrogate(pi_at_action, use_log_trick=True, log_eps=1e-10):
-    """Policy-gradient factor at the logged action.
-
-    ``use_log_trick=True``: REINFORCE with ``log(pi)``.
-    ``False``: unit factor; grad flows through ``iw`` only.
-    """
+    """Policy-gradient factor at the logged action (IPW path)."""
     pi = pi_at_action.squeeze().clamp(min=log_eps)
     if use_log_trick:
         return torch.log(pi)
@@ -61,9 +57,82 @@ def grad_importance_weights(iw, use_log_trick: bool):
     return iw.detach() if use_log_trick else iw
 
 
-def sndr_r_hat(iw, rewards, q_at_action, dm_reward):
-    """Per-row SNDR: dm_i + w_i * (r_i - q_i) / mean(w)."""
-    return dm_reward + iw * (rewards - q_at_action) / iw.mean()
+def dm_reward(scores, policy_prob):
+    """Pathwise DM value: sum_a q_hat(x,a) * pi_e(a|x)."""
+    return (scores * policy_prob).sum(dim=1)
+
+
+def dr_correction(iw, rewards, q_at_action):
+    """Per-row SNDR correction: w_i * (r_i - q_i) / mean(w)."""
+    return iw * (rewards - q_at_action) / iw.mean()
+
+
+def sndr_r_hat(iw, rewards, q_at_action, dm):
+    """Per-row SNDR value estimate (evaluation / logging)."""
+    return dm + dr_correction(iw, rewards, q_at_action)
+
+
+def dr_sndr_surrogate(
+    scores,
+    policy_prob,
+    actions,
+    rewards,
+    pscore,
+    *,
+    use_iw: bool,
+    use_log_trick: bool,
+    log_eps: float = 1e-10,
+):
+    """SNDR policy surrogate: correction + DM, each scaled by log pi when requested.
+
+    Log trick:
+      - detach pi in IW and DM coefficients
+      - multiply both terms by log pi (all actions for DM, logged action for correction)
+    Direct:
+      - attached pi throughout (pathwise DM + IW correction)
+    """
+    n = actions.shape[0]
+    idx = torch.arange(n, device=policy_prob.device)
+    q_factual = scores[idx, actions].squeeze()
+    pi_a = policy_prob[idx, actions].squeeze()
+    log_p = torch.log(policy_prob.clamp(min=log_eps))
+
+    if use_log_trick:
+        pi_coef = policy_prob.detach()
+        iw = importance_weights(pi_a.detach(), pscore, use_iw, log_eps).detach()
+        correction = dr_correction(iw, rewards, q_factual)
+        corr_term = correction * log_p[idx, actions]
+        dm_term = (scores * pi_coef * log_p).sum(dim=1)
+    else:
+        iw = importance_weights(pi_a, pscore, use_iw, log_eps)
+        corr_term = dr_correction(iw, rewards, q_factual)
+        dm_term = dm_reward(scores, policy_prob)
+
+    return corr_term + dm_term
+
+
+def dr_sndr_loss(
+    scores,
+    policy_prob,
+    actions,
+    rewards,
+    pscore,
+    *,
+    use_iw: bool,
+    use_log_trick: bool,
+    log_eps: float = 1e-10,
+):
+    """Minimize negative SNDR surrogate (ascend policy value)."""
+    return -dr_sndr_surrogate(
+        scores,
+        policy_prob,
+        actions,
+        rewards,
+        pscore,
+        use_iw=use_iw,
+        use_log_trick=use_log_trick,
+        log_eps=log_eps,
+    ).mean()
 
 
 class _BanditPolicyLossBase(nn.Module):
@@ -93,6 +162,18 @@ class _BanditPolicyLossBase(nn.Module):
         idx = torch.arange(n, device=policy_prob.device)
         return policy_prob[idx, actions].squeeze()
 
+    def _dr_sndr_loss(self, pscore, scores, policy_prob, rewards, actions):
+        return dr_sndr_loss(
+            scores,
+            policy_prob,
+            actions,
+            rewards,
+            pscore,
+            use_iw=self._use_iw(),
+            use_log_trick=self.use_log_trick,
+            log_eps=self.log_eps,
+        )
+
 
 class IPWPolicyLoss(_BanditPolicyLossBase):
     def forward(self, pscore, scores, policy_prob, original_policy_rewards, original_policy_actions):
@@ -113,26 +194,13 @@ class SNDRPolicyLoss(_BanditPolicyLossBase):
     def forward(self, pscore, scores, policy_prob, original_policy_rewards, original_policy_actions):
         n = original_policy_actions.shape[0]
         scores, policy_prob = _align_policy_scores(scores, policy_prob)
-
-        pi_e_at_position = self._logged_action_prob(policy_prob, original_policy_actions)
-        iw_val, iw_grad = self._prepare_iw(pi_e_at_position, pscore)
-        q_hat_at_position = scores[torch.arange(n), original_policy_actions].squeeze()
-        dm_reward = (scores * policy_prob.detach()).sum(dim=1)
-        grad_term = policy_grad_surrogate(
-            pi_e_at_position, self.use_log_trick, self.log_eps
+        return self._dr_sndr_loss(
+            pscore, scores, policy_prob, original_policy_rewards, original_policy_actions
         )
-
-        r_hat = sndr_r_hat(iw_val, original_policy_rewards, q_hat_at_position, dm_reward)
-        if self.use_log_trick:
-            reinforce_grad = r_hat.detach() * grad_term
-        else:
-            reinforce_grad = r_hat.detach() * iw_grad * grad_term
-
-        return (-reinforce_grad).mean()
 
 
 class KLPolicyLoss(_BanditPolicyLossBase):
-    """SNDR-style PG + batch MC KL toward logging policy (logged actions only)."""
+    """SNDR PG + batch MC KL toward logging policy (logged actions only)."""
 
     def __init__(self, gamma=0.05, log_eps=1e-10, use_log_trick=True, propensity_mode="logged"):
         super().__init__(
@@ -147,18 +215,8 @@ class KLPolicyLoss(_BanditPolicyLossBase):
         scores, policy_prob = _align_policy_scores(scores, policy_prob)
 
         pi_e_at_position = self._logged_action_prob(policy_prob, original_policy_actions)
-        iw_val, iw_grad = self._prepare_iw(pi_e_at_position, pscore)
-        q_hat_at_position = scores[torch.arange(n), original_policy_actions].squeeze()
-        dm_reward = (scores * policy_prob.detach()).sum(dim=1)
-        grad_term = policy_grad_surrogate(
-            pi_e_at_position, self.use_log_trick, self.log_eps
+        dr_loss = self._dr_sndr_loss(
+            pscore, scores, policy_prob, original_policy_rewards, original_policy_actions
         )
-
-        r_hat = sndr_r_hat(iw_val, original_policy_rewards, q_hat_at_position, dm_reward)
-        if self.use_log_trick:
-            pg = r_hat.detach() * grad_term
-        else:
-            pg = r_hat.detach() * iw_grad * grad_term
-
         kl = batch_mc_kl(pi_e_at_position, pscore, self.log_eps)
-        return (-pg + self.gamma * kl).mean()
+        return dr_loss + self.gamma * kl

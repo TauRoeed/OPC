@@ -8,6 +8,9 @@ from models.custom_losses import (
     KLPolicyLoss,
     SNDRPolicyLoss,
     batch_mc_kl,
+    dr_correction,
+    dr_sndr_loss,
+    dr_sndr_surrogate,
     importance_weights,
     sndr_r_hat,
     uses_importance_weighting,
@@ -83,28 +86,70 @@ def test_sndr_r_hat_logged_normalizes_by_mean_iw():
     assert torch.allclose(r_hat, expected)
 
 
-def test_kl_uniform_uses_iw_one_for_dr_but_true_pscore_for_kl():
+def test_sndr_log_trick_matches_reference_structure():
     _, policy, scores, actions, rewards, pscore = _batch()
-    pi_e = policy[torch.arange(len(actions)), actions]
+    idx = torch.arange(len(actions))
+    pi_det = policy.detach()
+    log_p = torch.log(policy)
+    q = scores[idx, actions]
+    iw = torch.ones_like(q)
+    correction = (rewards - q) * log_p[idx, actions]
+    dm = (scores * pi_det * log_p).sum(dim=1)
+    expected = -(correction + dm).mean()
 
-    kl_loss = KLPolicyLoss(gamma=0.0, propensity_mode="uniform", use_log_trick=True)
-    q = scores[torch.arange(len(actions)), actions]
-    dm = (scores * policy.detach()).sum(dim=1)
-    r_hat = sndr_r_hat(torch.ones_like(pi_e), rewards, q, dm)
-
-    with torch.no_grad():
-        loss_val = kl_loss(pscore, scores, policy, rewards, actions)
-    assert torch.allclose(
-        loss_val, -(r_hat.detach() * torch.log(pi_e)).mean(), atol=1e-5
+    loss = KLPolicyLoss(gamma=0.0, propensity_mode="uniform", use_log_trick=True)(
+        pscore, scores, policy, rewards, actions
     )
+    assert torch.allclose(loss, expected, atol=1e-5)
 
-    kl_only = batch_mc_kl(pi_e, pscore)
-    kl_loss_g = KLPolicyLoss(gamma=1.0, propensity_mode="uniform", use_log_trick=True)
-    with torch.no_grad():
-        full = kl_loss_g(pscore, scores, policy, rewards, actions)
-    assert torch.allclose(
-        full, -(r_hat.detach() * torch.log(pi_e)).mean() + kl_only, atol=1e-5
+
+def test_sndr_direct_uses_attached_pi():
+    logits = torch.randn(3, 4, requires_grad=True)
+    policy = torch.softmax(logits, dim=-1)
+    scores = torch.rand(3, 4)
+    actions = torch.randint(0, 4, (3,))
+    rewards = torch.rand(3)
+    pscore = torch.ones(3) * 0.5
+
+    loss = dr_sndr_loss(
+        scores, policy, actions, rewards, pscore, use_iw=True, use_log_trick=False
     )
+    loss.backward()
+    assert logits.grad is not None
+    assert logits.grad.norm() > 0
+
+
+def test_sndr_log_trick_detaches_pi_in_weights():
+    logits = torch.randn(3, 4, requires_grad=True)
+    policy = torch.softmax(logits, dim=-1)
+    scores = torch.rand(3, 4)
+    actions = torch.randint(0, 4, (3,))
+    rewards = torch.rand(3)
+    pscore = torch.ones(3) * 0.5
+
+    sur = dr_sndr_surrogate(
+        scores, policy, actions, rewards, pscore, use_iw=True, use_log_trick=True
+    )
+    idx = torch.arange(3)
+    pi_det = policy.detach()
+    iw = pi_det[idx, actions] / pscore
+    corr = dr_correction(iw, rewards, scores[idx, actions]) * torch.log(policy[idx, actions])
+    dm = (scores * pi_det * torch.log(policy)).sum(dim=1)
+    assert torch.allclose(sur, corr + dm, atol=1e-5)
+
+
+def test_dr_dm_has_pathwise_grad_when_correction_constant():
+    logits = torch.randn(4, 3, requires_grad=True)
+    policy = torch.softmax(logits, dim=-1)
+    scores = torch.rand(4, 3)
+    actions = torch.randint(0, 3, (4,))
+    rewards = torch.zeros(4)
+    pscore = torch.ones(4) * 0.5
+    sndr = SNDRPolicyLoss(use_log_trick=False, propensity_mode="uniform")
+    loss = sndr(pscore, scores, policy, rewards, actions)
+    loss.backward()
+    assert logits.grad is not None
+    assert logits.grad.norm() > 0
 
 
 def test_grad_flow_log_trick_vs_direct():
@@ -144,7 +189,6 @@ def test_ipw_no_prop_no_log_is_constant_wrt_policy():
 def test_sndr_and_ipw_all_modes_run():
     no_grad_cases = {
         (IPWPolicyLoss, "uniform", False),
-        (SNDRPolicyLoss, "uniform", False),
     }
     for loss_cls in (IPWPolicyLoss, SNDRPolicyLoss, KLPolicyLoss):
         for mode in ("logged", "uniform"):
