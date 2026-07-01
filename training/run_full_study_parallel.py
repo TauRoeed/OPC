@@ -114,7 +114,6 @@ def _execute_run(config: dict):
         seed=config["seed"],
         train_sizes=config["train_sizes"],
         n_trials=config["n_trials"],
-        num_runs=config["num_runs"],
         batch_size=config["batch_size"],
         val_size=config["val_size"],
         val_frac=config["val_frac"],
@@ -191,7 +190,6 @@ def main():
 
     parser.add_argument("--seeds", nargs="+", type=int, default=list(range(3)))
     parser.add_argument("--n-trials", type=int, default=20)
-    parser.add_argument("--num-runs", type=int, default=1)
     parser.add_argument("--batch-size", type=int, default=2048)
     parser.add_argument(
         "--optuna-batch-sizes",
@@ -324,7 +322,6 @@ def main():
                 "emb_dir": str(emb_dir),
                 "train_sizes": list(args.train_sizes),
                 "n_trials": int(args.n_trials),
-                "num_runs": int(args.num_runs),
                 "batch_size": int(args.batch_size),
                 "optuna_batch_sizes": args.optuna_batch_sizes,
                 "val_frac": float(args.val_frac),

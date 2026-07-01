@@ -115,7 +115,6 @@ def _run_condition(
     seed: int,
     train_sizes: list[int],
     n_trials: int,
-    num_runs: int,
     batch_size: int,
     val_size: int | None,
     val_frac: float,
@@ -197,7 +196,6 @@ def _run_condition(
     split_cache = LazyRegressionSplitCache(
         dataset,
         train_sizes,
-        num_runs,
         val_size=val_size,
         val_frac=val_frac,
         val_min=val_min,
@@ -224,8 +222,6 @@ def _run_condition(
     }
 
     opc_df, opc_trials = regression_trainer_trial(
-        num_runs=num_runs,
-        num_neighbors=8,
         train_sizes=train_sizes,
         dataset=dataset,
         batch_size=batch_size,
@@ -254,8 +250,6 @@ def _run_condition(
     )
 
     noprop_df, noprop_trials = no_propensity_trainer_trial(
-        num_runs=num_runs,
-        num_neighbors=8,
         train_sizes=train_sizes,
         dataset=dataset,
         batch_size=batch_size,
@@ -313,7 +307,6 @@ def _run_condition(
         "eps_meta": float(eps_meta),
         "train_sizes": [int(x) for x in train_sizes],
         "n_trials": int(n_trials),
-        "num_runs": int(num_runs),
         "batch_size": int(batch_size),
         "val_size_fixed": val_size,
         "val_frac": val_frac,
@@ -388,7 +381,6 @@ def main():
 
     parser.add_argument("--seeds", nargs="+", type=int, default=list(range(10)))
     parser.add_argument("--n-trials", type=int, default=20)
-    parser.add_argument("--num-runs", type=int, default=3)
     parser.add_argument("--batch-size", type=int, default=2048)
     parser.add_argument(
         "--optuna-batch-sizes",
@@ -562,7 +554,6 @@ def main():
                                         seed=seed,
                                         train_sizes=args.train_sizes,
                                         n_trials=args.n_trials,
-                                        num_runs=args.num_runs,
                                         batch_size=args.batch_size,
                                         val_size=val_size_cfg,
                                         val_frac=args.val_frac,
