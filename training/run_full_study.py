@@ -241,6 +241,7 @@ def _run_condition(
         policy_loss_types=policy_loss_types,
         dataset_name=dataset_name,
         search_use_log_trick=search_use_log_trick,
+        use_log_trick_fixed=True,
         shared_regression_bundle=shared_regression_bundle,
         shared_regression_size=shared_regression_size,
         qhat_user_chunk=qhat_user_chunk,
@@ -268,6 +269,7 @@ def _run_condition(
         policy_loss_types=policy_loss_types,
         dataset_name=dataset_name,
         search_use_log_trick=search_use_log_trick,
+        use_log_trick_fixed=False,
         shared_regression_bundle=shared_regression_bundle,
         shared_regression_size=shared_regression_size,
         qhat_user_chunk=qhat_user_chunk,
@@ -318,6 +320,8 @@ def _run_condition(
         "slim": bool(slim),
         "policy_loss_types": list(policy_loss_types),
         "search_use_log_trick": bool(search_use_log_trick),
+        "opc_use_log_trick_fixed": True,
+        "no_prop_use_log_trick_fixed": False,
         "shared_regression_size": int(
             shared_regression_bundle.get("sample_size", reg_size)
         ),

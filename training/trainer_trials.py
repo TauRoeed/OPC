@@ -195,11 +195,31 @@ def _policy_loss_from_name(
     raise ValueError(f"Unknown policy loss '{loss_name}'; expected one of {VALID_POLICY_LOSSES}")
 
 
-def _resolve_trial_use_log_trick(trial, search_use_log_trick: bool) -> bool:
+def _resolve_trial_use_log_trick(
+    trial,
+    search_use_log_trick: bool,
+    use_log_trick_fixed: bool | None = None,
+) -> bool:
     """Optuna toggle for log-trick vs direct-prob policy surrogate (all losses)."""
+    if use_log_trick_fixed is not None:
+        return bool(use_log_trick_fixed)
     if not search_use_log_trick:
         return False
     return trial.suggest_categorical("use_log_trick", [True, False])
+
+
+def _fix_best_params_use_log_trick(
+    best_params: dict,
+    *,
+    search_use_log_trick: bool,
+    use_log_trick_fixed: bool | None,
+) -> dict:
+    out = dict(best_params)
+    if use_log_trick_fixed is not None:
+        out["use_log_trick"] = bool(use_log_trick_fixed)
+    elif not search_use_log_trick:
+        out["use_log_trick"] = False
+    return out
 
 
 def _split_seed_for_condition(base_seed: int, train_size: int, run_idx: int) -> int:
@@ -769,13 +789,17 @@ def _enqueue_with_kl_gamma(
     kl_default: float = 0.05,
     policy_loss_types: tuple[str, ...] = ("kl",),
     search_use_log_trick: bool = True,
+    use_log_trick_fixed: bool | None = None,
 ) -> dict | None:
     """Optuna enqueue compatibility when new search dims were added."""
     if last_best is None:
         return None
     merged = dict(last_best)
     merged.setdefault("kl_gamma", float(kl_default))
-    merged.setdefault("use_log_trick", bool(search_use_log_trick))
+    if use_log_trick_fixed is not None:
+        merged.setdefault("use_log_trick", bool(use_log_trick_fixed))
+    else:
+        merged.setdefault("use_log_trick", bool(search_use_log_trick))
     if len(policy_loss_types) == 1:
         merged.setdefault("policy_loss", policy_loss_types[0])
     return merged
@@ -1438,6 +1462,7 @@ def neighberhoodmodel_trainer_trial(
     method_label: str = "neighborhood",
     slim: bool = False,
     search_use_log_trick: bool = True,
+    use_log_trick_fixed: bool | None = None,
     optuna_batch_sizes: list[int] | None = None,
 ):
 
@@ -1580,7 +1605,7 @@ def neighberhoodmodel_trainer_trial(
             lr_decay = trial.suggest_float("lr_decay", 0.8, 1.0)
             kl_gamma = trial.suggest_float("kl_gamma", 1e-4, 0.5, log=True)
             trial_use_log_trick = _resolve_trial_use_log_trick(
-                trial, search_use_log_trick
+                trial, search_use_log_trick, use_log_trick_fixed
             )
 
             trial_neigh_model = NeighborhoodModel(
@@ -1678,14 +1703,18 @@ def neighberhoodmodel_trainer_trial(
                 _enqueue_with_kl_gamma(
                     last_best_params,
                     search_use_log_trick=search_use_log_trick,
+                    use_log_trick_fixed=use_log_trick_fixed,
                 )
             )
 
         study.optimize(objective, n_trials=n_trials, show_progress_bar=True)
 
         best_params = study.best_params
-        if not search_use_log_trick:
-            best_params = {**best_params, "use_log_trick": False}
+        best_params = _fix_best_params_use_log_trick(
+            best_params,
+            search_use_log_trick=search_use_log_trick,
+            use_log_trick_fixed=use_log_trick_fixed,
+        )
         last_best_params = best_params
         best_trial_number = (
             int(study.best_trial.number) if study.best_trial is not None else None
@@ -1895,6 +1924,7 @@ def regression_trainer_trial(
     policy_loss_types: tuple[str, ...] = ("kl",),
     dataset_name: str | None = None,
     search_use_log_trick: bool = True,
+    use_log_trick_fixed: bool | None = None,
     shared_regression_bundle: dict | None = None,
     shared_regression_size: int = 50_000,
     qhat_user_chunk: int = DEFAULT_QHAT_USER_CHUNK,
@@ -2108,7 +2138,7 @@ def regression_trainer_trial(
             lr_decay = trial.suggest_float("lr_decay", 1e-5, 1e-3, log=True)
             kl_gamma = trial.suggest_float("kl_gamma", 1e-4, 0.5, log=True)
             trial_use_log_trick = _resolve_trial_use_log_trick(
-                trial, search_use_log_trick
+                trial, search_use_log_trick, use_log_trick_fixed
             )
             if len(policy_loss_types) > 1:
                 trial_policy_loss = trial.suggest_categorical(
@@ -2203,6 +2233,7 @@ def regression_trainer_trial(
                     last_best_params,
                     policy_loss_types=policy_loss_types,
                     search_use_log_trick=search_use_log_trick,
+                    use_log_trick_fixed=use_log_trick_fixed,
                 )
             )
 
@@ -2212,8 +2243,11 @@ def regression_trainer_trial(
         best_params = study.best_params
         if "policy_loss" not in best_params and len(policy_loss_types) == 1:
             best_params = {**best_params, "policy_loss": policy_loss_types[0]}
-        if not search_use_log_trick:
-            best_params = {**best_params, "use_log_trick": False}
+        best_params = _fix_best_params_use_log_trick(
+            best_params,
+            search_use_log_trick=search_use_log_trick,
+            use_log_trick_fixed=use_log_trick_fixed,
+        )
         last_best_params = best_params
         best_trial_number = (
             int(study.best_trial.number) if study.best_trial is not None else None
@@ -2417,6 +2451,7 @@ def no_propensity_trainer_trial(
     policy_loss_types: tuple[str, ...] = ("kl",),
     dataset_name: str | None = None,
     search_use_log_trick: bool = True,
+    use_log_trick_fixed: bool | None = None,
     shared_regression_bundle: dict | None = None,
     shared_regression_size: int = 50_000,
     qhat_user_chunk: int = DEFAULT_QHAT_USER_CHUNK,
@@ -2448,6 +2483,7 @@ def no_propensity_trainer_trial(
         policy_loss_types=policy_loss_types,
         dataset_name=dataset_name,
         search_use_log_trick=search_use_log_trick,
+        use_log_trick_fixed=use_log_trick_fixed,
         shared_regression_bundle=shared_regression_bundle,
         shared_regression_size=shared_regression_size,
         qhat_user_chunk=qhat_user_chunk,
