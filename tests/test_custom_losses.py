@@ -210,11 +210,11 @@ def test_crm_variance_penalty_formula():
     assert torch.allclose(pen, expected, atol=1e-6)
 
 
-def test_crm_lambda_zero_matches_clipped_ipw_surrogate():
+def test_crm_lambda_zero_matches_clipped_ips_risk():
     _, policy, scores, actions, rewards, pscore = _batch(seed=5)
     pi = policy[torch.arange(len(actions)), actions]
     iw = clipped_importance_weights(pi, pscore, clip_m=5.0, use_iw=True)
-    expected = -(rewards * iw.detach() * torch.log(pi)).mean()
+    expected = crm_per_sample_u(rewards, iw).mean()
     loss = CRMPolicyLoss(
         clip_m=5.0, crm_lambda=0.0, propensity_mode="logged", use_log_trick=True
     )(pscore, scores, policy, rewards, actions)
@@ -234,6 +234,7 @@ def test_crm_direct_has_grad():
 def test_sndr_and_ipw_all_modes_run():
     no_grad_cases = {
         (IPWPolicyLoss, "uniform", False),
+        (CRMPolicyLoss, "uniform", True),
         (CRMPolicyLoss, "uniform", False),
     }
     for loss_cls in (IPWPolicyLoss, SNDRPolicyLoss, KLPolicyLoss, CRMPolicyLoss):
