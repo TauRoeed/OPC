@@ -124,6 +124,7 @@ from training.training_utils import (
 )
 
 from models.custom_losses import (
+    CRMPolicyLoss,
     IPWPolicyLoss,
     KLPolicyLoss,
     SNDRPolicyLoss,
@@ -133,7 +134,7 @@ from training.metrics_utils import (
     enrich_trial_pct_fields,
 )
 
-VALID_POLICY_LOSSES = ("kl", "ipw", "sndr")
+VALID_POLICY_LOSSES = ("kl", "ipw", "sndr", "crm")
 
 # Max working blocks for q_hat / softmax (user_chunk, action_chunk); no full n_users x n_actions.
 DEFAULT_QHAT_USER_CHUNK = 5000
@@ -168,10 +169,26 @@ def _kl_policy_loss(
     )
 
 
+def _crm_policy_loss(
+    clip_m: float,
+    crm_lambda: float,
+    use_log_trick: bool = True,
+    propensity_mode: str = "logged",
+) -> CRMPolicyLoss:
+    return CRMPolicyLoss(
+        clip_m=float(clip_m),
+        crm_lambda=float(crm_lambda),
+        use_log_trick=use_log_trick,
+        propensity_mode=propensity_mode,
+    )
+
+
 def _policy_loss_from_name(
     loss_name: str,
     *,
     kl_gamma: float = 0.05,
+    clip_m: float = 10.0,
+    crm_lambda: float = 1.0,
     use_log_trick: bool = True,
     propensity_mode: str = "logged",
 ):
@@ -189,6 +206,13 @@ def _policy_loss_from_name(
         )
     if name == "sndr":
         return SNDRPolicyLoss(
+            use_log_trick=use_log_trick,
+            propensity_mode=propensity_mode,
+        )
+    if name == "crm":
+        return _crm_policy_loss(
+            clip_m,
+            crm_lambda,
             use_log_trick=use_log_trick,
             propensity_mode=propensity_mode,
         )
@@ -692,6 +716,8 @@ def _study_trials_long(
                 "param_batch_size": int(params.get("batch_size", -1)),
                 "param_lr_decay": float(params.get("lr_decay", float("nan"))),
                 "param_kl_gamma": float(params.get("kl_gamma", float("nan"))),
+                "param_crm_M": float(params.get("crm_M", float("nan"))),
+                "param_crm_lambda": float(params.get("crm_lambda", float("nan"))),
                 "param_use_log_trick": int(bool(params.get("use_log_trick", True))),
                 "param_policy_loss": str(params.get("policy_loss", "kl")),
                 "param_num_neighbors": int(params.get("num_neighbors", -1)),
@@ -787,6 +813,8 @@ def _append_slim_winning_run_extras(
 def _enqueue_with_kl_gamma(
     last_best: dict | None,
     kl_default: float = 0.05,
+    crm_m_default: float = 10.0,
+    crm_lambda_default: float = 1.0,
     policy_loss_types: tuple[str, ...] = ("kl",),
     search_use_log_trick: bool = True,
     use_log_trick_fixed: bool | None = None,
@@ -796,6 +824,8 @@ def _enqueue_with_kl_gamma(
         return None
     merged = dict(last_best)
     merged.setdefault("kl_gamma", float(kl_default))
+    merged.setdefault("crm_M", float(crm_m_default))
+    merged.setdefault("crm_lambda", float(crm_lambda_default))
     if use_log_trick_fixed is not None:
         merged.setdefault("use_log_trick", bool(use_log_trick_fixed))
     else:
@@ -1941,7 +1971,7 @@ def regression_trainer_trial(
     ``split_cache``: optional logged-split cache (``LazyRegressionSplitCache`` or a
     pre-built dict) so OPC and no-propensity see identical train/val data.
 
-    ``policy_loss_types``: policy-gradient losses to try (``kl``, ``ipw``, ``sndr``); if
+    ``policy_loss_types``: policy-gradient losses to try (``kl``, ``ipw``, ``sndr``, ``crm``); if
     more than one, Optuna picks per trial.
 
     ``search_use_log_trick``: if False, always use direct-prob surrogate (no log trick)
@@ -2137,6 +2167,8 @@ def regression_trainer_trial(
             )
             lr_decay = trial.suggest_float("lr_decay", 1e-5, 1e-3, log=True)
             kl_gamma = trial.suggest_float("kl_gamma", 1e-4, 0.5, log=True)
+            crm_M = trial.suggest_float("crm_M", 1.0, 100.0, log=True)
+            crm_lambda = trial.suggest_float("crm_lambda", 1e-4, 10.0, log=True)
             trial_use_log_trick = _resolve_trial_use_log_trick(
                 trial, search_use_log_trick, use_log_trick_fixed
             )
@@ -2180,6 +2212,8 @@ def regression_trainer_trial(
                     criterion=_policy_loss_from_name(
                         trial_policy_loss,
                         kl_gamma=kl_gamma,
+                        clip_m=crm_M,
+                        crm_lambda=crm_lambda,
                         use_log_trick=trial_use_log_trick,
                         propensity_mode=propensity_mode,
                     ),
@@ -2304,6 +2338,8 @@ def regression_trainer_trial(
                 criterion=_policy_loss_from_name(
                     best_params.get("policy_loss", policy_loss_types[0]),
                     kl_gamma=best_params.get("kl_gamma", 0.05),
+                    clip_m=best_params.get("crm_M", 10.0),
+                    crm_lambda=best_params.get("crm_lambda", 1.0),
                     use_log_trick=bool(best_params.get("use_log_trick", True)),
                     propensity_mode=propensity_mode,
                 ),

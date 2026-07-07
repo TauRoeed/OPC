@@ -4,10 +4,15 @@ import numpy as np
 import torch
 
 from models.custom_losses import (
+    CRMPolicyLoss,
     IPWPolicyLoss,
     KLPolicyLoss,
     SNDRPolicyLoss,
     batch_mc_kl,
+    clipped_importance_weights,
+    crm_per_sample_u,
+    crm_surrogate,
+    crm_variance_penalty,
     dr_correction,
     dr_sndr_loss,
     dr_sndr_surrogate,
@@ -186,17 +191,60 @@ def test_ipw_no_prop_no_log_is_constant_wrt_policy():
     assert not loss.requires_grad
 
 
+def test_clipped_importance_weights_caps_at_m():
+    pi_e = torch.tensor([0.5, 0.8, 0.2])
+    pscore = torch.tensor([0.1, 0.2, 0.4])
+    iw = clipped_importance_weights(pi_e, pscore, clip_m=2.0, use_iw=True)
+    raw = pi_e / pscore
+    expected = torch.clamp(raw, max=2.0)
+    assert torch.allclose(iw, expected)
+
+
+def test_crm_variance_penalty_formula():
+    u = torch.tensor([-0.5, -0.2, -0.8, -0.1])
+    lam = 2.0
+    pen = crm_variance_penalty(u, lam)
+    n = 4
+    var = u.var(unbiased=True)
+    expected = lam * torch.sqrt(var / n)
+    assert torch.allclose(pen, expected, atol=1e-6)
+
+
+def test_crm_lambda_zero_matches_clipped_ipw_surrogate():
+    _, policy, scores, actions, rewards, pscore = _batch(seed=5)
+    pi = policy[torch.arange(len(actions)), actions]
+    iw = clipped_importance_weights(pi, pscore, clip_m=5.0, use_iw=True)
+    expected = -(rewards * iw.detach() * torch.log(pi)).mean()
+    loss = CRMPolicyLoss(
+        clip_m=5.0, crm_lambda=0.0, propensity_mode="logged", use_log_trick=True
+    )(pscore, scores, policy, rewards, actions)
+    assert torch.allclose(loss, expected, atol=1e-5)
+
+
+def test_crm_direct_has_grad():
+    logits, policy, scores, actions, rewards, pscore = _batch(seed=6)
+    loss = CRMPolicyLoss(
+        clip_m=10.0, crm_lambda=0.5, propensity_mode="logged", use_log_trick=False
+    )(pscore, scores, policy, rewards, actions)
+    loss.backward()
+    assert logits.grad is not None
+    assert logits.grad.norm() > 0
+
+
 def test_sndr_and_ipw_all_modes_run():
     no_grad_cases = {
         (IPWPolicyLoss, "uniform", False),
+        (CRMPolicyLoss, "uniform", False),
     }
-    for loss_cls in (IPWPolicyLoss, SNDRPolicyLoss, KLPolicyLoss):
+    for loss_cls in (IPWPolicyLoss, SNDRPolicyLoss, KLPolicyLoss, CRMPolicyLoss):
         for mode in ("logged", "uniform"):
             for log_trick in (True, False):
                 logits, policy, scores, actions, rewards, pscore = _batch(seed=4)
                 kwargs = dict(use_log_trick=log_trick, propensity_mode=mode)
                 if loss_cls is KLPolicyLoss:
                     loss_fn = loss_cls(gamma=0.05, **kwargs)
+                elif loss_cls is CRMPolicyLoss:
+                    loss_fn = loss_cls(clip_m=10.0, crm_lambda=0.1, **kwargs)
                 else:
                     loss_fn = loss_cls(**kwargs)
                 loss = loss_fn(pscore, scores, policy, rewards, actions)

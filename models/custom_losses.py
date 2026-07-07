@@ -45,6 +45,52 @@ def importance_weights(pi_e_at_action, pscore, use_iw: bool, log_eps=1e-10):
     return torch.ones_like(pi_e_at_action)
 
 
+def clipped_importance_weights(pi_e_at_action, pscore, clip_m, use_iw: bool, log_eps=1e-10):
+    """IPS weights clipped at M (Swaminathan & Joachims, CRM / Eq. 2)."""
+    iw = importance_weights(pi_e_at_action, pscore, use_iw, log_eps)
+    if not use_iw:
+        return iw
+    return torch.clamp(iw, max=float(clip_m))
+
+
+def crm_per_sample_u(rewards, iw_clipped):
+    """Per-row u_hi = delta_i * clip_iw with delta = -reward in [-1, 0]."""
+    return -rewards * iw_clipped
+
+
+def crm_variance_penalty(u, crm_lambda, eps=1e-10):
+    """lambda * sqrt(Var(u) / n) from CRM principle (Eq. 5)."""
+    n = u.shape[0]
+    if n <= 1:
+        return u.new_zeros(())
+    var = u.var(unbiased=True)
+    return float(crm_lambda) * torch.sqrt(var / n + eps)
+
+
+def crm_surrogate(
+    pi_e_at_action,
+    rewards,
+    pscore,
+    *,
+    clip_m: float,
+    crm_lambda: float,
+    use_iw: bool,
+    use_log_trick: bool,
+    log_eps: float = 1e-10,
+):
+    """CRM objective: clipped IPS risk + variance penalty (Eq. 5)."""
+    iw = clipped_importance_weights(
+        pi_e_at_action, pscore, clip_m, use_iw, log_eps
+    )
+    iw_grad = iw.detach() if use_log_trick else iw
+    grad_term = policy_grad_surrogate(pi_e_at_action, use_log_trick, log_eps)
+    ips_term = -(rewards * iw_grad * grad_term).mean()
+
+    iw_var = iw.detach() if use_log_trick else iw
+    u = crm_per_sample_u(rewards, iw_var)
+    return ips_term + crm_variance_penalty(u, crm_lambda)
+
+
 def policy_grad_surrogate(pi_at_action, use_log_trick=True, log_eps=1e-10):
     """Policy-gradient factor at the logged action (IPW path)."""
     pi = pi_at_action.squeeze().clamp(min=log_eps)
@@ -220,3 +266,37 @@ class KLPolicyLoss(_BanditPolicyLossBase):
         )
         kl = batch_mc_kl(pi_e_at_position, pscore, self.log_eps)
         return dr_loss + self.gamma * kl
+
+
+class CRMPolicyLoss(_BanditPolicyLossBase):
+    """Counterfactual Risk Minimization: clipped IPS + variance penalty (Eq. 5)."""
+
+    def __init__(
+        self,
+        clip_m: float = 10.0,
+        crm_lambda: float = 1.0,
+        log_eps=1e-10,
+        use_log_trick=True,
+        propensity_mode="logged",
+    ):
+        super().__init__(
+            log_eps=log_eps,
+            use_log_trick=use_log_trick,
+            propensity_mode=propensity_mode,
+        )
+        self.clip_m = float(clip_m)
+        self.crm_lambda = float(crm_lambda)
+
+    def forward(self, pscore, scores, policy_prob, original_policy_rewards, original_policy_actions):
+        scores, policy_prob = _align_policy_scores(scores, policy_prob)
+        pi_e_at_position = self._logged_action_prob(policy_prob, original_policy_actions)
+        return crm_surrogate(
+            pi_e_at_position,
+            original_policy_rewards,
+            pscore,
+            clip_m=self.clip_m,
+            crm_lambda=self.crm_lambda,
+            use_iw=self._use_iw(),
+            use_log_trick=self.use_log_trick,
+            log_eps=self.log_eps,
+        )

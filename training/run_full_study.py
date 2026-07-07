@@ -465,7 +465,7 @@ def main():
     parser.add_argument(
         "--no-log-trick",
         action="store_true",
-        help="Disable log-trick policy surrogate for KL, IPW, and SNDR (direct probs). "
+        help="Disable log-trick policy surrogate for KL, IPW, SNDR, and CRM (direct probs). "
         "Skips tuning use_log_trick in Optuna.",
     )
     parser.add_argument(
