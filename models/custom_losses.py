@@ -80,21 +80,19 @@ def crm_surrogate(
 ):
     """CRM objective: clipped IPS risk + variance penalty (Eq. 5).
 
-    Rewards are converted to costs via ``delta=-reward``.  This keeps the
-    optimized scalar equal to the clipped CRM risk:
-        mean(delta_i * min(M, pi_e(a_i|x_i) / pi_b(a_i|x_i)))
-        + lambda * sqrt(var(u) / n)
-
-    ``use_log_trick`` is accepted for API parity with the other policy losses,
-    but CRM is optimized as the direct differentiable clipped-risk objective.
-    This also gives the variance penalty its intended gradient.
+    IPS uses a REINFORCE surrogate with detached clipped weights so training
+    still gets gradients when every ratio hits the clip ceiling.
     """
-    _ = use_log_trick
     iw = clipped_importance_weights(
         pi_e_at_action, pscore, clip_m, use_iw, log_eps
     )
-    u = crm_per_sample_u(rewards, iw)
-    return u.mean() + crm_variance_penalty(u, crm_lambda)
+    iw_pg = iw.detach()
+    grad_term = policy_grad_surrogate(pi_e_at_action, use_log_trick, log_eps)
+    ips_term = -(rewards * iw_pg * grad_term).mean()
+
+    iw_var = iw.detach() if use_log_trick else iw
+    u = crm_per_sample_u(rewards, iw_var)
+    return ips_term + crm_variance_penalty(u, crm_lambda)
 
 
 def policy_grad_surrogate(pi_at_action, use_log_trick=True, log_eps=1e-10):
