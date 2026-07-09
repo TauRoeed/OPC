@@ -16,6 +16,74 @@ from training.trainer_trials import (
     no_propensity_trainer_trial,
     regression_trainer_trial,
 )
+
+VALID_STUDY_METHODS = ("opc", "no_propensity")
+
+
+def _normalize_study_methods(methods: list[str] | tuple[str, ...] | None) -> tuple[str, ...]:
+    if methods is None:
+        return VALID_STUDY_METHODS
+    out = []
+    for name in methods:
+        key = str(name).lower()
+        if key not in VALID_STUDY_METHODS:
+            raise ValueError(f"Unknown method {name!r}; expected one of {VALID_STUDY_METHODS}")
+        if key not in out:
+            out.append(key)
+    if not out:
+        raise ValueError("At least one method required")
+    return tuple(out)
+
+
+def _no_prop_policy_loss_types(policy_loss_types: tuple[str, ...]) -> tuple[str, ...]:
+    """CRM needs logged propensities; no-prop baseline falls back to other losses."""
+    out = tuple(str(x).lower() for x in policy_loss_types if str(x).lower() != "crm")
+    return out if out else ("kl",)
+
+
+def _load_cached_method_df(run_dir: Path, method: str) -> pd.DataFrame:
+    """Reuse finished method rows when rerunning only the other arm."""
+    run_dir = Path(run_dir)
+    summary_path = run_dir / "summary_metrics.csv"
+    if summary_path.exists():
+        summary = pd.read_csv(summary_path)
+        if "method" in summary.columns:
+            part = summary[summary["method"] == method].copy()
+            if not part.empty and "train_size" in part.columns:
+                return part.set_index("train_size")
+
+    runs_name = "opc_runs_long.csv" if method == "opc" else "no_prop_runs_long.csv"
+    runs_path = run_dir / runs_name
+    if not runs_path.exists():
+        raise FileNotFoundError(
+            f"Cannot rerun only one method without cached {method} results in {run_dir}"
+        )
+    runs = pd.read_csv(runs_path)
+    if runs.empty:
+        raise FileNotFoundError(f"Cached runs file is empty: {runs_path}")
+    if "is_winning_run" in runs.columns:
+        runs = runs[runs["is_winning_run"].astype(bool)]
+    if "train_size" not in runs.columns:
+        raise ValueError(f"Missing train_size in cached runs: {runs_path}")
+    rows = {}
+    for train_size, grp in runs.groupby("train_size"):
+        row = grp.iloc[0].to_dict()
+        row.pop("train_size", None)
+        row.pop("method", None)
+        rows[int(train_size)] = row
+    return pd.DataFrame.from_dict(rows, orient="index")
+
+
+def _load_cached_method_trials(run_dir: Path, method: str) -> pd.DataFrame:
+    trials_name = "opc_trials_long.csv" if method == "opc" else "no_prop_trials_long.csv"
+    fallback = "opc_trials.csv" if method == "opc" else "no_prop_trials.csv"
+    for name in (trials_name, fallback):
+        path = run_dir / name
+        if path.exists():
+            return pd.read_csv(path)
+    return pd.DataFrame()
+
+
 from utils.simulation_utils import generate_dataset
 
 
@@ -132,7 +200,12 @@ def _run_condition(
     qhat_action_chunk: int = DEFAULT_QHAT_ACTION_CHUNK,
     require_cuda: bool = False,
     optuna_batch_sizes: list[int] | None = None,
+    methods: tuple[str, ...] = VALID_STUDY_METHODS,
 ):
+    methods = _normalize_study_methods(methods)
+    run_opc = "opc" in methods
+    run_no_prop = "no_propensity" in methods
+    noprop_policy_loss_types = _no_prop_policy_loss_types(policy_loss_types)
     eps1, eps2, eps_meta = _noise_eps(noise_level, noise_axis)
     user_path, item_path, user_meta_path, item_meta_path = _dataset_paths(
         emb_dir, dataset_name
@@ -221,62 +294,70 @@ def _run_condition(
         "runs": run_dir / "no_prop_runs_long.csv",
     }
 
-    opc_df, opc_trials = regression_trainer_trial(
-        train_sizes=train_sizes,
-        dataset=dataset,
-        batch_size=batch_size,
-        val_size=val_size,
-        val_frac=val_frac,
-        val_min=val_min,
-        val_max=val_max,
-        n_trials=n_trials,
-        prev_best_params=None,
-        propensity_mode="logged",
-        log_paths=opc_log_paths,
-        slim=slim,
-        method_label="opc",
-        policy_reward_mode=policy_reward_mode,
-        policy_reward_mc_sim=policy_reward_mc_sim,
-        split_cache=split_cache,
-        policy_loss_types=policy_loss_types,
-        dataset_name=dataset_name,
-        search_use_log_trick=search_use_log_trick,
-        use_log_trick_fixed=True,
-        shared_regression_bundle=shared_regression_bundle,
-        shared_regression_size=shared_regression_size,
-        qhat_user_chunk=qhat_user_chunk,
-        qhat_action_chunk=qhat_action_chunk,
-        require_cuda=require_cuda,
-        optuna_batch_sizes=optuna_batch_sizes,
-    )
+    if run_opc:
+        opc_df, opc_trials = regression_trainer_trial(
+            train_sizes=train_sizes,
+            dataset=dataset,
+            batch_size=batch_size,
+            val_size=val_size,
+            val_frac=val_frac,
+            val_min=val_min,
+            val_max=val_max,
+            n_trials=n_trials,
+            prev_best_params=None,
+            propensity_mode="logged",
+            log_paths=opc_log_paths,
+            slim=slim,
+            method_label="opc",
+            policy_reward_mode=policy_reward_mode,
+            policy_reward_mc_sim=policy_reward_mc_sim,
+            split_cache=split_cache,
+            policy_loss_types=policy_loss_types,
+            dataset_name=dataset_name,
+            search_use_log_trick=search_use_log_trick,
+            use_log_trick_fixed=True,
+            shared_regression_bundle=shared_regression_bundle,
+            shared_regression_size=shared_regression_size,
+            qhat_user_chunk=qhat_user_chunk,
+            qhat_action_chunk=qhat_action_chunk,
+            require_cuda=require_cuda,
+            optuna_batch_sizes=optuna_batch_sizes,
+        )
+    else:
+        opc_df = _load_cached_method_df(run_dir, "opc")
+        opc_trials = _load_cached_method_trials(run_dir, "opc")
 
-    noprop_df, noprop_trials = no_propensity_trainer_trial(
-        train_sizes=train_sizes,
-        dataset=dataset,
-        batch_size=batch_size,
-        val_size=val_size,
-        val_frac=val_frac,
-        val_min=val_min,
-        val_max=val_max,
-        n_trials=n_trials,
-        prev_best_params=None,
-        log_paths=noprop_log_paths,
-        slim=slim,
-        method_label="no_propensity",
-        policy_reward_mode=policy_reward_mode,
-        policy_reward_mc_sim=policy_reward_mc_sim,
-        split_cache=split_cache,
-        policy_loss_types=policy_loss_types,
-        dataset_name=dataset_name,
-        search_use_log_trick=search_use_log_trick,
-        use_log_trick_fixed=False,
-        shared_regression_bundle=shared_regression_bundle,
-        shared_regression_size=shared_regression_size,
-        qhat_user_chunk=qhat_user_chunk,
-        qhat_action_chunk=qhat_action_chunk,
-        require_cuda=require_cuda,
-        optuna_batch_sizes=optuna_batch_sizes,
-    )
+    if run_no_prop:
+        noprop_df, noprop_trials = no_propensity_trainer_trial(
+            train_sizes=train_sizes,
+            dataset=dataset,
+            batch_size=batch_size,
+            val_size=val_size,
+            val_frac=val_frac,
+            val_min=val_min,
+            val_max=val_max,
+            n_trials=n_trials,
+            prev_best_params=None,
+            log_paths=noprop_log_paths,
+            slim=slim,
+            method_label="no_propensity",
+            policy_reward_mode=policy_reward_mode,
+            policy_reward_mc_sim=policy_reward_mc_sim,
+            split_cache=split_cache,
+            policy_loss_types=noprop_policy_loss_types,
+            dataset_name=dataset_name,
+            search_use_log_trick=search_use_log_trick,
+            use_log_trick_fixed=False,
+            shared_regression_bundle=shared_regression_bundle,
+            shared_regression_size=shared_regression_size,
+            qhat_user_chunk=qhat_user_chunk,
+            qhat_action_chunk=qhat_action_chunk,
+            require_cuda=require_cuda,
+            optuna_batch_sizes=optuna_batch_sizes,
+        )
+    else:
+        noprop_df = _load_cached_method_df(run_dir, "no_propensity")
+        noprop_trials = _load_cached_method_trials(run_dir, "no_propensity")
 
     # Unified long logs for post-hoc analysis.
     trials_frames = []
@@ -322,6 +403,9 @@ def _run_condition(
         "search_use_log_trick": bool(search_use_log_trick),
         "opc_use_log_trick_fixed": True,
         "no_prop_use_log_trick_fixed": False,
+        "study_methods": list(methods),
+        "opc_policy_loss_types": list(policy_loss_types),
+        "no_prop_policy_loss_types": list(noprop_policy_loss_types),
         "shared_regression_size": int(
             shared_regression_bundle.get("sample_size", reg_size)
         ),
@@ -493,6 +577,13 @@ def main():
         help="Fail fast if CUDA is not available.",
     )
     parser.add_argument(
+        "--methods",
+        nargs="+",
+        default=list(VALID_STUDY_METHODS),
+        choices=list(VALID_STUDY_METHODS),
+        help="Which arms to run. Use no_propensity alone to rerun baseline after OPC finished.",
+    )
+    parser.add_argument(
         "--skip-completed",
         action=argparse.BooleanOptionalAction,
         default=True,
@@ -500,6 +591,7 @@ def main():
     )
     parser.add_argument("--fail-fast", action="store_true", default=False)
     args = parser.parse_args()
+    methods = _normalize_study_methods(args.methods)
     policy_loss_types = tuple(str(x).lower() for x in args.policy_losses)
     search_use_log_trick = not bool(args.no_log_trick)
     val_size_configs = _resolve_val_size_configs(args)
@@ -511,6 +603,9 @@ def main():
     print(f"Writing outputs to: {out_dir}")
     print(f"Validation configs: {val_size_configs}")
     print(f"Policy losses: {policy_loss_types}")
+    print(f"Methods: {methods}")
+    if "no_propensity" in methods:
+        print(f"No-prop losses: {_no_prop_policy_loss_types(policy_loss_types)}")
     print(f"Search use_log_trick: {search_use_log_trick}")
 
     all_summary_rows = []
@@ -540,12 +635,25 @@ def main():
                                 run_dir.mkdir(parents=True, exist_ok=True)
                                 summary_path = run_dir / "summary_metrics.csv"
                                 if args.skip_completed and summary_path.exists():
-                                    print(f"Skipping completed: {run_key}")
-                                    try:
-                                        all_summary_rows.append(pd.read_csv(summary_path))
-                                    except Exception:
-                                        pass
-                                    continue
+                                    if methods == VALID_STUDY_METHODS:
+                                        print(f"Skipping completed: {run_key}")
+                                        try:
+                                            all_summary_rows.append(pd.read_csv(summary_path))
+                                        except Exception:
+                                            pass
+                                        continue
+                                    if methods == ("no_propensity",):
+                                        summary = pd.read_csv(summary_path)
+                                        if (
+                                            "method" in summary.columns
+                                            and (summary["method"] == "no_propensity").any()
+                                        ):
+                                            print(f"Skipping completed no-prop: {run_key}")
+                                            try:
+                                                all_summary_rows.append(summary)
+                                            except Exception:
+                                                pass
+                                            continue
 
                                 try:
                                     opc_df, noprop_df, opc_trials, noprop_trials, meta = _run_condition(
@@ -575,6 +683,7 @@ def main():
                                     qhat_action_chunk=args.qhat_action_chunk,
                                     require_cuda=bool(args.require_cuda),
                                     optuna_batch_sizes=args.optuna_batch_sizes,
+                                    methods=methods,
                                     )
                                 except Exception as e:
                                     failures.append({"run_key": run_key, "error": repr(e)})
@@ -629,6 +738,10 @@ def main():
                     "optuna_batch_sizes": args.optuna_batch_sizes,
                     "policy_temperature": args.policy_temperature,
                     "policy_loss_types": list(policy_loss_types),
+                    "study_methods": list(methods),
+                    "no_prop_policy_loss_types": list(
+                        _no_prop_policy_loss_types(policy_loss_types)
+                    ),
                     "no_log_trick": bool(args.no_log_trick),
                     "shared_regression_size": int(args.shared_regression_size),
                     "qhat_user_chunk": int(args.qhat_user_chunk),

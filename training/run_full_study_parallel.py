@@ -62,8 +62,11 @@ def _parallel_worker_init(worker_slot, num_gpus: int) -> None:
 
 from training.run_full_study import (
     VALID_NOISE_AXES,
+    VALID_STUDY_METHODS,
     _collect_existing_summaries,
     _finalize_summary_df,
+    _normalize_study_methods,
+    _no_prop_policy_loss_types,
     _resolve_val_size_configs,
     _run_condition,
 )
@@ -133,6 +136,7 @@ def _execute_run(config: dict):
         ),
         require_cuda=bool(config.get("require_cuda", False)),
         optuna_batch_sizes=config.get("optuna_batch_sizes"),
+        methods=tuple(config.get("study_methods", VALID_STUDY_METHODS)),
     )
 
     summary_df = _finalize_summary_df(
@@ -290,6 +294,13 @@ def main():
         "DM/DR/IPW/SNDR). Keeps per-trial actual_reward/r_hat from the Optuna objective.",
     )
     parser.add_argument(
+        "--methods",
+        nargs="+",
+        default=list(VALID_STUDY_METHODS),
+        choices=list(VALID_STUDY_METHODS),
+        help="Which arms to run. Use no_propensity alone to rerun baseline after OPC finished.",
+    )
+    parser.add_argument(
         "--skip-completed",
         action=argparse.BooleanOptionalAction,
         default=True,
@@ -297,6 +308,7 @@ def main():
     )
     parser.add_argument("--fail-fast", action="store_true", default=False)
     args = parser.parse_args()
+    methods = _normalize_study_methods(args.methods)
     policy_loss_types = tuple(str(x).lower() for x in args.policy_losses)
     search_use_log_trick = not bool(args.no_log_trick)
     val_size_configs = _resolve_val_size_configs(args)
@@ -315,8 +327,16 @@ def main():
         for base_cfg in _iter_run_configs(args, val_size_cfg, val_label, val_root):
             summary_path = Path(base_cfg["run_dir"]) / "summary_metrics.csv"
             if args.skip_completed and summary_path.exists():
-                print(f"Skipping completed: {base_cfg['run_key']}")
-                continue
+                if methods == VALID_STUDY_METHODS:
+                    print(f"Skipping completed: {base_cfg['run_key']}")
+                    continue
+                if methods == ("no_propensity",):
+                    summary = pd.read_csv(summary_path)
+                    if "method" in summary.columns and (
+                        summary["method"] == "no_propensity"
+                    ).any():
+                        print(f"Skipping completed no-prop: {base_cfg['run_key']}")
+                        continue
             cfg = {
                 **base_cfg,
                 "emb_dir": str(emb_dir),
@@ -332,6 +352,7 @@ def main():
                 "policy_temperature": float(args.policy_temperature),
                 "slim": bool(args.slim),
                 "policy_loss_types": list(policy_loss_types),
+                "study_methods": list(methods),
                 "search_use_log_trick": search_use_log_trick,
                 "shared_regression_size": int(args.shared_regression_size),
                 "qhat_user_chunk": int(args.qhat_user_chunk),
