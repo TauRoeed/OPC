@@ -235,13 +235,13 @@ def main():
     parser.add_argument(
         "--policy-losses",
         nargs="+",
-        default=["kl"],
-        help="Policy losses: kl, ipw, sndr, crm (multiple = Optuna categorical).",
+        default=["kl_crm"],
+        help="Policy losses: kl_crm (default), kl, ipw, sndr, crm (multiple = Optuna categorical).",
     )
     parser.add_argument(
         "--no-log-trick",
         action="store_true",
-        help="Disable log-trick for KL/IPW/SNDR/CRM; skip Optuna tuning of use_log_trick.",
+        help="Disable log-trick for policy losses; skip Optuna tuning of use_log_trick.",
     )
     parser.add_argument(
         "--shared-regression-size",

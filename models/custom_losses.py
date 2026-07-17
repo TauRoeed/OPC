@@ -304,3 +304,51 @@ class CRMPolicyLoss(_BanditPolicyLossBase):
             use_log_trick=self.use_log_trick,
             log_eps=self.log_eps,
         )
+
+
+class KLCRMPolicyLoss(_BanditPolicyLossBase):
+    """Unified training loss: SNDR log-trick + KL + CRM variance penalty.
+
+    L = -SNDR_surrogate + gamma * KL(pi_b || pi_e) + crm_lambda * sqrt(Var(u)/n)
+
+    where u_i = -r_i * clip(iw_i, M). Both ``gamma`` and ``crm_lambda`` are Optuna-tuned.
+    CRM variance keeps gradients through clipped IW so ``crm_lambda`` affects updates
+    under the log-trick SNDR path (unlike standalone CRM, which detaches Var(u)).
+    """
+
+    def __init__(
+        self,
+        gamma: float = 0.05,
+        clip_m: float = 10.0,
+        crm_lambda: float = 1.0,
+        log_eps=1e-10,
+        use_log_trick=True,
+        propensity_mode="logged",
+    ):
+        super().__init__(
+            log_eps=log_eps,
+            use_log_trick=use_log_trick,
+            propensity_mode=propensity_mode,
+        )
+        self.gamma = float(gamma)
+        self.clip_m = float(clip_m)
+        self.crm_lambda = float(crm_lambda)
+
+    def forward(self, pscore, scores, policy_prob, original_policy_rewards, original_policy_actions):
+        scores, policy_prob = _align_policy_scores(scores, policy_prob)
+        pi_e_at_position = self._logged_action_prob(policy_prob, original_policy_actions)
+
+        dr_loss = self._dr_sndr_loss(
+            pscore, scores, policy_prob, original_policy_rewards, original_policy_actions
+        )
+        kl = batch_mc_kl(pi_e_at_position, pscore, self.log_eps)
+
+        iw = clipped_importance_weights(
+            pi_e_at_position,
+            pscore,
+            self.clip_m,
+            self._use_iw(),
+            self.log_eps,
+        )
+        u = crm_per_sample_u(original_policy_rewards, iw)
+        return dr_loss + self.gamma * kl + crm_variance_penalty(u, self.crm_lambda)

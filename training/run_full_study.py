@@ -36,9 +36,11 @@ def _normalize_study_methods(methods: list[str] | tuple[str, ...] | None) -> tup
 
 
 def _no_prop_policy_loss_types(policy_loss_types: tuple[str, ...]) -> tuple[str, ...]:
-    """CRM needs logged propensities; no-prop baseline falls back to other losses."""
-    out = tuple(str(x).lower() for x in policy_loss_types if str(x).lower() != "crm")
-    return out if out else ("kl",)
+    """No-prop uses the same losses; standalone CRM alone falls back to kl_crm."""
+    out = tuple(str(x).lower() for x in policy_loss_types)
+    if out == ("crm",):
+        return ("kl_crm",)
+    return out if out else ("kl_crm",)
 
 
 def _load_cached_method_df(run_dir: Path, method: str) -> pd.DataFrame:
@@ -193,7 +195,7 @@ def _run_condition(
     policy_temperature: float,
     run_dir: Path,
     slim: bool = False,
-    policy_loss_types: tuple[str, ...] = ("kl",),
+    policy_loss_types: tuple[str, ...] = ("kl_crm",),
     search_use_log_trick: bool = True,
     shared_regression_size: int = 50_000,
     qhat_user_chunk: int = DEFAULT_QHAT_USER_CHUNK,
@@ -347,7 +349,7 @@ def _run_condition(
             policy_loss_types=noprop_policy_loss_types,
             dataset_name=dataset_name,
             search_use_log_trick=search_use_log_trick,
-            use_log_trick_fixed=False,
+            use_log_trick_fixed=True,
             shared_regression_bundle=shared_regression_bundle,
             shared_regression_size=shared_regression_size,
             qhat_user_chunk=qhat_user_chunk,
@@ -402,7 +404,7 @@ def _run_condition(
         "policy_loss_types": list(policy_loss_types),
         "search_use_log_trick": bool(search_use_log_trick),
         "opc_use_log_trick_fixed": True,
-        "no_prop_use_log_trick_fixed": False,
+        "no_prop_use_log_trick_fixed": True,
         "study_methods": list(methods),
         "opc_policy_loss_types": list(policy_loss_types),
         "no_prop_policy_loss_types": list(noprop_policy_loss_types),
@@ -542,14 +544,15 @@ def main():
     parser.add_argument(
         "--policy-losses",
         nargs="+",
-        default=["kl"],
+        default=["kl_crm"],
         choices=list(VALID_POLICY_LOSSES),
-        help="Policy-gradient losses for Optuna (one fixed, multiple = categorical).",
+        help="Policy-gradient losses for Optuna (default kl_crm = SNDR+KL+CRM, no split). "
+        "Multiple values = categorical over legacy losses.",
     )
     parser.add_argument(
         "--no-log-trick",
         action="store_true",
-        help="Disable log-trick policy surrogate for KL, IPW, SNDR, and CRM (direct probs). "
+        help="Disable log-trick policy surrogate (direct probs). "
         "Skips tuning use_log_trick in Optuna.",
     )
     parser.add_argument(

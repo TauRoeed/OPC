@@ -6,6 +6,7 @@ import torch
 from models.custom_losses import (
     CRMPolicyLoss,
     IPWPolicyLoss,
+    KLCRMPolicyLoss,
     KLPolicyLoss,
     SNDRPolicyLoss,
     batch_mc_kl,
@@ -246,12 +247,64 @@ def test_crm_direct_has_grad():
     assert logits.grad.norm() > 0
 
 
+def test_kl_crm_log_trick_finite_grad_no_nan():
+    """Unified KL+CRM log-trick loss: finite loss and non-NaN nonzero grads."""
+    logits, policy, scores, actions, rewards, pscore = _batch(seed=7)
+    loss_fn = KLCRMPolicyLoss(
+        gamma=0.1,
+        clip_m=5.0,
+        crm_lambda=0.5,
+        propensity_mode="logged",
+        use_log_trick=True,
+    )
+    loss = loss_fn(pscore, scores, policy, rewards, actions)
+    assert torch.isfinite(loss)
+    loss.backward()
+    assert logits.grad is not None
+    assert torch.isfinite(logits.grad).all()
+    assert not torch.isnan(logits.grad).any()
+    assert logits.grad.norm() > 0
+
+
+def test_kl_crm_uniform_log_trick_finite_grad_no_nan():
+    logits, policy, scores, actions, rewards, pscore = _batch(seed=8)
+    loss_fn = KLCRMPolicyLoss(
+        gamma=0.05,
+        clip_m=10.0,
+        crm_lambda=1.0,
+        propensity_mode="uniform",
+        use_log_trick=True,
+    )
+    loss = loss_fn(pscore, scores, policy, rewards, actions)
+    assert torch.isfinite(loss)
+    loss.backward()
+    assert logits.grad is not None
+    assert torch.isfinite(logits.grad).all()
+    assert not torch.isnan(logits.grad).any()
+    assert logits.grad.norm() > 0
+
+
+def test_kl_crm_reduces_to_kl_when_crm_lambda_zero():
+    _, policy, scores, actions, rewards, pscore = _batch(seed=9)
+    kl = KLPolicyLoss(gamma=0.2, propensity_mode="logged", use_log_trick=True)(
+        pscore, scores, policy, rewards, actions
+    )
+    kl_crm = KLCRMPolicyLoss(
+        gamma=0.2,
+        clip_m=10.0,
+        crm_lambda=0.0,
+        propensity_mode="logged",
+        use_log_trick=True,
+    )(pscore, scores, policy, rewards, actions)
+    assert torch.allclose(kl, kl_crm, atol=1e-5)
+
+
 def test_sndr_and_ipw_all_modes_run():
     no_grad_cases = {
         (IPWPolicyLoss, "uniform", False),
         (CRMPolicyLoss, "uniform", False),
     }
-    for loss_cls in (IPWPolicyLoss, SNDRPolicyLoss, KLPolicyLoss, CRMPolicyLoss):
+    for loss_cls in (IPWPolicyLoss, SNDRPolicyLoss, KLPolicyLoss, CRMPolicyLoss, KLCRMPolicyLoss):
         for mode in ("logged", "uniform"):
             for log_trick in (True, False):
                 logits, policy, scores, actions, rewards, pscore = _batch(seed=4)
@@ -260,6 +313,8 @@ def test_sndr_and_ipw_all_modes_run():
                     loss_fn = loss_cls(gamma=0.05, **kwargs)
                 elif loss_cls is CRMPolicyLoss:
                     loss_fn = loss_cls(clip_m=10.0, crm_lambda=0.1, **kwargs)
+                elif loss_cls is KLCRMPolicyLoss:
+                    loss_fn = loss_cls(gamma=0.05, clip_m=10.0, crm_lambda=0.1, **kwargs)
                 else:
                     loss_fn = loss_cls(**kwargs)
                 loss = loss_fn(pscore, scores, policy, rewards, actions)
@@ -268,4 +323,5 @@ def test_sndr_and_ipw_all_modes_run():
                     continue
                 loss.backward()
                 assert logits.grad is not None
+                assert torch.isfinite(logits.grad).all()
                 assert logits.grad.norm() > 0

@@ -126,15 +126,17 @@ from training.training_utils import (
 from models.custom_losses import (
     CRMPolicyLoss,
     IPWPolicyLoss,
+    KLCRMPolicyLoss,
     KLPolicyLoss,
     SNDRPolicyLoss,
+    uses_importance_weighting,
 )
 from training.metrics_utils import (
     enrich_summary_pct_fields,
     enrich_trial_pct_fields,
 )
 
-VALID_POLICY_LOSSES = ("kl", "ipw", "sndr", "crm")
+VALID_POLICY_LOSSES = ("kl_crm", "kl", "ipw", "sndr", "crm")
 
 # Max working blocks for q_hat / softmax (user_chunk, action_chunk); no full n_users x n_actions.
 DEFAULT_QHAT_USER_CHUNK = 5000
@@ -183,6 +185,22 @@ def _crm_policy_loss(
     )
 
 
+def _kl_crm_policy_loss(
+    gamma: float,
+    clip_m: float,
+    crm_lambda: float,
+    use_log_trick: bool = True,
+    propensity_mode: str = "logged",
+) -> KLCRMPolicyLoss:
+    return KLCRMPolicyLoss(
+        gamma=float(gamma),
+        clip_m=float(clip_m),
+        crm_lambda=float(crm_lambda),
+        use_log_trick=use_log_trick,
+        propensity_mode=propensity_mode,
+    )
+
+
 def _policy_loss_from_name(
     loss_name: str,
     *,
@@ -193,6 +211,14 @@ def _policy_loss_from_name(
     propensity_mode: str = "logged",
 ):
     name = str(loss_name).lower()
+    if name == "kl_crm":
+        return _kl_crm_policy_loss(
+            kl_gamma,
+            clip_m,
+            crm_lambda,
+            use_log_trick=use_log_trick,
+            propensity_mode=propensity_mode,
+        )
     if name == "kl":
         return _kl_policy_loss(
             kl_gamma,
@@ -719,7 +745,7 @@ def _study_trials_long(
                 "param_crm_M": float(params.get("crm_M", float("nan"))),
                 "param_crm_lambda": float(params.get("crm_lambda", float("nan"))),
                 "param_use_log_trick": int(bool(params.get("use_log_trick", True))),
-                "param_policy_loss": str(params.get("policy_loss", "kl")),
+                "param_policy_loss": str(params.get("policy_loss", "kl_crm")),
                 "param_num_neighbors": int(params.get("num_neighbors", -1)),
                 "is_best_in_run": bool(
                     best_trial_number is not None and t.number == best_trial_number
@@ -815,7 +841,7 @@ def _enqueue_with_kl_gamma(
     kl_default: float = 0.05,
     crm_m_default: float = 10.0,
     crm_lambda_default: float = 1.0,
-    policy_loss_types: tuple[str, ...] = ("kl",),
+    policy_loss_types: tuple[str, ...] = ("kl_crm",),
     search_use_log_trick: bool = True,
     use_log_trick_fixed: bool | None = None,
 ) -> dict | None:
@@ -1258,8 +1284,15 @@ def _split_dr_vec_and_ess(
     trial_a: np.ndarray,
     score_lookup,
     dataset: dict,
+    *,
+    propensity_mode: str = "logged",
 ) -> tuple[np.ndarray, float]:
-    """DR per-row vector and IW ESS on a logged split (train or val), chunked."""
+    """Per-row value vector and ESS on a logged split (train or val), chunked.
+
+    Off-policy (``logged``): DR_i = DM_i + (pi_e/pi_b) * (r - q).
+    No-propensity (``uniform``): naive V_i = DM_i + (r - q) with iw=1, matching
+    training without importance weights.
+    """
     pscore = np.asarray(split_data["pscore"], dtype=np.float32)
     users = np.asarray(split_data["x_idx"], dtype=np.int64)
     reward = np.asarray(split_data["r"], dtype=np.float32)
@@ -1282,7 +1315,10 @@ def _split_dr_vec_and_ess(
     dm_reward = _dm_reward_rows_chunked(
         users, trial_x, trial_a, score_lookup, dataset
     ).astype(np.float32)
-    iw = pi_e_at_position / (pscore + 1e-12)
+    if uses_importance_weighting(propensity_mode):
+        iw = pi_e_at_position / (pscore + 1e-12)
+    else:
+        iw = np.ones_like(pi_e_at_position, dtype=np.float32)
     dr_vec = dm_reward + iw * (reward - q_hat_factual)
     ess = float((iw.sum() ** 2) / ((iw**2).sum() + 1e-12))
     return dr_vec, ess
@@ -1951,7 +1987,7 @@ def regression_trainer_trial(
     policy_reward_mode: str = "exact",
     policy_reward_mc_sim: int = 8,
     split_cache: dict | None = None,
-    policy_loss_types: tuple[str, ...] = ("kl",),
+    policy_loss_types: tuple[str, ...] = ("kl_crm",),
     dataset_name: str | None = None,
     search_use_log_trick: bool = True,
     use_log_trick_fixed: bool | None = None,
@@ -1971,11 +2007,12 @@ def regression_trainer_trial(
     ``split_cache``: optional logged-split cache (``LazyRegressionSplitCache`` or a
     pre-built dict) so OPC and no-propensity see identical train/val data.
 
-    ``policy_loss_types``: policy-gradient losses to try (``kl``, ``ipw``, ``sndr``, ``crm``); if
-    more than one, Optuna picks per trial.
+    ``policy_loss_types``: policy-gradient losses to try (``kl_crm``, ``kl``, ``ipw``,
+    ``sndr``, ``crm``); if more than one, Optuna picks per trial. Default ``kl_crm``
+    is the unified SNDR log-trick + KL + CRM variance objective (no KL/CRM split).
 
     ``search_use_log_trick``: if False, always use direct-prob surrogate (no log trick)
-    for KL / IPW / SNDR and do not tune ``use_log_trick`` in Optuna.
+    for KL / IPW / SNDR / CRM / KL_CRM and do not tune ``use_log_trick`` in Optuna.
     """
     policy_loss_types = tuple(str(x).lower() for x in policy_loss_types)
     for name in policy_loss_types:
@@ -2233,10 +2270,20 @@ def regression_trainer_trial(
                 f"actual reward: {r}"
             )
             dr_vec, ess_val = _split_dr_vec_and_ess(
-                val_data, trial_x, trial_a, trial_scores_all, dataset
+                val_data,
+                trial_x,
+                trial_a,
+                trial_scores_all,
+                dataset,
+                propensity_mode=propensity_mode,
             )
             dr_vec_tr, ess_train = _split_dr_vec_and_ess(
-                train_data, trial_x, trial_a, trial_scores_all, dataset
+                train_data,
+                trial_x,
+                trial_a,
+                trial_scores_all,
+                dataset,
+                propensity_mode=propensity_mode,
             )
             n = max(len(dr_vec), 2)
             r_hat = float(dr_vec.mean())
@@ -2484,7 +2531,7 @@ def no_propensity_trainer_trial(
     policy_reward_mc_sim: int = 8,
     slim: bool = False,
     split_cache: dict | None = None,
-    policy_loss_types: tuple[str, ...] = ("kl",),
+    policy_loss_types: tuple[str, ...] = ("kl_crm",),
     dataset_name: str | None = None,
     search_use_log_trick: bool = True,
     use_log_trick_fixed: bool | None = None,
