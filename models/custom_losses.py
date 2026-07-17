@@ -240,6 +240,25 @@ class IPWPolicyLoss(_BanditPolicyLossBase):
         return (-reinforce_grad).mean()
 
 
+class NaiveRewardPolicyLoss(_BanditPolicyLossBase):
+    """Pure naive reward objective: no IW, DM, SNDR, KL, or CRM.
+
+    Pathwise (default):  L = -mean(r * pi_theta(a|x))
+    Log-trick:           L = -mean(r * log pi_theta(a|x))
+    """
+
+    def forward(self, pscore, scores, policy_prob, original_policy_rewards, original_policy_actions):
+        _ = pscore, scores
+        if policy_prob.dim() == 3 and policy_prob.shape[-1] == 1:
+            policy_prob = policy_prob.squeeze(-1)
+        pi_e = self._logged_action_prob(policy_prob, original_policy_actions)
+        if self.use_log_trick:
+            return -(
+                original_policy_rewards * torch.log(pi_e.clamp(min=self.log_eps))
+            ).mean()
+        return -(original_policy_rewards * pi_e).mean()
+
+
 class SNDRPolicyLoss(_BanditPolicyLossBase):
     def forward(self, pscore, scores, policy_prob, original_policy_rewards, original_policy_actions):
         n = original_policy_actions.shape[0]

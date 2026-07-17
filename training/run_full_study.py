@@ -36,9 +36,9 @@ def _normalize_study_methods(methods: list[str] | tuple[str, ...] | None) -> tup
 
 
 def _no_prop_policy_loss_types(policy_loss_types: tuple[str, ...] | None = None) -> tuple[str, ...]:
-    """No-propensity baseline: naive pathwise SNDR/DM only (no log-trick, KL, or CRM)."""
+    """No-propensity baseline: pure naive reward (no DM/SNDR/IW/KL/CRM)."""
     _ = policy_loss_types
-    return ("sndr",)
+    return ("naive",)
 
 
 def _load_cached_method_df(run_dir: Path, method: str) -> pd.DataFrame:

@@ -8,6 +8,7 @@ from models.custom_losses import (
     IPWPolicyLoss,
     KLCRMPolicyLoss,
     KLPolicyLoss,
+    NaiveRewardPolicyLoss,
     SNDRPolicyLoss,
     batch_mc_kl,
     clipped_importance_weights,
@@ -247,6 +248,20 @@ def test_crm_direct_has_grad():
     assert logits.grad.norm() > 0
 
 
+def test_naive_reward_pathwise_no_dm():
+    logits, policy, scores, actions, rewards, pscore = _batch(seed=11)
+    pi = policy[torch.arange(len(actions)), actions]
+    expected = -(rewards * pi).mean()
+    loss = NaiveRewardPolicyLoss(use_log_trick=False, propensity_mode="uniform")(
+        pscore, scores, policy, rewards, actions
+    )
+    assert torch.allclose(loss, expected, atol=1e-5)
+    loss.backward()
+    assert logits.grad is not None
+    assert torch.isfinite(logits.grad).all()
+    assert logits.grad.norm() > 0
+
+
 def test_kl_crm_log_trick_finite_grad_no_nan():
     """Unified KL+CRM log-trick loss: finite loss and non-NaN nonzero grads."""
     logits, policy, scores, actions, rewards, pscore = _batch(seed=7)
@@ -304,7 +319,14 @@ def test_sndr_and_ipw_all_modes_run():
         (IPWPolicyLoss, "uniform", False),
         (CRMPolicyLoss, "uniform", False),
     }
-    for loss_cls in (IPWPolicyLoss, SNDRPolicyLoss, KLPolicyLoss, CRMPolicyLoss, KLCRMPolicyLoss):
+    for loss_cls in (
+        IPWPolicyLoss,
+        SNDRPolicyLoss,
+        KLPolicyLoss,
+        CRMPolicyLoss,
+        KLCRMPolicyLoss,
+        NaiveRewardPolicyLoss,
+    ):
         for mode in ("logged", "uniform"):
             for log_trick in (True, False):
                 logits, policy, scores, actions, rewards, pscore = _batch(seed=4)

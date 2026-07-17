@@ -128,6 +128,7 @@ from models.custom_losses import (
     IPWPolicyLoss,
     KLCRMPolicyLoss,
     KLPolicyLoss,
+    NaiveRewardPolicyLoss,
     SNDRPolicyLoss,
     uses_importance_weighting,
 )
@@ -136,7 +137,7 @@ from training.metrics_utils import (
     enrich_trial_pct_fields,
 )
 
-VALID_POLICY_LOSSES = ("kl_crm", "kl", "ipw", "sndr", "crm")
+VALID_POLICY_LOSSES = ("kl_crm", "kl", "ipw", "sndr", "crm", "naive")
 
 
 def _policy_loss_needs_kl(policy_loss_types: tuple[str, ...] | list[str]) -> bool:
@@ -235,6 +236,11 @@ def _policy_loss_from_name(
         )
     if name == "ipw":
         return IPWPolicyLoss(
+            use_log_trick=use_log_trick,
+            propensity_mode=propensity_mode,
+        )
+    if name == "naive":
+        return NaiveRewardPolicyLoss(
             use_log_trick=use_log_trick,
             propensity_mode=propensity_mode,
         )
@@ -1307,8 +1313,8 @@ def _split_dr_vec_and_ess(
     """Per-row value vector and ESS on a logged split (train or val), chunked.
 
     Off-policy (``logged``): DR_i = DM_i + (pi_e/pi_b) * (r - q).
-    No-propensity (``uniform``): naive V_i = DM_i + (r - q) with iw=1, matching
-    training without importance weights.
+    No-propensity (``uniform``): pure naive R_i = r_i * pi_e(a_i|x_i)
+    (no DM, no SNDR correction, no propensity weights).
     """
     pscore = np.asarray(split_data["pscore"], dtype=np.float32)
     users = np.asarray(split_data["x_idx"], dtype=np.int64)
@@ -1324,6 +1330,11 @@ def _split_dr_vec_and_ess(
         action_chunk=score_lookup.action_chunk,
         policy_temperature=pt,
     )
+    if not uses_importance_weighting(propensity_mode):
+        value_vec = (reward * pi_e_at_position).astype(np.float32)
+        ess = float(len(value_vec))
+        return value_vec, ess
+
     ctx = score_lookup.user_context[users]
     q_hat_factual = np.asarray(
         score_lookup.regression_model.predict_pairs(ctx, actions),
@@ -1332,10 +1343,7 @@ def _split_dr_vec_and_ess(
     dm_reward = _dm_reward_rows_chunked(
         users, trial_x, trial_a, score_lookup, dataset
     ).astype(np.float32)
-    if uses_importance_weighting(propensity_mode):
-        iw = pi_e_at_position / (pscore + 1e-12)
-    else:
-        iw = np.ones_like(pi_e_at_position, dtype=np.float32)
+    iw = pi_e_at_position / (pscore + 1e-12)
     dr_vec = dm_reward + iw * (reward - q_hat_factual)
     ess = float((iw.sum() ** 2) / ((iw**2).sum() + 1e-12))
     return dr_vec, ess
@@ -2025,11 +2033,11 @@ def regression_trainer_trial(
     pre-built dict) so OPC and no-propensity see identical train/val data.
 
     ``policy_loss_types``: policy-gradient losses to try (``kl_crm``, ``kl``, ``ipw``,
-    ``sndr``, ``crm``); if more than one, Optuna picks per trial. Default ``kl_crm``
-    is the unified SNDR log-trick + KL + CRM variance objective (no KL/CRM split).
+    ``sndr``, ``crm``, ``naive``); if more than one, Optuna picks per trial. Default
+    ``kl_crm`` is the unified SNDR log-trick + KL + CRM variance objective.
 
     ``search_use_log_trick``: if False, always use direct-prob surrogate (no log trick)
-    for KL / IPW / SNDR / CRM / KL_CRM and do not tune ``use_log_trick`` in Optuna.
+    for applicable losses and do not tune ``use_log_trick`` in Optuna.
     """
     policy_loss_types = tuple(str(x).lower() for x in policy_loss_types)
     for name in policy_loss_types:
@@ -2555,7 +2563,7 @@ def no_propensity_trainer_trial(
     policy_reward_mc_sim: int = 8,
     slim: bool = False,
     split_cache: dict | None = None,
-    policy_loss_types: tuple[str, ...] = ("sndr",),
+    policy_loss_types: tuple[str, ...] = ("naive",),
     dataset_name: str | None = None,
     search_use_log_trick: bool = False,
     use_log_trick_fixed: bool | None = False,
@@ -2570,7 +2578,7 @@ def no_propensity_trainer_trial(
     Explicit no-propensity baseline with parity to regression trainer:
     same model family, same search budget, same train/val splits.
 
-    Uses naive pathwise SNDR/DM (``iw=1``, no log-trick, no KL/CRM).
+    Uses pure naive reward ``mean(r * pi)`` (no DM/SNDR/IW/KL/CRM, no log-trick).
     """
     return regression_trainer_trial(
         train_sizes=train_sizes,
