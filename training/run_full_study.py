@@ -35,12 +35,10 @@ def _normalize_study_methods(methods: list[str] | tuple[str, ...] | None) -> tup
     return tuple(out)
 
 
-def _no_prop_policy_loss_types(policy_loss_types: tuple[str, ...]) -> tuple[str, ...]:
-    """No-prop uses the same losses; standalone CRM alone falls back to kl_crm."""
-    out = tuple(str(x).lower() for x in policy_loss_types)
-    if out == ("crm",):
-        return ("kl_crm",)
-    return out if out else ("kl_crm",)
+def _no_prop_policy_loss_types(policy_loss_types: tuple[str, ...] | None = None) -> tuple[str, ...]:
+    """No-propensity baseline: naive pathwise SNDR/DM only (no log-trick, KL, or CRM)."""
+    _ = policy_loss_types
+    return ("sndr",)
 
 
 def _load_cached_method_df(run_dir: Path, method: str) -> pd.DataFrame:
@@ -348,8 +346,8 @@ def _run_condition(
             split_cache=split_cache,
             policy_loss_types=noprop_policy_loss_types,
             dataset_name=dataset_name,
-            search_use_log_trick=search_use_log_trick,
-            use_log_trick_fixed=True,
+            search_use_log_trick=False,
+            use_log_trick_fixed=False,
             shared_regression_bundle=shared_regression_bundle,
             shared_regression_size=shared_regression_size,
             qhat_user_chunk=qhat_user_chunk,
@@ -404,7 +402,7 @@ def _run_condition(
         "policy_loss_types": list(policy_loss_types),
         "search_use_log_trick": bool(search_use_log_trick),
         "opc_use_log_trick_fixed": True,
-        "no_prop_use_log_trick_fixed": True,
+        "no_prop_use_log_trick_fixed": False,
         "study_methods": list(methods),
         "opc_policy_loss_types": list(policy_loss_types),
         "no_prop_policy_loss_types": list(noprop_policy_loss_types),

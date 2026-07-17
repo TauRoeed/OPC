@@ -40,13 +40,39 @@ $$
 Hyperparameters from Optuna: $\gamma$ (`kl_gamma`), $\lambda$ (`crm_lambda`),
 clip $M$ (`crm_M`), plus `lr`, `num_epochs`, `batch_size`, `lr_decay`.
 
-Log-trick is **on** for both OPC and no-propensity in the full study.
+Log-trick is **on** for OPC in the full study.
 
-### SNDR log-trick surrogate
+### No-propensity baseline (naive GD)
+
+No-propensity does **not** use `kl_crm`. It trains with:
+
+- loss `sndr`
+- `propensity_mode="uniform"` ($w_i = 1$)
+- **no log-trick** (pathwise gradients through $\pi_\theta$)
+- **no KL**, **no CRM**
+
+So the training objective is ordinary gradient descent on the naive value surrogate:
+
+$$
+\mathcal{L}_{\mathrm{no\_prop}}
+=
+-\frac{1}{n}\sum_i
+\Bigl(
+\mathrm{DM}_i + (r_i - \hat{q}_i)
+\Bigr),
+\qquad
+\mathrm{DM}_i = \sum_a \hat{q}(x_i,a)\,\pi_\theta(a \mid x_i).
+$$
+
+(The residual $r_i-\hat{q}_i$ is constant w.r.t. $\theta$ when $w_i=1$, so gradients come from the DM term.)
+
+Optuna only tunes `lr`, `num_epochs`, `batch_size`, `lr_decay` for this arm.
+
+### SNDR log-trick surrogate (OPC)
 
 With $\log_\varepsilon \pi = \log(\max(\pi,\varepsilon))$:
 
-**Log trick** (default): detach policy in IW / DM coefficients; multiply by $\log \pi$.
+**Log trick** (OPC default): detach policy in IW / DM coefficients; multiply by $\log \pi$.
 
 $$
 \begin{aligned}
@@ -141,7 +167,7 @@ $$
 
 ### No propensity (`uniform`)
 
-Same form with $w_i=1$ (matches training without IW):
+Training and selection both avoid propensities. Validation uses the same naive LCB:
 
 $$
 \widehat{V}_i = \mathrm{DM}_i + (r_i - \hat{q}_i),

@@ -138,6 +138,14 @@ from training.metrics_utils import (
 
 VALID_POLICY_LOSSES = ("kl_crm", "kl", "ipw", "sndr", "crm")
 
+
+def _policy_loss_needs_kl(policy_loss_types: tuple[str, ...] | list[str]) -> bool:
+    return any(str(x).lower() in ("kl", "kl_crm") for x in policy_loss_types)
+
+
+def _policy_loss_needs_crm(policy_loss_types: tuple[str, ...] | list[str]) -> bool:
+    return any(str(x).lower() in ("crm", "kl_crm") for x in policy_loss_types)
+
 # Max working blocks for q_hat / softmax (user_chunk, action_chunk); no full n_users x n_actions.
 DEFAULT_QHAT_USER_CHUNK = 5000
 DEFAULT_QHAT_ACTION_CHUNK = 5000
@@ -849,15 +857,24 @@ def _enqueue_with_kl_gamma(
     if last_best is None:
         return None
     merged = dict(last_best)
-    merged.setdefault("kl_gamma", float(kl_default))
-    merged.setdefault("crm_M", float(crm_m_default))
-    merged.setdefault("crm_lambda", float(crm_lambda_default))
-    if use_log_trick_fixed is not None:
-        merged.setdefault("use_log_trick", bool(use_log_trick_fixed))
+    if _policy_loss_needs_kl(policy_loss_types):
+        merged.setdefault("kl_gamma", float(kl_default))
     else:
-        merged.setdefault("use_log_trick", bool(search_use_log_trick))
+        merged.pop("kl_gamma", None)
+    if _policy_loss_needs_crm(policy_loss_types):
+        merged.setdefault("crm_M", float(crm_m_default))
+        merged.setdefault("crm_lambda", float(crm_lambda_default))
+    else:
+        merged.pop("crm_M", None)
+        merged.pop("crm_lambda", None)
+    if use_log_trick_fixed is not None:
+        merged["use_log_trick"] = bool(use_log_trick_fixed)
+    elif not search_use_log_trick:
+        merged["use_log_trick"] = False
+    else:
+        merged.setdefault("use_log_trick", True)
     if len(policy_loss_types) == 1:
-        merged.setdefault("policy_loss", policy_loss_types[0])
+        merged["policy_loss"] = policy_loss_types[0]
     return merged
 
 
@@ -2203,9 +2220,16 @@ def regression_trainer_trial(
                 "batch_size", trial_batch_choices
             )
             lr_decay = trial.suggest_float("lr_decay", 1e-5, 1e-3, log=True)
-            kl_gamma = trial.suggest_float("kl_gamma", 1e-4, 0.5, log=True)
-            crm_M = trial.suggest_float("crm_M", 1.0, 100.0, log=True)
-            crm_lambda = trial.suggest_float("crm_lambda", 1e-4, 10.0, log=True)
+            if _policy_loss_needs_kl(policy_loss_types):
+                kl_gamma = trial.suggest_float("kl_gamma", 1e-4, 0.5, log=True)
+            else:
+                kl_gamma = 0.05
+            if _policy_loss_needs_crm(policy_loss_types):
+                crm_M = trial.suggest_float("crm_M", 1.0, 100.0, log=True)
+                crm_lambda = trial.suggest_float("crm_lambda", 1e-4, 10.0, log=True)
+            else:
+                crm_M = 10.0
+                crm_lambda = 1.0
             trial_use_log_trick = _resolve_trial_use_log_trick(
                 trial, search_use_log_trick, use_log_trick_fixed
             )
@@ -2531,10 +2555,10 @@ def no_propensity_trainer_trial(
     policy_reward_mc_sim: int = 8,
     slim: bool = False,
     split_cache: dict | None = None,
-    policy_loss_types: tuple[str, ...] = ("kl_crm",),
+    policy_loss_types: tuple[str, ...] = ("sndr",),
     dataset_name: str | None = None,
-    search_use_log_trick: bool = True,
-    use_log_trick_fixed: bool | None = None,
+    search_use_log_trick: bool = False,
+    use_log_trick_fixed: bool | None = False,
     shared_regression_bundle: dict | None = None,
     shared_regression_size: int = 50_000,
     qhat_user_chunk: int = DEFAULT_QHAT_USER_CHUNK,
@@ -2545,6 +2569,8 @@ def no_propensity_trainer_trial(
     """
     Explicit no-propensity baseline with parity to regression trainer:
     same model family, same search budget, same train/val splits.
+
+    Uses naive pathwise SNDR/DM (``iw=1``, no log-trick, no KL/CRM).
     """
     return regression_trainer_trial(
         train_sizes=train_sizes,
