@@ -186,6 +186,8 @@ def dr_sndr_loss(
 
 
 class _BanditPolicyLossBase(nn.Module):
+    needs_qhat = True
+
     def __init__(self, log_eps=1e-10, use_log_trick=True, propensity_mode="logged"):
         super().__init__()
         self.log_eps = log_eps
@@ -246,6 +248,8 @@ class NaiveRewardPolicyLoss(_BanditPolicyLossBase):
     Pathwise (default):  L = -mean(r * pi_theta(a|x))
     Log-trick:           L = -mean(r * log pi_theta(a|x))
     """
+
+    needs_qhat = False
 
     def forward(self, pscore, scores, policy_prob, original_policy_rewards, original_policy_actions):
         _ = pscore, scores

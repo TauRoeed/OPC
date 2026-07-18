@@ -231,87 +231,89 @@ class LinearTransform(nn.Module):
 
 
 class CFModel(nn.Module):
-    def __init__(self, num_users, num_actions, embedding_dim, 
-                 initial_user_embeddings=None, initial_actions_embeddings=None, 
-                 user_transform=None, action_transform=None, 
-                 eps_greedy=1e-4):
-
+    def __init__(
+        self,
+        num_users,
+        num_actions,
+        embedding_dim,
+        initial_user_embeddings=None,
+        initial_actions_embeddings=None,
+        user_transform=None,
+        action_transform=None,
+        temperature=1.0,
+        eps_greedy=0.0,
+    ):
         super().__init__()
 
         self.user_transform = user_transform
         self.action_transform = action_transform
+        self.temperature = float(temperature)
+        self.eps_greedy = float(eps_greedy)
 
-        self.actions = torch.arange(num_actions)
-        self.users = torch.arange(num_users)
+        self.register_buffer("actions", torch.arange(num_actions), persistent=False)
+        self.register_buffer("users", torch.arange(num_users), persistent=False)
 
-        # Initialize user and actions embeddings
         if initial_user_embeddings is None:
             self.user_embeddings = nn.Embedding(num_users, embedding_dim)
         else:
-            # If initial embeddings are provided, set them as the embeddings
-            self.user_embeddings = nn.Embedding.from_pretrained(initial_user_embeddings, freeze=False)
-        
+            self.user_embeddings = nn.Embedding.from_pretrained(
+                initial_user_embeddings, freeze=False
+            )
+
         if initial_actions_embeddings is None:
             self.actions_embeddings = nn.Embedding(num_actions, embedding_dim)
         else:
-            # If initial embeddings are provided, set them as the embeddings
-            self.actions_embeddings = nn.Embedding.from_pretrained(initial_actions_embeddings, freeze=False)
+            self.actions_embeddings = nn.Embedding.from_pretrained(
+                initial_actions_embeddings, freeze=False
+            )
 
         if user_transform is not None:
-            for param in  self.user_embeddings.parameters():
+            for param in self.user_embeddings.parameters():
                 param.requires_grad = False
         if action_transform is not None:
             for param in self.actions_embeddings.parameters():
                 param.requires_grad = False
 
-        self.eps_greedy = eps_greedy
-
-
     def get_params(self):
-        emb_x, emb_a = None, None
-        if self.user_transform is None:
-            emb_x = self.user_embeddings.weight
-        else:
-            emb_x = self.user_transform(self.user_embeddings.weight)
-        if self.action_transform is None:
-            emb_a = self.actions_embeddings.weight
-        else:
-            emb_a = self.action_transform(self.actions_embeddings.weight)
-
-        return emb_x, emb_a
-    
+        """Transformed embeddings with dropout/BN disabled (eval mode)."""
+        was_training = self.training
+        self.eval()
+        try:
+            if self.user_transform is None:
+                emb_x = self.user_embeddings.weight
+            else:
+                emb_x = self.user_transform(self.user_embeddings.weight)
+            if self.action_transform is None:
+                emb_a = self.actions_embeddings.weight
+            else:
+                emb_a = self.action_transform(self.actions_embeddings.weight)
+            return emb_x, emb_a
+        finally:
+            self.train(was_training)
 
     def forward(self, user_ids):
-
         user_embedding = self.user_embeddings(user_ids)
         actions_embedding = self.actions_embeddings(self.actions)
-        # Apply transform if it exists
 
         if self.user_transform is not None:
             user_embedding = self.user_transform(user_embedding, user_ids)
         if self.action_transform is not None:
             actions_embedding = self.action_transform(actions_embedding, self.actions)
 
-        scores = user_embedding @ actions_embedding.T
-        
-        prob = F.softmax(scores, dim=1).unsqueeze(-1)
-        prob = (1 - self.eps_greedy) * prob + (self.eps_greedy / prob.shape[1])
-
-        return prob
+        # Match eval Policy: softmax((u·a) / temperature); optional eps-greedy floor.
+        logits = (user_embedding @ actions_embedding.T) / max(self.temperature, 1e-8)
+        prob = F.softmax(logits, dim=1)
+        if self.eps_greedy > 0.0:
+            prob = (1.0 - self.eps_greedy) * prob + (self.eps_greedy / prob.shape[1])
+        return prob.unsqueeze(-1)
 
     def to(self, device):
-        # Move the module itself
         super().to(device)
-        self.actions = self.actions.to(device)
-        self.users = self.users.to(device)
-        
         if self.user_transform is not None:
             self.user_transform = self.user_transform.to(device)
         if self.action_transform is not None:
             self.action_transform = self.action_transform.to(device)
-
         return self
-
 
     def clone(self):
         return CFModel(
@@ -321,58 +323,73 @@ class CFModel(nn.Module):
             initial_user_embeddings=self.user_embeddings.weight.data.clone(),
             initial_actions_embeddings=self.actions_embeddings.weight.data.clone(),
             user_transform=self.user_transform,
-            action_transform=self.action_transform
-            )
+            action_transform=self.action_transform,
+            temperature=self.temperature,
+            eps_greedy=self.eps_greedy,
+        )
 
 
 class LinearCFModel(nn.Module):
-    def __init__(self, num_users, num_actions, embedding_dim, 
-                 initial_user_embeddings=None, initial_actions_embeddings=None,
-                 user_transform=None, action_transform=None):
+    def __init__(
+        self,
+        num_users,
+        num_actions,
+        embedding_dim,
+        initial_user_embeddings=None,
+        initial_actions_embeddings=None,
+        user_transform=None,
+        action_transform=None,
+        temperature=1.0,
+        eps_greedy=0.0,
+    ):
         super().__init__()
 
         if user_transform is not None:
             self.user_transform = user_transform
         else:
             self.user_transform = LinearTransform(num_users, embedding_dim)
-        
+
         if action_transform is not None:
             self.action_transform = action_transform
         else:
             self.action_transform = LinearTransform(num_actions, embedding_dim)
 
         self.cfmodel = CFModel(
-                                num_users, 
-                                num_actions, 
-                                embedding_dim, 
-                                initial_user_embeddings, 
-                                initial_actions_embeddings,
-                                user_transform=self.user_transform,    
-                                action_transform=self.action_transform
-                               )
-        
+            num_users,
+            num_actions,
+            embedding_dim,
+            initial_user_embeddings,
+            initial_actions_embeddings,
+            user_transform=self.user_transform,
+            action_transform=self.action_transform,
+            temperature=temperature,
+            eps_greedy=eps_greedy,
+        )
+
         for param in self.cfmodel.user_embeddings.parameters():
             param.requires_grad = False
-
         for param in self.cfmodel.actions_embeddings.parameters():
             param.requires_grad = False
 
     def forward(self, user_ids):
         return self.cfmodel(user_ids)
-        
+
     def to(self, device):
-        # Move the module itself
         super().to(device)
-        
         self.cfmodel = self.cfmodel.to(device)
         self.user_transform = self.user_transform.to(device)
         self.action_transform = self.action_transform.to(device)
-
         return self
-    
+
     def get_params(self):
-        return self.cfmodel.get_params()
-    
+        """Eval-mode embeddings (disables dropout in transforms)."""
+        was_training = self.training
+        self.eval()
+        try:
+            return self.cfmodel.get_params()
+        finally:
+            self.train(was_training)
+
     def clone(self):
         return LinearCFModel(
             num_users=self.cfmodel.users.size(0),
@@ -381,8 +398,10 @@ class LinearCFModel(nn.Module):
             initial_user_embeddings=self.cfmodel.user_embeddings.weight.data.clone(),
             initial_actions_embeddings=self.cfmodel.actions_embeddings.weight.data.clone(),
             user_transform=self.user_transform,
-            action_transform=self.action_transform
-            )
+            action_transform=self.action_transform,
+            temperature=self.cfmodel.temperature,
+            eps_greedy=self.cfmodel.eps_greedy,
+        )
 
 
 class _OneHiddenMLP(nn.Module):

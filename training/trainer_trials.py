@@ -1043,17 +1043,18 @@ class RegressionScoresLookup:
         if isinstance(user_idx, torch.Tensor):
             user_idx = user_idx.detach().cpu().numpy()
         user_idx = np.asarray(user_idx, dtype=np.int64).reshape(-1)
+        unique, inverse = np.unique(user_idx, return_inverse=True)
         q = predict_regression_qhat_users(
             self.regression_model,
             self.user_context,
-            user_idx,
+            unique,
             user_chunk=self.user_chunk,
             action_chunk=self.action_chunk,
             show_progress=self.show_progress,
         )
         if q.ndim == 3 and q.shape[2] == 1:
             q = q[:, :, 0]
-        return torch.as_tensor(q, device=self.device, dtype=torch.float32)
+        return torch.as_tensor(q[inverse], device=self.device, dtype=torch.float32)
 
 
 def _scores_lookup_from_bundle(bundle: dict, device) -> RegressionScoresLookup:
@@ -1172,16 +1173,15 @@ def _dm_reward_rows_chunked(
     trial_x: np.ndarray,
     trial_a: np.ndarray,
     score_lookup: RegressionScoresLookup,
-    dataset: dict,
+    policy_temperature: float = 1.0,
 ) -> np.ndarray:
     """Per-row DM term sum_a q(x,a) pi(a|x) with (row_chunk, action_chunk) blocks."""
     users = np.asarray(users, dtype=np.int64).reshape(-1)
     n_rows = len(users)
     dm = np.zeros(n_rows, dtype=np.float64)
-    pt = max(_policy_temperature(dataset), 1e-8)
+    pt = max(float(policy_temperature), 1e-8)
     xw = np.asarray(trial_x, dtype=np.float32)
     aw = np.asarray(trial_a, dtype=np.float32)
-    n_actions = aw.shape[0]
     uc = score_lookup.user_chunk
     ac = score_lookup.action_chunk
     for rs in range(0, n_rows, uc):
@@ -1240,7 +1240,11 @@ def cv_score_model(
         dtype=np.float32,
     )
     dm_reward = _dm_reward_rows_chunked(
-        users, user_emb, item_emb, score_lookup, dataset
+        users,
+        user_emb,
+        item_emb,
+        score_lookup,
+        policy_temperature=policy_temperature,
     ).astype(np.float32)
     iw = pi_e_at_position / (pscore + 1e-12)
     dr_vec = dm_reward + iw * (reward - q_hat_factual)
@@ -1341,7 +1345,7 @@ def _split_dr_vec_and_ess(
         dtype=np.float32,
     )
     dm_reward = _dm_reward_rows_chunked(
-        users, trial_x, trial_a, score_lookup, dataset
+        users, trial_x, trial_a, score_lookup, policy_temperature=pt
     ).astype(np.float32)
     iw = pi_e_at_position / (pscore + 1e-12)
     dr_vec = dm_reward + iw * (reward - q_hat_factual)
@@ -1720,6 +1724,7 @@ def neighberhoodmodel_trainer_trial(
                 emb_dim,
                 initial_user_embeddings=T(our_x_orig),
                 initial_actions_embeddings=T(our_a_orig),
+                temperature=_policy_temperature(dataset),
             ).to(device)
 
             assert (not torch.cuda.is_available()) or next(
@@ -1735,25 +1740,23 @@ def neighberhoodmodel_trainer_trial(
                 persistent_workers=bool(num_workers),
             )
 
-            current_lr = lr
-            for epoch in range(epochs):
-                if epoch > 0:
-                    current_lr *= lr_decay
+            criterion = _kl_policy_loss(
+                kl_gamma,
+                use_log_trick=trial_use_log_trick,
+                propensity_mode=propensity_mode,
+            )
+            train(
+                trial_model,
+                final_train_loader,
+                trial_scores_all,
+                criterion=criterion,
+                num_epochs=epochs,
+                lr=lr,
+                lr_decay=lr_decay,
+                device=str(device),
+            )
 
-                train(
-                    trial_model,
-                    final_train_loader,
-                    trial_scores_all,
-                    criterion=_kl_policy_loss(
-                        kl_gamma,
-                        use_log_trick=trial_use_log_trick,
-                        propensity_mode=propensity_mode,
-                    ),
-                    num_epochs=1,
-                    lr=current_lr,
-                    device=str(device),
-                )
-
+            trial_model.eval()
             trial_x, trial_a = trial_model.get_params()
             trial_x = trial_x.detach().cpu().numpy()
             trial_a = trial_a.detach().cpu().numpy()
@@ -1863,6 +1866,7 @@ def neighberhoodmodel_trainer_trial(
             emb_dim,
             initial_user_embeddings=T(our_x_orig),
             initial_actions_embeddings=T(our_a_orig),
+            temperature=_policy_temperature(dataset),
         ).to(device)
         assert (not torch.cuda.is_available()) or next(
             model.parameters()
@@ -1877,25 +1881,24 @@ def neighberhoodmodel_trainer_trial(
             persistent_workers=bool(num_workers),
         )
 
-        current_lr = best_params["lr"]
-        for epoch in range(best_params["num_epochs"]):
-            if epoch > 0:
-                current_lr *= best_params["lr_decay"]
-            train(
-                model,
-                train_loader,
-                scores_all,
-                criterion=_kl_policy_loss(
-                    best_params.get("kl_gamma", 0.05),
-                    use_log_trick=bool(best_params.get("use_log_trick", True)),
-                    propensity_mode=propensity_mode,
-                ),
-                num_epochs=1,
-                lr=current_lr,
-                device=str(device),
-            )
+        criterion = _kl_policy_loss(
+            best_params.get("kl_gamma", 0.05),
+            use_log_trick=bool(best_params.get("use_log_trick", True)),
+            propensity_mode=propensity_mode,
+        )
+        train(
+            model,
+            train_loader,
+            scores_all,
+            criterion=criterion,
+            num_epochs=int(best_params["num_epochs"]),
+            lr=best_params["lr"],
+            lr_decay=best_params["lr_decay"],
+            device=str(device),
+        )
 
         # learned embeddings (do NOT overwrite originals)
+        model.eval()
         learned_x_t, learned_a_t = model.get_params()
         learned_x = learned_x_t.detach().cpu().numpy()
         learned_a = learned_a_t.detach().cpu().numpy()
@@ -2227,7 +2230,7 @@ def regression_trainer_trial(
             trial_batch_size = trial.suggest_categorical(
                 "batch_size", trial_batch_choices
             )
-            lr_decay = trial.suggest_float("lr_decay", 1e-5, 1e-3, log=True)
+            lr_decay = trial.suggest_float("lr_decay", 0.8, 1.0)
             if _policy_loss_needs_kl(policy_loss_types):
                 kl_gamma = trial.suggest_float("kl_gamma", 1e-4, 0.5, log=True)
             else:
@@ -2259,6 +2262,7 @@ def regression_trainer_trial(
                 initial_actions_embeddings=T(our_a_orig),
                 user_transform=SingleMLPTransform(emb_dim),
                 action_transform=SingleMLPTransform(emb_dim),
+                temperature=_policy_temperature(dataset),
             ).to(device)
 
             final_train_loader = DataLoader(
@@ -2270,28 +2274,27 @@ def regression_trainer_trial(
                 persistent_workers=bool(num_workers),
             )
 
-            current_lr = lr
-            for epoch in range(epochs):
-                if epoch > 0:
-                    current_lr *= lr_decay
-                train(
-                    trial_model,
-                    final_train_loader,
-                    trial_scores_all,
-                    criterion=_policy_loss_from_name(
-                        trial_policy_loss,
-                        kl_gamma=kl_gamma,
-                        clip_m=crm_M,
-                        crm_lambda=crm_lambda,
-                        use_log_trick=trial_use_log_trick,
-                        propensity_mode=propensity_mode,
-                    ),
-                    num_epochs=1,
-                    lr=current_lr,
-                    device=str(device),
-                )
+            criterion = _policy_loss_from_name(
+                trial_policy_loss,
+                kl_gamma=kl_gamma,
+                clip_m=crm_M,
+                crm_lambda=crm_lambda,
+                use_log_trick=trial_use_log_trick,
+                propensity_mode=propensity_mode,
+            )
+            train(
+                trial_model,
+                final_train_loader,
+                trial_scores_all,
+                criterion=criterion,
+                num_epochs=epochs,
+                lr=lr,
+                lr_decay=lr_decay,
+                device=str(device),
+            )
 
             # Evaluate validation score
+            trial_model.eval()
             trial_x, trial_a = trial_model.get_params()
             trial_x, trial_a = (
                 trial_x.detach().cpu().numpy(),
@@ -2395,6 +2398,7 @@ def regression_trainer_trial(
             initial_actions_embeddings=T(our_a_orig),
             user_transform=SingleMLPTransform(emb_dim),
             action_transform=SingleMLPTransform(emb_dim),
+            temperature=_policy_temperature(dataset),
         ).to(device)
 
         train_loader = DataLoader(
@@ -2406,27 +2410,26 @@ def regression_trainer_trial(
             persistent_workers=bool(num_workers),
         )
 
-        current_lr = best_params["lr"]
-        for epoch in range(best_params["num_epochs"]):
-            if epoch > 0:
-                current_lr *= best_params["lr_decay"]
-            train(
-                model,
-                train_loader,
-                scores_all,
-                criterion=_policy_loss_from_name(
-                    best_params.get("policy_loss", policy_loss_types[0]),
-                    kl_gamma=best_params.get("kl_gamma", 0.05),
-                    clip_m=best_params.get("crm_M", 10.0),
-                    crm_lambda=best_params.get("crm_lambda", 1.0),
-                    use_log_trick=bool(best_params.get("use_log_trick", True)),
-                    propensity_mode=propensity_mode,
-                ),
-                num_epochs=1,
-                lr=current_lr,
-                device=str(device),
-            )
+        criterion = _policy_loss_from_name(
+            best_params.get("policy_loss", policy_loss_types[0]),
+            kl_gamma=best_params.get("kl_gamma", 0.05),
+            clip_m=best_params.get("crm_M", 10.0),
+            crm_lambda=best_params.get("crm_lambda", 1.0),
+            use_log_trick=bool(best_params.get("use_log_trick", True)),
+            propensity_mode=propensity_mode,
+        )
+        train(
+            model,
+            train_loader,
+            scores_all,
+            criterion=criterion,
+            num_epochs=int(best_params["num_epochs"]),
+            lr=best_params["lr"],
+            lr_decay=best_params["lr_decay"],
+            device=str(device),
+        )
 
+        model.eval()
         learned_x_t, learned_a_t = model.get_params()
         learned_x = learned_x_t.detach().cpu().numpy()
         learned_a = learned_a_t.detach().cpu().numpy()
@@ -2631,17 +2634,18 @@ class MLPScoresLookup:
         if isinstance(user_idx, torch.Tensor):
             user_idx = user_idx.detach().cpu().numpy()
         user_idx = np.asarray(user_idx, dtype=np.int64).reshape(-1)
-        n = len(user_idx)
+        unique, inverse = np.unique(user_idx, return_inverse=True)
+        n = len(unique)
         n_actions = int(self.reward_model.n_actions)
         out = np.zeros((n, n_actions), dtype=np.float32)
         for us in range(0, n, self.user_chunk):
             ue = min(n, us + self.user_chunk)
-            q = self.reward_model.predict(self.user_context[user_idx[us:ue]])
+            q = self.reward_model.predict(self.user_context[unique[us:ue]])
             q = np.asarray(q, dtype=np.float32)
             if q.ndim == 3:
                 q = q[:, :, 0]
             out[us:ue] = q
-        return torch.as_tensor(out, device=self.device, dtype=torch.float32)
+        return torch.as_tensor(out[inverse], device=self.device, dtype=torch.float32)
 
 
 # --------------------------------------------------------------------
@@ -3001,6 +3005,7 @@ def mlp_trial_reward_fit_once(
             initial_actions_embeddings=torch.as_tensor(our_a, device=device, dtype=torch.float32),
             user_transform=SingleMLPTransform(emb_dim, hidden=hidden, dropout=dropout),
             action_transform=SingleMLPTransform(emb_dim, hidden=hidden, dropout=dropout),
+            temperature=_policy_temperature(dataset),
         ).to(device)
 
         loader = DataLoader(
@@ -3012,20 +3017,19 @@ def mlp_trial_reward_fit_once(
             persistent_workers=bool(num_workers),
         )
 
-        current_lr = lr
-        for ep in range(epochs):
-            if ep > 0:
-                current_lr *= lr_decay
-            train(
-                model,
-                loader,
-                scores_all,
-                criterion=_kl_policy_loss(kl_gamma, use_log_trick=trial_use_log_trick),
-                num_epochs=1,
-                lr=current_lr,
-                device=str(device),
-            )
+        criterion = _kl_policy_loss(kl_gamma, use_log_trick=trial_use_log_trick)
+        train(
+            model,
+            loader,
+            scores_all,
+            criterion=criterion,
+            num_epochs=epochs,
+            lr=lr,
+            lr_decay=lr_decay,
+            device=str(device),
+        )
 
+        model.eval()
         learned_x_t, learned_a_t = model.get_params()
 
         learned_policy = Policy(
