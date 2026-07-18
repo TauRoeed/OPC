@@ -3,6 +3,7 @@ import json
 import multiprocessing as mp
 import os
 from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures.process import BrokenProcessPool
 from datetime import datetime
 from pathlib import Path
 
@@ -101,6 +102,190 @@ def _iter_run_configs(args, val_size_cfg, val_label, val_root: Path):
                                 "run_dir": str(val_root / run_key),
                                 "val_size": val_size_cfg,
                             }
+
+
+def _is_oom_like(exc: BaseException) -> bool:
+    """True for CUDA/host OOM or worker death that usually means OOM."""
+    if isinstance(exc, MemoryError):
+        return True
+    if isinstance(exc, BrokenProcessPool):
+        return True
+    # torch.cuda.OutOfMemoryError subclasses RuntimeError
+    name = type(exc).__name__.lower()
+    if "outofmemory" in name or name == "memoryerror":
+        return True
+    msg = f"{type(exc).__name__}: {exc}".lower()
+    needles = (
+        "out of memory",
+        "cuda out of memory",
+        "cudaerror",
+        "cublas",
+        "cudnn_status_alloc_failed",
+        "failed to allocate",
+        "cannot allocate memory",
+        "killed",
+        "terminated abruptly",
+        "sigkill",
+        "brokenprocesspool",
+        "oom",
+    )
+    return any(n in msg for n in needles)
+
+
+def _run_configs_with_oom_backoff(
+    run_configs: list[dict],
+    *,
+    max_workers: int,
+    min_workers: int,
+    num_gpus: int,
+    fail_fast: bool,
+    oom_backoff: bool,
+) -> list[dict]:
+    """
+    Run configs in a process pool. On OOM / abrupt worker death:
+      - re-queue unfinished + OOM'd configs
+      - shrink max_workers by 1 (floor at min_workers)
+      - restart the pool and continue
+    Non-OOM errors are recorded as permanent failures (unless fail_fast).
+    """
+    pending = list(run_configs)
+    failures: list[dict] = []
+    workers = max(1, int(max_workers))
+    min_workers = max(1, min(int(min_workers), workers))
+    mp_ctx = mp.get_context("spawn")
+    wave = 0
+
+    while pending:
+        wave += 1
+        _apply_parallel_thread_limits(workers)
+        print(
+            f"[wave {wave}] {len(pending)} remaining, max_workers={workers} "
+            f"over {num_gpus} GPU(s)",
+            flush=True,
+        )
+        worker_slot = mp_ctx.Value("i", 0, lock=True)
+        oom_hit = False
+        oom_exc: BaseException | None = None
+        still_pending: list[dict] = []
+        batch = list(pending)
+        pending = []
+
+        with ProcessPoolExecutor(
+            max_workers=workers,
+            mp_context=mp_ctx,
+            initializer=_parallel_worker_init,
+            initargs=(worker_slot, num_gpus),
+        ) as pool:
+            future_to_cfg = {pool.submit(_execute_run, cfg): cfg for cfg in batch}
+            try:
+                for fut in as_completed(future_to_cfg):
+                    cfg = future_to_cfg[fut]
+                    try:
+                        fut.result()
+                        print(f"Done: {cfg['run_key']}", flush=True)
+                    except Exception as e:
+                        if oom_backoff and _is_oom_like(e):
+                            oom_hit = True
+                            oom_exc = e
+                            still_pending.append(cfg)
+                            print(
+                                f"OOM-like on {cfg['run_key']}: {e!r} "
+                                f"— will retry after wave (workers may shrink)",
+                                flush=True,
+                            )
+                            continue
+
+                        failures.append(
+                            {"run_key": cfg["run_key"], "error": repr(e)}
+                        )
+                        print(f"FAILED {cfg['run_key']}: {e}", flush=True)
+                        if fail_fast:
+                            for other in future_to_cfg:
+                                other.cancel()
+                            raise
+            except BrokenProcessPool as e:
+                oom_hit = True
+                oom_exc = e
+                print(
+                    f"Broken process pool ({e!r}) — re-queue unfinished and shrink",
+                    flush=True,
+                )
+                for fut, cfg in future_to_cfg.items():
+                    if fut.done():
+                        try:
+                            fut.result()
+                            print(f"Done: {cfg['run_key']}", flush=True)
+                        except Exception as e2:
+                            if _is_oom_like(e2) or isinstance(e2, BrokenProcessPool):
+                                still_pending.append(cfg)
+                            else:
+                                # Already recorded above, or new:
+                                if not any(
+                                    f["run_key"] == cfg["run_key"] for f in failures
+                                ):
+                                    failures.append(
+                                        {
+                                            "run_key": cfg["run_key"],
+                                            "error": repr(e2),
+                                        }
+                                    )
+                    else:
+                        still_pending.append(cfg)
+
+        if not oom_hit:
+            break
+
+        seen: set[str] = set()
+        pending = []
+        for cfg in still_pending:
+            key = cfg["run_key"]
+            if key in seen:
+                continue
+            seen.add(key)
+            pending.append(cfg)
+
+        if not pending:
+            break
+
+        if not oom_backoff:
+            for cfg in pending:
+                failures.append(
+                    {
+                        "run_key": cfg["run_key"],
+                        "error": repr(oom_exc)
+                        if oom_exc is not None
+                        else "unfinished after error",
+                    }
+                )
+            break
+
+        if workers > min_workers:
+            workers -= 1
+            print(
+                f"Reducing max_workers -> {workers} after OOM "
+                f"({type(oom_exc).__name__ if oom_exc else 'unknown'}); "
+                f"retrying {len(pending)} job(s)",
+                flush=True,
+            )
+            continue
+
+        print(
+            f"Still OOM at max_workers={workers} (min floor); "
+            f"recording {len(pending)} remaining as failures.",
+            flush=True,
+        )
+        for cfg in pending:
+            failures.append(
+                {
+                    "run_key": cfg["run_key"],
+                    "error": repr(oom_exc)
+                    if oom_exc is not None
+                    else "OOM after min_workers",
+                }
+            )
+        break
+
+    return failures
 
 
 def _execute_run(config: dict):
@@ -286,6 +471,19 @@ def main():
         "(OOM / 'terminated abruptly').",
     )
     parser.add_argument(
+        "--oom-backoff",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="On CUDA/host OOM or abrupt worker death: re-queue unfinished jobs "
+        "and reduce --max-workers by 1 (default: true). Use --no-oom-backoff to disable.",
+    )
+    parser.add_argument(
+        "--min-workers",
+        type=int,
+        default=1,
+        help="Floor for OOM backoff worker count (default: 1).",
+    )
+    parser.add_argument(
         "--slim",
         action="store_true",
         default=False,
@@ -319,7 +517,6 @@ def main():
     out_dir.mkdir(parents=True, exist_ok=True)
     print(f"Writing outputs to: {out_dir}")
 
-    failures = []
     run_configs = []
     for val_size_cfg, val_label in val_size_configs:
         val_root = out_dir if len(val_size_configs) == 1 else out_dir / f"val_{val_label}"
@@ -365,8 +562,8 @@ def main():
     max_val = max(args.val_sizes) if args.val_sizes else int(args.val_min)
     logged_rows = int(args.shared_regression_size) + int(max_train) + int(max_val)
     workers = max(1, int(args.max_workers))
+    min_workers = max(1, min(int(args.min_workers), workers))
     num_gpus = _resolve_num_gpus(args.num_gpus)
-    _apply_parallel_thread_limits(workers)
     per_gpu = workers / max(1, num_gpus)
     if logged_rows >= 40_000 and workers > 1:
         print(
@@ -377,30 +574,18 @@ def main():
         )
     print(
         f"Running {len(run_configs)} conditions with max_workers={workers} "
+        f"(oom_backoff={args.oom_backoff}, min_workers={min_workers}) "
         f"over {num_gpus} GPU(s)",
         flush=True,
     )
-    mp_ctx = mp.get_context("spawn")
-    worker_slot = mp_ctx.Value("i", 0, lock=True)
-    with ProcessPoolExecutor(
+    failures = _run_configs_with_oom_backoff(
+        run_configs,
         max_workers=workers,
-        mp_context=mp_ctx,
-        initializer=_parallel_worker_init,
-        initargs=(worker_slot, num_gpus),
-    ) as pool:
-        future_to_cfg = {pool.submit(_execute_run, cfg): cfg for cfg in run_configs}
-        for fut in as_completed(future_to_cfg):
-            cfg = future_to_cfg[fut]
-            try:
-                fut.result()
-                print(f"Done: {cfg['run_key']}")
-            except Exception as e:
-                failures.append({"run_key": cfg["run_key"], "error": repr(e)})
-                print(f"FAILED {cfg['run_key']}: {e}")
-                if args.fail_fast:
-                    for other in future_to_cfg:
-                        other.cancel()
-                    raise
+        min_workers=min_workers,
+        num_gpus=num_gpus,
+        fail_fast=bool(args.fail_fast),
+        oom_backoff=bool(args.oom_backoff),
+    )
 
     collected_rows = _collect_existing_summaries(out_dir)
     if collected_rows:
@@ -434,6 +619,8 @@ def main():
                     "optuna_batch_sizes": args.optuna_batch_sizes,
                     "policy_temperature": args.policy_temperature,
                     "max_workers": args.max_workers,
+                    "min_workers": min_workers,
+                    "oom_backoff": bool(args.oom_backoff),
                     "num_gpus": num_gpus,
                 },
                 f,
