@@ -138,6 +138,29 @@ from training.metrics_utils import (
 )
 
 VALID_POLICY_LOSSES = ("kl_crm", "kl", "ipw", "sndr", "crm", "naive")
+VALID_OPTUNA_SELECTION = ("ci_low", "r_hat", "actual_reward")
+
+
+def _optuna_selection_value(
+    selection_metric: str,
+    *,
+    r_hat: float,
+    se: float,
+    n: int,
+    actual_reward: float,
+) -> float:
+    """Scalar Optuna maximizes. Default ``ci_low`` is DR/naive mean − t·SE."""
+    name = str(selection_metric).lower()
+    if name not in VALID_OPTUNA_SELECTION:
+        raise ValueError(
+            f"optuna_selection must be one of {VALID_OPTUNA_SELECTION}, got {selection_metric!r}"
+        )
+    if name == "r_hat":
+        return float(r_hat)
+    if name == "actual_reward":
+        return float(actual_reward)
+    tcrit = float(student_t.ppf(0.975, max(n, 2) - 1))
+    return float(r_hat) - tcrit * float(se)
 
 
 def _policy_loss_needs_kl(policy_loss_types: tuple[str, ...] | list[str]) -> bool:
@@ -717,6 +740,8 @@ def _study_trials_long(
     ctr: float | None = None,
     initial_reward: float | None = None,
     dataset_name: str | None = None,
+    default_policy_loss: str = "kl_crm",
+    default_use_log_trick: bool = True,
 ):
     """Flatten an Optuna study into a long-format DataFrame for replayable logs."""
     rows = []
@@ -758,8 +783,12 @@ def _study_trials_long(
                 "param_kl_gamma": float(params.get("kl_gamma", float("nan"))),
                 "param_crm_M": float(params.get("crm_M", float("nan"))),
                 "param_crm_lambda": float(params.get("crm_lambda", float("nan"))),
-                "param_use_log_trick": int(bool(params.get("use_log_trick", True))),
-                "param_policy_loss": str(params.get("policy_loss", "kl_crm")),
+                "param_use_log_trick": int(
+                    bool(params.get("use_log_trick", default_use_log_trick))
+                ),
+                "param_policy_loss": str(
+                    params.get("policy_loss", default_policy_loss)
+                ),
                 "param_num_neighbors": int(params.get("num_neighbors", -1)),
                 "is_best_in_run": bool(
                     best_trial_number is not None and t.number == best_trial_number
@@ -922,6 +951,50 @@ def _policy_temperature(dataset: dict) -> float:
     return float(dataset.get("policy_temperature", 1.0))
 
 
+def _logging_uniform_mix(dataset: dict) -> float:
+    return float(np.clip(float(dataset.get("logging_uniform_mix", 0.0)), 0.0, 1.0))
+
+
+def _uniform_policy_reward(
+    dataset,
+    *,
+    user_chunk: int = DEFAULT_QHAT_USER_CHUNK,
+    action_chunk: int = DEFAULT_QHAT_ACTION_CHUNK,
+) -> float:
+    """Exact value of the uniform policy on the true env."""
+    if "env" not in dataset:
+        raise ValueError("uniform policy reward needs dataset['env']")
+    env = dataset["env"]
+    n_users = int(dataset["n_users"])
+    n_actions = int(dataset["n_actions"])
+    prior = np.asarray(
+        dataset.get("user_prior", np.ones(n_users, dtype=np.float64)),
+        dtype=np.float64,
+    )
+    prior = prior / prior.sum()
+    total = 0.0
+    from utils.chunk_progress import iter_user_action_blocks
+
+    user_values = None
+    users = None
+    for start, end, a0, a1 in iter_user_action_blocks(
+        n_users, n_actions, user_chunk, action_chunk, desc="uniform policy value"
+    ):
+        if users is None or start != users[0]:
+            if user_values is not None:
+                total += float(np.sum(user_values * prior[users]))
+            users = np.arange(start, end, dtype=np.int64)
+            user_values = np.zeros(end - start, dtype=np.float64)
+        b = end - start
+        users_rep = np.repeat(users, a1 - a0)
+        actions_rep = np.tile(np.arange(a0, a1), b)
+        rewards = env.reward_prob(users_rep, actions_rep).reshape(b, a1 - a0)
+        user_values += rewards.sum(axis=1) / float(n_actions)
+    if user_values is not None:
+        total += float(np.sum(user_values * prior[users]))
+    return float(total)
+
+
 def _simulate_from_embedding_policy(dataset, our_x, our_a, n_samples, random_state):
     """Sample logged bandit data without materializing dense pi (n_users x n_actions)."""
     rng = int(random_state) % (2**31 - 1)
@@ -934,6 +1007,7 @@ def _simulate_from_embedding_policy(dataset, our_x, our_a, n_samples, random_sta
         temperature=_policy_temperature(dataset),
         user_chunk=2048,
         rng=np.random.default_rng(rng),
+        uniform_mix=_logging_uniform_mix(dataset),
     )
     return create_simulation_data_from_policy(
         dataset=dataset,
@@ -1377,11 +1451,17 @@ def _policy_reward_from_embeddings(
 
 
 def _dataset_log_constants(dataset, our_x, our_a):
-    """CTR from env (oracle setting in sim) and exact true reward for logging embeddings."""
+    """CTR from env (oracle setting in sim) and exact true reward for logging policy."""
     env = dataset.get("env")
     ctr = float(getattr(env, "ctr", np.nan)) if env is not None else float("nan")
-    initial_reward = float(_policy_reward_from_embeddings(dataset, our_x, our_a))
-    return {"ctr": ctr, "initial_reward": initial_reward}
+    r_emb = float(_policy_reward_from_embeddings(dataset, our_x, our_a))
+    alpha = _logging_uniform_mix(dataset)
+    if alpha > 0.0:
+        r_unif = _uniform_policy_reward(dataset)
+        initial_reward = (1.0 - alpha) * r_emb + alpha * r_unif
+    else:
+        initial_reward = r_emb
+    return {"ctr": ctr, "initial_reward": float(initial_reward)}
 
 
 # --------------------------------------------------------------------
@@ -2025,6 +2105,7 @@ def regression_trainer_trial(
     qhat_action_chunk: int = DEFAULT_QHAT_ACTION_CHUNK,
     require_cuda: bool = False,
     optuna_batch_sizes: list[int] | None = None,
+    optuna_selection: str = "ci_low",
 ):
     """
     OPC / no-propensity trainer with Optuna over CF hyperparameters.
@@ -2041,7 +2122,15 @@ def regression_trainer_trial(
 
     ``search_use_log_trick``: if False, always use direct-prob surrogate (no log trick)
     for applicable losses and do not tune ``use_log_trick`` in Optuna.
+
+    ``optuna_selection``: what Optuna maximizes — ``ci_low`` (default), ``r_hat``,
+    or ``actual_reward`` (oracle selection; debug only).
     """
+    optuna_selection = str(optuna_selection).lower()
+    if optuna_selection not in VALID_OPTUNA_SELECTION:
+        raise ValueError(
+            f"optuna_selection must be one of {VALID_OPTUNA_SELECTION}, got {optuna_selection!r}"
+        )
     policy_loss_types = tuple(str(x).lower() for x in policy_loss_types)
     for name in policy_loss_types:
         if name not in VALID_POLICY_LOSSES:
@@ -2325,12 +2414,25 @@ def regression_trainer_trial(
             r_hat_train = float(dr_vec_tr.mean())
             err = float(dr_vec.std(ddof=1) / np.sqrt(n))
             tcrit = float(student_t.ppf(0.975, n - 1))
-            value = r_hat - tcrit * err
+            ci_low = r_hat - tcrit * err
+            value = _optuna_selection_value(
+                optuna_selection,
+                r_hat=r_hat,
+                se=err,
+                n=n,
+                actual_reward=float(r),
+            )
 
             trial.set_user_attr("all_values", [r_hat, err, value])
             trial.set_user_attr(
                 "scores_dict",
-                {"r_hat": r_hat, "r_hat_train": r_hat_train, "se": err, "ci_low": value},
+                {
+                    "r_hat": r_hat,
+                    "r_hat_train": r_hat_train,
+                    "se": err,
+                    "ci_low": ci_low,
+                    "optuna_selection": str(optuna_selection),
+                },
             )
             trial.set_user_attr("r_hat", r_hat)
             trial.set_user_attr("r_hat_train", r_hat_train)
@@ -2338,6 +2440,7 @@ def regression_trainer_trial(
             trial.set_user_attr("actual_reward", r)
             trial.set_user_attr("ess", ess_val)
             trial.set_user_attr("ess_train", ess_train)
+            trial.set_user_attr("optuna_selection", str(optuna_selection))
 
             return value
 
@@ -2383,6 +2486,12 @@ def regression_trainer_trial(
                 ctr=_log_constants["ctr"],
                 initial_reward=_log_constants["initial_reward"],
                 dataset_name=dataset_name,
+                default_policy_loss=str(policy_loss_types[0]),
+                default_use_log_trick=bool(
+                    use_log_trick_fixed
+                    if use_log_trick_fixed is not None
+                    else search_use_log_trick
+                ),
             )
             _append_csv(log_paths["trials"], last_trials_export)
 
@@ -2576,6 +2685,7 @@ def no_propensity_trainer_trial(
     qhat_action_chunk: int = DEFAULT_QHAT_ACTION_CHUNK,
     require_cuda: bool = False,
     optuna_batch_sizes: list[int] | None = None,
+    optuna_selection: str = "ci_low",
 ):
     """
     Explicit no-propensity baseline with parity to regression trainer:
@@ -2610,6 +2720,7 @@ def no_propensity_trainer_trial(
         qhat_action_chunk=qhat_action_chunk,
         require_cuda=require_cuda,
         optuna_batch_sizes=optuna_batch_sizes,
+        optuna_selection=optuna_selection,
     )
 
 

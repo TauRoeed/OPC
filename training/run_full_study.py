@@ -8,6 +8,7 @@ import pandas as pd
 
 from training.metrics_utils import add_paired_method_pct_columns
 from training.trainer_trials import (
+    VALID_OPTUNA_SELECTION,
     VALID_POLICY_LOSSES,
     LazyRegressionSplitCache,
     DEFAULT_QHAT_ACTION_CHUNK,
@@ -100,13 +101,34 @@ _NOISE_LEVEL_COMBINED = {
     "low": (0.05, 0.05, 0.0),
     "medium": (0.10, 0.15, 0.05),
     "high": (0.20, 0.25, 0.10),
+    # Harder logging damage (more GT wiped by noise templates).
+    "extreme": (0.35, 0.40, 0.20),
+    "brutal": (0.50, 0.50, 0.30),
 }
 
 # Per-axis magnitudes (matches the corresponding eps in the combined table).
 _NOISE_LEVEL_PER_AXIS = {
-    "context": {"low": 0.05, "medium": 0.10, "high": 0.20},
-    "action": {"low": 0.05, "medium": 0.15, "high": 0.25},
-    "metadata": {"low": 0.0, "medium": 0.05, "high": 0.10},
+    "context": {
+        "low": 0.05,
+        "medium": 0.10,
+        "high": 0.20,
+        "extreme": 0.35,
+        "brutal": 0.50,
+    },
+    "action": {
+        "low": 0.05,
+        "medium": 0.15,
+        "high": 0.25,
+        "extreme": 0.40,
+        "brutal": 0.50,
+    },
+    "metadata": {
+        "low": 0.0,
+        "medium": 0.05,
+        "high": 0.10,
+        "extreme": 0.20,
+        "brutal": 0.30,
+    },
 }
 
 VALID_NOISE_AXES = ("combined", "context", "action", "metadata")
@@ -201,6 +223,8 @@ def _run_condition(
     require_cuda: bool = False,
     optuna_batch_sizes: list[int] | None = None,
     methods: tuple[str, ...] = VALID_STUDY_METHODS,
+    logging_uniform_mix: float = 0.0,
+    optuna_selection: str = "ci_low",
 ):
     methods = _normalize_study_methods(methods)
     run_opc = "opc" in methods
@@ -253,6 +277,7 @@ def _run_condition(
         "noise_axis": noise_axis,
         "ctr": float(ctr),
         "policy_temperature": float(policy_temperature),
+        "logging_uniform_mix": float(np.clip(logging_uniform_mix, 0.0, 1.0)),
     }
 
     dataset = generate_dataset(
@@ -322,6 +347,7 @@ def _run_condition(
             qhat_action_chunk=qhat_action_chunk,
             require_cuda=require_cuda,
             optuna_batch_sizes=optuna_batch_sizes,
+            optuna_selection=optuna_selection,
         )
     else:
         opc_df = _load_cached_method_df(run_dir, "opc")
@@ -354,6 +380,7 @@ def _run_condition(
             qhat_action_chunk=qhat_action_chunk,
             require_cuda=require_cuda,
             optuna_batch_sizes=optuna_batch_sizes,
+            optuna_selection=optuna_selection,
         )
     else:
         noprop_df = _load_cached_method_df(run_dir, "no_propensity")
@@ -415,6 +442,8 @@ def _run_condition(
         "random_logged_partition": True,
         "qhat_user_chunk": int(qhat_user_chunk),
         "qhat_action_chunk": int(qhat_action_chunk),
+        "logging_uniform_mix": float(params.get("logging_uniform_mix", 0.0)),
+        "optuna_selection": str(optuna_selection),
     }
     return opc_df, noprop_df, opc_trials, noprop_trials, meta
 
@@ -452,7 +481,27 @@ def main():
         help="Which noise axes to sweep. Default: combined only (context+action+metadata bundled). "
         "Pass context/action/metadata only if you want single-axis ablations.",
     )
-    parser.add_argument("--noise-levels", nargs="+", default=["low", "medium", "high"])
+    parser.add_argument(
+        "--noise-levels",
+        nargs="+",
+        default=["low", "medium", "high"],
+        help="Noise levels: low/medium/high/extreme/brutal "
+        "(extreme≈0.35+0.40+0.20, brutal≈0.50+0.50+0.30 eps mix).",
+    )
+    parser.add_argument(
+        "--logging-uniform-mix",
+        type=float,
+        default=0.0,
+        help="Mix logging policy with uniform: π_b=(1-α)·π_noisy + α/|A|. "
+        "0=off. Try 0.2–0.5 to hurt coverage / make logging worse.",
+    )
+    parser.add_argument(
+        "--optuna-selection",
+        choices=list(VALID_OPTUNA_SELECTION),
+        default="ci_low",
+        help="What Optuna maximizes: ci_low (default), r_hat, or actual_reward "
+        "(oracle; debug only).",
+    )
     parser.add_argument(
         "--ctr-levels",
         nargs="+",
@@ -679,12 +728,14 @@ def main():
                                         slim=bool(args.slim),
                                         policy_loss_types=policy_loss_types,
                                         search_use_log_trick=search_use_log_trick,
-                                    shared_regression_size=args.shared_regression_size,
-                                    qhat_user_chunk=args.qhat_user_chunk,
-                                    qhat_action_chunk=args.qhat_action_chunk,
-                                    require_cuda=bool(args.require_cuda),
-                                    optuna_batch_sizes=args.optuna_batch_sizes,
-                                    methods=methods,
+                                        shared_regression_size=args.shared_regression_size,
+                                        qhat_user_chunk=args.qhat_user_chunk,
+                                        qhat_action_chunk=args.qhat_action_chunk,
+                                        require_cuda=bool(args.require_cuda),
+                                        optuna_batch_sizes=args.optuna_batch_sizes,
+                                        methods=methods,
+                                        logging_uniform_mix=float(args.logging_uniform_mix),
+                                        optuna_selection=str(args.optuna_selection),
                                     )
                                 except Exception as e:
                                     failures.append({"run_key": run_key, "error": repr(e)})

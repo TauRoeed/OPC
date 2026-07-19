@@ -573,6 +573,9 @@ def generate_dataset(params, seed=12345, emb_a=None, emb_x=None, user_prior=None
     )
 
     dataset["policy_temperature"] = float(params.get("policy_temperature", 1.0))
+    dataset["logging_uniform_mix"] = float(
+        np.clip(float(params.get("logging_uniform_mix", 0.0)), 0.0, 1.0)
+    )
 
     if store_original:
         dataset["original_a"] = our_a.copy().astype(dtype)

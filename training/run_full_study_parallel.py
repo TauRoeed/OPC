@@ -74,6 +74,7 @@ from training.run_full_study import (
 from training.trainer_trials import (
     DEFAULT_QHAT_ACTION_CHUNK,
     DEFAULT_QHAT_USER_CHUNK,
+    VALID_OPTUNA_SELECTION,
 )
 
 
@@ -132,6 +133,15 @@ def _is_oom_like(exc: BaseException) -> bool:
     return any(n in msg for n in needles)
 
 
+def _default_executor_factory(workers, mp_ctx, worker_slot, num_gpus):
+    return ProcessPoolExecutor(
+        max_workers=workers,
+        mp_context=mp_ctx,
+        initializer=_parallel_worker_init,
+        initargs=(worker_slot, num_gpus),
+    )
+
+
 def _run_configs_with_oom_backoff(
     run_configs: list[dict],
     *,
@@ -140,6 +150,8 @@ def _run_configs_with_oom_backoff(
     num_gpus: int,
     fail_fast: bool,
     oom_backoff: bool,
+    execute_fn=None,
+    executor_factory=None,
 ) -> list[dict]:
     """
     Run configs in a process pool. On OOM / abrupt worker death:
@@ -147,7 +159,14 @@ def _run_configs_with_oom_backoff(
       - shrink max_workers by 1 (floor at min_workers)
       - restart the pool and continue
     Non-OOM errors are recorded as permanent failures (unless fail_fast).
+
+    execute_fn / executor_factory are injectable for tests (defaults: process pool).
     """
+    if execute_fn is None:
+        execute_fn = _execute_run
+    if executor_factory is None:
+        executor_factory = _default_executor_factory
+
     pending = list(run_configs)
     failures: list[dict] = []
     workers = max(1, int(max_workers))
@@ -170,13 +189,8 @@ def _run_configs_with_oom_backoff(
         batch = list(pending)
         pending = []
 
-        with ProcessPoolExecutor(
-            max_workers=workers,
-            mp_context=mp_ctx,
-            initializer=_parallel_worker_init,
-            initargs=(worker_slot, num_gpus),
-        ) as pool:
-            future_to_cfg = {pool.submit(_execute_run, cfg): cfg for cfg in batch}
+        with executor_factory(workers, mp_ctx, worker_slot, num_gpus) as pool:
+            future_to_cfg = {pool.submit(execute_fn, cfg): cfg for cfg in batch}
             try:
                 for fut in as_completed(future_to_cfg):
                     cfg = future_to_cfg[fut]
@@ -322,6 +336,8 @@ def _execute_run(config: dict):
         require_cuda=bool(config.get("require_cuda", False)),
         optuna_batch_sizes=config.get("optuna_batch_sizes"),
         methods=tuple(config.get("study_methods", VALID_STUDY_METHODS)),
+        logging_uniform_mix=float(config.get("logging_uniform_mix", 0.0)),
+        optuna_selection=str(config.get("optuna_selection", "ci_low")),
     )
 
     summary_df = _finalize_summary_df(
@@ -362,7 +378,24 @@ def main():
         choices=list(VALID_NOISE_AXES),
         help="Which noise axes to sweep. Default: combined only (bundled context+action+metadata).",
     )
-    parser.add_argument("--noise-levels", nargs="+", default=["low", "high"])# ["low", "medium", "high"])
+    parser.add_argument(
+        "--noise-levels",
+        nargs="+",
+        default=["low", "high"],
+        help="Noise levels: low/medium/high/extreme/brutal.",
+    )
+    parser.add_argument(
+        "--logging-uniform-mix",
+        type=float,
+        default=0.0,
+        help="Mix logging with uniform: π_b=(1-α)·π_noisy + α/|A|. Try 0.2–0.5.",
+    )
+    parser.add_argument(
+        "--optuna-selection",
+        choices=list(VALID_OPTUNA_SELECTION),
+        default="ci_low",
+        help="What Optuna maximizes: ci_low (default), r_hat, or actual_reward.",
+    )
     parser.add_argument(
         "--ctr-levels",
         nargs="+",
@@ -555,6 +588,8 @@ def main():
                 "qhat_user_chunk": int(args.qhat_user_chunk),
                 "qhat_action_chunk": int(args.qhat_action_chunk),
                 "require_cuda": bool(args.require_cuda),
+                "logging_uniform_mix": float(args.logging_uniform_mix),
+                "optuna_selection": str(args.optuna_selection),
             }
             run_configs.append(cfg)
 
@@ -612,6 +647,8 @@ def main():
                     "qhat_user_chunk": int(args.qhat_user_chunk),
                     "qhat_action_chunk": int(args.qhat_action_chunk),
                     "require_cuda": bool(args.require_cuda),
+                    "logging_uniform_mix": float(args.logging_uniform_mix),
+                    "optuna_selection": str(args.optuna_selection),
                     "val_min": args.val_min,
                     "val_max": args.val_max,
                     "policy_reward_mode": args.policy_reward_mode,

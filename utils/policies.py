@@ -63,6 +63,7 @@ class Policy:
         user_chunk: int = 5000,
         action_chunk: int = 5000,
         rng: np.random.Generator | None = None,
+        uniform_mix: float = 0.0,
     ):
         self.n_users = int(n_users)
         self.n_items = int(n_items)
@@ -71,6 +72,7 @@ class Policy:
         self.user_chunk = int(user_chunk)
         self.action_chunk = int(action_chunk)
         self.rng = np.random.default_rng() if rng is None else rng
+        self.uniform_mix = float(np.clip(uniform_mix, 0.0, 1.0))
 
         self.set_embeddings(user_emb=user_emb, item_emb=item_emb)
 
@@ -112,18 +114,26 @@ class Policy:
         return out
 
     def sample_actions(self, users: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-        """Exact categorical sample via streaming Gumbel-max (no full n_items probs)."""
+        """Exact categorical sample via streaming Gumbel-max (no full n_items probs).
+
+        With ``uniform_mix=α``, sample from softmax w.p. ``1-α`` else uniform; pscore
+        is always the exact mixture ``(1-α)·π_soft + α/|A|``.
+        """
         users = np.asarray(users, dtype=np.int64)
         n = users.shape[0]
         actions_out = np.empty(n, dtype=np.int64)
         p_out = np.empty(n, dtype=np.float64)
         pt = max(self.temperature, 1e-8)
         ac = self.action_chunk
+        alpha = float(self.uniform_mix)
 
         for start in range(0, n, self.user_chunk):
             end = min(start + self.user_chunk, n)
             ub = users[start:end]
             for i, uid in enumerate(ub):
+                if alpha > 0.0 and float(self.rng.random()) < alpha:
+                    actions_out[start + i] = int(self.rng.integers(0, self.n_items))
+                    continue
                 u = self.user_emb[int(uid) : int(uid) + 1]
                 best_score = -np.inf
                 best_a = 0
@@ -149,6 +159,7 @@ class Policy:
         n = users.shape[0]
         out = np.empty(n, dtype=np.float64)
         pt = max(self.temperature, 1e-8)
+        alpha = float(self.uniform_mix)
 
         for start in range(0, n, self.user_chunk):
             end = min(start + self.user_chunk, n)
@@ -167,7 +178,10 @@ class Policy:
                 logits = (u_emb[mask] @ self.item_emb[a0:a1].T) / pt
                 loc = (ab[mask] - a0).astype(np.int64)
                 logit_a[np.where(mask)[0]] = logits[np.arange(mask.sum()), loc]
-            out[start:end] = np.exp(logit_a - log_denom)
+            soft = np.exp(logit_a - log_denom)
+            if alpha > 0.0:
+                soft = (1.0 - alpha) * soft + alpha / float(self.n_items)
+            out[start:end] = soft
 
         return out
 
