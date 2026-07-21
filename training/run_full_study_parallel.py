@@ -75,6 +75,7 @@ from training.trainer_trials import (
     DEFAULT_QHAT_ACTION_CHUNK,
     DEFAULT_QHAT_USER_CHUNK,
     VALID_OPTUNA_SELECTION,
+    VALID_REWARD_MODELS,
 )
 
 
@@ -338,6 +339,7 @@ def _execute_run(config: dict):
         methods=tuple(config.get("study_methods", VALID_STUDY_METHODS)),
         logging_uniform_mix=float(config.get("logging_uniform_mix", 0.0)),
         optuna_selection=str(config.get("optuna_selection", "ci_low")),
+        reward_model=str(config.get("reward_model", "regression")),
     )
 
     summary_df = _finalize_summary_df(
@@ -395,6 +397,12 @@ def main():
         choices=list(VALID_OPTUNA_SELECTION),
         default="ci_low",
         help="What Optuna maximizes: ci_low (default), r_hat, or actual_reward.",
+    )
+    parser.add_argument(
+        "--reward-model",
+        choices=list(VALID_REWARD_MODELS),
+        default="regression",
+        help="Shared q_hat: regression (default), logging_score, or oracle (sim-only).",
     )
     parser.add_argument(
         "--ctr-levels",
@@ -590,6 +598,7 @@ def main():
                 "require_cuda": bool(args.require_cuda),
                 "logging_uniform_mix": float(args.logging_uniform_mix),
                 "optuna_selection": str(args.optuna_selection),
+                "reward_model": str(args.reward_model),
             }
             run_configs.append(cfg)
 
@@ -649,6 +658,7 @@ def main():
                     "require_cuda": bool(args.require_cuda),
                     "logging_uniform_mix": float(args.logging_uniform_mix),
                     "optuna_selection": str(args.optuna_selection),
+                    "reward_model": str(args.reward_model),
                     "val_min": args.val_min,
                     "val_max": args.val_max,
                     "policy_reward_mode": args.policy_reward_mode,

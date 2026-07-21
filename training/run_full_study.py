@@ -10,6 +10,7 @@ from training.metrics_utils import add_paired_method_pct_columns
 from training.trainer_trials import (
     VALID_OPTUNA_SELECTION,
     VALID_POLICY_LOSSES,
+    VALID_REWARD_MODELS,
     LazyRegressionSplitCache,
     DEFAULT_QHAT_ACTION_CHUNK,
     DEFAULT_QHAT_USER_CHUNK,
@@ -225,6 +226,7 @@ def _run_condition(
     methods: tuple[str, ...] = VALID_STUDY_METHODS,
     logging_uniform_mix: float = 0.0,
     optuna_selection: str = "ci_low",
+    reward_model: str = "regression",
 ):
     methods = _normalize_study_methods(methods)
     run_opc = "opc" in methods
@@ -306,6 +308,7 @@ def _run_condition(
     shared_regression_bundle = fit_shared_regression_bundle(
         dataset,
         first_split["reg_data"],
+        reward_model=str(reward_model),
         user_chunk=int(qhat_user_chunk),
         action_chunk=int(qhat_action_chunk),
     )
@@ -348,6 +351,7 @@ def _run_condition(
             require_cuda=require_cuda,
             optuna_batch_sizes=optuna_batch_sizes,
             optuna_selection=optuna_selection,
+            reward_model=str(reward_model),
         )
     else:
         opc_df = _load_cached_method_df(run_dir, "opc")
@@ -381,6 +385,7 @@ def _run_condition(
             require_cuda=require_cuda,
             optuna_batch_sizes=optuna_batch_sizes,
             optuna_selection=optuna_selection,
+            reward_model=str(reward_model),
         )
     else:
         noprop_df = _load_cached_method_df(run_dir, "no_propensity")
@@ -444,6 +449,9 @@ def _run_condition(
         "qhat_action_chunk": int(qhat_action_chunk),
         "logging_uniform_mix": float(params.get("logging_uniform_mix", 0.0)),
         "optuna_selection": str(optuna_selection),
+        "reward_model": str(
+            shared_regression_bundle.get("reward_model", reward_model)
+        ),
     }
     return opc_df, noprop_df, opc_trials, noprop_trials, meta
 
@@ -501,6 +509,13 @@ def main():
         default="ci_low",
         help="What Optuna maximizes: ci_low (default), r_hat, or actual_reward "
         "(oracle; debug only).",
+    )
+    parser.add_argument(
+        "--reward-model",
+        choices=list(VALID_REWARD_MODELS),
+        default="regression",
+        help="Shared q_hat for DM/DR: regression (default LR fit on noisy emb), "
+        "logging_score (CTR link on our_x/our_a), oracle (clean env; sim-only).",
     )
     parser.add_argument(
         "--ctr-levels",
@@ -736,6 +751,7 @@ def main():
                                         methods=methods,
                                         logging_uniform_mix=float(args.logging_uniform_mix),
                                         optuna_selection=str(args.optuna_selection),
+                                        reward_model=str(args.reward_model),
                                     )
                                 except Exception as e:
                                     failures.append({"run_key": run_key, "error": repr(e)})
@@ -802,6 +818,9 @@ def main():
                     "val_size_configs": [
                         {"val_size": v, "label": lbl} for v, lbl in val_size_configs
                     ],
+                    "logging_uniform_mix": float(args.logging_uniform_mix),
+                    "optuna_selection": str(args.optuna_selection),
+                    "reward_model": str(args.reward_model),
                 },
                 f,
                 indent=2,

@@ -6,13 +6,13 @@ Modern recommender systems are usually improved using logs of past user interact
 
 The off-policy nature of recommender fine-tuning creates a basic tension. If a new policy is trained directly on observed rewards, it may learn to imitate or amplify the exposure pattern of the logging policy rather than discover actions with higher true reward. Propensity-based correction addresses this by reweighting logged observations according to how likely the learned target policy would have been to choose the observed action relative to the behavior policy. In principle, this correction can reduce bias. In practice, it can introduce high variance when the learned policy assigns large probability to actions that were unlikely under the behavior policy.
 
-This thesis studies that tradeoff in the setting of recommender-policy fine-tuning. The central question is whether using logged behavior propensities during policy optimization improves learned policy value compared with an otherwise identical training procedure that ignores those propensities. I refer to the propensity-aware method as off-policy correction (OPC), and compare it against a no-propensity baseline that treats logged actions as if they were sampled uniformly for the purpose of the policy loss.
+This thesis studies that tradeoff in the setting of recommender-policy fine-tuning. The central question is whether using logged behavior propensities during policy optimization improves learned policy value compared with an otherwise identical training procedure that ignores those propensities. I refer to the propensity-aware method as off-policy correction (OPC), and compare it against a no-propensity baseline that optimizes a pure naive reward objective without propensities, importance weights, or doubly robust terms.
 
 The study is built around a controlled semi-synthetic experimental framework. Real recommendation datasets are first transformed into implicit-feedback matrices and used to train Bayesian Personalized Ranking (BPR) matrix-factorization embeddings. These embeddings provide a realistic user-item latent space. The clean embeddings define the ground-truth reward environment, while noisy versions of the embeddings define the information available to the logging and learning procedures. This design preserves recommender-system structure while allowing exact evaluation of learned policies against a known reward model.
 
-Within this environment, a softmax collaborative-filtering policy is initialized from the noisy embeddings and fine-tuned using logged bandit feedback. The code implements several off-policy policy-gradient losses, including inverse propensity weighting (IPW), a self-normalized doubly robust (SNDR) objective, and a KL-regularized objective that discourages the learned policy from drifting too far from the logging policy. Hyperparameters are selected using a conservative validation estimate based on doubly robust value estimation.
+Within this environment, a softmax collaborative-filtering policy is initialized from the noisy embeddings and fine-tuned using logged bandit feedback. The code implements several policy-gradient losses (`kl_crm`, `kl`, `ipw`, `sndr`, `crm`, `naive`). The full-study default for OPC is the unified `kl_crm` objective (SNDR surrogate plus KL and CRM variance penalties) with logged propensities. Hyperparameters are selected by Optuna using `--optuna-selection`: `ci_low` (default lower confidence bound), `r_hat`, or `actual_reward` (oracle).
 
-The main contribution of the experimental design is a matched ablation between OPC and no-propensity training. Both methods use the same logged train and validation splits, the same policy model, the same reward model, the same Optuna search space, and the same final evaluation metrics. The only intended difference is whether the policy objective uses logged propensities. This makes it possible to isolate the empirical effect of propensity correction on fine-tuned recommender policies.
+The main contribution of the experimental design is a matched ablation between OPC and no-propensity training. Both methods use the same logged train and validation splits, the same policy model, the same shared reward model, and the same Optuna budget. OPC uses logged propensities in IW/DR-style losses; the no-propensity arm uses pure naive `mean(r * pi)` with `propensity_mode=uniform`. This isolates the empirical effect of propensity-aware off-policy correction.
 
 The rest of the paper is organized as follows. Section 2 reviews the contextual bandit formulation of recommendation and the off-policy estimators used in this work. Section 3 describes the BPR-based semi-synthetic data generation process. Section 4 presents the policy model, reward model, and off-policy fine-tuning objectives. Section 5 describes the experimental protocol and evaluation metrics. Section 6 reports the results of the OPC versus no-propensity comparison, and Section 7 discusses the conditions under which propensity correction helps or hurts.
 
@@ -83,7 +83,7 @@ Logged bandit data is generated by sampling users from a user-prior distribution
 (x_i, a_i, r_i, p_i)
 ```
 
-where `p_i` is the exact logging propensity assigned to the sampled action. These propensities are used by the OPC method and deliberately ignored by the no-propensity ablation.
+where `p_i` is the exact logging propensity assigned to the sampled action. These propensities are used by OPC IW/DR-style losses and ignored by the naive no-propensity baseline.
 
 The scalable policy implementation is in `utils/policies.py`, and logged simulation is handled by `create_simulation_data_from_policy` in `utils/simulation_utils.py`.
 
@@ -109,109 +109,109 @@ q_hat(x, a) ≈ E[r | x, a].
 
 The main implementation uses a regression model over context-action features. User context vectors are combined with item/action embeddings, and a classifier predicts the probability of positive reward. The code also includes an MLP reward model and a neighborhood-based reward model, but the main full-study trainer uses a shared regression bundle so that OPC and no-propensity methods are evaluated with the same reward model.
 
-The reward-model code is in `models/models.py`, especially `RegressionModel`, `MLPRewardModel`, and `NeighborhoodModel`.
+Full-study flag `--reward-model`:
+
+- `regression` (default): fit logistic regression on noisy `our_x` / `our_a`.
+- `logging_score`: CTR link `1 / (1/ctr + exp(-(our_x·our_a)/T))` (no fit).
+- `oracle`: same CTR link on clean `env.emb_x` / `env.emb_a` (sim diagnosis only).
+
+Details: `docs/training_losses.md` §1.1. Code: `AnalyticRewardModel` /
+`fit_shared_regression_bundle` in `training/trainer_trials.py`, plus
+`RegressionModel` / `MLPRewardModel` / `NeighborhoodModel` in `models/models.py`.
 
 ### Off-Policy Training Objectives
 
-The policy losses are implemented in `models/custom_losses.py`. The code supports two propensity modes:
-
-- `logged`: use true logged propensities and importance weights.
-- `uniform`: bypass importance weighting by setting effective weights to one.
-
-This switch is the key mechanism for the main ablation.
-
-#### Inverse Propensity Weighting
-
-The IPW policy loss uses the logged reward weighted by the target-to-behavior probability ratio:
+The policy losses are implemented in `models/custom_losses.py`. Full formulas are in
+`docs/training_losses.md`. Supported names:
 
 ```text
-w_i = pi_theta(a_i | x_i) / p_i.
+kl_crm (default), kl, ipw, sndr, crm, naive
 ```
 
-The policy is optimized to increase:
+Propensity modes:
+
+- `logged`: use true logged propensities and importance weights (OPC).
+- `uniform`: used by the no-propensity arm with the naive loss (no IW/DM/SNDR).
+
+#### Default OPC loss (`kl_crm`)
+
+Unified objective in `KLCRMPolicyLoss`:
 
 ```text
-E[w_i r_i].
+Loss = -SNDR surrogate + kl_gamma * KL_MC + crm_lambda * sqrt(Var(u) / n)
 ```
 
-When `propensity_mode="uniform"`, the method instead uses `w_i = 1`, so the logged reward is no longer corrected for the behavior policy.
+where the SNDR surrogate is the self-normalized doubly robust policy-gradient
+term, `KL_MC` is the batch Monte Carlo KL at logged actions, and
+`u_i = -r_i * min(w_i, crm_M)`.
 
-#### Self-Normalized Doubly Robust Objective
+#### Inverse Propensity Weighting (`ipw`)
 
-The SNDR objective combines a direct reward-model estimate with an importance-weighted residual correction. For each logged sample:
+```text
+w_i = pi_theta(a_i | x_i) / p_i
+```
+
+Log-trick: minimize `-mean(stopgrad(w) * r * log pi)`. Direct: minimize `-mean(w * r)`.
+
+#### Self-Normalized Doubly Robust (`sndr`)
 
 ```text
 DM_i = sum_a q_hat(x_i, a) pi_theta(a | x_i)
+Correction_i = w_i (r_i - q_hat(x_i, a_i)) / mean(w)
+r_hat_i = DM_i + Correction_i
 ```
 
-and
+Training minimizes the negative surrogate (log-trick or direct). Used in recent
+hurt-logging ablations with `--optuna-selection r_hat`.
+
+#### KL-Regularized Objective (`kl`)
 
 ```text
-Correction_i = w_i (r_i - q_hat(x_i, a_i)) / mean(w).
+Loss = -SNDR surrogate + gamma * mean(log pi_b - log pi_theta)
 ```
 
-The resulting per-sample value estimate is:
+#### Naive Objective (`naive`; no-propensity default)
 
 ```text
-r_hat_i = DM_i + Correction_i.
+Loss = -mean(r_i * pi_theta(a_i | x_i))
 ```
 
-This objective uses the reward model to reduce variance while retaining a correction term for logged reward residuals.
-
-#### KL-Regularized Objective
-
-The KL loss augments the SNDR policy surrogate with a penalty that discourages the learned policy from drifting too far from the logging policy on observed actions. The batch Monte Carlo KL term is:
-
-```text
-mean(log pi_b(a_i | x_i) - log pi_theta(a_i | x_i)).
-```
-
-The final objective is:
-
-```text
-Loss = -SNDR surrogate + gamma * KL.
-```
-
-This is the default policy loss in the full-study scripts. The coefficient `gamma` is tuned by Optuna.
+No IW, DM, SNDR, KL, or CRM. Full study fixes `use_log_trick=False` for this arm.
 
 ### Log-Trick and Direct-Probability Surrogates
 
-The code supports two gradient estimators for the policy objective. The log-trick version detaches some policy-probability terms and multiplies the relevant contribution by `log pi_theta`, yielding a policy-gradient-style surrogate. The direct-probability version keeps the policy probabilities attached in the objective, allowing gradients to flow through the probabilities directly. The full study can either tune this choice or disable the log trick globally.
+The log-trick version detaches policy-probability coefficients and multiplies by
+`log pi_theta`. The direct version keeps probabilities attached. In
+`run_full_study.py`, OPC fixes log trick True and no-propensity fixes it False.
+`--no-log-trick` disables the searchable log-trick path.
 
 ### Hyperparameter Optimization and Policy Selection
 
-For each experimental condition, Optuna searches over fine-tuning hyperparameters, including learning rate, number of epochs, batch size, learning-rate decay, KL strength, and optionally policy loss type and log-trick usage. Each trial trains a policy on logged training data and evaluates it on a logged validation split.
-
-The validation score is a conservative doubly robust estimate:
+Optuna searches over learning rate, epochs, batch size, LR decay, and (when
+needed) `kl_gamma`, `crm_M`, `crm_lambda`, and optionally `policy_loss` if
+multiple `--policy-losses` are passed. Each trial evaluates a validation vector
+and maximizes `--optuna-selection`:
 
 ```text
-score = mean(DR validation vector) - t_crit * standard_error.
+ci_low (default) = R_hat - t_crit * SE
+r_hat            = mean(row_value)
+actual_reward    = true simulator reward (oracle)
 ```
 
-This criterion is designed to prefer policies with both high estimated value and lower uncertainty. After Optuna selects the best hyperparameters, the policy is retrained with the selected configuration and evaluated against the simulator's true reward model.
+For OPC, `row_value` is the DR estimate `DM + w (r - q)`. For no-propensity,
+`row_value = r * pi`. After selection, the policy is retrained and scored against
+the simulator.
 
 ### Main Experimental Comparison
 
-The central experiment compares two methods:
-
 ```text
-OPC:           propensity_mode = "logged"
-No propensity: propensity_mode = "uniform"
+OPC:           propensity_mode=logged,  default loss=kl_crm, log trick fixed True
+No propensity: propensity_mode=uniform, loss=naive,         log trick fixed False
 ```
 
-The `opc` method uses:
-
-```text
-w_i = pi_theta(a_i | x_i) / pi_b(a_i | x_i).
-```
-
-The `no_propensity` method uses:
-
-```text
-w_i = 1.
-```
-
-Both methods share the same data splits, policy architecture, reward model, validation criterion, and Optuna budget. This design isolates the effect of behavior-propensity correction. The matched comparison is implemented by `regression_trainer_trial`, `no_propensity_trainer_trial`, and `_run_condition` in `training/trainer_trials.py` and `training/run_full_study.py`.
+Both share data splits, policy architecture, reward model, validation criterion,
+and Optuna budget. Implemented by `regression_trainer_trial`,
+`no_propensity_trainer_trial`, and `_run_condition`.
 
 ### Evaluation
 
@@ -236,15 +236,24 @@ The full-study scripts sweep several dimensions:
 - dataset,
 - noise mode,
 - noise axis,
-- noise level,
+- noise level (`low` / `medium` / `high` / `extreme` / `brutal`),
 - CTR level,
 - training set size,
 - validation set size,
 - random seed,
-- policy loss,
-- log-trick setting.
+- policy loss (`--policy-losses`),
+- Optuna selection metric (`--optuna-selection`),
+- logging–uniform mix (`--logging-uniform-mix α`),
+- policy temperature (`--policy-temperature`).
 
-The default study uses BPR embeddings from real datasets, k-means template noise, multiple noise levels, several training sizes, and repeated random seeds. The parallel runner executes the same conditions across worker processes and GPUs.
+Logging damage: higher noise levels wipe more ground-truth signal from the
+embeddings used by the logging policy; `--logging-uniform-mix α` sets
+`pi_b = (1-α)·π_softmax + α/|A|`. Recent ablations combine `sndr`/`ipw` with
+hurt logging and `r_hat` selection.
+
+The default study uses BPR embeddings, k-means template noise, multiple noise
+levels, several training sizes, and repeated seeds. The parallel runner spreads
+conditions across workers/GPUs.
 
 ## Result Placeholders
 

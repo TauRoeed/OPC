@@ -139,6 +139,7 @@ from training.metrics_utils import (
 
 VALID_POLICY_LOSSES = ("kl_crm", "kl", "ipw", "sndr", "crm", "naive")
 VALID_OPTUNA_SELECTION = ("ci_low", "r_hat", "actual_reward")
+VALID_REWARD_MODELS = ("regression", "logging_score", "oracle")
 
 
 def _optuna_selection_value(
@@ -544,14 +545,82 @@ def build_regression_split_cache(
     return {k: lazy[k] for k in lazy.keys()}
 
 
+class AnalyticRewardModel:
+    """Closed-form q_hat from the CTR link: 1 / (1/ctr + exp(-dot(x,a)/T)).
+
+    Used by ``--reward-model logging_score`` (noisy ``our_x``/``our_a``) and
+    ``oracle`` (clean env embeddings). Duck-types the RegressionModel surface
+    needed by lazy q_hat / DR scoring (``predict_pairs``, action blocks).
+    """
+
+    def __init__(
+        self,
+        action_context: np.ndarray,
+        *,
+        ctr: float,
+        temperature: float = 1.0,
+        kind: str = "analytic",
+    ):
+        self.action_context = np.asarray(action_context, dtype=np.float32)
+        self.n_actions = int(self.action_context.shape[0])
+        self.len_list = 1
+        self.ctr = float(ctr)
+        if self.ctr <= 0.0:
+            raise ValueError(f"ctr must be > 0, got {self.ctr}")
+        self.temperature = float(temperature)
+        self.kind = str(kind)
+
+    def _link(self, logits: np.ndarray) -> np.ndarray:
+        return (1.0 / ((1.0 / self.ctr) + np.exp(-logits))).astype(np.float32)
+
+    def predict_pairs(
+        self, context: np.ndarray, action: np.ndarray, pos: int = 0
+    ) -> np.ndarray:
+        _ = pos
+        context = np.asarray(context, dtype=np.float32)
+        action = np.asarray(action, dtype=np.int64).reshape(-1)
+        if context.shape[0] != action.shape[0]:
+            raise ValueError("context and action must have same length")
+        a = self.action_context[action]
+        pt = max(self.temperature, 1e-8)
+        logits = (context * a).sum(axis=1) / pt
+        return self._link(logits)
+
+    def predict_user_action_block(
+        self, context: np.ndarray, action_start: int, action_end: int
+    ) -> np.ndarray:
+        context = np.asarray(context, dtype=np.float32)
+        a = self.action_context[int(action_start) : int(action_end)]
+        pt = max(self.temperature, 1e-8)
+        logits = (context @ a.T) / pt
+        q = self._link(logits)
+        return q[:, :, None]
+
+    def predict(self, context: np.ndarray) -> np.ndarray:
+        return self.predict_user_action_block(context, 0, self.n_actions)
+
+
 def fit_shared_regression_bundle(
     dataset: dict,
     reg_data: dict,
     *,
+    reward_model: str = "regression",
     user_chunk: int = DEFAULT_QHAT_USER_CHUNK,
     action_chunk: int = DEFAULT_QHAT_ACTION_CHUNK,
 ):
-    """Fit one reward model on the reg slice; q_hat is computed on demand (not materialized)."""
+    """Build one shared q_hat source; values are computed on demand (not materialized).
+
+    ``reward_model``:
+      - ``regression``: fit LogisticRegression on concat(our_x, our_a) from reg slice
+      - ``logging_score``: CTR link on noisy logging embeddings (no fit)
+      - ``oracle``: CTR link on clean env embeddings (sim diagnosis only)
+    """
+    kind = str(reward_model).lower()
+    if kind not in VALID_REWARD_MODELS:
+        raise ValueError(
+            f"reward_model must be one of {VALID_REWARD_MODELS}, got {reward_model!r}"
+        )
+
     our_x = dataset["our_x"]
     our_a = dataset["our_a"]
     n_actions = int(np.asarray(our_a).shape[0])
@@ -559,26 +628,62 @@ def fit_shared_regression_bundle(
         raise ValueError(
             f"dataset n_actions={dataset['n_actions']} != emb_a rows={n_actions}"
         )
-    n = int(len(reg_data["r"]))
-    model = RegressionModel(
-        n_actions=n_actions,
-        action_context=our_a,
-        base_model=LogisticRegression(random_state=12345),
-    )
-    t0 = time.time()
-    model.fit(reg_data["x"], reg_data["a"], reg_data["r"])
-    print(
-        f"[Regression] shared fit n={n} time={time.time() - t0:.2f}s "
-        f"(lazy q_hat user_chunk={user_chunk} action_chunk={action_chunk})",
-        flush=True,
-    )
+
+    if kind == "regression":
+        n = int(len(reg_data["r"]))
+        model = RegressionModel(
+            n_actions=n_actions,
+            action_context=our_a,
+            base_model=LogisticRegression(random_state=12345),
+        )
+        t0 = time.time()
+        model.fit(reg_data["x"], reg_data["a"], reg_data["r"])
+        print(
+            f"[RewardModel=regression] shared fit n={n} time={time.time() - t0:.2f}s "
+            f"(lazy q_hat user_chunk={user_chunk} action_chunk={action_chunk})",
+            flush=True,
+        )
+        user_context = our_x
+        sample_size = n
+    elif kind == "logging_score":
+        env = dataset["env"]
+        model = AnalyticRewardModel(
+            action_context=our_a,
+            ctr=float(env.ctr),
+            temperature=float(getattr(env, "temperature", 1.0)),
+            kind="logging_score",
+        )
+        user_context = our_x
+        sample_size = 0
+        print(
+            f"[RewardModel=logging_score] CTR link on noisy our_x/our_a "
+            f"(ctr={env.ctr:g}, no fit)",
+            flush=True,
+        )
+    else:  # oracle
+        env = dataset["env"]
+        model = AnalyticRewardModel(
+            action_context=np.asarray(env.emb_a, dtype=np.float32),
+            ctr=float(env.ctr),
+            temperature=float(getattr(env, "temperature", 1.0)),
+            kind="oracle",
+        )
+        user_context = np.asarray(env.emb_x, dtype=np.float32)
+        sample_size = 0
+        print(
+            f"[RewardModel=oracle] CTR link on clean env emb "
+            f"(ctr={env.ctr:g}, sim-only)",
+            flush=True,
+        )
+
     return {
         "regression_model": model,
-        "user_context": our_x,
+        "user_context": user_context,
         "user_chunk": int(user_chunk),
         "action_chunk": int(action_chunk),
         "catalog_n_actions": int(n_actions),
-        "sample_size": int(n),
+        "sample_size": int(sample_size),
+        "reward_model": kind,
     }
 
 from models.model_scoring import score_model_modular, score_model_modular_large
@@ -1041,6 +1146,13 @@ def _predict_regression_qhat_user_action_block(
     action_end: int,
 ) -> np.ndarray:
     """q_hat for users x actions[action_start:action_end]; shape (n_users, n_actions_block, len_list)."""
+    if hasattr(regression_model, "predict_user_action_block"):
+        return np.asarray(
+            regression_model.predict_user_action_block(
+                context, int(action_start), int(action_end)
+            ),
+            dtype=np.float32,
+        )
     n = int(context.shape[0])
     n_a = int(action_end - action_start)
     n_list = int(regression_model.len_list)
@@ -2106,6 +2218,7 @@ def regression_trainer_trial(
     require_cuda: bool = False,
     optuna_batch_sizes: list[int] | None = None,
     optuna_selection: str = "ci_low",
+    reward_model: str = "regression",
 ):
     """
     OPC / no-propensity trainer with Optuna over CF hyperparameters.
@@ -2125,11 +2238,19 @@ def regression_trainer_trial(
 
     ``optuna_selection``: what Optuna maximizes — ``ci_low`` (default), ``r_hat``,
     or ``actual_reward`` (oracle selection; debug only).
+
+    ``reward_model``: shared q_hat source — ``regression`` (default fit),
+    ``logging_score`` (CTR link on noisy embeddings), or ``oracle`` (clean env).
     """
     optuna_selection = str(optuna_selection).lower()
     if optuna_selection not in VALID_OPTUNA_SELECTION:
         raise ValueError(
             f"optuna_selection must be one of {VALID_OPTUNA_SELECTION}, got {optuna_selection!r}"
+        )
+    reward_model = str(reward_model).lower()
+    if reward_model not in VALID_REWARD_MODELS:
+        raise ValueError(
+            f"reward_model must be one of {VALID_REWARD_MODELS}, got {reward_model!r}"
         )
     policy_loss_types = tuple(str(x).lower() for x in policy_loss_types)
     for name in policy_loss_types:
@@ -2183,6 +2304,7 @@ def regression_trainer_trial(
             shared_regression_bundle = fit_shared_regression_bundle(
                 dataset,
                 _warm["reg_data"],
+                reward_model=reward_model,
                 user_chunk=qhat_user_chunk,
                 action_chunk=qhat_action_chunk,
             )
@@ -2207,6 +2329,7 @@ def regression_trainer_trial(
             shared_regression_bundle = fit_shared_regression_bundle(
                 dataset,
                 _split0["reg_data"],
+                reward_model=reward_model,
                 user_chunk=qhat_user_chunk,
                 action_chunk=qhat_action_chunk,
             )
@@ -2686,6 +2809,7 @@ def no_propensity_trainer_trial(
     require_cuda: bool = False,
     optuna_batch_sizes: list[int] | None = None,
     optuna_selection: str = "ci_low",
+    reward_model: str = "regression",
 ):
     """
     Explicit no-propensity baseline with parity to regression trainer:
@@ -2721,6 +2845,7 @@ def no_propensity_trainer_trial(
         require_cuda=require_cuda,
         optuna_batch_sizes=optuna_batch_sizes,
         optuna_selection=optuna_selection,
+        reward_model=reward_model,
     )
 
 

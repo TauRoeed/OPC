@@ -6,7 +6,7 @@ Off-Policy Corrected Fine-Tuning of Recommender Policies from Logged Implicit Fe
 
 ## One-Sentence Thesis
 
-This thesis studies whether using logged behavior propensities during policy fine-tuning improves recommender policy learning and model selection compared with a no-propensity baseline that treats logged interactions as uniformly sampled.
+This thesis studies whether using logged behavior propensities during policy fine-tuning improves recommender policy learning and model selection compared with a no-propensity baseline that optimizes pure naive reward without propensity correction.
 
 ## Abstract Skeleton
 
@@ -14,7 +14,7 @@ Recommender systems are commonly trained and improved using historical interacti
 
 This thesis investigates off-policy corrected fine-tuning for recommender systems under contextual bandit feedback. Real implicit-feedback datasets are first converted into user-item interaction matrices and used to train Bayesian Personalized Ranking (BPR) matrix-factorization embeddings. These embeddings define a semi-synthetic bandit environment in which latent user and item factors determine ground-truth reward probabilities, while noisy versions of the embeddings represent the information available to the learner. A collaborative-filtering policy is initialized from these noisy embeddings and fine-tuned using logged rewards.
 
-The main experimental comparison isolates the effect of propensity correction. The proposed off-policy correction (OPC) setting uses logged propensities in policy-gradient objectives based on inverse propensity weighting, self-normalized doubly robust estimation, and KL regularization. The no-propensity baseline uses the same model family, logged data, validation splits, reward model, and hyperparameter search, but disables importance weighting by setting effective weights to one. Experiments sweep datasets, noise levels, noise axes, click-through-rate regimes, training sizes, validation sizes, and random seeds.
+The main experimental comparison isolates the effect of propensity correction. The proposed off-policy correction (OPC) setting uses logged propensities in IW/DR-style policy-gradient objectives (default unified `kl_crm` = SNDR + KL + CRM variance). The no-propensity baseline uses the same model family, logged data, validation splits, shared reward model, and hyperparameter search, but trains with pure naive `mean(r * pi)` (`propensity_mode=uniform`, no DM/SNDR/IW/KL/CRM). Experiments sweep datasets, noise levels (including extreme/brutal), noise axes, CTR regimes, train/val sizes, seeds, logging–uniform mix, policy temperature, policy losses, Optuna selection metrics, and reward-model source (`--reward-model`).
 
 Results should report whether propensity-aware training improves true policy value, validation-based policy selection, and robustness relative to the no-propensity baseline, and under which logging-bias/noise regimes the correction is most beneficial.
 
@@ -35,8 +35,8 @@ Main points:
 Suggested contribution bullets:
 
 - A controlled semi-synthetic evaluation framework built from real recommender datasets and BPR embeddings.
-- A policy fine-tuning pipeline using IPW, self-normalized doubly robust, and KL-regularized off-policy objectives.
-- A matched ablation comparing propensity-aware OPC to no-propensity training under identical splits and search budgets.
+- A policy fine-tuning pipeline with losses `kl_crm` (default), `kl`, `ipw`, `sndr`, `crm`, and `naive`.
+- A matched ablation comparing propensity-aware OPC to a pure-naive no-propensity baseline under identical splits and search budgets.
 - A systematic study across dataset, noise, CTR, train-size, validation-size, and seed conditions.
 
 ### 2. Background
@@ -151,101 +151,111 @@ Relevant code:
 
 Goal: explain `q_hat(x, a)`.
 
-The reward model estimates expected reward for user-action pairs. The main implementation fits a regression model over concatenated user context and action embeddings. The code also includes an MLP reward model and a neighborhood-based reward model path.
+The reward model estimates expected reward for user-action pairs. Full-study default fits a logistic `RegressionModel` on concatenated noisy user/action embeddings. Ablation flag `--reward-model`:
+
+- `regression` (default): learned LR on `our_x`/`our_a`
+- `logging_score`: CTR link on noisy embeddings (no fit)
+- `oracle`: CTR link on clean env embeddings (sim-only upper bound)
+
+Also available in code: MLP and neighborhood reward models (not the full-study default).
 
 Relevant code:
 
+- `fit_shared_regression_bundle` / `AnalyticRewardModel` in `training/trainer_trials.py`
 - `RegressionModel` in `models/models.py`
 - `MLPRewardModel` in `models/models.py`
 - `NeighborhoodModel` in `models/models.py`
 
-The reward model is used for direct-method and doubly robust terms during validation and policy scoring.
+The reward model is used for direct-method and doubly robust terms during validation and policy scoring. See `docs/training_losses.md` §1.1.
 
 ### 7. Training Objectives
 
-Goal: explain the losses.
+Goal: explain the losses. See `docs/training_losses.md` for full formulas.
 
 Relevant code:
 
 - `models/custom_losses.py`
+- `training/trainer_trials.py` (`VALID_POLICY_LOSSES`)
+
+Supported names: `kl_crm` (default), `kl`, `ipw`, `sndr`, `crm`, `naive`.
+
+#### Default OPC: `kl_crm`
+
+```text
+Loss = -SNDR surrogate + kl_gamma * KL_MC + crm_lambda * sqrt(Var(u) / n)
+```
+
+with `u_i = -r_i * min(w_i, crm_M)`.
 
 #### IPW
-
-The IPW objective weights logged rewards by the ratio between target and behavior policy probabilities:
 
 ```text
 w_i = pi_theta(a_i | x_i) / p_i
 ```
 
-The loss minimizes the negative weighted reward surrogate.
+Log-trick: `-mean(stopgrad(w) * r * log pi)`. Direct: `-mean(w * r)`.
 
 #### SNDR
-
-The self-normalized doubly robust objective combines a direct reward-model term with a residual correction:
 
 ```text
 DM_i = sum_a q_hat(x_i, a) pi_theta(a | x_i)
 Correction_i = w_i (r_i - q_hat(x_i, a_i)) / mean(w)
-```
-
-The resulting per-row estimate is:
-
-```text
 r_hat_i = DM_i + Correction_i
 ```
 
-#### KL-Regularized Objective
-
-The KL objective combines the SNDR policy-gradient objective with a batch Monte Carlo KL penalty toward the logging policy:
+#### KL-Regularized Objective (`kl`)
 
 ```text
 Loss = -SNDR surrogate + gamma * KL(pi_b || pi_theta)
 ```
 
-In the code, the KL term is estimated on logged actions using:
+KL is estimated on logged actions:
 
 ```text
 mean(log pi_b(a_i | x_i) - log pi_theta(a_i | x_i))
 ```
 
+#### Naive (`naive`; no-propensity default)
+
+```text
+Loss = -mean(r_i * pi_theta(a_i | x_i))
+```
+
+No IW, DM, SNDR, KL, or CRM.
+
 ### 8. Main Ablation: OPC vs No-Propensity
 
 Goal: make the central comparison extremely clear.
 
-The code defines two matched methods:
+```text
+opc:           propensity_mode="logged",  default policy_loss=kl_crm, use_log_trick fixed True
+no_propensity: propensity_mode="uniform", policy_loss=naive,         use_log_trick fixed False
+```
 
-- `opc`: `propensity_mode="logged"`
-- `no_propensity`: `propensity_mode="uniform"`
-
-In `opc`, importance weights use the true logged propensity:
+OPC importance weights:
 
 ```text
 w_i = pi_theta(a_i | x_i) / pi_b(a_i | x_i)
 ```
 
-In `no_propensity`, the effective importance weight is one:
-
-```text
-w_i = 1
-```
+No-propensity does **not** run SNDR/IPW with `w_i = 1`. It uses pure naive
+`mean(r * pi)` and ignores `pscore` / reward-model scores in the policy loss.
 
 Everything else is held fixed:
 
 - Same logged train/validation splits.
 - Same policy model.
-- Same reward model.
+- Same shared reward model.
 - Same Optuna search budget.
 - Same train sizes.
 - Same validation sizes.
 - Same final evaluation code.
 
-This makes the comparison a clean ablation of propensity correction.
-
 Relevant code:
 
 - `regression_trainer_trial` in `training/trainer_trials.py`
 - `no_propensity_trainer_trial` in `training/trainer_trials.py`
-- `_run_condition` in `training/run_full_study.py`
+- `_run_condition` / `_no_prop_policy_loss_types` in `training/run_full_study.py`
 
 ### 9. Hyperparameter Selection
 
@@ -257,17 +267,22 @@ Optuna tunes:
 - number of epochs
 - batch size
 - learning-rate decay
-- KL gamma
-- policy loss type, if multiple losses are enabled
-- log-trick versus direct-probability surrogate, unless disabled
+- `kl_gamma` when the loss needs KL (`kl`, `kl_crm`)
+- `crm_M`, `crm_lambda` when the loss needs CRM (`crm`, `kl_crm`)
+- policy loss type, if multiple `--policy-losses` are enabled
 
-The selected trial maximizes a conservative validation estimate based on doubly robust value:
+Log trick is fixed in the full study (OPC True, no-prop False), not searched.
+
+`--optuna-selection` chooses the scalar to maximize:
 
 ```text
-validation_score = mean(DR vector) - t_crit * standard_error
+ci_low (default) = mean(row_value) - t_crit * SE
+r_hat            = mean(row_value)
+actual_reward    = true simulator reward (oracle / debug)
 ```
 
-This selection criterion favors policies with high estimated value and lower uncertainty.
+OPC `row_value` is DR (`DM + w (r - q)`). No-prop `row_value` is `r * pi`.
+Recent ablations often use `sndr`/`ipw` with hurt logging and `r_hat`.
 
 ### 10. Evaluation Metrics
 
@@ -301,20 +316,25 @@ From `training/run_full_study.py` and `training/run_full_study_parallel.py`:
 - datasets
 - noise modes
 - noise axes
-- noise levels
+- noise levels: `low`, `medium`, `high`, `extreme`, `brutal`
 - CTR levels
 - train sizes
 - validation sizes
 - seeds
-- policy losses
-- log-trick setting
+- policy losses (`kl_crm`, `kl`, `ipw`, `sndr`, `crm`, `naive`)
+- Optuna selection (`ci_low`, `r_hat`, `actual_reward`)
+- logging–uniform mix `α` (`--logging-uniform-mix`)
+- reward model (`regression`, `logging_score`, `oracle`)
+- policy temperature (`--policy-temperature`)
 - shared regression training size
 
 Default full-study style settings include:
 
 - train sizes: `5000`, `25000`, `50000`, `100000`
 - default CTR: `0.05`
-- default policy loss: `kl`
+- default policy loss: `kl_crm`
+- OPC log trick fixed True; no-propensity log trick fixed False
+- default Optuna selection: `ci_low`
 - default policy temperature: `1.0`
 - default validation size: either fixed or derived from `val_frac`, `val_min`, and `val_max`
 
