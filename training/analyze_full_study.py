@@ -1318,6 +1318,13 @@ def main():
     run_dir = Path(args.run_dir) if args.run_dir else None
     if run_dir is None and args.summary_csv is None:
         run_dir = Path("artifacts/full_study")
+    if run_dir is not None and (
+        list(run_dir.rglob("opc_trials_long.csv"))
+        or list(run_dir.rglob("trials_long.csv"))
+    ):
+        from training.rebuild_study_summary import rebuild_run_summaries
+
+        rebuild_run_summaries(run_dir)
     if args.summary_csv is not None:
         summary_csv = Path(args.summary_csv)
     else:

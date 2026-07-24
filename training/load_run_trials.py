@@ -10,6 +10,43 @@ import numpy as np
 import pandas as pd
 
 
+def _parse_condition_dirname(name: str) -> dict:
+    out = {}
+    for part in name.split("__"):
+        if "=" not in part:
+            continue
+        k, v = part.split("=", 1)
+        out[k] = v
+    return out
+
+
+def _attach_condition_tags(df: pd.DataFrame, path: Path) -> pd.DataFrame:
+    if not path.parent.name.startswith("dataset="):
+        return df
+    tags = _parse_condition_dirname(path.parent.name)
+    mapping = {
+        "dataset": "dataset",
+        "noise": "noise_mode",
+        "axis": "noise_axis",
+        "level": "noise_level",
+        "seed": "seed",
+        "ctr": "ctr",
+        "val": "val_size",
+    }
+    out = df.copy()
+    for src, dst in mapping.items():
+        if src not in tags:
+            continue
+        tagged = tags[src]
+        if dst not in out.columns:
+            out[dst] = tagged
+        elif dst in ("seed", "ctr", "val_size"):
+            current = pd.to_numeric(out[dst], errors="coerce")
+            fill = pd.to_numeric(tagged, errors="coerce")
+            out[dst] = current.fillna(fill)
+    return out
+
+
 def _seed_from_path(p: Path) -> int:
     m = re.search(r"__seed=(\d+)", str(p))
     return int(m.group(1)) if m else -1
@@ -72,15 +109,22 @@ def _attach_initial_reward(df: pd.DataFrame, run_dir: Path) -> pd.DataFrame:
 
 def load_run_trials(run_dir: Path) -> pd.DataFrame:
     run_dir = Path(run_dir)
-    long_paths = sorted(run_dir.rglob("trials_long.csv"))
-    if long_paths:
-        parts = []
-        for p in long_paths:
-            df = pd.read_csv(p)
-            df["seed"] = _seed_from_path(p)
-            parts.append(df)
-        df = pd.concat(parts, ignore_index=True)
-        return _attach_initial_reward(df, run_dir)
+    for pattern in (
+        "trials_long.csv",
+        "opc_trials_long.csv",
+        "no_prop_trials_long.csv",
+    ):
+        long_paths = sorted(run_dir.rglob(pattern))
+        if long_paths:
+            parts = []
+            for p in long_paths:
+                df = pd.read_csv(p)
+                if "seed" not in df.columns:
+                    df["seed"] = _seed_from_path(p)
+                df = _attach_condition_tags(df, p)
+                parts.append(df)
+            df = pd.concat(parts, ignore_index=True)
+            return _attach_initial_reward(df, run_dir)
 
     parts = []
     for seed_dir in sorted(run_dir.glob("dataset=*__seed=*")):

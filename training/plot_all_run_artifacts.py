@@ -37,9 +37,21 @@ def _plot_hyperparams(run_dir: Path) -> None:
         sys.argv = old
 
 
+def _run_has_trial_logs(run_dir: Path) -> bool:
+    for name in (
+        "trials_long.csv",
+        "opc_trials.csv",
+        "opc_trials_long.csv",
+        "no_prop_trials_long.csv",
+    ):
+        if list(run_dir.rglob(name)):
+            return True
+    return False
+
+
 def plot_all_for_run(run_dir: Path) -> bool:
     run_dir = run_dir.resolve()
-    if not list(run_dir.rglob("trials_long.csv")) and not list(run_dir.rglob("opc_trials.csv")):
+    if not _run_has_trial_logs(run_dir):
         print(f"skip {run_dir.name}: no trial logs")
         return False
     print(f"\n=== {run_dir.name} ===")
@@ -71,8 +83,7 @@ def main() -> None:
         runs = sorted(
             d
             for d in root.glob("run_*")
-            if d.is_dir()
-            and (list(d.rglob("trials_long.csv")) or list(d.rglob("opc_trials.csv")))
+            if d.is_dir() and _run_has_trial_logs(d)
         )
 
     ok = sum(plot_all_for_run(r) for r in runs)

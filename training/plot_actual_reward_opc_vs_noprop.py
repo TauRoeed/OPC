@@ -45,6 +45,203 @@ def _log_trick_slices(df: pd.DataFrame) -> list[tuple[str, pd.DataFrame]]:
     ]
 
 
+def _ctr_slug(ctr: float) -> str:
+    return f"{ctr:g}".replace(".", "p")
+
+
+def _level_slug(level: str) -> str:
+    return str(level).replace(" ", "_")
+
+
+def _prepare_reward_distribution_df(
+    df: pd.DataFrame,
+    *,
+    train_only: bool = True,
+) -> pd.DataFrame:
+    sub = df.copy()
+    sub["ctr"] = pd.to_numeric(sub.get("ctr"), errors="coerce")
+    sub["actual_reward"] = pd.to_numeric(sub.get("actual_reward"), errors="coerce")
+    if "initial_reward" in sub.columns:
+        sub["initial_reward"] = pd.to_numeric(sub["initial_reward"], errors="coerce")
+    if train_only and "train_size" in sub.columns:
+        sub = sub[pd.to_numeric(sub["train_size"], errors="coerce") > 0]
+    return sub.dropna(subset=["ctr", "actual_reward"])
+
+
+def _draw_reward_distribution_panel(ax, part: pd.DataFrame, title: str) -> None:
+    method_specs = [("opc", "OPC", "C0"), ("no_propensity", "no propensity", "C1")]
+    labels, data = [], []
+    for meth, label, _ in method_specs:
+        vals = part.loc[part["method"] == meth, "actual_reward"].dropna().to_numpy()
+        if vals.size:
+            labels.append(label)
+            data.append(vals)
+    if not data:
+        ax.set_title(f"{title}\n(no data)")
+        return
+    bp = ax.boxplot(
+        data,
+        tick_labels=labels,
+        widths=0.5,
+        patch_artist=True,
+        showfliers=False,
+    )
+    colors = ("C0", "C1")
+    for patch, c in zip(bp["boxes"], colors[: len(bp["boxes"])]):
+        patch.set_facecolor(c)
+        patch.set_alpha(0.35)
+    rng = np.random.default_rng(0)
+    for meth, label, c in method_specs:
+        block = part.loc[part["method"] == meth]
+        vals = block["actual_reward"].dropna().to_numpy()
+        if vals.size == 0:
+            continue
+        x = labels.index(label) + 1
+        jitter = rng.uniform(-0.12, 0.12, size=vals.size)
+        if "initial_reward" in block.columns and block["initial_reward"].notna().any():
+            beat = vals > block["initial_reward"].to_numpy(dtype=float)
+            ax.scatter(
+                x + jitter[~beat],
+                vals[~beat],
+                s=14,
+                alpha=0.45,
+                c=c,
+                edgecolors="none",
+            )
+            ax.scatter(
+                x + jitter[beat],
+                vals[beat],
+                s=14,
+                alpha=0.55,
+                c="tab:green",
+                edgecolors="none",
+            )
+        else:
+            ax.scatter(x + jitter, vals, s=14, alpha=0.45, c=c, edgecolors="none")
+    if "initial_reward" in part.columns:
+        ir = part["initial_reward"].dropna()
+        if not ir.empty:
+            ax.axhline(
+                float(ir.median()),
+                color="k",
+                ls="--",
+                lw=1,
+                alpha=0.6,
+                label="median initial_reward",
+            )
+    ax.set_title(title)
+    ax.set_ylabel("actual_reward")
+
+
+def plot_actual_reward_distribution_by_ctr(
+    df: pd.DataFrame,
+    out_dir: Path,
+    *,
+    train_only: bool = True,
+) -> int:
+    """Distribution panels by CTR and noise level (OPC vs no propensity)."""
+    if "ctr" not in df.columns or "actual_reward" not in df.columns:
+        return 0
+
+    sub = _prepare_reward_distribution_df(df, train_only=train_only)
+    if sub.empty:
+        return 0
+
+    ctrs = sorted(sub["ctr"].unique())
+    out_dir = Path(out_dir)
+    by_ctr_dir = out_dir / "by_ctr"
+    by_ctr_dir.mkdir(parents=True, exist_ok=True)
+
+    level_col = "noise_level" if "noise_level" in sub.columns else None
+    if level_col:
+        level_order = ["low", "medium", "high"]
+        levels = [lv for lv in level_order if lv in set(sub[level_col].astype(str))]
+        levels += sorted(
+            lv for lv in sub[level_col].astype(str).unique() if lv not in levels
+        )
+    else:
+        levels = [None]
+
+    by_ctr_level_dir = out_dir / "by_ctr_and_level"
+    by_ctr_level_dir.mkdir(parents=True, exist_ok=True)
+    n_saved = 0
+
+    # Combined grid: rows = noise level, cols = CTR.
+    if level_col:
+        fig, axes = plt.subplots(
+            len(levels),
+            len(ctrs),
+            figsize=(4.6 * len(ctrs), 4.2 * len(levels)),
+            sharey=True,
+            squeeze=False,
+        )
+        for i, level in enumerate(levels):
+            for j, ctr in enumerate(ctrs):
+                part = sub[(sub["ctr"] == ctr) & (sub[level_col].astype(str) == str(level))]
+                _draw_reward_distribution_panel(
+                    axes[i, j],
+                    part,
+                    f"level={level}, ctr={ctr:g} (n={len(part)})",
+                )
+        for ax in axes[:, 0]:
+            ax.legend(loc="lower left", fontsize=7)
+        fig.suptitle(
+            "actual_reward by noise level x CTR (green = beat initial)",
+            y=1.01,
+        )
+        fig.tight_layout()
+        combined = out_dir / "actual_reward_distribution_by_ctr_and_level.png"
+        fig.savefig(combined, dpi=150, bbox_inches="tight")
+        plt.close(fig)
+        n_saved += 1
+
+    # One file per CTR (all levels on one row).
+    fig, axes = plt.subplots(1, len(ctrs), figsize=(4.8 * len(ctrs), 4.8), sharey=True)
+    if len(ctrs) == 1:
+        axes = [axes]
+    for ax, ctr in zip(axes, ctrs):
+        part = sub[sub["ctr"] == ctr]
+        _draw_reward_distribution_panel(ax, part, f"ctr={ctr:g} (n={len(part)})")
+    axes[0].legend(loc="lower left", fontsize=8)
+    fig.suptitle("actual_reward distribution by CTR (all noise levels)", y=1.02)
+    fig.tight_layout()
+    combined_ctr = out_dir / "actual_reward_distribution_by_ctr.png"
+    fig.savefig(combined_ctr, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    n_saved += 1
+
+    for ctr in ctrs:
+        part_ctr = sub[sub["ctr"] == ctr]
+        fig, ax = plt.subplots(figsize=(5.2, 4.8))
+        _draw_reward_distribution_panel(ax, part_ctr, f"ctr={ctr:g} (n={len(part_ctr)})")
+        ax.legend(loc="lower left", fontsize=8)
+        fig.tight_layout()
+        path = by_ctr_dir / f"actual_reward_distribution_ctr_{_ctr_slug(ctr)}.png"
+        fig.savefig(path, dpi=150, bbox_inches="tight")
+        plt.close(fig)
+        n_saved += 1
+
+        if level_col:
+            for level in levels:
+                part = part_ctr[part_ctr[level_col].astype(str) == str(level)]
+                fig, ax = plt.subplots(figsize=(5.2, 4.8))
+                _draw_reward_distribution_panel(
+                    ax,
+                    part,
+                    f"level={level}, ctr={ctr:g} (n={len(part)})",
+                )
+                ax.legend(loc="lower left", fontsize=8)
+                fig.tight_layout()
+                path = by_ctr_level_dir / (
+                    f"actual_reward_distribution_ctr_{_ctr_slug(ctr)}_level_{_level_slug(level)}.png"
+                )
+                fig.savefig(path, dpi=150, bbox_inches="tight")
+                plt.close(fig)
+                n_saved += 1
+
+    return n_saved
+
+
 def plot_distributions(df: pd.DataFrame, out_path: Path) -> None:
     slices = _log_trick_slices(df)
     fig, axes = plt.subplots(1, len(slices), figsize=(5 * len(slices), 4.5), sharey=True)
@@ -63,7 +260,7 @@ def plot_distributions(df: pd.DataFrame, out_path: Path) -> None:
             continue
         bp = ax.boxplot(
             data,
-            labels=labels,
+            tick_labels=labels,
             widths=0.5,
             patch_artist=True,
             showfliers=False,
@@ -199,9 +396,10 @@ def plot_run(run_dir: Path, out_dir: Path | None = None) -> None:
             df[c] = pd.to_numeric(df[c], errors="coerce") if c != "param_use_log_trick" else df[c]
 
     plot_distributions(df, out_dir / "actual_reward_distribution_opc_vs_noprop.png")
+    n_ctr = plot_actual_reward_distribution_by_ctr(df, out_dir)
     plot_paired_scatter(df, out_dir / "actual_reward_paired_opc_vs_noprop.png")
     plot_score_vs_actual(df, out_dir / "score_vs_actual_reward_opc_vs_noprop.png")
-    print(f"wrote figures under {out_dir}")
+    print(f"wrote figures under {out_dir}" + (f" ({n_ctr} CTR panels)" if n_ctr else ""))
 
 
 def main() -> None:

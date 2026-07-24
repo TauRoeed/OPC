@@ -310,9 +310,10 @@ def main():
     out_dir.mkdir(parents=True, exist_ok=True)
 
     cond_dirs: set[Path] = set()
-    for pat in ("dataset=*/trials_long.csv", "dataset=*/opc_trials_long.csv", "dataset=*/no_prop_trials_long.csv"):
-        for p in run_dir.glob(pat):
-            cond_dirs.add(p.parent)
+    for suffix in ("trials_long.csv", "opc_trials_long.csv", "no_prop_trials_long.csv"):
+        for p in run_dir.rglob(suffix):
+            if p.parent.name.startswith("dataset="):
+                cond_dirs.add(p.parent)
     cond_dirs = sorted(cond_dirs)
 
     total = 0
