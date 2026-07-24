@@ -174,7 +174,7 @@ def _policy_loss_needs_crm(policy_loss_types: tuple[str, ...] | list[str]) -> bo
 # Max working blocks for q_hat / softmax (user_chunk, action_chunk); no full n_users x n_actions.
 DEFAULT_QHAT_USER_CHUNK = 5000
 DEFAULT_QHAT_ACTION_CHUNK = 5000
-DEFAULT_OPTUNA_BATCH_SIZES = (256, 512, 1024, 2048, 4096)
+DEFAULT_OPTUNA_BATCH_SIZES = (4096, 8192, 16384)
 DEFAULT_NEIGHBORHOOD_OPTUNA_BATCH_SIZES = (64, 128, 256, 512)
 LOGGED_RUN_IDX = 0
 

@@ -539,7 +539,7 @@ def main():
         nargs="+",
         type=int,
         default=None,
-        help="Batch sizes for Optuna to search (default: 256 512 1024 2048 4096). "
+        help="Batch sizes for Optuna to search (default: 4096 8192 16384). "
         "Not a sweep axis; only tunes inside each condition.",
     )
     parser.add_argument(
