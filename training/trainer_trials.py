@@ -607,6 +607,8 @@ def fit_shared_regression_bundle(
     reward_model: str = "regression",
     user_chunk: int = DEFAULT_QHAT_USER_CHUNK,
     action_chunk: int = DEFAULT_QHAT_ACTION_CHUNK,
+    q_error: float = 0.0,
+    q_bad_value: float | None = None,
 ):
     """Build one shared q_hat source; values are computed on demand (not materialized).
 
@@ -614,6 +616,9 @@ def fit_shared_regression_bundle(
       - ``regression``: fit LogisticRegression on concat(our_x, our_a) from reg slice
       - ``logging_score``: CTR link on noisy logging embeddings (no fit)
       - ``oracle``: CTR link on clean env embeddings (sim diagnosis only)
+
+    ``q_error`` in [0, 1]: convex mix with a constant bad predictor after building
+    the base model.  With oracle base and constant bad, ||q_hat - q_oracle||_inf <= eps.
     """
     kind = str(reward_model).lower()
     if kind not in VALID_REWARD_MODELS:
@@ -676,6 +681,20 @@ def fit_shared_regression_bundle(
             flush=True,
         )
 
+    eps = float(np.clip(q_error, 0.0, 1.0))
+    if eps > 0.0:
+        from utils.bounded_q_model import BoundedErrorRewardModel, ConstantRewardModel
+
+        bad_val = 0.5 if q_bad_value is None else float(q_bad_value)
+        bad = ConstantRewardModel(bad_val, n_actions=n_actions, kind="constant_bad")
+        model = BoundedErrorRewardModel(model, bad, eps=eps, n_actions=n_actions)
+        print(
+            f"[RewardModel] bounded q_error={eps:g} bad_constant={bad_val:g} "
+            f"(base={kind})",
+            flush=True,
+        )
+        kind = f"{kind}_bounded_{eps:g}"
+
     return {
         "regression_model": model,
         "user_context": user_context,
@@ -684,6 +703,8 @@ def fit_shared_regression_bundle(
         "catalog_n_actions": int(n_actions),
         "sample_size": int(sample_size),
         "reward_model": kind,
+        "q_error": eps,
+        "q_bad_value": float(q_bad_value) if q_bad_value is not None else None,
     }
 
 from models.model_scoring import score_model_modular, score_model_modular_large
@@ -1110,7 +1131,8 @@ def _simulate_from_embedding_policy(dataset, our_x, our_a, n_samples, random_sta
         item_emb=our_a,
         emb_dim=int(our_x.shape[1]),
         temperature=_policy_temperature(dataset),
-        user_chunk=2048,
+        user_chunk=10_000,
+        action_chunk=10_000,
         rng=np.random.default_rng(rng),
         uniform_mix=_logging_uniform_mix(dataset),
     )

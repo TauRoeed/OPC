@@ -68,5 +68,34 @@
     "data": {
       "min_rating": 7.0
     }
+  },
+  "kuairec": {
+    "bpr": {
+      "factors": 32,
+      "learning_rate": 0.05,
+      "regularization": 1e-4,
+      "epochs": 30,
+      "mode": "samples",
+      "samples_per_epoch": 300000,
+      "random_state": 0
+    },
+    "data": {
+      "watch_ratio_min": 2.0,
+      "matrix": "big"
+    }
+  },
+  "kuairand": {
+    "bpr": {
+      "factors": 32,
+      "learning_rate": 0.05,
+      "regularization": 1e-4,
+      "epochs": 30,
+      "mode": "samples",
+      "samples_per_epoch": 250000,
+      "random_state": 0
+    },
+    "data": {
+      "positive_col": "is_click"
+    }
   }
 }

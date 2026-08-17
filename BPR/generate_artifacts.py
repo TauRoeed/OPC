@@ -9,6 +9,8 @@ from BPR.dataload import (
     build_csr_from_interactions,
     load_anime_dfs,
     load_artistwise_dfs,
+    load_kuairand,
+    load_kuairec,
     load_movielens_1m,
     load_myket,
     save_user_interaction_counts,
@@ -76,6 +78,33 @@ def _dataset_bundle(
             value_col=value_col,
             item_info=items,
         )
+    elif dataset == "kuairec":
+        ratings, users, items = load_kuairec(
+            root,
+            watch_ratio_min=float(data_cfg.get("watch_ratio_min", 2.0)),
+            matrix=str(data_cfg.get("matrix", "big")),
+            download=download,
+        )
+        data = build_csr_from_interactions(
+            interactions=ratings[["user_id", "item_id"]],
+            user_col="user_id",
+            item_col="item_id",
+            value_col=None,
+            item_info=items,
+        )
+    elif dataset == "kuairand":
+        ratings, users, items = load_kuairand(
+            root,
+            positive_col=str(data_cfg.get("positive_col", "is_click")),
+            download=download,
+        )
+        data = build_csr_from_interactions(
+            interactions=ratings[["user_id", "item_id"]],
+            user_col="user_id",
+            item_col="item_id",
+            value_col=None,
+            item_info=items,
+        )
     else:
         raise ValueError(f"Unsupported dataset '{dataset}'.")
 
@@ -88,7 +117,7 @@ def main():
     )
     parser.add_argument(
         "--dataset",
-        choices=["ml", "myket", "anime", "lastfm", "msd"],
+        choices=["ml", "myket", "anime", "lastfm", "msd", "kuairec", "kuairand"],
         required=True,
     )
     parser.add_argument(

@@ -2,6 +2,8 @@
 
 Offline policy comparison experiments with matrix-factorization embeddings.
 
+**Research continuation:** see [`docs/research_workplan.md`](docs/research_workplan.md) (SNR characterization, regimes, Kuai datasets, bias/reflection notes).
+
 Main flow:
 1. Fit/generate BPR artifacts (user/item factors + metadata arrays).
 2. Run OPC vs no-propensity experiments on simulated logged bandit data.
@@ -12,9 +14,10 @@ Main flow:
 - `BPR/` - BPR training and artifact generation.
 - `training/` - experiment runners and trainer implementations.
 - `models/` - model definitions and estimators.
-- `utils/` - simulation, policy, and plotting helpers.
+- `utils/` - simulation, policy, noise/SNR, and plotting helpers.
 - `datasets/` - dataset files (MovieLens, etc.).
 - `artifacts/` - generated outputs.
+- `docs/` - paper outline, workplan, SNR/regime/bias notes.
 
 ## Quick Setup
 
@@ -72,7 +75,7 @@ python -m BPR.smoke_test_loaders --include-large
 
 ### Important Arguments
 
-- `--dataset`: one of `ml`, `myket`, `anime`, `lastfm`, `msd`.
+- `--dataset`: one of `ml`, `myket`, `anime`, `lastfm`, `msd`, `kuairec`, `kuairand`.
 - `--root`: dataset path (for `lastfm` / `msd`, use the dataset file path expected by loader).
 - `--emb-dir`: output directory for generated `.npy` artifacts.
 

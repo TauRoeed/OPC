@@ -34,10 +34,13 @@ Main points:
 
 Suggested contribution bullets:
 
-- A controlled semi-synthetic evaluation framework built from real recommender datasets and BPR embeddings.
+- A controlled semi-synthetic evaluation framework built from real recommender datasets and BPR embeddings (including planned KuaiRec / KuaiRand-Pure extensions).
 - A policy fine-tuning pipeline with losses `kl_crm` (default), `kl`, `ipw`, `sndr`, `crm`, and `naive`.
 - A matched ablation comparing propensity-aware OPC to a pure-naive no-propensity baseline under identical splits and search budgets.
 - A systematic study across dataset, noise, CTR, train-size, validation-size, and seed conditions.
+- An SNR-based characterization of structured embedding noise (linear / cluster / metadata) relative to ε levels and to OPC correction magnitude.
+- Named experimental regimes (Mild–BrutalNoise, HurtLog, reward-model and selection regimes) for reproducible reporting.
+- Bias narratives linking each noise/logging axis to real-world phenomena (price sensitivity, popularity, temporal shift, exposure).
 
 ### 2. Background
 

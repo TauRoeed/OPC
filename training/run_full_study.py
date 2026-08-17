@@ -86,6 +86,8 @@ def _load_cached_method_trials(run_dir: Path, method: str) -> pd.DataFrame:
     return pd.DataFrame()
 
 
+from utils.noise_levels import VALID_NOISE_AXES, noise_eps as _noise_eps
+from utils.noise_snr import dataset_snr_report
 from utils.simulation_utils import generate_dataset
 
 
@@ -96,70 +98,6 @@ def _resolve_val_size_configs(args):
     if args.val_size is not None:
         return [(int(args.val_size), f"{int(args.val_size):g}")]
     return [(None, "frac")]
-
-
-_NOISE_LEVEL_COMBINED = {
-    "low": (0.05, 0.05, 0.0),
-    "medium": (0.10, 0.15, 0.05),
-    "high": (0.20, 0.25, 0.10),
-    # Harder logging damage (more GT wiped by noise templates).
-    "extreme": (0.35, 0.40, 0.20),
-    "brutal": (0.50, 0.50, 0.30),
-}
-
-# Per-axis magnitudes (matches the corresponding eps in the combined table).
-_NOISE_LEVEL_PER_AXIS = {
-    "context": {
-        "low": 0.05,
-        "medium": 0.10,
-        "high": 0.20,
-        "extreme": 0.35,
-        "brutal": 0.50,
-    },
-    "action": {
-        "low": 0.05,
-        "medium": 0.15,
-        "high": 0.25,
-        "extreme": 0.40,
-        "brutal": 0.50,
-    },
-    "metadata": {
-        "low": 0.0,
-        "medium": 0.05,
-        "high": 0.10,
-        "extreme": 0.20,
-        "brutal": 0.30,
-    },
-}
-
-VALID_NOISE_AXES = ("combined", "context", "action", "metadata")
-
-
-def _noise_level_to_eps(level: str):
-    if level not in _NOISE_LEVEL_COMBINED:
-        raise ValueError(f"Unsupported noise level '{level}'")
-    return _NOISE_LEVEL_COMBINED[level]
-
-
-def _noise_eps(level: str, axis: str):
-    """Return (eps1, eps2, eps_meta) for the requested axis at a given level.
-
-    - axis="combined" matches the legacy bundled mapping.
-    - axis in {"context", "action", "metadata"} perturbs only that axis.
-    """
-    if axis not in VALID_NOISE_AXES:
-        raise ValueError(f"Unsupported noise axis '{axis}'")
-    if axis == "combined":
-        return _noise_level_to_eps(level)
-    table = _NOISE_LEVEL_PER_AXIS[axis]
-    if level not in table:
-        raise ValueError(f"Unsupported noise level '{level}' for axis '{axis}'")
-    mag = float(table[level])
-    if axis == "context":
-        return (mag, 0.0, 0.0)
-    if axis == "action":
-        return (0.0, mag, 0.0)
-    return (0.0, 0.0, mag)
 
 
 def _dataset_paths(emb_dir: Path, dataset_name: str):
@@ -227,6 +165,9 @@ def _run_condition(
     logging_uniform_mix: float = 0.0,
     optuna_selection: str = "ci_low",
     reward_model: str = "regression",
+    q_error: float = 0.0,
+    q_bad_value: float | None = None,
+    rand_ctr_meta: dict | None = None,
 ):
     methods = _normalize_study_methods(methods)
     run_opc = "opc" in methods
@@ -291,6 +232,9 @@ def _run_condition(
         metadata_x=metadata_x,
         store_original=True,
     )
+    snr_report = dataset_snr_report(
+        dataset, eps1=float(eps1), eps2=float(eps2), eps_meta=float(eps_meta)
+    )
 
     reg_size = int(shared_regression_size)
     split_cache = LazyRegressionSplitCache(
@@ -311,6 +255,8 @@ def _run_condition(
         reward_model=str(reward_model),
         user_chunk=int(qhat_user_chunk),
         action_chunk=int(qhat_action_chunk),
+        q_error=float(q_error),
+        q_bad_value=q_bad_value,
     )
 
     opc_log_paths = {
@@ -420,6 +366,7 @@ def _run_condition(
         "eps1": float(eps1),
         "eps2": float(eps2),
         "eps_meta": float(eps_meta),
+        "snr": snr_report,
         "train_sizes": [int(x) for x in train_sizes],
         "n_trials": int(n_trials),
         "batch_size": int(batch_size),
@@ -452,6 +399,9 @@ def _run_condition(
         "reward_model": str(
             shared_regression_bundle.get("reward_model", reward_model)
         ),
+        "q_error": float(shared_regression_bundle.get("q_error", q_error)),
+        "q_bad_value": shared_regression_bundle.get("q_bad_value", q_bad_value),
+        "rand_ctr": rand_ctr_meta or {},
     }
     return opc_df, noprop_df, opc_trials, noprop_trials, meta
 

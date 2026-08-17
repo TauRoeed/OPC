@@ -10,6 +10,8 @@ from pathlib import Path
 from BPR.dataload import (
     load_anime_dfs,
     load_artistwise_dfs,
+    load_kuairand,
+    load_kuairec,
     load_movielens_1m,
     load_myket,
 )
@@ -33,6 +35,11 @@ def main():
         "--include-large",
         action="store_true",
         help="Also download/load LastFM and MSD (~700MB).",
+    )
+    parser.add_argument(
+        "--include-kuai",
+        action="store_true",
+        help="Also download/load KuaiRec and KuaiRand-Pure (large).",
     )
     parser.add_argument(
         "--keep-temp",
@@ -63,6 +70,12 @@ def main():
             )
         else:
             print("Skipping lastfm/msd (pass --include-large to test them).")
+
+        if args.include_kuai:
+            _check_loader("kuairec", DEFAULT_PATHS["kuairec"], load_kuairec)
+            _check_loader("kuairand", DEFAULT_PATHS["kuairand"], load_kuairand)
+        else:
+            print("Skipping kuairec/kuairand (pass --include-kuai to test them).")
 
         print("All smoke tests passed.")
     finally:

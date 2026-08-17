@@ -19,6 +19,8 @@ URLS = {
     "myket_app_info_csv": "https://huggingface.co/datasets/erfanloghmani/myket-android-application-recommendation-dataset/resolve/main/app_info.csv",
     "lastfm_hdf5": "https://github.com/benfred/recommender_data/releases/download/v1.0/lastfm_360k.hdf5",
     "msd_hdf5": "https://github.com/benfred/recommender_data/releases/download/v1.0/msd_taste_profile.hdf5",
+    "kuairec_zip": "https://zenodo.org/records/18164998/files/KuaiRec.zip",
+    "kuairand_pure_tar": "https://zenodo.org/records/10439422/files/KuaiRand-Pure.tar.gz",
 }
 
 DEFAULT_PATHS = {
@@ -27,6 +29,8 @@ DEFAULT_PATHS = {
     "myket": DEFAULT_DATASETS_ROOT / "myket",
     "lastfm": DEFAULT_DATASETS_ROOT / "lastfm" / "lastfm_360k.hdf5",
     "msd": DEFAULT_DATASETS_ROOT / "msd" / "msd_taste_profile.hdf5",
+    "kuairec": DEFAULT_DATASETS_ROOT / "kuairec",
+    "kuairand": DEFAULT_DATASETS_ROOT / "kuairand-pure",
 }
 
 
@@ -165,3 +169,84 @@ def ensure_msd(path: str | Path, *, download: bool = True) -> Path:
         url=URLS["msd_hdf5"],
         download=download,
     )
+
+
+def _resolve_data_subdir(root: Path, required: list[str]) -> Path | None:
+    """Return directory that already contains all required files, if any."""
+    candidates = [root, root / "data"]
+    # Also accept a single nested folder produced by archive extract.
+    if root.is_dir():
+        for child in root.iterdir():
+            if child.is_dir():
+                candidates.append(child)
+                candidates.append(child / "data")
+    for cand in candidates:
+        if cand.is_dir() and not _missing_files(cand, required):
+            return cand
+    return None
+
+
+def ensure_kuairec(root: str | Path, *, download: bool = True) -> Path:
+    """Ensure KuaiRec matrices/features are available; return the data directory."""
+    root = Path(root)
+    required = [
+        "big_matrix.csv",
+        "small_matrix.csv",
+        "item_categories.csv",
+        "user_features.csv",
+    ]
+    found = _resolve_data_subdir(root, required)
+    if found is not None:
+        return found
+    if not download:
+        raise FileNotFoundError(f"KuaiRec missing under {root}: need {required}")
+
+    root.mkdir(parents=True, exist_ok=True)
+    archive = root / "KuaiRec.zip"
+    if not archive.exists():
+        print(f"Downloading KuaiRec to {archive} ...")
+        _download_file(URLS["kuairec_zip"], archive)
+
+    print(f"Extracting {archive} ...")
+    with zipfile.ZipFile(archive, "r") as zf:
+        zf.extractall(root)
+
+    found = _resolve_data_subdir(root, required)
+    if found is None:
+        raise FileNotFoundError(f"KuaiRec extract incomplete under {root}: need {required}")
+    return found
+
+
+def ensure_kuairand_pure(root: str | Path, *, download: bool = True) -> Path:
+    """Ensure KuaiRand-Pure logs/features are available; return the data directory."""
+    root = Path(root)
+    required = [
+        "log_random_4_22_to_5_08_pure.csv",
+        "log_standard_4_08_to_4_21_pure.csv",
+        "log_standard_4_22_to_5_08_pure.csv",
+        "user_features_pure.csv",
+        "video_features_basic_pure.csv",
+    ]
+    found = _resolve_data_subdir(root, required)
+    if found is not None:
+        return found
+    if not download:
+        raise FileNotFoundError(f"KuaiRand-Pure missing under {root}: need {required}")
+
+    root.mkdir(parents=True, exist_ok=True)
+    archive = root / "KuaiRand-Pure.tar.gz"
+    if not archive.exists():
+        print(f"Downloading KuaiRand-Pure to {archive} ...")
+        _download_file(URLS["kuairand_pure_tar"], archive)
+
+    print(f"Extracting {archive} ...")
+    with tarfile.open(archive, "r:gz") as tf:
+        # Avoid chown failures in restricted environments.
+        tf.extractall(root, filter="data")
+
+    found = _resolve_data_subdir(root, required)
+    if found is None:
+        raise FileNotFoundError(
+            f"KuaiRand-Pure extract incomplete under {root}: need {required}"
+        )
+    return found

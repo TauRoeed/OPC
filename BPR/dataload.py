@@ -10,6 +10,8 @@ from dataclasses import dataclass
 
 from BPR.dataset_download import (
     ensure_anime,
+    ensure_kuairand_pure,
+    ensure_kuairec,
     ensure_lastfm,
     ensure_movielens_1m,
     ensure_msd,
@@ -64,6 +66,42 @@ DATASET_METADATA_CONFIG = {
         "user_id_col": "user_id",
         "user_numeric_cols": [],
         "user_categorical_cols": [],
+    },
+    "kuairec": {
+        "item_id_col": "item_id",
+        "item_numeric_cols": [],
+        "item_categorical_cols": ["feat"],
+        "item_multivalue_sep": {"feat": "|"},
+        "user_id_col": "user_id",
+        "user_numeric_cols": [],
+        "user_categorical_cols": [
+            "onehot_feat0",
+            "onehot_feat1",
+            "onehot_feat2",
+            "onehot_feat7",
+            "onehot_feat8",
+            "onehot_feat9",
+            "onehot_feat10",
+            "onehot_feat11",
+        ],
+    },
+    "kuairand": {
+        "item_id_col": "item_id",
+        "item_numeric_cols": ["video_duration"],
+        "item_categorical_cols": ["video_type", "upload_type", "tag"],
+        "item_multivalue_sep": {"tag": ","},
+        "user_id_col": "user_id",
+        "user_numeric_cols": [],
+        "user_categorical_cols": [
+            "onehot_feat0",
+            "onehot_feat1",
+            "onehot_feat2",
+            "onehot_feat7",
+            "onehot_feat8",
+            "onehot_feat9",
+            "onehot_feat10",
+            "onehot_feat11",
+        ],
     },
 }
 
@@ -302,6 +340,138 @@ def load_anime_dfs(
     items["item_id"] = items["item_id"].astype(int)
     items = items.drop_duplicates("item_id").reset_index(drop=True)
 
+    return ratings, users, items
+
+
+def _feat_list_to_pipe(value) -> str:
+    """Convert KuaiRec feat cell ([27, 9] or '[27, 9]') to pipe-separated tags."""
+    if value is None or (isinstance(value, float) and np.isnan(value)):
+        return ""
+    if isinstance(value, (list, tuple)):
+        return "|".join(str(int(x)) for x in value)
+    text = str(value).strip()
+    if not text:
+        return ""
+    if text.startswith("[") and text.endswith("]"):
+        try:
+            import ast
+
+            parsed = ast.literal_eval(text)
+            if isinstance(parsed, (list, tuple)):
+                return "|".join(str(int(x)) for x in parsed)
+        except (SyntaxError, ValueError, TypeError):
+            pass
+    return text.replace(",", "|")
+
+
+def load_kuairec(
+    root: str,
+    *,
+    watch_ratio_min: float = 2.0,
+    matrix: str = "big",
+    download: bool = True,
+) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """
+    Load KuaiRec interactions + side info.
+
+    Positive interactions: watch_ratio >= watch_ratio_min (paper default 2.0).
+    ``matrix`` is ``big`` or ``small``.
+    """
+    data_dir = ensure_kuairec(root, download=download)
+    matrix_name = "big_matrix.csv" if matrix != "small" else "small_matrix.csv"
+    matrix_path = data_dir / matrix_name
+    if not matrix_path.exists():
+        raise FileNotFoundError(f"KuaiRec matrix missing: {matrix_path}")
+
+    interactions = pd.read_csv(matrix_path)
+    interactions = interactions.rename(columns={"video_id": "item_id"})
+    interactions = interactions[
+        interactions["watch_ratio"] >= float(watch_ratio_min)
+    ].copy()
+    ratings = interactions[["user_id", "item_id"]].copy()
+    ratings["user_id"] = ratings["user_id"].astype(int)
+    ratings["item_id"] = ratings["item_id"].astype(int)
+
+    items_path = data_dir / "item_categories.csv"
+    if items_path.exists():
+        items = pd.read_csv(items_path).rename(columns={"video_id": "item_id"})
+        if "feat" in items.columns:
+            items["feat"] = items["feat"].map(_feat_list_to_pipe)
+    else:
+        items = ratings[["item_id"]].drop_duplicates()
+
+    users_path = data_dir / "user_features.csv"
+    if users_path.exists():
+        users = pd.read_csv(users_path)
+    else:
+        users = (
+            ratings[["user_id"]]
+            .drop_duplicates()
+            .sort_values("user_id")
+            .reset_index(drop=True)
+        )
+
+    items["item_id"] = items["item_id"].astype(int)
+    items = items.drop_duplicates("item_id").reset_index(drop=True)
+    return ratings, users, items
+
+
+def load_kuairand(
+    root: str,
+    *,
+    positive_col: str = "is_click",
+    download: bool = True,
+) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """
+    Load KuaiRand-Pure logs (standard + random) as implicit positives.
+
+    Positives: ``positive_col == 1`` (default ``is_click``; fallback ``long_view``).
+    """
+    data_dir = ensure_kuairand_pure(root, download=download)
+    log_files = sorted(data_dir.glob("log_*.csv"))
+    if not log_files:
+        raise FileNotFoundError(f"No KuaiRand log_*.csv under {data_dir}")
+
+    frames = [pd.read_csv(path) for path in log_files]
+    logs = pd.concat(frames, ignore_index=True)
+    logs = logs.rename(columns={"video_id": "item_id"})
+
+    col = positive_col
+    if col not in logs.columns:
+        if "long_view" in logs.columns:
+            col = "long_view"
+        elif "is_click" in logs.columns:
+            col = "is_click"
+        else:
+            raise ValueError(
+                f"KuaiRand logs missing positive column '{positive_col}' "
+                f"(columns={list(logs.columns)[:20]})"
+            )
+
+    positives = logs[logs[col].astype(float) >= 1.0][["user_id", "item_id"]].copy()
+    positives["user_id"] = positives["user_id"].astype(int)
+    positives["item_id"] = positives["item_id"].astype(int)
+    ratings = positives.drop_duplicates().reset_index(drop=True)
+
+    items_path = data_dir / "video_features_basic_pure.csv"
+    if items_path.exists():
+        items = pd.read_csv(items_path).rename(columns={"video_id": "item_id"})
+    else:
+        items = ratings[["item_id"]].drop_duplicates()
+
+    users_path = data_dir / "user_features_pure.csv"
+    if users_path.exists():
+        users = pd.read_csv(users_path)
+    else:
+        users = (
+            ratings[["user_id"]]
+            .drop_duplicates()
+            .sort_values("user_id")
+            .reset_index(drop=True)
+        )
+
+    items["item_id"] = items["item_id"].astype(int)
+    items = items.drop_duplicates("item_id").reset_index(drop=True)
     return ratings, users, items
 
 

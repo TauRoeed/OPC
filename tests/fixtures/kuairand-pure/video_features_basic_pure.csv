@@ -1,0 +1,4 @@
+video_id,author_id,video_type,upload_type,video_duration,tag
+100,1,NORMAL,ShortImport,12000,"12,65"
+101,2,AD,ShortImport,8000,"12"
+102,3,NORMAL,LongImport,20000,"65,7"
