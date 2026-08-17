@@ -21,6 +21,7 @@ if [[ "${SMOKE:-0}" == "1" ]]; then
     --val-sizes 50000 \
     --seeds 0 \
     --n-trials 3 \
+    --policy-losses sndr \
     --qhat-user-chunk 10000 \
     --qhat-action-chunk 10000 \
     --max-workers 2 \
@@ -42,6 +43,7 @@ python -m training.run_h1_study \
   --val-sizes 50000 100000 200000 \
   --seeds 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 \
   --n-trials 15 \
+  --policy-losses sndr \
   --policy-temperature 2.0 \
   --qhat-user-chunk 10000 \
   --qhat-action-chunk 10000 \

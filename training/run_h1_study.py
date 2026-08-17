@@ -266,7 +266,7 @@ def main():
     p.add_argument("--qhat-action-chunk", type=int, default=10_000)
     p.add_argument("--shared-regression-size", type=int, default=50_000)
     p.add_argument("--n-rand-ctr-samples", type=int, default=10_000)
-    p.add_argument("--policy-losses", nargs="+", default=["kl_crm"])
+    p.add_argument("--policy-losses", nargs="+", default=["sndr"])
     p.add_argument("--slim", action="store_true")
     p.add_argument("--require-cuda", action="store_true")
     p.add_argument(

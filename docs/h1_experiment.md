@@ -5,7 +5,7 @@
 **One-liner (full ablation).** Sweeps datasets, noise, train size, rand_CTR, q-error, logging mix, val size, and 15 seeds. Then analyzes.
 
 ```bash
-python -m training.run_h1_study --datasets ml anime myket kuairec --run-tag h1_full --train-sizes 5000 25000 100000 250000 400000 --target-rand-ctrs 0.02 0.08 0.18 --q-errors 0.0 0.25 0.5 0.75 1.0 --logging-mixes 0.0 0.3 --noise-levels low medium high extreme brutal --val-sizes 50000 100000 200000 --seeds 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 --n-trials 15 --policy-temperature 2.0 --qhat-user-chunk 10000 --qhat-action-chunk 10000 --num-gpus 2 --workers-per-gpu 16 --require-cuda --slim && python -m training.analyze_h1_study --root artifacts/h1_study/run_h1_full
+python -m training.run_h1_study --datasets ml anime myket kuairec --run-tag h1_full --train-sizes 5000 25000 100000 250000 400000 --target-rand-ctrs 0.02 0.08 0.18 --q-errors 0.0 0.25 0.5 0.75 1.0 --logging-mixes 0.0 0.3 --noise-levels low medium high extreme brutal --val-sizes 50000 100000 200000 --seeds 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 --n-trials 15 --policy-losses sndr --policy-temperature 2.0 --qhat-user-chunk 10000 --qhat-action-chunk 10000 --num-gpus 2 --workers-per-gpu 16 --require-cuda --slim && python -m training.analyze_h1_study --root artifacts/h1_study/run_h1_full
 ```
 
 Uses **2 GPUs** and **16 workers per GPU** (32 processes). User–item scoring chunks are **10k**. OOM backoff drops workers if VRAM dies.
@@ -31,7 +31,7 @@ SMOKE=1 ./scripts/run_h1_study.sh
 | `logging_mix` `alpha` | 0, 0.3 | CleanLog vs HurtLog (`alpha=0.3` and temperature `T=2`) |
 | seeds | 0–14 | repeats |
 
-Fixed: noise mode `kmeans_templates` / axis `combined`, OPC loss `kl_crm`, naive loss `naive`, qhat chunks 10k, 16 workers/GPU.
+Fixed: noise mode `kmeans_templates` / axis `combined`, OPC loss `sndr` (no KL/CRM), naive loss `naive`, qhat chunks 10k, 16 workers/GPU.
 
 Outcome:
 
@@ -145,7 +145,7 @@ Same `T` as logging.
 Batch: users, logged actions `a`, rewards `r`, propensities `p`.  
 Model outputs `pi_theta(·|u)` over all items.
 
-**OPC** (`kl_crm`, uses logged `p`, log-trick on):
+**OPC** (`sndr`, logged `p`, log-trick on, **no** KL, **no** CRM):
 
 ```text
 w_i     =  pi_theta(a_i | u_i) / p_i
@@ -153,11 +153,9 @@ DM_i    =  sum_a  q_hat(u_i, a) * pi_theta(a | u_i)
 SNDR_i  =  w_i * (r_i - q_hat(u_i, a_i)) / mean(w)  +  DM_i
 
 L_OPC   =  - mean(SNDR surrogate)
-         + gamma * mean( log p_i - log pi_theta(a_i|u_i) )     # KL toward logging
-         + lambda * sqrt( Var(u) / n_batch )                   # CRM variance
 ```
 
-with `u_i = - r_i * clip(w_i, M)`. Adam on MLP weights.
+Adam on MLP weights. Optuna does **not** search `gamma`, `M`, `lambda`.
 
 **Naive** (same data, same model family, **no** propensities, no `q_hat`, no KL/CRM):
 
@@ -165,7 +163,7 @@ with `u_i = - r_i * clip(w_i, M)`. Adam on MLP weights.
 L_naive  =  - mean( r_i * pi_theta(a_i | u_i) )
 ```
 
-Optuna searches lr, epochs, batch, decay, `gamma`, `M`, `lambda`. Selection uses val OPE (`r_hat` / `ci_low`), **not** true `V`, unless you set oracle selection.
+Optuna searches lr, epochs, batch, decay. Selection uses val OPE (`r_hat` / `ci_low`), **not** true `V`, unless you set oracle selection.
 
 ### 9. Score on the true world
 
@@ -231,5 +229,5 @@ Those cutoffs come from the grid, not from a theorem.
 | `utils/bounded_q_model.py` | `eps`-bounded `q_hat` |
 | `scripts/run_h1_study.sh` | smoke / full wrapper |
 | `utils/simulation_utils.py` | `q*`, logs, true `V` |
-| `models/custom_losses.py` | `kl_crm` vs `naive` |
+| `models/custom_losses.py` | `sndr` vs `naive` |
 | `models/models.py` | `CFModel` residual MLPs |
