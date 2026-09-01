@@ -174,6 +174,8 @@ def _policy_loss_needs_crm(policy_loss_types: tuple[str, ...] | list[str]) -> bo
 # Max working blocks for q_hat / softmax (user_chunk, action_chunk); no full n_users x n_actions.
 DEFAULT_QHAT_USER_CHUNK = 5000
 DEFAULT_QHAT_ACTION_CHUNK = 5000
+# Auto-materialize q_hat_all when matrix fits in this budget (float32, bytes).
+DEFAULT_QHAT_MATERIALIZE_MAX_GB = 4.0
 DEFAULT_OPTUNA_BATCH_SIZES = (4096, 8192, 16384)
 DEFAULT_NEIGHBORHOOD_OPTUNA_BATCH_SIZES = (64, 128, 256, 512)
 LOGGED_RUN_IDX = 0
@@ -609,6 +611,7 @@ def fit_shared_regression_bundle(
     action_chunk: int = DEFAULT_QHAT_ACTION_CHUNK,
     q_error: float = 0.0,
     q_bad_value: float | None = None,
+    materialize_qhat: str = "auto",
 ):
     """Build one shared q_hat source; values are computed on demand (not materialized).
 
@@ -695,7 +698,7 @@ def fit_shared_regression_bundle(
         )
         kind = f"{kind}_bounded_{eps:g}"
 
-    return {
+    bundle = {
         "regression_model": model,
         "user_context": user_context,
         "user_chunk": int(user_chunk),
@@ -706,6 +709,30 @@ def fit_shared_regression_bundle(
         "q_error": eps,
         "q_bad_value": float(q_bad_value) if q_bad_value is not None else None,
     }
+    mat_mode = str(materialize_qhat).lower()
+    n_users = int(np.asarray(user_context).shape[0])
+    q_bytes = int(n_users) * int(n_actions) * 4
+    should_materialize = mat_mode == "always" or (
+        mat_mode == "auto" and q_bytes <= _qhat_materialize_limit_bytes()
+    )
+    if should_materialize:
+        t0 = time.time()
+        bundle["q_hat_all"] = materialize_regression_qhat_all(
+            model,
+            user_context,
+            user_chunk=int(user_chunk),
+            action_chunk=int(action_chunk),
+        )
+        print(
+            f"[q_hat] materialized {n_users}x{n_actions} "
+            f"({q_bytes / 1e6:.1f} MB) in {time.time() - t0:.2f}s",
+            flush=True,
+        )
+    elif mat_mode not in ("auto", "never"):
+        raise ValueError(
+            f"materialize_qhat must be auto|always|never, got {materialize_qhat!r}"
+        )
+    return bundle
 
 from models.model_scoring import score_model_modular, score_model_modular_large
 random_state = 12345
@@ -1196,6 +1223,38 @@ def _predict_regression_qhat_user_action_block(
     return q_hat
 
 
+def _qhat_materialize_limit_bytes() -> int:
+    raw = os.environ.get("OPC_QHAT_MATERIALIZE_MAX_GB")
+    if raw is not None:
+        return int(float(raw) * 1024**3)
+    return int(DEFAULT_QHAT_MATERIALIZE_MAX_GB * 1024**3)
+
+
+def materialize_regression_qhat_all(
+    regression_model,
+    user_context: np.ndarray,
+    *,
+    user_chunk: int = DEFAULT_QHAT_USER_CHUNK,
+    action_chunk: int = DEFAULT_QHAT_ACTION_CHUNK,
+    show_progress: bool = False,
+) -> np.ndarray:
+    """Dense (n_users, n_actions) q_hat; same values as lazy lookup."""
+    user_context = np.asarray(user_context, dtype=np.float32)
+    n_users = int(user_context.shape[0])
+    user_ids = np.arange(n_users, dtype=np.int64)
+    q = predict_regression_qhat_users(
+        regression_model,
+        user_context,
+        user_ids,
+        user_chunk=user_chunk,
+        action_chunk=action_chunk,
+        show_progress=show_progress,
+    )
+    if q.ndim == 3 and q.shape[2] == 1:
+        return np.asarray(q[:, :, 0], dtype=np.float32)
+    return np.asarray(q, dtype=np.float32)
+
+
 def predict_regression_qhat_users(
     regression_model,
     user_context: np.ndarray,
@@ -1228,7 +1287,7 @@ def predict_regression_qhat_users(
 
 
 class RegressionScoresLookup:
-    """On-demand q_hat rows for training batches (no full n_users x n_actions tensor)."""
+    """q_hat rows for training batches; optional dense ``q_hat_all`` cache on CPU."""
 
     def __init__(
         self,
@@ -1238,6 +1297,7 @@ class RegressionScoresLookup:
         *,
         user_chunk: int = DEFAULT_QHAT_USER_CHUNK,
         action_chunk: int = DEFAULT_QHAT_ACTION_CHUNK,
+        q_hat_all: np.ndarray | None = None,
     ):
         self.regression_model = regression_model
         self.user_context = np.asarray(user_context)
@@ -1246,11 +1306,18 @@ class RegressionScoresLookup:
         self.action_chunk = int(action_chunk)
         self.n_actions = _catalog_n_actions(regression_model)
         self.show_progress = False
+        self.q_hat_all = None
+        if q_hat_all is not None:
+            arr = np.asarray(q_hat_all, dtype=np.float32)
+            if arr.ndim == 3:
+                arr = arr[:, :, 0]
+            self.q_hat_all = arr
 
-    def __getitem__(self, user_idx):
-        if isinstance(user_idx, torch.Tensor):
-            user_idx = user_idx.detach().cpu().numpy()
+    def qhat_rows_numpy(self, user_idx: np.ndarray) -> np.ndarray:
+        """(n_rows, n_actions) q_hat for user indices; exact same math as lazy path."""
         user_idx = np.asarray(user_idx, dtype=np.int64).reshape(-1)
+        if self.q_hat_all is not None:
+            return self.q_hat_all[user_idx]
         unique, inverse = np.unique(user_idx, return_inverse=True)
         q = predict_regression_qhat_users(
             self.regression_model,
@@ -1262,29 +1329,23 @@ class RegressionScoresLookup:
         )
         if q.ndim == 3 and q.shape[2] == 1:
             q = q[:, :, 0]
-        return torch.as_tensor(q[inverse], device=self.device, dtype=torch.float32)
+        return q[inverse]
+
+    def __getitem__(self, user_idx):
+        if isinstance(user_idx, torch.Tensor):
+            user_idx = user_idx.detach().cpu().numpy()
+        q = self.qhat_rows_numpy(np.asarray(user_idx, dtype=np.int64).reshape(-1))
+        return torch.as_tensor(q, device=self.device, dtype=torch.float32)
 
 
 def _scores_lookup_from_bundle(bundle: dict, device) -> RegressionScoresLookup:
-    if "q_hat_all" in bundle:
-        arr = np.asarray(bundle["q_hat_all"], dtype=np.float32)
-        if arr.ndim == 3:
-            arr = arr[:, :, 0]
-
-        class _DenseScores:
-            def __init__(self, tensor):
-                self._t = torch.as_tensor(tensor, device=device, dtype=torch.float32)
-
-            def __getitem__(self, user_idx):
-                return self._t[user_idx.long()]
-
-        return _DenseScores(arr)
     return RegressionScoresLookup(
         bundle["regression_model"],
         bundle["user_context"],
         device,
         user_chunk=int(bundle.get("user_chunk", DEFAULT_QHAT_USER_CHUNK)),
         action_chunk=int(bundle.get("action_chunk", DEFAULT_QHAT_ACTION_CHUNK)),
+        q_hat_all=bundle.get("q_hat_all"),
     )
 
 
@@ -1395,7 +1456,6 @@ def _dm_reward_rows_chunked(
     for rs in range(0, n_rows, uc):
         re = min(n_rows, rs + uc)
         u_block = users[rs:re]
-        ctx = score_lookup.user_context[u_block]
         u_emb = xw[u_block]
         for a0, a1, pi in _iter_full_softmax_action_blocks(
             u_emb,
@@ -1405,9 +1465,9 @@ def _dm_reward_rows_chunked(
             desc="DR DM",
             n_rows=re - rs,
         ):
-            q = _predict_regression_qhat_user_action_block(
-                score_lookup.regression_model, ctx, a0, a1
-            )[:, :, 0]
+            q = score_lookup.qhat_rows_numpy(u_block)[:, a0:a1]
+            if q.ndim == 1:
+                q = q[:, None]
             dm[rs:re] += (q * pi).sum(axis=1)
     return dm
 

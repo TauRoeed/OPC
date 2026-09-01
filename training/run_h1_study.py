@@ -171,12 +171,12 @@ def _iter_h1_configs(args, out_root: Path, n_rand_by_dataset: dict[str, int]):
     noise_levels = list(args.noise_levels)
     for dataset_name in args.datasets:
         n_rand = int(n_rand_by_dataset[dataset_name])
-        for noise_level in noise_levels:
-            for target in ctr_targets:
-                for q_err in args.q_errors:
-                    for log_mix in args.logging_mixes:
-                        for val_size in val_sizes:
-                            for seed in args.seeds:
+        for seed in args.seeds:
+            for noise_level in noise_levels:
+                for target in ctr_targets:
+                    for q_err in args.q_errors:
+                        for log_mix in args.logging_mixes:
+                            for val_size in val_sizes:
                                 run_key = (
                                     f"dataset={dataset_name}__noise={noise_level}"
                                     f"__target_rho={target:g}__qerr={q_err:g}"
