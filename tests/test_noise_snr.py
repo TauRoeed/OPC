@@ -43,7 +43,10 @@ class TestNoiseSNR(unittest.TestCase):
         self.assertEqual(noise_eps("high", "context"), (0.20, 0.0, 0.0))
         self.assertEqual(noise_eps("high", "action"), (0.0, 0.25, 0.0))
         self.assertEqual(noise_eps("high", "metadata"), (0.0, 0.0, 0.10))
-        self.assertTrue({"low", "medium", "high", "extreme", "brutal"} <= set(VALID_NOISE_LEVELS))
+        self.assertTrue(
+            {"low", "medium", "high", "extreme", "brutal", "catastrophic"}
+            <= set(VALID_NOISE_LEVELS)
+        )
 
     def test_isolate_component_metrics(self):
         rng = np.random.default_rng(2)

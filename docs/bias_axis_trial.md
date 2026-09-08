@@ -32,6 +32,51 @@ Parallel launch (same grid, multi-GPU): use `training.run_full_study_parallel` w
 
 ---
 
+## Expanded follow-up (fixed val + more seeds + harder noise)
+
+First run used `val_frac=0.15` (no fixed val). Follow-up holds **fixed** validation sizes and stresses the high end of the noise ladder.
+
+```bash
+./scripts/run_bias_axes_val_sweep.sh
+# or Docker: IMAGE=opc:gpu ./scripts/run_bias_axes_val_sweep.sh
+# smoke:    SMOKE=1 ./scripts/run_bias_axes_val_sweep.sh
+```
+
+Equivalent flags:
+
+```bash
+python -m training.run_full_study_parallel \
+  --datasets ml \
+  --noise-axes context action metadata combined \
+  --noise-levels high extreme brutal catastrophic \
+  --ctr-levels 0.05 \
+  --train-sizes 5000 25000 50000 100000 \
+  --val-sizes 20000 50000 \
+  --seeds 0 1 2 3 4 5 6 7 8 9 \
+  --n-trials 20 \
+  --slim --skip-completed --require-cuda \
+  --run-tag bias_axes_val20_50_s10_hard
+```
+
+| Knob | Value | vs first run |
+|------|-------|--------------|
+| Validation | **fixed** `--val-sizes 20000 50000` | was `val_frac=0.15` |
+| Seeds | **0–9** (10) | was 0–4 (5) |
+| Noise levels | `high` `extreme` `brutal` **`catastrophic`** | drops low/medium; adds beyond brutal |
+| Layout | `run_…/val_20000/`, `run_…/val_50000/` | one flat run dir before |
+
+**Grid size:** 4 axes × 4 levels × 10 seeds × 2 vals = **320 conditions**.
+
+New severity row (single-axis ε on the named channel):
+
+| Level | context ε | action ε | metadata ε |
+|-------|-----------|----------|------------|
+| catastrophic | 0.70 | 0.70 | 0.45 |
+
+Combined arm uses `(0.70, 0.70, 0.45)`.
+
+---
+
 ## What is held fixed
 
 | Knob | Value | Notes |
@@ -58,7 +103,7 @@ Parallel launch (same grid, multi-GPU): use `training.run_full_study_parallel` w
 | Axis | Values | Meaning |
 |------|--------|---------|
 | `noise_axis` | `context`, `action`, `metadata`, `combined` | **Which channel** is corrupted; only one active per condition folder |
-| `noise_level` | `low`, `medium`, `high`, `extreme`, `brutal` | **How much** corruption on that channel |
+| `noise_level` | `low`, `medium`, `high`, `extreme`, `brutal`, `catastrophic` | **How much** corruption on that channel |
 | `seed` | 0–4 | Stochasticity in noise templates + data draws |
 | `train_size` | 5k … 100k | Amount of logged trajectories for learning |
 
@@ -86,6 +131,7 @@ Logging policy and propensity scores are computed from the **noisy** representat
 | high | 0.20 | 0.25 | 0.10 |
 | extreme | 0.35 | 0.40 | 0.20 |
 | brutal | 0.50 | 0.50 | 0.30 |
+| catastrophic | 0.70 | 0.70 | 0.45 |
 
 **Combined arm** uses the bundled triple `(eps1, eps2, eps_meta)` from the same file, e.g. medium → `(0.10, 0.15, 0.05)`.
 

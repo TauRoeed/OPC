@@ -9,6 +9,8 @@ NOISE_LEVEL_COMBINED: dict[str, tuple[float, float, float]] = {
     # Harder logging damage (more GT wiped by noise templates).
     "extreme": (0.35, 0.40, 0.20),
     "brutal": (0.50, 0.50, 0.30),
+    # Beyond brutal — most of the clean signal replaced by noise templates.
+    "catastrophic": (0.70, 0.70, 0.45),
 }
 
 NOISE_LEVEL_PER_AXIS: dict[str, dict[str, float]] = {
@@ -18,6 +20,7 @@ NOISE_LEVEL_PER_AXIS: dict[str, dict[str, float]] = {
         "high": 0.20,
         "extreme": 0.35,
         "brutal": 0.50,
+        "catastrophic": 0.70,
     },
     "action": {
         "low": 0.05,
@@ -25,6 +28,7 @@ NOISE_LEVEL_PER_AXIS: dict[str, dict[str, float]] = {
         "high": 0.25,
         "extreme": 0.40,
         "brutal": 0.50,
+        "catastrophic": 0.70,
     },
     "metadata": {
         "low": 0.0,
@@ -32,6 +36,7 @@ NOISE_LEVEL_PER_AXIS: dict[str, dict[str, float]] = {
         "high": 0.10,
         "extreme": 0.20,
         "brutal": 0.30,
+        "catastrophic": 0.45,
     },
 }
 

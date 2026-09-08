@@ -443,8 +443,9 @@ def main():
         "--noise-levels",
         nargs="+",
         default=["low", "medium", "high"],
-        help="Noise levels: low/medium/high/extreme/brutal "
-        "(extreme≈0.35+0.40+0.20, brutal≈0.50+0.50+0.30 eps mix).",
+        help="Noise levels: low/medium/high/extreme/brutal/catastrophic "
+        "(extreme≈0.35+0.40+0.20, brutal≈0.50+0.50+0.30, "
+        "catastrophic≈0.70+0.70+0.45 eps mix).",
     )
     parser.add_argument(
         "--logging-uniform-mix",

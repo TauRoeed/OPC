@@ -9,7 +9,7 @@ import pandas as pd
 from training.metrics_utils import pct_change
 
 
-_LEVEL_ORDER = ["low", "medium", "high"]
+_LEVEL_ORDER = ["low", "medium", "high", "extreme", "brutal", "catastrophic"]
 
 
 def _ensure_dir(path: Path):

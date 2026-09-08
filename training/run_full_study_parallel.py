@@ -384,7 +384,7 @@ def main():
         "--noise-levels",
         nargs="+",
         default=["low", "high"],
-        help="Noise levels: low/medium/high/extreme/brutal.",
+        help="Noise levels: low/medium/high/extreme/brutal/catastrophic.",
     )
     parser.add_argument(
         "--logging-uniform-mix",
