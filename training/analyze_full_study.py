@@ -64,6 +64,7 @@ def _load_long(run_dir: Path, filename: str):
             "dataset": "dataset",
             "noise": "noise_mode",
             "axis": "noise_axis",
+            "comp": "noise_component",
             "level": "noise_level",
             "seed": "seed",
             "ctr": "ctr",
@@ -76,6 +77,8 @@ def _load_long(run_dir: Path, filename: str):
                 tagged = pd.to_numeric(tags[src], errors="coerce")
                 current = pd.to_numeric(df[dst], errors="coerce")
                 df[dst] = current.fillna(tagged)
+        if "noise_component" not in df.columns:
+            df["noise_component"] = "combined"
         frames.append(df)
     if not frames:
         return pd.DataFrame()
@@ -87,6 +90,8 @@ def _load_long(run_dir: Path, filename: str):
         out["ctr"] = pd.to_numeric(out["ctr"], errors="coerce")
     if "noise_axis" not in out.columns:
         out["noise_axis"] = "combined"
+    if "noise_component" not in out.columns:
+        out["noise_component"] = "combined"
     return out
 
 

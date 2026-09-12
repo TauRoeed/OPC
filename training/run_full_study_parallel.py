@@ -63,6 +63,7 @@ def _parallel_worker_init(worker_slot, num_gpus: int) -> None:
 
 from training.run_full_study import (
     VALID_NOISE_AXES,
+    VALID_NOISE_COMPONENTS,
     VALID_STUDY_METHODS,
     _collect_existing_summaries,
     _finalize_summary_df,
@@ -83,27 +84,30 @@ def _iter_run_configs(args, val_size_cfg, val_label, val_root: Path):
     for dataset_name in args.datasets:
         for noise_mode in args.noise_modes:
             for noise_axis in args.noise_axes:
-                for noise_level in args.noise_levels:
-                    for ctr in args.ctr_levels:
-                        for seed in args.seeds:
-                            run_key = (
-                                f"dataset={dataset_name}__noise={noise_mode}"
-                                f"__axis={noise_axis}__level={noise_level}"
-                                f"__ctr={ctr:g}__seed={seed}"
-                            )
-                            if val_label != "frac":
-                                run_key = f"{run_key}__val={val_label}"
-                            yield {
-                                "dataset_name": dataset_name,
-                                "noise_mode": noise_mode,
-                                "noise_axis": noise_axis,
-                                "noise_level": noise_level,
-                                "ctr": float(ctr),
-                                "seed": int(seed),
-                                "run_key": run_key,
-                                "run_dir": str(val_root / run_key),
-                                "val_size": val_size_cfg,
-                            }
+                for noise_component in args.noise_components:
+                    for noise_level in args.noise_levels:
+                        for ctr in args.ctr_levels:
+                            for seed in args.seeds:
+                                run_key = (
+                                    f"dataset={dataset_name}__noise={noise_mode}"
+                                    f"__axis={noise_axis}__comp={noise_component}"
+                                    f"__level={noise_level}"
+                                    f"__ctr={ctr:g}__seed={seed}"
+                                )
+                                if val_label != "frac":
+                                    run_key = f"{run_key}__val={val_label}"
+                                yield {
+                                    "dataset_name": dataset_name,
+                                    "noise_mode": noise_mode,
+                                    "noise_axis": noise_axis,
+                                    "noise_component": noise_component,
+                                    "noise_level": noise_level,
+                                    "ctr": float(ctr),
+                                    "seed": int(seed),
+                                    "run_key": run_key,
+                                    "run_dir": str(val_root / run_key),
+                                    "val_size": val_size_cfg,
+                                }
 
 
 def _is_oom_like(exc: BaseException) -> bool:
@@ -312,6 +316,7 @@ def _execute_run(config: dict):
         emb_dir=Path(config["emb_dir"]),
         noise_mode=config["noise_mode"],
         noise_axis=config["noise_axis"],
+        noise_component=config.get("noise_component", "combined"),
         noise_level=config["noise_level"],
         ctr=config["ctr"],
         seed=config["seed"],
@@ -349,6 +354,7 @@ def _execute_run(config: dict):
         dataset=config["dataset_name"],
         noise_mode=config["noise_mode"],
         noise_axis=config["noise_axis"],
+        noise_component=config.get("noise_component", "combined"),
         noise_level=config["noise_level"],
         seed=config["seed"],
     )
@@ -378,7 +384,15 @@ def main():
         nargs="+",
         default=["combined"],
         choices=list(VALID_NOISE_AXES),
-        help="Which noise axes to sweep. Default: combined only (bundled context+action+metadata).",
+        help="Where to apply noise: context=users, action=items, combined=both. "
+        "Legacy metadata = both + metadata component.",
+    )
+    parser.add_argument(
+        "--noise-components",
+        nargs="+",
+        default=["combined"],
+        choices=list(VALID_NOISE_COMPONENTS),
+        help="Which mixture term: linear|general, cluster, metadata, or combined.",
     )
     parser.add_argument(
         "--noise-levels",
@@ -643,6 +657,7 @@ def main():
                     "datasets": args.datasets,
                     "noise_modes": args.noise_modes,
                     "noise_axes": args.noise_axes,
+                    "noise_components": args.noise_components,
                     "noise_levels": args.noise_levels,
                     "ctr_levels": args.ctr_levels,
                     "seeds": args.seeds,

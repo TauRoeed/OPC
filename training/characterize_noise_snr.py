@@ -9,7 +9,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from utils.noise_levels import VALID_NOISE_AXES, VALID_NOISE_LEVELS, noise_eps
+from utils.noise_levels import (
+    VALID_NOISE_AXES,
+    VALID_NOISE_COMPONENTS,
+    VALID_NOISE_LEVELS,
+    resolve_noise_spec,
+)
 from utils.noise_snr import dataset_snr_report, isolate_component_metrics
 from utils.simulation_utils import (
     generate_kmeans_cluster_template_noise,
@@ -97,6 +102,7 @@ def characterize_one(
     noise_level: str,
     seed: int,
     ctr: float,
+    noise_component: str = "combined",
 ) -> list[dict]:
     user_path, item_path, user_meta_path, item_meta_path = _dataset_paths(
         emb_dir, dataset_name
@@ -109,7 +115,13 @@ def characterize_one(
     emb_a = np.load(item_path)
     metadata_x = _load_optional(user_meta_path)
     metadata_a = _load_optional(item_meta_path)
-    eps1, eps2, eps_meta = noise_eps(noise_level, noise_axis)
+    spec = resolve_noise_spec(noise_level, axis=noise_axis, component=noise_component)
+    eps1 = float(spec["eps1"])
+    eps2 = float(spec["eps2"])
+    eps_meta = float(spec["eps_meta"])
+    apply_user = bool(spec["apply_user"])
+    apply_item = bool(spec["apply_item"])
+    noise_component = str(spec["component"])
 
     if float(eps_meta) > 0 and metadata_x is None and metadata_a is None:
         eps_meta = 0.0
@@ -128,6 +140,9 @@ def characterize_one(
         "sigma_meta": 1.0,
         "noise_mode": noise_mode,
         "noise_axis": noise_axis,
+        "noise_component": noise_component,
+        "noise_apply_user": apply_user,
+        "noise_apply_item": apply_item,
         "ctr": float(ctr),
     }
     dataset = generate_dataset(
@@ -148,6 +163,7 @@ def characterize_one(
             "dataset": dataset_name,
             "noise_mode": noise_mode,
             "noise_axis": noise_axis,
+            "noise_component": noise_component,
             "noise_level": noise_level,
             "seed": int(seed),
             "component": "full_mix",
@@ -168,6 +184,7 @@ def characterize_one(
             "dataset": dataset_name,
             "noise_mode": noise_mode,
             "noise_axis": noise_axis,
+            "noise_component": noise_component,
             "noise_level": noise_level,
             "seed": int(seed),
             "component": "full_mix",
@@ -202,6 +219,7 @@ def characterize_one(
                 "dataset": dataset_name,
                 "noise_mode": noise_mode,
                 "noise_axis": noise_axis,
+                "noise_component": noise_component,
                 "noise_level": noise_level,
                 "seed": int(seed),
                 "component": name,
@@ -234,6 +252,7 @@ def characterize_one(
                 "dataset": dataset_name,
                 "noise_mode": noise_mode,
                 "noise_axis": noise_axis,
+                "noise_component": noise_component,
                 "noise_level": noise_level,
                 "seed": int(seed),
                 "component": name,
@@ -261,6 +280,12 @@ def main():
         "--noise-axes", nargs="+", default=["combined"], choices=list(VALID_NOISE_AXES)
     )
     parser.add_argument(
+        "--noise-components",
+        nargs="+",
+        default=["combined"],
+        choices=list(VALID_NOISE_COMPONENTS),
+    )
+    parser.add_argument(
         "--noise-levels",
         nargs="+",
         default=list(VALID_NOISE_LEVELS),
@@ -279,24 +304,26 @@ def main():
     for dataset_name in args.datasets:
         for noise_mode in args.noise_modes:
             for noise_axis in args.noise_axes:
-                for noise_level in args.noise_levels:
-                    for seed in args.seeds:
-                        print(
-                            f"{dataset_name} {noise_mode} {noise_axis} "
-                            f"{noise_level} seed={seed}",
-                            flush=True,
-                        )
-                        rows.extend(
-                            characterize_one(
-                                dataset_name=dataset_name,
-                                emb_dir=Path(args.emb_dir),
-                                noise_mode=noise_mode,
-                                noise_axis=noise_axis,
-                                noise_level=noise_level,
-                                seed=int(seed),
-                                ctr=float(args.ctr),
+                for noise_component in args.noise_components:
+                    for noise_level in args.noise_levels:
+                        for seed in args.seeds:
+                            print(
+                                f"{dataset_name} {noise_mode} {noise_axis} "
+                                f"{noise_component} {noise_level} seed={seed}",
+                                flush=True,
                             )
-                        )
+                            rows.extend(
+                                characterize_one(
+                                    dataset_name=dataset_name,
+                                    emb_dir=Path(args.emb_dir),
+                                    noise_mode=noise_mode,
+                                    noise_axis=noise_axis,
+                                    noise_component=noise_component,
+                                    noise_level=noise_level,
+                                    seed=int(seed),
+                                    ctr=float(args.ctr),
+                                )
+                            )
 
     df = pd.DataFrame(rows)
     csv_path = out_dir / "summary.csv"

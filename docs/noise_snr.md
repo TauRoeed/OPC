@@ -14,9 +14,11 @@ Compare noise types systematically:
 X̃ = (1 − Σε_i) X + Σ ε_i N_i
 ```
 
-- `linear_transform` — global linear warp + Gaussian (`eps1`)
-- `random_centroids` / `kmeans_templates` — cluster templates (`eps2`)
-- `metadata_projection` — side-info projection (`eps_meta`)
+- `linear` / `general` — global linear warp + Gaussian (`eps1`)
+- `cluster` — `kmeans_templates` / `random_centroids` (`eps2`)
+- `metadata` — side-info projection (`eps_meta`)
+
+**Where vs what:** `--noise-axes` chooses user / item / both; `--noise-components` chooses which term(s) are active. Shared source: `utils/noise_levels.py` (`resolve_noise_spec`). See [bias_axis_trial.md](bias_axis_trial.md).
 
 Levels and axes: shared source `utils/noise_levels.py` (same tables as the full study).
 

@@ -1,4 +1,4 @@
-"""Unit tests for embedding SNR metrics (stdlib unittest)."""
+"""Unit tests for embedding SNR metrics and noise axis/component resolution."""
 
 from __future__ import annotations
 
@@ -6,7 +6,12 @@ import unittest
 
 import numpy as np
 
-from utils.noise_levels import VALID_NOISE_LEVELS, noise_eps
+from utils.noise_levels import (
+    VALID_NOISE_LEVELS,
+    noise_eps,
+    noise_target_sides,
+    resolve_noise_spec,
+)
 from utils.noise_snr import (
     cosine_retention,
     embedding_noise_metrics,
@@ -38,15 +43,35 @@ class TestNoiseSNR(unittest.TestCase):
     def test_signal_frac(self):
         self.assertAlmostEqual(signal_frac([0.1, 0.2, 0.05]), 0.65)
 
-    def test_noise_eps_combined_and_axis(self):
+    def test_noise_eps_combined_and_components(self):
         self.assertEqual(noise_eps("low", "combined"), (0.05, 0.05, 0.0))
-        self.assertEqual(noise_eps("high", "context"), (0.20, 0.0, 0.0))
-        self.assertEqual(noise_eps("high", "action"), (0.0, 0.25, 0.0))
+        # Axis alone no longer remaps to a single component.
+        self.assertEqual(noise_eps("high", "context"), (0.20, 0.25, 0.10))
+        self.assertEqual(noise_eps("high", "action"), (0.20, 0.25, 0.10))
+        # Component isolation uses the matching column from the level table.
+        self.assertEqual(noise_eps("high", "combined", "linear"), (0.20, 0.0, 0.0))
+        self.assertEqual(noise_eps("high", "combined", "general"), (0.20, 0.0, 0.0))
+        self.assertEqual(noise_eps("high", "combined", "cluster"), (0.0, 0.25, 0.0))
+        self.assertEqual(noise_eps("high", "combined", "metadata"), (0.0, 0.0, 0.10))
+        # Legacy axis=metadata still means metadata component.
         self.assertEqual(noise_eps("high", "metadata"), (0.0, 0.0, 0.10))
         self.assertTrue(
             {"low", "medium", "high", "extreme", "brutal", "catastrophic"}
             <= set(VALID_NOISE_LEVELS)
         )
+
+    def test_noise_target_sides(self):
+        self.assertEqual(noise_target_sides("context"), (True, False))
+        self.assertEqual(noise_target_sides("action"), (False, True))
+        self.assertEqual(noise_target_sides("combined"), (True, True))
+        self.assertEqual(noise_target_sides("metadata"), (True, True))
+
+    def test_resolve_axis_and_component(self):
+        spec = resolve_noise_spec("high", axis="context", component="cluster")
+        self.assertEqual((spec["eps1"], spec["eps2"], spec["eps_meta"]), (0.0, 0.25, 0.0))
+        self.assertTrue(spec["apply_user"])
+        self.assertFalse(spec["apply_item"])
+        self.assertEqual(spec["component"], "cluster")
 
     def test_isolate_component_metrics(self):
         rng = np.random.default_rng(2)

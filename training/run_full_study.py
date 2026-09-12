@@ -86,7 +86,11 @@ def _load_cached_method_trials(run_dir: Path, method: str) -> pd.DataFrame:
     return pd.DataFrame()
 
 
-from utils.noise_levels import VALID_NOISE_AXES, noise_eps as _noise_eps
+from utils.noise_levels import (
+    VALID_NOISE_AXES,
+    VALID_NOISE_COMPONENTS,
+    resolve_noise_spec,
+)
 from utils.noise_snr import dataset_snr_report
 from utils.simulation_utils import generate_dataset
 
@@ -126,6 +130,8 @@ def _collect_existing_summaries(base_dir: Path):
             df = pd.read_csv(summary_path)
             if "noise_axis" not in df.columns:
                 df["noise_axis"] = "combined"
+            if "noise_component" not in df.columns:
+                df["noise_component"] = "combined"
             if "ctr" not in df.columns:
                 df["ctr"] = float("nan")
             rows.append(df)
@@ -168,12 +174,21 @@ def _run_condition(
     q_error: float = 0.0,
     q_bad_value: float | None = None,
     rand_ctr_meta: dict | None = None,
+    noise_component: str = "combined",
 ):
     methods = _normalize_study_methods(methods)
     run_opc = "opc" in methods
     run_no_prop = "no_propensity" in methods
     noprop_policy_loss_types = _no_prop_policy_loss_types(policy_loss_types)
-    eps1, eps2, eps_meta = _noise_eps(noise_level, noise_axis)
+    noise_spec = resolve_noise_spec(
+        noise_level, axis=noise_axis, component=noise_component
+    )
+    eps1 = float(noise_spec["eps1"])
+    eps2 = float(noise_spec["eps2"])
+    eps_meta = float(noise_spec["eps_meta"])
+    apply_user = bool(noise_spec["apply_user"])
+    apply_item = bool(noise_spec["apply_item"])
+    noise_component = str(noise_spec["component"])
     user_path, item_path, user_meta_path, item_meta_path = _dataset_paths(
         emb_dir, dataset_name
     )
@@ -184,23 +199,18 @@ def _run_condition(
     metadata_a = _load_optional_array(item_meta_path)
     n_clusters = max(8, min(64, int(np.sqrt(emb_a.shape[0]))))
 
-    if noise_axis == "metadata" and metadata_x is None and metadata_a is None:
-        raise FileNotFoundError(
-            f"noise_axis='metadata' but dataset '{dataset_name}' has no metadata "
-            f"arrays (looked under {user_meta_path}, {item_meta_path}). "
-            f"Run: python BPR/generate_artifacts.py --dataset {dataset_name}"
-        )
-
-    if (
-        float(eps_meta) > 0
-        and metadata_x is None
-        and metadata_a is None
-        and noise_axis == "combined"
-    ):
+    needs_meta = float(eps_meta) > 0
+    if needs_meta and metadata_x is None and metadata_a is None:
+        if noise_axis == "metadata" or noise_component == "metadata":
+            raise FileNotFoundError(
+                f"metadata noise requested but dataset '{dataset_name}' has no metadata "
+                f"arrays (looked under {user_meta_path}, {item_meta_path}). "
+                f"Run: python BPR/generate_artifacts.py --dataset {dataset_name}"
+            )
         print(
             f"WARNING: {dataset_name}: no metadata under {emb_dir}; "
-            f"combined noise uses context+action only (eps_meta {eps_meta:g} -> 0). "
-            f"For full combined noise: python BPR/generate_artifacts.py --dataset {dataset_name}",
+            f"dropping eps_meta {eps_meta:g} -> 0. "
+            f"For metadata noise: python BPR/generate_artifacts.py --dataset {dataset_name}",
             flush=True,
         )
         eps_meta = 0.0
@@ -218,6 +228,9 @@ def _run_condition(
         "sigma_meta": 1.0,
         "noise_mode": noise_mode,
         "noise_axis": noise_axis,
+        "noise_component": noise_component,
+        "noise_apply_user": apply_user,
+        "noise_apply_item": apply_item,
         "ctr": float(ctr),
         "policy_temperature": float(policy_temperature),
         "logging_uniform_mix": float(np.clip(logging_uniform_mix, 0.0, 1.0)),
@@ -359,7 +372,10 @@ def _run_condition(
         "dataset": dataset_name,
         "noise_mode": noise_mode,
         "noise_axis": noise_axis,
+        "noise_component": noise_component,
         "noise_level": noise_level,
+        "noise_apply_user": apply_user,
+        "noise_apply_item": apply_item,
         "seed": int(seed),
         "params": params,
         "ctr": float(params["ctr"]),
@@ -436,8 +452,16 @@ def main():
         nargs="+",
         default=["combined"],
         choices=list(VALID_NOISE_AXES),
-        help="Which noise axes to sweep. Default: combined only (context+action+metadata bundled). "
-        "Pass context/action/metadata only if you want single-axis ablations.",
+        help="Where to apply noise: context=users only, action=items only, "
+        "combined=both. Legacy 'metadata' = both catalogs + metadata component only.",
+    )
+    parser.add_argument(
+        "--noise-components",
+        nargs="+",
+        default=["combined"],
+        choices=list(VALID_NOISE_COMPONENTS),
+        help="Which mixture term(s) to activate: linear|general, cluster, metadata, "
+        "or combined (all three at the chosen level). Independent of --noise-axes.",
     )
     parser.add_argument(
         "--noise-levels",
@@ -634,102 +658,106 @@ def main():
         for dataset_name in args.datasets:
             for noise_mode in args.noise_modes:
                 for noise_axis in args.noise_axes:
-                    for noise_level in args.noise_levels:
-                        for ctr in args.ctr_levels:
-                            for seed in args.seeds:
+                    for noise_component in args.noise_components:
+                        for noise_level in args.noise_levels:
+                            for ctr in args.ctr_levels:
+                                for seed in args.seeds:
 
-                                run_key = (
-                                    f"dataset={dataset_name}__noise={noise_mode}"
-                                    f"__axis={noise_axis}__level={noise_level}"
-                                    f"__ctr={ctr:g}__seed={seed}"
-                                )
-                                if len(val_size_configs) > 1:
-                                    run_key = f"{run_key}__val={val_label}"
+                                    run_key = (
+                                        f"dataset={dataset_name}__noise={noise_mode}"
+                                        f"__axis={noise_axis}__comp={noise_component}"
+                                        f"__level={noise_level}"
+                                        f"__ctr={ctr:g}__seed={seed}"
+                                    )
+                                    if len(val_size_configs) > 1:
+                                        run_key = f"{run_key}__val={val_label}"
 
-                                print(f"\n=== Running {run_key} ===")
-                                run_dir = val_root / run_key
-                                run_dir.mkdir(parents=True, exist_ok=True)
-                                summary_path = run_dir / "summary_metrics.csv"
-                                if args.skip_completed and summary_path.exists():
-                                    if methods == VALID_STUDY_METHODS:
-                                        print(f"Skipping completed: {run_key}")
-                                        try:
-                                            all_summary_rows.append(pd.read_csv(summary_path))
-                                        except Exception:
-                                            pass
-                                        continue
-                                    if methods == ("no_propensity",):
-                                        summary = pd.read_csv(summary_path)
-                                        if (
-                                            "method" in summary.columns
-                                            and (summary["method"] == "no_propensity").any()
-                                        ):
-                                            print(f"Skipping completed no-prop: {run_key}")
+                                    print(f"\n=== Running {run_key} ===")
+                                    run_dir = val_root / run_key
+                                    run_dir.mkdir(parents=True, exist_ok=True)
+                                    summary_path = run_dir / "summary_metrics.csv"
+                                    if args.skip_completed and summary_path.exists():
+                                        if methods == VALID_STUDY_METHODS:
+                                            print(f"Skipping completed: {run_key}")
                                             try:
-                                                all_summary_rows.append(summary)
+                                                all_summary_rows.append(pd.read_csv(summary_path))
                                             except Exception:
                                                 pass
                                             continue
+                                        if methods == ("no_propensity",):
+                                            summary = pd.read_csv(summary_path)
+                                            if (
+                                                "method" in summary.columns
+                                                and (summary["method"] == "no_propensity").any()
+                                            ):
+                                                print(f"Skipping completed no-prop: {run_key}")
+                                                try:
+                                                    all_summary_rows.append(summary)
+                                                except Exception:
+                                                    pass
+                                                continue
 
-                                try:
-                                    opc_df, noprop_df, opc_trials, noprop_trials, meta = _run_condition(
-                                        dataset_name=dataset_name,
-                                        emb_dir=emb_dir,
+                                    try:
+                                        opc_df, noprop_df, opc_trials, noprop_trials, meta = _run_condition(
+                                            dataset_name=dataset_name,
+                                            emb_dir=emb_dir,
+                                            noise_mode=noise_mode,
+                                            noise_axis=noise_axis,
+                                            noise_level=noise_level,
+                                            noise_component=noise_component,
+                                            ctr=ctr,
+                                            seed=seed,
+                                            train_sizes=args.train_sizes,
+                                            n_trials=args.n_trials,
+                                            batch_size=args.batch_size,
+                                            val_size=val_size_cfg,
+                                            val_frac=args.val_frac,
+                                            val_min=args.val_min,
+                                            val_max=args.val_max,
+                                            policy_reward_mode=args.policy_reward_mode,
+                                            policy_reward_mc_sim=args.policy_reward_mc_sim,
+                                            policy_temperature=args.policy_temperature,
+                                            run_dir=run_dir,
+                                            slim=bool(args.slim),
+                                            policy_loss_types=policy_loss_types,
+                                            search_use_log_trick=search_use_log_trick,
+                                            shared_regression_size=args.shared_regression_size,
+                                            qhat_user_chunk=args.qhat_user_chunk,
+                                            qhat_action_chunk=args.qhat_action_chunk,
+                                            require_cuda=bool(args.require_cuda),
+                                            optuna_batch_sizes=args.optuna_batch_sizes,
+                                            methods=methods,
+                                            logging_uniform_mix=float(args.logging_uniform_mix),
+                                            optuna_selection=str(args.optuna_selection),
+                                            reward_model=str(args.reward_model),
+                                        )
+                                    except Exception as e:
+                                        failures.append({"run_key": run_key, "error": repr(e)})
+                                        print(f"FAILED {run_key}: {e}")
+                                        if args.fail_fast:
+                                            raise
+                                        continue
+
+                                    summary_df = _finalize_summary_df(
+                                        opc_df,
+                                        noprop_df,
+                                        meta,
+                                        dataset=dataset_name,
                                         noise_mode=noise_mode,
                                         noise_axis=noise_axis,
+                                        noise_component=noise_component,
                                         noise_level=noise_level,
-                                        ctr=ctr,
                                         seed=seed,
-                                        train_sizes=args.train_sizes,
-                                        n_trials=args.n_trials,
-                                        batch_size=args.batch_size,
-                                        val_size=val_size_cfg,
-                                        val_frac=args.val_frac,
-                                        val_min=args.val_min,
-                                        val_max=args.val_max,
-                                        policy_reward_mode=args.policy_reward_mode,
-                                        policy_reward_mc_sim=args.policy_reward_mc_sim,
-                                        policy_temperature=args.policy_temperature,
-                                        run_dir=run_dir,
-                                        slim=bool(args.slim),
-                                        policy_loss_types=policy_loss_types,
-                                        search_use_log_trick=search_use_log_trick,
-                                        shared_regression_size=args.shared_regression_size,
-                                        qhat_user_chunk=args.qhat_user_chunk,
-                                        qhat_action_chunk=args.qhat_action_chunk,
-                                        require_cuda=bool(args.require_cuda),
-                                        optuna_batch_sizes=args.optuna_batch_sizes,
-                                        methods=methods,
-                                        logging_uniform_mix=float(args.logging_uniform_mix),
-                                        optuna_selection=str(args.optuna_selection),
-                                        reward_model=str(args.reward_model),
                                     )
-                                except Exception as e:
-                                    failures.append({"run_key": run_key, "error": repr(e)})
-                                    print(f"FAILED {run_key}: {e}")
-                                    if args.fail_fast:
-                                        raise
-                                    continue
 
-                                summary_df = _finalize_summary_df(
-                                    opc_df,
-                                    noprop_df,
-                                    meta,
-                                    dataset=dataset_name,
-                                    noise_mode=noise_mode,
-                                    noise_axis=noise_axis,
-                                    noise_level=noise_level,
-                                    seed=seed,
-                                )
+                                    summary_df.to_csv(run_dir / "summary_metrics.csv", index=False)
+                                    opc_trials.to_csv(run_dir / "opc_trials.csv", index=False)
+                                    noprop_trials.to_csv(run_dir / "no_prop_trials.csv", index=False)
 
-                                summary_df.to_csv(run_dir / "summary_metrics.csv", index=False)
-                                opc_trials.to_csv(run_dir / "opc_trials.csv", index=False)
-                                noprop_trials.to_csv(run_dir / "no_prop_trials.csv", index=False)
+                                    with open(run_dir / "run_meta.json", "w", encoding="utf-8") as f:
+                                        json.dump(meta, f, indent=2)
 
-                                with open(run_dir / "run_meta.json", "w", encoding="utf-8") as f:
-                                    json.dump(meta, f, indent=2)
-
-                                all_summary_rows.append(summary_df)
+                                    all_summary_rows.append(summary_df)
 
     collected_rows = _collect_existing_summaries(out_dir)
     if collected_rows:
@@ -743,6 +771,7 @@ def main():
                     "datasets": args.datasets,
                     "noise_modes": args.noise_modes,
                     "noise_axes": args.noise_axes,
+                    "noise_components": args.noise_components,
                     "noise_levels": args.noise_levels,
                     "ctr_levels": args.ctr_levels,
                     "seeds": args.seeds,

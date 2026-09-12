@@ -257,7 +257,11 @@ def generate_linear_transform_noise(
     chunk_size: int = 100_000,
 ) -> np.ndarray:
 
-    """Return one general noise vector per row (item/user)."""
+    """Return one general/linear noise vector per row (item/user).
+
+    Shared random matrix ``W`` warps every row (``X @ W``) then adds isotropic
+    Gaussian noise. This is the ``eps1`` / ``linear`` / ``general`` component.
+    """
     rng = np.random.default_rng(seed)
     X = X.astype(np.float32, copy=False)
     n, d = X.shape
@@ -500,13 +504,18 @@ def generate_dataset(params, seed=12345, emb_a=None, emb_x=None, user_prior=None
 
     eps1 = float(params["eps1"])
     eps2 = float(params["eps2"])
+    # Where to apply noise: axis=context → users only; action → items only;
+    # combined / metadata → both. Defaults keep legacy "both sides" behavior.
+    apply_user = bool(params.get("noise_apply_user", True))
+    apply_item = bool(params.get("noise_apply_item", True))
+
     item_noises = [item_noise_linear, item_noise_cluster]
     user_noises = [user_noise_linear, user_noise_cluster]
-    item_eps = [eps1, eps2]
-    user_eps = [eps1, eps2]
+    item_eps = [eps1, eps2] if apply_item else [0.0, 0.0]
+    user_eps = [eps1, eps2] if apply_user else [0.0, 0.0]
 
     eps_meta = float(params.get("eps_meta", 0.0))
-    if eps_meta > 0.0:
+    if eps_meta > 0.0 and (apply_user or apply_item):
         if metadata_a is None:
             metadata_a = params.get("metadata_a", None)
         if metadata_x is None:
@@ -514,7 +523,7 @@ def generate_dataset(params, seed=12345, emb_a=None, emb_x=None, user_prior=None
 
         meta_a_arr = None
         meta_x_arr = None
-        if metadata_a is not None:
+        if apply_item and metadata_a is not None:
             meta_a_arr = np.load(metadata_a) if isinstance(metadata_a, str) else np.asarray(metadata_a)
             if meta_a_arr.shape[0] != emb_a.shape[0]:
                 raise ValueError("metadata_a rows must match emb_a rows.")
@@ -529,7 +538,7 @@ def generate_dataset(params, seed=12345, emb_a=None, emb_x=None, user_prior=None
             )
             item_eps.append(eps_meta)
 
-        if metadata_x is not None:
+        if apply_user and metadata_x is not None:
             meta_x_arr = np.load(metadata_x) if isinstance(metadata_x, str) else np.asarray(metadata_x)
             if meta_x_arr.shape[0] != emb_x.shape[0]:
                 raise ValueError("metadata_x rows must match emb_x rows.")
@@ -544,11 +553,22 @@ def generate_dataset(params, seed=12345, emb_a=None, emb_x=None, user_prior=None
             )
             user_eps.append(eps_meta)
 
-        if meta_a_arr is None and meta_x_arr is None:
-            raise ValueError("eps_meta > 0 but no metadata_a/metadata_x was provided.")
+        added_meta = (meta_a_arr is not None) or (meta_x_arr is not None)
+        if not added_meta:
+            raise ValueError(
+                "eps_meta > 0 but no metadata_a/metadata_x was provided "
+                f"for requested sides (apply_user={apply_user}, apply_item={apply_item})."
+            )
 
-    our_a = mix_ground_truth_with_noises(emb_a, item_noises, item_eps)
-    our_x = mix_ground_truth_with_noises(emb_x, user_noises, user_eps)
+    if apply_item and any(float(e) > 0 for e in item_eps):
+        our_a = mix_ground_truth_with_noises(emb_a, item_noises, item_eps)
+    else:
+        our_a = np.asarray(emb_a, dtype=np.float32).copy()
+
+    if apply_user and any(float(e) > 0 for e in user_eps):
+        our_x = mix_ground_truth_with_noises(emb_x, user_noises, user_eps)
+    else:
+        our_x = np.asarray(emb_x, dtype=np.float32).copy()
 
     # env always available
     env = SyntheticBanditEnv(emb_x=emb_x, emb_a=emb_a, ctr=float(params.get("ctr", 0.05)))
