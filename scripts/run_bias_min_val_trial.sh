@@ -1,10 +1,9 @@
 #!/usr/bin/env bash
-# Trial 1: minimal validation size at fixed 1M train.
+# Trial 1: minimal validation size @ fixed 1M train — NO noise-type sweep.
+# Single fixed noise cell (combined/combined/low); only val_size varies.
 # Usage:
 #   ./scripts/run_bias_min_val_trial.sh
 #   IMAGE=opc:gpu NUM_GPUS=2 MAX_WORKERS=16 ./scripts/run_bias_min_val_trial.sh
-# Overrides:
-#   TRAIN_SIZES  VAL_SIZES  RUN_TAG  NOISE_LEVELS
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -23,15 +22,13 @@ LOGFILE="$LOG_DIR/${RUN_TAG}.log"
 TRAIN_SIZES=(${TRAIN_SIZES:-1000000})
 # shellcheck disable=SC2206
 VAL_SIZES=(${VAL_SIZES:-10000 25000 50000 100000 200000})
-# shellcheck disable=SC2206
-NOISE_LEVELS=(${NOISE_LEVELS:-medium high brutal})
 
 ARGS=(
   -m training.run_full_study_parallel
   --datasets ml
-  --noise-axes context action
-  --noise-components linear cluster metadata
-  --noise-levels "${NOISE_LEVELS[@]}"
+  --noise-axes combined
+  --noise-components combined
+  --noise-levels low
   --ctr-levels 0.05
   --train-sizes "${TRAIN_SIZES[@]}"
   --val-sizes "${VAL_SIZES[@]}"
@@ -46,17 +43,14 @@ ARGS=(
   --run-tag "$RUN_TAG"
 )
 
-N_AXIS=2
-N_COMP=3
-N_LEVEL=${#NOISE_LEVELS[@]}
 N_VAL=${#VAL_SIZES[@]}
 N_SEED=5
-N_COND=$((N_AXIS * N_COMP * N_LEVEL * N_VAL * N_SEED))
+N_COND=$((N_VAL * N_SEED))
 
-echo "[$(date -Is)] starting trial 1 (min val) $RUN_TAG"
+echo "[$(date -Is)] starting trial 1 (min val, no noise-type sweep) $RUN_TAG"
 echo "  train=${TRAIN_SIZES[*]}  val_sizes=${VAL_SIZES[*]}"
-echo "  levels=${NOISE_LEVELS[*]}"
-echo "  grid: ${N_AXIS} axes × ${N_COMP} comps × ${N_LEVEL} levels × ${N_VAL} vals × ${N_SEED} seeds = ${N_COND} conditions"
+echo "  noise: axis=combined comp=combined level=low (fixed)"
+echo "  grid: ${N_VAL} vals × ${N_SEED} seeds = ${N_COND} conditions"
 echo "  num_gpus=$NUM_GPUS max_workers=$MAX_WORKERS"
 echo "  log: $LOGFILE"
 

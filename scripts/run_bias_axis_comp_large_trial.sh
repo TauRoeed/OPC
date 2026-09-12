@@ -1,29 +1,26 @@
 #!/usr/bin/env bash
-# Trial 2: axis × component noise effects at large train, fixed val.
-# Run trial 1 first (min val), then set FIXED_VAL to the elbow.
+# Trial 2: axis × component noise @ large train, fixed val.
+# Train curve: 0.5M → 1M → 2M → 5M → 10M.
 # Usage:
 #   FIXED_VAL=100000 ./scripts/run_bias_axis_comp_large_trial.sh
 #   FIXED_VAL=100000 IMAGE=opc:gpu ./scripts/run_bias_axis_comp_large_trial.sh
-# Overrides:
-#   TRAIN_SIZES  FIXED_VAL  RUN_TAG  NOISE_LEVELS
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-RUN_TAG="${RUN_TAG:-bias_axis_comp_tr500k_l5_t20_s5}"
+RUN_TAG="${RUN_TAG:-bias_axis_comp_tr500k_10m_l5_t20_s5}"
 NUM_GPUS="${NUM_GPUS:-2}"
 MAX_WORKERS="${MAX_WORKERS:-16}"
 SHM="${SHM:-128g}"
 IMAGE="${IMAGE:-}"
-# Placeholder until trial 1 elbow is known.
 FIXED_VAL="${FIXED_VAL:-100000}"
 LOG_DIR="${LOG_DIR:-artifacts/full_study/ablation_logs}"
 mkdir -p "$LOG_DIR"
 LOGFILE="$LOG_DIR/${RUN_TAG}.log"
 
 # shellcheck disable=SC2206
-TRAIN_SIZES=(${TRAIN_SIZES:-500000 750000 1000000})
+TRAIN_SIZES=(${TRAIN_SIZES:-500000 1000000 2000000 5000000 10000000})
 # shellcheck disable=SC2206
 NOISE_LEVELS=(${NOISE_LEVELS:-low medium high extreme brutal})
 
