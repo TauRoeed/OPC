@@ -9,7 +9,7 @@ import pandas as pd
 from training.metrics_utils import pct_change
 
 
-_LEVEL_ORDER = ["low", "medium", "high", "extreme", "brutal", "catastrophic"]
+_LEVEL_ORDER = ["low", "medium", "high"]
 
 
 def _ensure_dir(path: Path):
@@ -320,6 +320,15 @@ def _ordered_levels(values):
     return ordered + extras
 
 
+def _subplots_for_levels(levels):
+    """1×N axes for present noise levels (handles N=1)."""
+    n = max(1, len(levels))
+    fig, axes = plt.subplots(1, n, figsize=(5 * n, 4), sharey=True)
+    if n == 1:
+        axes = [axes]
+    return fig, axes
+
+
 def _fmt_ctr(value):
     return f"{float(value):g}"
 
@@ -451,12 +460,14 @@ def _plot_curves_per_axis(
         .reset_index()
     )
     grp["se"] = grp["std"] / np.sqrt(grp["count"].clip(lower=1))
-    levels = _LEVEL_ORDER
 
     for (dataset, noise_mode, noise_axis, ctr), part in grp.groupby(
         ["dataset", "noise_mode", "noise_axis", "ctr"]
     ):
-        fig, axes = plt.subplots(1, 3, figsize=(15, 4), sharey=True)
+        levels = _ordered_levels(part["noise_level"].dropna().unique().tolist())
+        if not levels:
+            continue
+        fig, axes = _subplots_for_levels(levels)
         for i, level in enumerate(levels):
             ax = axes[i]
             pp = part[part["noise_level"] == level]
@@ -649,12 +660,14 @@ def _plot_delta_with_ci(
         .reset_index()
     )
     agg["se"] = agg["std"] / np.sqrt(agg["count"].clip(lower=1))
-    levels = _LEVEL_ORDER
 
     for (dataset, noise_mode, noise_axis, ctr), part in agg.groupby(
         ["dataset", "noise_mode", "noise_axis", "ctr"]
     ):
-        fig, axes = plt.subplots(1, 3, figsize=(15, 4), sharey=True)
+        levels = _ordered_levels(part["noise_level"].dropna().unique().tolist())
+        if not levels:
+            continue
+        fig, axes = _subplots_for_levels(levels)
         for i, level in enumerate(levels):
             ax = axes[i]
             pp = part[part["noise_level"] == level].sort_values(sweep_col)
@@ -731,8 +744,11 @@ def _plot_opc_pct_improvement_over_nop(
     for (dataset, noise_mode, noise_axis, ctr), part in agg.groupby(
         ["dataset", "noise_mode", "noise_axis", "ctr"]
     ):
-        fig, axes = plt.subplots(1, 3, figsize=(15, 4), sharey=True)
-        for i, level in enumerate(_LEVEL_ORDER):
+        levels = _ordered_levels(part["noise_level"].dropna().unique().tolist())
+        if not levels:
+            continue
+        fig, axes = _subplots_for_levels(levels)
+        for i, level in enumerate(levels):
             ax = axes[i]
             pp = part[part["noise_level"] == level].sort_values(sweep_col)
             if not pp.empty:

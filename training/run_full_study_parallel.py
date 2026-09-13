@@ -80,34 +80,48 @@ from training.trainer_trials import (
 )
 
 
-def _iter_run_configs(args, val_size_cfg, val_label, val_root: Path):
-    for dataset_name in args.datasets:
-        for noise_mode in args.noise_modes:
-            for noise_axis in args.noise_axes:
-                for noise_component in args.noise_components:
-                    for noise_level in args.noise_levels:
-                        for ctr in args.ctr_levels:
-                            for seed in args.seeds:
-                                run_key = (
-                                    f"dataset={dataset_name}__noise={noise_mode}"
-                                    f"__axis={noise_axis}__comp={noise_component}"
-                                    f"__level={noise_level}"
-                                    f"__ctr={ctr:g}__seed={seed}"
-                                )
-                                if val_label != "frac":
-                                    run_key = f"{run_key}__val={val_label}"
-                                yield {
-                                    "dataset_name": dataset_name,
-                                    "noise_mode": noise_mode,
-                                    "noise_axis": noise_axis,
-                                    "noise_component": noise_component,
-                                    "noise_level": noise_level,
-                                    "ctr": float(ctr),
-                                    "seed": int(seed),
-                                    "run_key": run_key,
-                                    "run_dir": str(val_root / run_key),
-                                    "val_size": val_size_cfg,
-                                }
+def _iter_run_configs(args, out_dir: Path, val_size_configs: list):
+    """Yield run configs in order: seed → dataset → ctr → [val] → noises.
+
+    ``val`` nest/key suffix only when ``--val-size`` / ``--val-sizes`` is set
+    (label != ``frac``). Noise nest (inner): mode → axis → component → level.
+    """
+    multi_val = len(val_size_configs) > 1
+    for seed in args.seeds:
+        for dataset_name in args.datasets:
+            for ctr in args.ctr_levels:
+                for val_size_cfg, val_label in val_size_configs:
+                    use_val = val_label != "frac"
+                    val_root = (
+                        out_dir / f"val_{val_label}"
+                        if multi_val
+                        else out_dir
+                    )
+                    for noise_mode in args.noise_modes:
+                        for noise_axis in args.noise_axes:
+                            for noise_component in args.noise_components:
+                                for noise_level in args.noise_levels:
+                                    run_key = (
+                                        f"dataset={dataset_name}__noise={noise_mode}"
+                                        f"__axis={noise_axis}__comp={noise_component}"
+                                        f"__level={noise_level}"
+                                        f"__ctr={ctr:g}__seed={seed}"
+                                    )
+                                    # Tag folder with val only for real fixed/swept vals.
+                                    if use_val:
+                                        run_key = f"{run_key}__val={val_label}"
+                                    yield {
+                                        "dataset_name": dataset_name,
+                                        "noise_mode": noise_mode,
+                                        "noise_axis": noise_axis,
+                                        "noise_component": noise_component,
+                                        "noise_level": noise_level,
+                                        "ctr": float(ctr),
+                                        "seed": int(seed),
+                                        "run_key": run_key,
+                                        "run_dir": str(val_root / run_key),
+                                        "val_size": val_size_cfg,
+                                    }
 
 
 def _is_oom_like(exc: BaseException) -> bool:
@@ -573,48 +587,60 @@ def main():
     print(f"Writing outputs to: {out_dir}")
 
     run_configs = []
-    for val_size_cfg, val_label in val_size_configs:
-        val_root = out_dir if len(val_size_configs) == 1 else out_dir / f"val_{val_label}"
+    # Ensure val_* roots exist before workers start.
+    for _, val_label in val_size_configs:
+        val_root = (
+            out_dir
+            if len(val_size_configs) == 1
+            else out_dir / f"val_{val_label}"
+        )
         val_root.mkdir(parents=True, exist_ok=True)
-        for base_cfg in _iter_run_configs(args, val_size_cfg, val_label, val_root):
-            summary_path = Path(base_cfg["run_dir"]) / "summary_metrics.csv"
-            if args.skip_completed and summary_path.exists():
-                if methods == VALID_STUDY_METHODS:
-                    print(f"Skipping completed: {base_cfg['run_key']}")
+
+    print(
+        "Run order: seed → dataset → ctr → "
+        + ("val → " if any(lbl != "frac" for _, lbl in val_size_configs) else "")
+        + "noise_mode → noise_axis → noise_component → noise_level",
+        flush=True,
+    )
+    for base_cfg in _iter_run_configs(args, out_dir, val_size_configs):
+        summary_path = Path(base_cfg["run_dir"]) / "summary_metrics.csv"
+        if args.skip_completed and summary_path.exists():
+            if methods == VALID_STUDY_METHODS:
+                print(f"Skipping completed: {base_cfg['run_key']}")
+                continue
+            if methods == ("no_propensity",):
+                summary = pd.read_csv(summary_path)
+                if "method" in summary.columns and (
+                    summary["method"] == "no_propensity"
+                ).any():
+                    print(f"Skipping completed no-prop: {base_cfg['run_key']}")
                     continue
-                if methods == ("no_propensity",):
-                    summary = pd.read_csv(summary_path)
-                    if "method" in summary.columns and (
-                        summary["method"] == "no_propensity"
-                    ).any():
-                        print(f"Skipping completed no-prop: {base_cfg['run_key']}")
-                        continue
-            cfg = {
-                **base_cfg,
-                "emb_dir": str(emb_dir),
-                "train_sizes": list(args.train_sizes),
-                "n_trials": int(args.n_trials),
-                "batch_size": int(args.batch_size),
-                "optuna_batch_sizes": args.optuna_batch_sizes,
-                "val_frac": float(args.val_frac),
-                "val_min": int(args.val_min),
-                "val_max": args.val_max,
-                "policy_reward_mode": args.policy_reward_mode,
-                "policy_reward_mc_sim": int(args.policy_reward_mc_sim),
-                "policy_temperature": float(args.policy_temperature),
-                "slim": bool(args.slim),
-                "policy_loss_types": list(policy_loss_types),
-                "study_methods": list(methods),
-                "search_use_log_trick": search_use_log_trick,
-                "shared_regression_size": int(args.shared_regression_size),
-                "qhat_user_chunk": int(args.qhat_user_chunk),
-                "qhat_action_chunk": int(args.qhat_action_chunk),
-                "require_cuda": bool(args.require_cuda),
-                "logging_uniform_mix": float(args.logging_uniform_mix),
-                "optuna_selection": str(args.optuna_selection),
-                "reward_model": str(args.reward_model),
-            }
-            run_configs.append(cfg)
+        cfg = {
+            **base_cfg,
+            "emb_dir": str(emb_dir),
+            "train_sizes": list(args.train_sizes),
+            "n_trials": int(args.n_trials),
+            "batch_size": int(args.batch_size),
+            "optuna_batch_sizes": args.optuna_batch_sizes,
+            "val_frac": float(args.val_frac),
+            "val_min": int(args.val_min),
+            "val_max": args.val_max,
+            "policy_reward_mode": args.policy_reward_mode,
+            "policy_reward_mc_sim": int(args.policy_reward_mc_sim),
+            "policy_temperature": float(args.policy_temperature),
+            "slim": bool(args.slim),
+            "policy_loss_types": list(policy_loss_types),
+            "study_methods": list(methods),
+            "search_use_log_trick": search_use_log_trick,
+            "shared_regression_size": int(args.shared_regression_size),
+            "qhat_user_chunk": int(args.qhat_user_chunk),
+            "qhat_action_chunk": int(args.qhat_action_chunk),
+            "require_cuda": bool(args.require_cuda),
+            "logging_uniform_mix": float(args.logging_uniform_mix),
+            "optuna_selection": str(args.optuna_selection),
+            "reward_model": str(args.reward_model),
+        }
+        run_configs.append(cfg)
 
     max_train = max(args.train_sizes) if args.train_sizes else 0
     max_val = max(args.val_sizes) if args.val_sizes else int(args.val_min)

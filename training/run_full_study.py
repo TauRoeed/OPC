@@ -651,17 +651,27 @@ def main():
     all_summary_rows = []
     failures = []
 
-    for val_size_cfg, val_label in val_size_configs:
-        val_root = out_dir if len(val_size_configs) == 1 else out_dir / f"val_{val_label}"
-        val_root.mkdir(parents=True, exist_ok=True)
+    print(
+        "Run order: seed → dataset → ctr → "
+        + ("val → " if any(lbl != "frac" for _, lbl in val_size_configs) else "")
+        + "noise_mode → noise_axis → noise_component → noise_level"
+    )
 
+    for seed in args.seeds:
         for dataset_name in args.datasets:
-            for noise_mode in args.noise_modes:
-                for noise_axis in args.noise_axes:
-                    for noise_component in args.noise_components:
-                        for noise_level in args.noise_levels:
-                            for ctr in args.ctr_levels:
-                                for seed in args.seeds:
+            for ctr in args.ctr_levels:
+                for val_size_cfg, val_label in val_size_configs:
+                    val_root = (
+                        out_dir
+                        if len(val_size_configs) == 1
+                        else out_dir / f"val_{val_label}"
+                    )
+                    val_root.mkdir(parents=True, exist_ok=True)
+
+                    for noise_mode in args.noise_modes:
+                        for noise_axis in args.noise_axes:
+                            for noise_component in args.noise_components:
+                                for noise_level in args.noise_levels:
 
                                     run_key = (
                                         f"dataset={dataset_name}__noise={noise_mode}"
@@ -669,7 +679,7 @@ def main():
                                         f"__level={noise_level}"
                                         f"__ctr={ctr:g}__seed={seed}"
                                     )
-                                    if len(val_size_configs) > 1:
+                                    if val_label != "frac":
                                         run_key = f"{run_key}__val={val_label}"
 
                                     print(f"\n=== Running {run_key} ===")
