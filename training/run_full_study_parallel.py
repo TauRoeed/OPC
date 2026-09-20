@@ -448,14 +448,20 @@ def main():
 
     parser.add_argument("--seeds", nargs="+", type=int, default=list(range(3)))
     parser.add_argument("--n-trials", type=int, default=20)
-    parser.add_argument("--batch-size", type=int, default=2048)
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=None,
+        help="Fallback batch size when best Optuna trial lacks batch_size. "
+        "Default: from train_size schedule.",
+    )
     parser.add_argument(
         "--optuna-batch-sizes",
         nargs="+",
         type=int,
         default=None,
-        help="Batch sizes for Optuna to search (default: 4096 8192 16384). "
-        "Not a sweep axis; only tunes inside each condition.",
+        help="Batch sizes for Optuna to search. Default: schedule neighborhood "
+        "from train_size. Not a sweep axis; only tunes inside each condition.",
     )
     parser.add_argument(
         "--policy-reward-mode",
@@ -620,7 +626,7 @@ def main():
             "emb_dir": str(emb_dir),
             "train_sizes": list(args.train_sizes),
             "n_trials": int(args.n_trials),
-            "batch_size": int(args.batch_size),
+            "batch_size": int(args.batch_size) if args.batch_size is not None else None,
             "optuna_batch_sizes": args.optuna_batch_sizes,
             "val_frac": float(args.val_frac),
             "val_min": int(args.val_min),

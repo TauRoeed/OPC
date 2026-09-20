@@ -53,6 +53,39 @@ def clipped_importance_weights(pi_e_at_action, pscore, clip_m, use_iw: bool, log
     return torch.clamp(iw, max=float(clip_m))
 
 
+def shrink_importance_weights(pi_e_at_action, pscore, shrink_lambda, use_iw: bool, log_eps=1e-10):
+    """Su et al. DR shrinkage: ŵ = (λ w) / (λ + w²)."""
+    iw = importance_weights(pi_e_at_action, pscore, use_iw, log_eps)
+    if not use_iw:
+        return iw
+    lam = float(shrink_lambda)
+    return (lam * iw) / (lam + iw * iw)
+
+
+def transform_importance_weights(
+    pi_e_at_action,
+    pscore,
+    *,
+    use_iw: bool,
+    iw_mode: str = "clip",
+    clip_m: float = 10.0,
+    shrink_lambda: float = 10.0,
+    log_eps: float = 1e-10,
+):
+    """Apply raw / clip / Su-shrink transform to IPS weights."""
+    mode = str(iw_mode).lower()
+    if mode in ("raw", "none"):
+        return importance_weights(pi_e_at_action, pscore, use_iw, log_eps)
+    if mode == "shrink":
+        return shrink_importance_weights(
+            pi_e_at_action, pscore, shrink_lambda, use_iw, log_eps
+        )
+    # default: clip
+    return clipped_importance_weights(
+        pi_e_at_action, pscore, clip_m, use_iw, log_eps
+    )
+
+
 def crm_per_sample_u(rewards, iw_clipped):
     """Per-row u_hi = delta_i * clip_iw with delta = -reward in [-1, 0]."""
     return -rewards * iw_clipped
@@ -77,14 +110,22 @@ def crm_surrogate(
     use_iw: bool,
     use_log_trick: bool,
     log_eps: float = 1e-10,
+    iw_mode: str = "clip",
+    shrink_lambda: float = 10.0,
 ):
-    """CRM objective: clipped IPS risk + variance penalty (Eq. 5).
+    """CRM objective: clipped/shrunk IPS risk + variance penalty (Eq. 5).
 
-    IPS uses a REINFORCE surrogate with detached clipped weights so training
+    IPS uses a REINFORCE surrogate with detached transformed weights so training
     still gets gradients when every ratio hits the clip ceiling.
     """
-    iw = clipped_importance_weights(
-        pi_e_at_action, pscore, clip_m, use_iw, log_eps
+    iw = transform_importance_weights(
+        pi_e_at_action,
+        pscore,
+        use_iw=use_iw,
+        iw_mode=iw_mode,
+        clip_m=clip_m,
+        shrink_lambda=shrink_lambda,
+        log_eps=log_eps,
     )
     iw_pg = iw.detach()
     grad_term = policy_grad_surrogate(pi_e_at_action, use_log_trick, log_eps)
@@ -296,7 +337,7 @@ class KLPolicyLoss(_BanditPolicyLossBase):
 
 
 class CRMPolicyLoss(_BanditPolicyLossBase):
-    """Counterfactual Risk Minimization: clipped IPS + variance penalty (Eq. 5)."""
+    """Counterfactual Risk Minimization: clipped/shrunk IPS + variance penalty (Eq. 5)."""
 
     def __init__(
         self,
@@ -305,6 +346,8 @@ class CRMPolicyLoss(_BanditPolicyLossBase):
         log_eps=1e-10,
         use_log_trick=True,
         propensity_mode="logged",
+        iw_mode: str = "clip",
+        shrink_lambda: float = 10.0,
     ):
         super().__init__(
             log_eps=log_eps,
@@ -313,6 +356,8 @@ class CRMPolicyLoss(_BanditPolicyLossBase):
         )
         self.clip_m = float(clip_m)
         self.crm_lambda = float(crm_lambda)
+        self.iw_mode = str(iw_mode).lower()
+        self.shrink_lambda = float(shrink_lambda)
 
     def forward(self, pscore, scores, policy_prob, original_policy_rewards, original_policy_actions):
         scores, policy_prob = _align_policy_scores(scores, policy_prob)
@@ -326,6 +371,8 @@ class CRMPolicyLoss(_BanditPolicyLossBase):
             use_iw=self._use_iw(),
             use_log_trick=self.use_log_trick,
             log_eps=self.log_eps,
+            iw_mode=self.iw_mode,
+            shrink_lambda=self.shrink_lambda,
         )
 
 
@@ -334,9 +381,10 @@ class KLCRMPolicyLoss(_BanditPolicyLossBase):
 
     L = -SNDR_surrogate + gamma * KL(pi_b || pi_e) + crm_lambda * sqrt(Var(u)/n)
 
-    where u_i = -r_i * clip(iw_i, M). Both ``gamma`` and ``crm_lambda`` are Optuna-tuned.
-    CRM variance keeps gradients through clipped IW so ``crm_lambda`` affects updates
-    under the log-trick SNDR path (unlike standalone CRM, which detaches Var(u)).
+    where u_i = -r_i * ŵ_i and ŵ is clip or Su-shrink of iw. Both ``gamma`` and
+    ``crm_lambda`` are Optuna-tuned. CRM variance keeps gradients through
+    transformed IW so ``crm_lambda`` affects updates under the log-trick SNDR path
+    (unlike standalone CRM, which detaches Var(u)).
     """
 
     def __init__(
@@ -347,6 +395,8 @@ class KLCRMPolicyLoss(_BanditPolicyLossBase):
         log_eps=1e-10,
         use_log_trick=True,
         propensity_mode="logged",
+        iw_mode: str = "clip",
+        shrink_lambda: float = 10.0,
     ):
         super().__init__(
             log_eps=log_eps,
@@ -356,6 +406,8 @@ class KLCRMPolicyLoss(_BanditPolicyLossBase):
         self.gamma = float(gamma)
         self.clip_m = float(clip_m)
         self.crm_lambda = float(crm_lambda)
+        self.iw_mode = str(iw_mode).lower()
+        self.shrink_lambda = float(shrink_lambda)
 
     def forward(self, pscore, scores, policy_prob, original_policy_rewards, original_policy_actions):
         scores, policy_prob = _align_policy_scores(scores, policy_prob)
@@ -366,12 +418,14 @@ class KLCRMPolicyLoss(_BanditPolicyLossBase):
         )
         kl = batch_mc_kl(pi_e_at_position, pscore, self.log_eps)
 
-        iw = clipped_importance_weights(
+        iw = transform_importance_weights(
             pi_e_at_position,
             pscore,
-            self.clip_m,
-            self._use_iw(),
-            self.log_eps,
+            use_iw=self._use_iw(),
+            iw_mode=self.iw_mode,
+            clip_m=self.clip_m,
+            shrink_lambda=self.shrink_lambda,
+            log_eps=self.log_eps,
         )
         u = crm_per_sample_u(original_policy_rewards, iw)
         return dr_loss + self.gamma * kl + crm_variance_penalty(u, self.crm_lambda)

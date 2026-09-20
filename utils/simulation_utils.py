@@ -56,20 +56,23 @@ class CustomCFDatasetPS(Dataset):
     Returns per-sample propensity (pscore) instead of full action distribution.
     """
     def __init__(self, user_idx, action_idx, rewards, pscore):
-        self.user_idx = user_idx
-        self.action_idx = action_idx
-        self.rewards = rewards
-        self.pscore = pscore
+        # Pre-materialize tensors so DataLoader does not call torch.tensor per row
+        # (profile: millions of torch.tensor calls dominated wall time with workers=0).
+        self.user_idx = torch.as_tensor(np.asarray(user_idx), dtype=torch.long)
+        self.action_idx = torch.as_tensor(np.asarray(action_idx), dtype=torch.long)
+        self.rewards = torch.as_tensor(np.asarray(rewards), dtype=torch.float64)
+        self.pscore = torch.as_tensor(np.asarray(pscore), dtype=torch.float64)
 
     def __len__(self):
-        return len(self.rewards)
+        return int(self.rewards.shape[0])
 
     def __getitem__(self, i):
-        user = torch.tensor(int(self.user_idx[i]))
-        action = torch.tensor(int(self.action_idx[i]))
-        reward = torch.tensor(float(self.rewards[i]), dtype=torch.double)
-        pscore = torch.tensor(float(self.pscore[i]), dtype=torch.double)
-        return user, action, reward, pscore
+        return (
+            self.user_idx[i],
+            self.action_idx[i],
+            self.rewards[i],
+            self.pscore[i],
+        )
 
 # ----------------------------
 # Scalable environment
@@ -141,6 +144,55 @@ def floor_renorm_action_dist(p: np.ndarray, min_prob: float = 1e-15) -> np.ndarr
 # --------------------------
 # Reward computation
 # ----------------------------
+# Materialize exact env q(u,a) when catalog fits (float32 cells). Same math as
+# env.reward_prob; speeds repeated calc_reward without changing values.
+EXACT_Q_CACHE_MAX_CELLS = 25_000_000
+
+
+def ensure_exact_env_q_cache(
+    dataset: dict,
+    *,
+    max_cells: int = EXACT_Q_CACHE_MAX_CELLS,
+    user_chunk: int = 2048,
+    action_chunk: int = 8192,
+) -> bool:
+    """Fill ``dataset['q_x_a']`` from ``env.reward_prob`` if catalog is small.
+
+    Returns True when a dense exact q matrix is available afterward.
+    """
+    existing = dataset.get("q_x_a")
+    if existing is not None:
+        return True
+    env = dataset.get("env")
+    if env is None:
+        return False
+    n_users = int(dataset["n_users"])
+    n_actions = int(dataset["n_actions"])
+    if n_users * n_actions > int(max_cells):
+        return False
+
+    t0 = time.time()
+    q = np.empty((n_users, n_actions), dtype=np.float32)
+    for u0 in range(0, n_users, int(user_chunk)):
+        u1 = min(u0 + int(user_chunk), n_users)
+        users = np.arange(u0, u1, dtype=np.int64)
+        b = u1 - u0
+        for a0 in range(0, n_actions, int(action_chunk)):
+            a1 = min(a0 + int(action_chunk), n_actions)
+            users_rep = np.repeat(users, a1 - a0)
+            actions_rep = np.tile(np.arange(a0, a1, dtype=np.int64), b)
+            q[u0:u1, a0:a1] = env.reward_prob(users_rep, actions_rep).reshape(
+                b, a1 - a0
+            )
+    dataset["q_x_a"] = q
+    print(
+        f"[q_x_a] cached exact env rewards {n_users}x{n_actions} "
+        f"({q.nbytes / 1e6:.1f} MB) in {time.time() - t0:.2f}s",
+        flush=True,
+    )
+    return True
+
+
 def calc_reward(dataset: dict, policy, chunk_size: int = 2048):
     """
     Exact policy value computation without materializing full dense matrix.
@@ -148,14 +200,16 @@ def calc_reward(dataset: dict, policy, chunk_size: int = 2048):
     Computes:
         V(pi) = sum_u prior[u] * sum_a pi(a|u) * q(u,a)
 
-    Fully chunked over users for memory safety.
+    Fully chunked over users for memory safety. When ``dataset['q_x_a']`` is
+    present (small catalogs via ``ensure_exact_env_q_cache``), uses that matrix
+    instead of re-calling ``env.reward_prob`` — identical math.
     """
 
     # -------------------------------
     # Case 1: Dense policy matrix
     # -------------------------------
     if isinstance(policy, np.ndarray):
-        if "q_x_a" not in dataset:
+        if "q_x_a" not in dataset or dataset["q_x_a"] is None:
             raise ValueError("Dense policy requires dataset['q_x_a'].")
 
         pol = policy.squeeze()              # (n_users, n_actions)
@@ -177,6 +231,7 @@ def calc_reward(dataset: dict, policy, chunk_size: int = 2048):
     prior = prior.astype(np.float64)
     prior /= prior.sum()   # normalize once
 
+    q_cache = dataset.get("q_x_a")
     total_value = 0.0
 
     action_chunk = int(getattr(policy, "action_chunk", chunk_size))
@@ -202,9 +257,12 @@ def calc_reward(dataset: dict, policy, chunk_size: int = 2048):
         )
         logits = (u @ policy.item_emb[a0:a1].T).astype(np.float64) / pt
         probs = np.exp(logits - log_denom[:, None])
-        users_rep = np.repeat(users, a1 - a0)
-        actions_rep = np.tile(np.arange(a0, a1), b)
-        rewards = env.reward_prob(users_rep, actions_rep).reshape(b, a1 - a0)
+        if q_cache is not None:
+            rewards = np.asarray(q_cache[users][:, a0:a1], dtype=np.float64)
+        else:
+            users_rep = np.repeat(users, a1 - a0)
+            actions_rep = np.tile(np.arange(a0, a1), b)
+            rewards = env.reward_prob(users_rep, actions_rep).reshape(b, a1 - a0)
         user_values += np.sum(probs * rewards, axis=1)
     if user_values is not None:
         total_value += np.sum(user_values * prior[users])

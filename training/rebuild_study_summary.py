@@ -132,6 +132,7 @@ def rebuild_run_summaries(run_dir: Path, *, write_condition_csv: bool = True) ->
             ("dataset", "dataset"),
             ("noise", "noise_mode"),
             ("axis", "noise_axis"),
+            ("comp", "noise_component"),
             ("level", "noise_level"),
             ("seed", "seed"),
             ("ctr", "ctr"),
@@ -163,13 +164,22 @@ def rebuild_run_summaries(run_dir: Path, *, write_condition_csv: bool = True) ->
                 ("dataset", "dataset"),
                 ("noise", "noise_mode"),
                 ("axis", "noise_axis"),
+                ("comp", "noise_component"),
                 ("level", "noise_level"),
                 ("seed", "seed"),
                 ("ctr", "ctr"),
                 ("val", "val_size"),
             ):
-                if dst in part.columns and src in tags:
-                    part = part[part[dst].astype(str) == str(tags[src])]
+                if dst not in part.columns or src not in tags:
+                    continue
+                want = tags[src]
+                col = part[dst]
+                if dst in ("seed", "val_size"):
+                    part = part[pd.to_numeric(col, errors="coerce") == float(want)]
+                elif dst == "ctr":
+                    part = part[pd.to_numeric(col, errors="coerce") == float(want)]
+                else:
+                    part = part[col.astype(str) == str(want)]
             if not part.empty:
                 part.to_csv(cond_dir / "summary_metrics.csv", index=False)
 

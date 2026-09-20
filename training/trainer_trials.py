@@ -46,9 +46,8 @@ def _training_device(*, require_cuda: bool = False) -> torch.device:
 def _dataloader_num_workers() -> int:
     """DataLoader worker processes.
 
-  - Default: 4 when CUDA is available, else 0 (restores pre-parallel-runner behavior).
-  - Under ``run_full_study_parallel`` workers, default 0 to avoid EMFILE / fd exhaustion
-    (set automatically via ``OPC_IN_PARALLEL=1``).
+  - Default: 0 (profile showed workers=4 + pin_memory IPC dominating wall time).
+  - Under ``run_full_study_parallel`` workers, also 0 (``OPC_IN_PARALLEL=1``).
   - Override anytime with ``OPC_DATALOADER_WORKERS``.
     """
     raw = os.environ.get("OPC_DATALOADER_WORKERS", "").strip()
@@ -59,7 +58,7 @@ def _dataloader_num_workers() -> int:
             pass
     if os.environ.get("OPC_IN_PARALLEL", "").strip() in ("1", "true", "yes"):
         return 0
-    return 4 if torch.cuda.is_available() else 0
+    return 0
 
 
 def _log_training_device(method_label: str, device: torch.device) -> None:
@@ -106,6 +105,7 @@ from utils.simulation_utils import (
     CustomCFDatasetPS,
     calc_reward,
     calc_reward_mc,
+    ensure_exact_env_q_cache,
     get_weights_info,
     create_simulation_data_from_policy,
 )
@@ -173,12 +173,107 @@ def _policy_loss_needs_crm(policy_loss_types: tuple[str, ...] | list[str]) -> bo
 
 # Max working blocks for q_hat / softmax (user_chunk, action_chunk); no full n_users x n_actions.
 DEFAULT_QHAT_USER_CHUNK = 5000
-DEFAULT_QHAT_ACTION_CHUNK = 5000
+# Larger action blocks cut Python loop overhead in logsumexp / full-softmax paths.
+DEFAULT_QHAT_ACTION_CHUNK = 8192
 # Auto-materialize q_hat_all when matrix fits in this budget (float32, bytes).
 DEFAULT_QHAT_MATERIALIZE_MAX_GB = 4.0
-DEFAULT_OPTUNA_BATCH_SIZES = (4096, 8192, 16384)
+DEFAULT_OPTUNA_BATCH_SIZES = (8192, 16384, 32768)
 DEFAULT_NEIGHBORHOOD_OPTUNA_BATCH_SIZES = (64, 128, 256, 512)
 LOGGED_RUN_IDX = 0
+
+# Train-size → (default_batch, optuna_choices). Used when --optuna-batch-sizes omitted.
+# Values are 2× the original plan table.
+_BATCH_SCHEDULE: tuple[tuple[int, int, tuple[int, ...]], ...] = (
+    # (max_train_inclusive, default, choices)
+    (25_000, 1024, (512, 1024, 2048)),
+    (100_000, 4096, (2048, 4096, 8192)),
+    (500_000, 8192, (4096, 8192, 16384)),
+    (2_000_000, 16384, (8192, 16384, 32768)),
+    (10**18, 32768, (16384, 32768, 65536)),
+)
+
+
+def batch_schedule(train_size: int) -> tuple[int, list[int]]:
+    """Return ``(default_batch, optuna_choices)`` for a train size."""
+    n = max(1, int(train_size))
+    for max_n, default, choices in _BATCH_SCHEDULE:
+        if n <= max_n:
+            return int(default), list(choices)
+    default, choices = _BATCH_SCHEDULE[-1][1], _BATCH_SCHEDULE[-1][2]
+    return int(default), list(choices)
+
+
+# Wall-time model calibrated on RTX 3080 mid-size OPC slim profiles
+# (train=100k, val=50k, n_trials=1 → ~87s after dataloader/qhat fixes).
+_RUNTIME_SETUP_BASE_S = 28.0
+_RUNTIME_SETUP_PER_LOGGED_S = 7.5e-5  # sim cost ≈ train+val+reg samples
+_RUNTIME_TRIAL_BASE_S = 12.0  # model init + catalog eval / trial
+_RUNTIME_TRIAL_PER_TRAIN_S = 3.5e-4  # mean ~12–15 epochs @ schedule batch
+_RUNTIME_FINAL_REFIT_FRAC = 0.0  # best Optuna trial embeddings reused (no second train)
+
+
+def estimate_condition_runtime_s(
+    train_size: int,
+    n_trials: int,
+    *,
+    val_size: int | None = None,
+    shared_regression_size: int = 50_000,
+    n_methods: int = 1,
+    slim: bool = True,
+) -> dict[str, float]:
+    """Estimate wall seconds for one study condition (one seed/noise cell).
+
+    Scales roughly linearly in ``train_size`` and ``n_trials``. Based on local
+    OPC slim GPU profiles; treat as order-of-magnitude (±2×), not a guarantee.
+
+    Returns dict with ``setup_s``, ``per_trial_s``, ``trials_s``, ``final_s``,
+    ``per_method_s``, ``total_s``.
+    """
+    n = max(1, int(train_size))
+    trials = max(0, int(n_trials))
+    v = int(val_size) if val_size is not None else max(5_000, int(round(0.15 * n)))
+    reg = max(0, int(shared_regression_size))
+    methods = max(1, int(n_methods))
+
+    logged = float(n + v + reg)
+    setup_s = _RUNTIME_SETUP_BASE_S + _RUNTIME_SETUP_PER_LOGGED_S * logged
+    per_trial_s = _RUNTIME_TRIAL_BASE_S + _RUNTIME_TRIAL_PER_TRAIN_S * float(n)
+    if not slim:
+        # Non-slim adds heavy get_trial_results (full-catalog DM/DR/IPW) per size.
+        per_trial_s *= 1.35
+        setup_s *= 1.1
+    trials_s = per_trial_s * float(trials)
+    final_s = per_trial_s * _RUNTIME_FINAL_REFIT_FRAC
+    per_method_s = setup_s + trials_s + final_s
+    total_s = per_method_s * float(methods)
+    return {
+        "setup_s": float(setup_s),
+        "per_trial_s": float(per_trial_s),
+        "trials_s": float(trials_s),
+        "final_s": float(final_s),
+        "per_method_s": float(per_method_s),
+        "total_s": float(total_s),
+        "train_size": float(n),
+        "n_trials": float(trials),
+        "n_methods": float(methods),
+    }
+
+
+def format_runtime_estimate(est: dict[str, float]) -> str:
+    """Human-readable one-liner from ``estimate_condition_runtime_s``."""
+    total = float(est["total_s"])
+    if total < 90:
+        total_h = f"{total:.0f}s"
+    elif total < 3600:
+        total_h = f"{total / 60:.1f}m"
+    else:
+        total_h = f"{total / 3600:.2f}h"
+    bits = [f"setup={est['setup_s']:.0f}s", f"{int(est['n_trials'])}×trial≈{est['per_trial_s']:.0f}s"]
+    if float(est.get("final_s", 0.0)) > 0.5:
+        bits.append(f"final≈{est['final_s']:.0f}s")
+    if int(est["n_methods"]) > 1:
+        bits.append(f"×{int(est['n_methods'])} methods")
+    return f"~{total_h} wall ({', '.join(bits)}; train={int(est['train_size'])})"
 
 
 def _normalize_optuna_batch_sizes(
@@ -211,12 +306,16 @@ def _crm_policy_loss(
     crm_lambda: float,
     use_log_trick: bool = True,
     propensity_mode: str = "logged",
+    iw_mode: str = "clip",
+    shrink_lambda: float = 10.0,
 ) -> CRMPolicyLoss:
     return CRMPolicyLoss(
         clip_m=float(clip_m),
         crm_lambda=float(crm_lambda),
         use_log_trick=use_log_trick,
         propensity_mode=propensity_mode,
+        iw_mode=iw_mode,
+        shrink_lambda=float(shrink_lambda),
     )
 
 
@@ -226,6 +325,8 @@ def _kl_crm_policy_loss(
     crm_lambda: float,
     use_log_trick: bool = True,
     propensity_mode: str = "logged",
+    iw_mode: str = "clip",
+    shrink_lambda: float = 10.0,
 ) -> KLCRMPolicyLoss:
     return KLCRMPolicyLoss(
         gamma=float(gamma),
@@ -233,6 +334,8 @@ def _kl_crm_policy_loss(
         crm_lambda=float(crm_lambda),
         use_log_trick=use_log_trick,
         propensity_mode=propensity_mode,
+        iw_mode=iw_mode,
+        shrink_lambda=float(shrink_lambda),
     )
 
 
@@ -244,6 +347,8 @@ def _policy_loss_from_name(
     crm_lambda: float = 1.0,
     use_log_trick: bool = True,
     propensity_mode: str = "logged",
+    iw_mode: str = "clip",
+    shrink_lambda: float = 10.0,
 ):
     name = str(loss_name).lower()
     if name == "kl_crm":
@@ -253,6 +358,8 @@ def _policy_loss_from_name(
             crm_lambda,
             use_log_trick=use_log_trick,
             propensity_mode=propensity_mode,
+            iw_mode=iw_mode,
+            shrink_lambda=shrink_lambda,
         )
     if name == "kl":
         return _kl_policy_loss(
@@ -281,6 +388,8 @@ def _policy_loss_from_name(
             crm_lambda,
             use_log_trick=use_log_trick,
             propensity_mode=propensity_mode,
+            iw_mode=iw_mode,
+            shrink_lambda=shrink_lambda,
         )
     raise ValueError(f"Unknown policy loss '{loss_name}'; expected one of {VALID_POLICY_LOSSES}")
 
@@ -936,6 +1045,7 @@ def _study_trials_long(
                 "param_kl_gamma": float(params.get("kl_gamma", float("nan"))),
                 "param_crm_M": float(params.get("crm_M", float("nan"))),
                 "param_crm_lambda": float(params.get("crm_lambda", float("nan"))),
+                "param_crm_iw_mode": str(params.get("crm_iw_mode", "clip")),
                 "param_use_log_trick": int(
                     bool(params.get("use_log_trick", default_use_log_trick))
                 ),
@@ -1052,9 +1162,11 @@ def _enqueue_with_kl_gamma(
     if _policy_loss_needs_crm(policy_loss_types):
         merged.setdefault("crm_M", float(crm_m_default))
         merged.setdefault("crm_lambda", float(crm_lambda_default))
+        merged.setdefault("crm_iw_mode", "clip")
     else:
         merged.pop("crm_M", None)
         merged.pop("crm_lambda", None)
+        merged.pop("crm_iw_mode", None)
     if use_log_trick_fixed is not None:
         merged["use_log_trick"] = bool(use_log_trick_fixed)
     elif not search_use_log_trick:
@@ -1287,7 +1399,7 @@ def predict_regression_qhat_users(
 
 
 class RegressionScoresLookup:
-    """q_hat rows for training batches; optional dense ``q_hat_all`` cache on CPU."""
+    """q_hat rows for training batches; optional dense ``q_hat_all`` cache on CPU/GPU."""
 
     def __init__(
         self,
@@ -1307,11 +1419,17 @@ class RegressionScoresLookup:
         self.n_actions = _catalog_n_actions(regression_model)
         self.show_progress = False
         self.q_hat_all = None
+        self._q_hat_gpu = None
         if q_hat_all is not None:
             arr = np.asarray(q_hat_all, dtype=np.float32)
             if arr.ndim == 3:
                 arr = arr[:, :, 0]
             self.q_hat_all = arr
+            # Keep a device-resident copy to avoid per-batch host→device copies.
+            if torch.device(device).type == "cuda":
+                self._q_hat_gpu = torch.as_tensor(
+                    arr, device=device, dtype=torch.float32
+                )
 
     def qhat_rows_numpy(self, user_idx: np.ndarray) -> np.ndarray:
         """(n_rows, n_actions) q_hat for user indices; exact same math as lazy path."""
@@ -1332,6 +1450,18 @@ class RegressionScoresLookup:
         return q[inverse]
 
     def __getitem__(self, user_idx):
+        if self._q_hat_gpu is not None:
+            if isinstance(user_idx, torch.Tensor):
+                idx = user_idx.detach().long()
+                if idx.device != self._q_hat_gpu.device:
+                    idx = idx.to(self._q_hat_gpu.device, non_blocking=True)
+            else:
+                idx = torch.as_tensor(
+                    np.asarray(user_idx, dtype=np.int64).reshape(-1),
+                    device=self._q_hat_gpu.device,
+                    dtype=torch.long,
+                )
+            return self._q_hat_gpu[idx]
         if isinstance(user_idx, torch.Tensor):
             user_idx = user_idx.detach().cpu().numpy()
         q = self.qhat_rows_numpy(np.asarray(user_idx, dtype=np.int64).reshape(-1))
@@ -1630,6 +1760,7 @@ def _policy_reward_from_embeddings(
     user_chunk: int = DEFAULT_QHAT_USER_CHUNK,
     action_chunk: int = DEFAULT_QHAT_ACTION_CHUNK,
 ):
+    ensure_exact_env_q_cache(dataset)
     pi_obj = Policy(
         n_users=int(dataset["n_users"]),
         n_items=int(dataset["n_actions"]),
@@ -1839,8 +1970,12 @@ def neighberhoodmodel_trainer_trial(
     torch.backends.cudnn.benchmark = torch.cuda.is_available()
     if torch.cuda.is_available():
         torch.set_float32_matmul_precision("high")
-    trial_batch_choices = _normalize_optuna_batch_sizes(
-        optuna_batch_sizes, default=DEFAULT_NEIGHBORHOOD_OPTUNA_BATCH_SIZES
+    cli_optuna_batches = (
+        _normalize_optuna_batch_sizes(
+            optuna_batch_sizes, default=DEFAULT_NEIGHBORHOOD_OPTUNA_BATCH_SIZES
+        )
+        if optuna_batch_sizes is not None
+        else None
     )
 
     dm = DM()
@@ -1930,6 +2065,24 @@ def neighberhoodmodel_trainer_trial(
         run = LOGGED_RUN_IDX
         print(f"\n=== [Neighborhood] Train size {train_size}, run {run} (val_size={v}) ===")
 
+        sched_default, sched_choices = batch_schedule(int(train_size))
+        trial_batch_choices = (
+            list(cli_optuna_batches)
+            if cli_optuna_batches is not None
+            else list(sched_choices)
+        )
+        if optuna_batch_sizes is not None:
+            size_default_batch = int(batch_size) if batch_size is not None else int(sched_default)
+        elif batch_size is not None:
+            size_default_batch = int(batch_size)
+        else:
+            size_default_batch = int(sched_default)
+        print(
+            f"[batch_schedule] train_size={int(train_size)} "
+            f"default={size_default_batch} choices={trial_batch_choices}",
+            flush=True,
+        )
+
         # --- resample for this run ---
         simulation_data = _simulate_from_embedding_policy(
             dataset,
@@ -1960,6 +2113,8 @@ def neighberhoodmodel_trainer_trial(
             original_policy_prob=original_policy_prob,
             propensity_mode=propensity_mode,
         )
+
+        trial_embeddings: dict[int, tuple[np.ndarray, np.ndarray]] = {}
 
         # --- Optuna objective bound to this run's data ---
         def objective(trial):
@@ -2034,6 +2189,7 @@ def neighberhoodmodel_trainer_trial(
             trial_x, trial_a = trial_model.get_params()
             trial_x = trial_x.detach().cpu().numpy()
             trial_a = trial_a.detach().cpu().numpy()
+            trial_embeddings[int(trial.number)] = (trial_x, trial_a)
 
             train_actions = train_data["a"]
             train_users = train_data["x_idx"]
@@ -2075,7 +2231,7 @@ def neighberhoodmodel_trainer_trial(
                 )
             )
 
-        study.optimize(objective, n_trials=n_trials, show_progress_bar=True)
+        study.optimize(objective, n_trials=n_trials, show_progress_bar=False)
 
         best_params = study.best_params
         best_params = _fix_best_params_use_log_trick(
@@ -2106,90 +2262,46 @@ def neighberhoodmodel_trainer_trial(
                 ),
             )
 
-        # --- final training with best params on this run’s data ---
-        regression_model = RegressionModel(
-            n_actions=n_actions,
-            action_context=our_a_orig,
-            base_model=LogisticRegression(random_state=12345),
-        )
-        regression_model.fit(
-            train_data["x"],
-            train_data["a"],
-            train_data["r"],
-            np.asarray(train_data["pscore"], dtype=np.float32),
-        )
-
-        neighberhoodmodel = NeighborhoodModel(
-            train_data["x_idx"],
-            train_data["a"],
-            our_a_orig,
-            our_x_orig,
-            train_data["r"],
-            num_neighbors=best_params["num_neighbors"],
-        )
-
-        scores_all = torch.as_tensor(
-            neighberhoodmodel.predict(all_user_indices),
-            device=device,
-            dtype=torch.float32,
-        )
-
-        model = LinearCFModel(
-            n_users,
-            n_actions,
-            emb_dim,
-            initial_user_embeddings=T(our_x_orig),
-            initial_actions_embeddings=T(our_a_orig),
-            temperature=_policy_temperature(dataset),
-        ).to(device)
-        assert (not torch.cuda.is_available()) or next(
-            model.parameters()
-        ).is_cuda
-
-        train_loader = DataLoader(
-            cf_dataset,
-            batch_size=int(best_params.get("batch_size", batch_size)),
-            shuffle=True,
-            pin_memory=torch.cuda.is_available(),
-            num_workers=num_workers,
-            persistent_workers=bool(num_workers),
-        )
-
-        criterion = _kl_policy_loss(
-            best_params.get("kl_gamma", 0.05),
-            use_log_trick=bool(best_params.get("use_log_trick", True)),
-            propensity_mode=propensity_mode,
-        )
-        train(
-            model,
-            train_loader,
-            scores_all,
-            criterion=criterion,
-            num_epochs=int(best_params["num_epochs"]),
-            lr=best_params["lr"],
-            lr_decay=best_params["lr_decay"],
-            device=str(device),
-        )
-
-        # learned embeddings (do NOT overwrite originals)
-        model.eval()
-        learned_x_t, learned_a_t = model.get_params()
-        learned_x = learned_x_t.detach().cpu().numpy()
-        learned_a = learned_a_t.detach().cpu().numpy()
+        # --- Reuse best Optuna trial embeddings (no CF retrain) ---
+        if best_trial_number is None or best_trial_number not in trial_embeddings:
+            raise RuntimeError(
+                "Optuna finished without cached best-trial embeddings; "
+                f"best_trial_number={best_trial_number}"
+            )
+        learned_x, learned_a = trial_embeddings[best_trial_number]
+        trial_embeddings.clear()
 
         if slim:
             trial_res = _slim_learned_policy_metrics(dataset, learned_x, learned_a)
         else:
-            # --- produce the per-run result via get_trial_results ---
+            regression_model = RegressionModel(
+                n_actions=n_actions,
+                action_context=our_a_orig,
+                base_model=LogisticRegression(random_state=12345),
+            )
+            regression_model.fit(
+                train_data["x"],
+                train_data["a"],
+                train_data["r"],
+                np.asarray(train_data["pscore"], dtype=np.float32),
+            )
+            neighberhoodmodel = NeighborhoodModel(
+                train_data["x_idx"],
+                train_data["a"],
+                our_a_orig,
+                our_x_orig,
+                train_data["r"],
+                num_neighbors=best_params["num_neighbors"],
+            )
             trial_res = get_trial_results(
                 learned_x,
-                learned_a,  # learned (policy) embeddings
+                learned_a,
                 emb_x,
-                emb_a,  # ground-truth embedding refs
+                emb_a,
                 original_x,
-                original_a,  # original clean refs
+                original_a,
                 dataset,
-                val_data,  # this run's val split
+                val_data,
                 None,
                 neighberhoodmodel,
                 regression_model,
@@ -2344,7 +2456,12 @@ def regression_trainer_trial(
     if torch.cuda.is_available():
         torch.set_float32_matmul_precision("high")
     _log_training_device(method_label, device)
-    trial_batch_choices = _normalize_optuna_batch_sizes(optuna_batch_sizes)
+    ensure_exact_env_q_cache(dataset)
+    cli_optuna_batches = (
+        _normalize_optuna_batch_sizes(optuna_batch_sizes)
+        if optuna_batch_sizes is not None
+        else None
+    )
 
     dm = DM()
     results = {}
@@ -2484,6 +2601,23 @@ def regression_trainer_trial(
             val_min=val_min,
             val_max=val_max,
         )
+        sched_default, sched_choices = batch_schedule(int(train_size))
+        trial_batch_choices = (
+            list(cli_optuna_batches)
+            if cli_optuna_batches is not None
+            else list(sched_choices)
+        )
+        if optuna_batch_sizes is not None:
+            size_default_batch = int(batch_size) if batch_size is not None else int(sched_default)
+        elif batch_size is not None:
+            size_default_batch = int(batch_size)
+        else:
+            size_default_batch = int(sched_default)
+        print(
+            f"[batch_schedule] train_size={int(train_size)} "
+            f"default={size_default_batch} choices={trial_batch_choices}",
+            flush=True,
+        )
 
         run = LOGGED_RUN_IDX
         print(f"\n=== [Regression] Training size {train_size}, run {run} (val_size={v}) ===")
@@ -2516,6 +2650,10 @@ def regression_trainer_trial(
 
         num_workers = _dataloader_num_workers()
 
+        # Keep best-trial embeddings; skip final retrain (same params → same math,
+        # SGD noise would only add a second stochastic fit).
+        trial_embeddings: dict[int, tuple[np.ndarray, np.ndarray]] = {}
+
         # --- Define Optuna objective ---
         def objective(trial):
             print(f"\n[Regression] Optuna Trial {trial.number}")
@@ -2535,6 +2673,9 @@ def regression_trainer_trial(
             else:
                 crm_M = 10.0
                 crm_lambda = 1.0
+            # DR shrink sim (artifacts/oom_smoke/dr_shrink_sim): raw/clip beat Su
+            # shrink vs true V(π) on our ML noise cells — keep clip as default.
+            crm_iw_mode = "clip"
             trial_use_log_trick = _resolve_trial_use_log_trick(
                 trial, search_use_log_trick, use_log_trick_fixed
             )
@@ -2575,6 +2716,8 @@ def regression_trainer_trial(
                 crm_lambda=crm_lambda,
                 use_log_trick=trial_use_log_trick,
                 propensity_mode=propensity_mode,
+                iw_mode=crm_iw_mode,
+                shrink_lambda=crm_M,
             )
             train(
                 trial_model,
@@ -2594,6 +2737,7 @@ def regression_trainer_trial(
                 trial_x.detach().cpu().numpy(),
                 trial_a.detach().cpu().numpy(),
             )
+            trial_embeddings[int(trial.number)] = (trial_x, trial_a)
             r = _policy_reward_from_embeddings(dataset, trial_x, trial_a)
             print(
                 f"actual reward: {r}"
@@ -2661,7 +2805,7 @@ def regression_trainer_trial(
                 )
             )
 
-        study.optimize(objective, n_trials=n_trials, show_progress_bar=True)
+        study.optimize(objective, n_trials=n_trials, show_progress_bar=False)
         last_optuna_study = study
 
         best_params = study.best_params
@@ -2700,53 +2844,15 @@ def regression_trainer_trial(
             )
             _append_csv(log_paths["trials"], last_trials_export)
 
-        # --- Final training with best params ---
+        # --- Reuse best Optuna trial embeddings (no final retrain) ---
         regression_model = shared_regression_model
-        scores_all = shared_scores_all_t
-
-        model = CFModel(
-            n_users,
-            n_actions,
-            emb_dim,
-            initial_user_embeddings=T(our_x_orig),
-            initial_actions_embeddings=T(our_a_orig),
-            user_transform=SingleMLPTransform(emb_dim),
-            action_transform=SingleMLPTransform(emb_dim),
-            temperature=_policy_temperature(dataset),
-        ).to(device)
-
-        train_loader = DataLoader(
-            cf_dataset,
-            batch_size=int(best_params.get("batch_size", batch_size)),
-            shuffle=True,
-            pin_memory=torch.cuda.is_available(),
-            num_workers=num_workers,
-            persistent_workers=bool(num_workers),
-        )
-
-        criterion = _policy_loss_from_name(
-            best_params.get("policy_loss", policy_loss_types[0]),
-            kl_gamma=best_params.get("kl_gamma", 0.05),
-            clip_m=best_params.get("crm_M", 10.0),
-            crm_lambda=best_params.get("crm_lambda", 1.0),
-            use_log_trick=bool(best_params.get("use_log_trick", True)),
-            propensity_mode=propensity_mode,
-        )
-        train(
-            model,
-            train_loader,
-            scores_all,
-            criterion=criterion,
-            num_epochs=int(best_params["num_epochs"]),
-            lr=best_params["lr"],
-            lr_decay=best_params["lr_decay"],
-            device=str(device),
-        )
-
-        model.eval()
-        learned_x_t, learned_a_t = model.get_params()
-        learned_x = learned_x_t.detach().cpu().numpy()
-        learned_a = learned_a_t.detach().cpu().numpy()
+        if best_trial_number is None or best_trial_number not in trial_embeddings:
+            raise RuntimeError(
+                "Optuna finished without cached best-trial embeddings; "
+                f"best_trial_number={best_trial_number}"
+            )
+        learned_x, learned_a = trial_embeddings[best_trial_number]
+        trial_embeddings.clear()
 
         wrapped_reg_model = IndexToContextModelWrapper(
             regression_model, our_x_orig
@@ -3397,7 +3503,7 @@ def mlp_trial_reward_fit_once(
     # Run Optuna
     # ---------------------------
     study = optuna.create_study(direction="maximize")
-    study.optimize(objective, n_trials=n_trials, show_progress_bar=True)
+    study.optimize(objective, n_trials=n_trials, show_progress_bar=False)
 
     trial_df = study.trials_dataframe()[[
         "value",

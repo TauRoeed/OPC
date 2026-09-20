@@ -14,7 +14,9 @@ from training.trainer_trials import (
     LazyRegressionSplitCache,
     DEFAULT_QHAT_ACTION_CHUNK,
     DEFAULT_QHAT_USER_CHUNK,
+    estimate_condition_runtime_s,
     fit_shared_regression_bundle,
+    format_runtime_estimate,
     no_propensity_trainer_trial,
     regression_trainer_trial,
 )
@@ -150,7 +152,7 @@ def _run_condition(
     seed: int,
     train_sizes: list[int],
     n_trials: int,
-    batch_size: int,
+    batch_size: int | None,
     val_size: int | None,
     val_frac: float,
     val_min: int,
@@ -180,6 +182,21 @@ def _run_condition(
     run_opc = "opc" in methods
     run_no_prop = "no_propensity" in methods
     noprop_policy_loss_types = _no_prop_policy_loss_types(policy_loss_types)
+    n_methods = int(run_opc) + int(run_no_prop)
+    for ts in train_sizes:
+        est = estimate_condition_runtime_s(
+            int(ts),
+            int(n_trials),
+            val_size=val_size,
+            shared_regression_size=int(shared_regression_size),
+            n_methods=max(1, n_methods),
+            slim=bool(slim),
+        )
+        print(
+            f"[runtime_est] train_size={int(ts)} n_trials={int(n_trials)} "
+            f"{format_runtime_estimate(est)}",
+            flush=True,
+        )
     noise_spec = resolve_noise_spec(
         noise_level, axis=noise_axis, component=noise_component
     )
@@ -313,8 +330,12 @@ def _run_condition(
             reward_model=str(reward_model),
         )
     else:
-        opc_df = _load_cached_method_df(run_dir, "opc")
-        opc_trials = _load_cached_method_trials(run_dir, "opc")
+        try:
+            opc_df = _load_cached_method_df(run_dir, "opc")
+            opc_trials = _load_cached_method_trials(run_dir, "opc")
+        except FileNotFoundError:
+            opc_df = pd.DataFrame()
+            opc_trials = pd.DataFrame()
 
     if run_no_prop:
         noprop_df, noprop_trials = no_propensity_trainer_trial(
@@ -347,8 +368,12 @@ def _run_condition(
             reward_model=str(reward_model),
         )
     else:
-        noprop_df = _load_cached_method_df(run_dir, "no_propensity")
-        noprop_trials = _load_cached_method_trials(run_dir, "no_propensity")
+        try:
+            noprop_df = _load_cached_method_df(run_dir, "no_propensity")
+            noprop_trials = _load_cached_method_trials(run_dir, "no_propensity")
+        except FileNotFoundError:
+            noprop_df = pd.DataFrame()
+            noprop_trials = pd.DataFrame()
 
     # Unified long logs for post-hoc analysis.
     trials_frames = []
@@ -385,7 +410,7 @@ def _run_condition(
         "snr": snr_report,
         "train_sizes": [int(x) for x in train_sizes],
         "n_trials": int(n_trials),
-        "batch_size": int(batch_size),
+        "batch_size": int(batch_size) if batch_size is not None else None,
         "val_size_fixed": val_size,
         "val_frac": val_frac,
         "val_min": val_min,
@@ -423,17 +448,26 @@ def _run_condition(
 
 
 def _finalize_summary_df(opc_df, noprop_df, meta: dict, **tags) -> pd.DataFrame:
-    opc_df = opc_df.reset_index().rename(columns={"index": "train_size"})
-    noprop_df = noprop_df.reset_index().rename(columns={"index": "train_size"})
-    opc_df["method"] = "opc"
-    noprop_df["method"] = "no_propensity"
-    summary_df = pd.concat([opc_df, noprop_df], ignore_index=True)
+    frames = []
+    if opc_df is not None and not getattr(opc_df, "empty", True):
+        part = opc_df.reset_index().rename(columns={"index": "train_size"})
+        part["method"] = "opc"
+        frames.append(part)
+    if noprop_df is not None and not getattr(noprop_df, "empty", True):
+        part = noprop_df.reset_index().rename(columns={"index": "train_size"})
+        part["method"] = "no_propensity"
+        frames.append(part)
+    if not frames:
+        return pd.DataFrame()
+    summary_df = pd.concat(frames, ignore_index=True)
     for k, v in tags.items():
         summary_df[k] = v
     summary_df["ctr"] = float(meta["ctr"])
     if "val_size" in summary_df.columns:
         summary_df["val_size_config"] = summary_df["val_size"]
-    return add_paired_method_pct_columns(summary_df)
+    if {"opc", "no_propensity"}.issubset(set(summary_df.get("method", pd.Series(dtype=str)))):
+        return add_paired_method_pct_columns(summary_df)
+    return summary_df
 
 
 def main():
@@ -508,14 +542,21 @@ def main():
 
     parser.add_argument("--seeds", nargs="+", type=int, default=list(range(10)))
     parser.add_argument("--n-trials", type=int, default=20)
-    parser.add_argument("--batch-size", type=int, default=2048)
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=None,
+        help="Fallback batch size when best Optuna trial lacks batch_size. "
+        "Default: from train_size schedule (see batch_schedule).",
+    )
     parser.add_argument(
         "--optuna-batch-sizes",
         nargs="+",
         type=int,
         default=None,
-        help="Batch sizes for Optuna to search (default: 4096 8192 16384). "
-        "Not a sweep axis; only tunes inside each condition.",
+        help="Batch sizes for Optuna to search. Default: schedule neighborhood "
+        "from train_size (2× prior table, e.g. 2048/4096/8192 at 100k; "
+        "16384/32768/65536 above 2M). Not a sweep axis; only tunes inside each condition.",
     )
     parser.add_argument(
         "--policy-reward-mode",
