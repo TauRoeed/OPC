@@ -1,0 +1,7 @@
+{
+  "winner_clip_label": "inf",
+  "winner_clip_m": null,
+  "mean_lift": 7.4549179325828635e-06,
+  "mean_true_v": 0.04923700252957666,
+  "note": "CRM clip_m only affects the CRM variance term in kl_crm; SNDR/DR surrogate and Optuna selection use unclipped IW. Winner maximizes mean true_v lift vs logging init."
+}

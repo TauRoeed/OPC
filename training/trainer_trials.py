@@ -1145,7 +1145,7 @@ def _append_slim_winning_run_extras(
 def _enqueue_with_kl_gamma(
     last_best: dict | None,
     kl_default: float = 0.05,
-    crm_m_default: float = 10.0,
+    crm_m_default: float = 100.0,
     crm_lambda_default: float = 1.0,
     policy_loss_types: tuple[str, ...] = ("kl_crm",),
     search_use_log_trick: bool = True,
@@ -2668,13 +2668,14 @@ def regression_trainer_trial(
             else:
                 kl_gamma = 0.05
             if _policy_loss_needs_crm(policy_loss_types):
-                crm_M = trial.suggest_float("crm_M", 1.0, 100.0, log=True)
+                # Controlled clip sweep (artifacts/oom_smoke/crm_clip_sweep): lift
+                # rises with crm_M; unclipped best. Search high end, default 100.
+                crm_M = trial.suggest_float("crm_M", 10.0, 1000.0, log=True)
                 crm_lambda = trial.suggest_float("crm_lambda", 1e-4, 10.0, log=True)
             else:
-                crm_M = 10.0
+                crm_M = 100.0
                 crm_lambda = 1.0
-            # DR shrink sim (artifacts/oom_smoke/dr_shrink_sim): raw/clip beat Su
-            # shrink vs true V(π) on our ML noise cells — keep clip as default.
+            # DR shrink sim: raw/clip beat Su shrink — keep clip mode (high M ≈ raw).
             crm_iw_mode = "clip"
             trial_use_log_trick = _resolve_trial_use_log_trick(
                 trial, search_use_log_trick, use_log_trick_fixed
