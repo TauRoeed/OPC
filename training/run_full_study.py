@@ -562,7 +562,7 @@ def main():
         default=None,
         help="Batch sizes for Optuna to search. Default: schedule neighborhood "
         "from train_size (2× prior table, e.g. 2048/4096/8192 at 100k; "
-        "16384/32768/65536 above 2M). Not a sweep axis; only tunes inside each condition.",
+        "163840/81920/327680 above 2M ≈10× 1M default). Not a sweep axis; only tunes inside each condition.",
     )
     parser.add_argument(
         "--policy-reward-mode",

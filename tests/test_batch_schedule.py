@@ -13,7 +13,9 @@ def test_batch_schedule_table():
     assert batch_schedule(100_000) == (4096, [2048, 4096, 8192])
     assert batch_schedule(500_000) == (8192, [4096, 8192, 16384])
     assert batch_schedule(2_000_000) == (16384, [8192, 16384, 32768])
-    assert batch_schedule(2_000_001) == (32768, [16384, 32768, 65536])
+    assert batch_schedule(2_000_001) == (163_840, [81_920, 163_840, 327_680])
+    assert batch_schedule(5_000_000) == (163_840, [81_920, 163_840, 327_680])
+    assert batch_schedule(10_000_000) == (163_840, [81_920, 163_840, 327_680])
 
 
 def test_batch_schedule_monotone_default():

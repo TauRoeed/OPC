@@ -187,14 +187,15 @@ DEFAULT_NEIGHBORHOOD_OPTUNA_BATCH_SIZES = (64, 128, 256, 512)
 LOGGED_RUN_IDX = 0
 
 # Train-size → (default_batch, optuna_choices). Used when --optuna-batch-sizes omitted.
-# Values are 2× the original plan table.
+# Values are 2× the original plan table, except ≥5M: ~10× the 1M default (16384)
+# so 5M/10M train time stays closer to 1M wall.
 _BATCH_SCHEDULE: tuple[tuple[int, int, tuple[int, ...]], ...] = (
     # (max_train_inclusive, default, choices)
     (25_000, 1024, (512, 1024, 2048)),
     (100_000, 4096, (2048, 4096, 8192)),
     (500_000, 8192, (4096, 8192, 16384)),
     (2_000_000, 16384, (8192, 16384, 32768)),
-    (10**18, 32768, (16384, 32768, 65536)),
+    (10**18, 163_840, (81_920, 163_840, 327_680)),
 )
 
 
