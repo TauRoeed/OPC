@@ -495,8 +495,9 @@ def main():
     parser.add_argument(
         "--policy-losses",
         nargs="+",
-        default=["kl_crm"],
-        help="Policy losses: kl_crm (default), kl, ipw, sndr, crm (multiple = Optuna categorical).",
+        default=["sndr"],
+        help="OPC policy loss (default sndr). Fixed DR score clip. "
+        "No-prop stays naive.",
     )
     parser.add_argument(
         "--no-log-trick",

@@ -138,6 +138,11 @@ from training.metrics_utils import (
 )
 
 VALID_POLICY_LOSSES = ("kl_crm", "kl", "ipw", "sndr", "crm", "naive")
+# Fixed IW clip for OPC DR trial scoring (logged only). Offline grid with
+# logging_score q̂ (no fit): ``scripts/sim_dr_score_clip_logging_score.py`` →
+# artifacts/oom_smoke/dr_score_clip_logging_score. M=1 max mean bootstrap
+# Spearman(ci_low, true V). ``inf`` = unclipped. No-propensity never clips.
+DEFAULT_DR_SCORE_CLIP_M: float = 1.0
 VALID_OPTUNA_SELECTION = ("ci_low", "r_hat", "actual_reward")
 VALID_REWARD_MODELS = ("regression", "logging_score", "oracle")
 
@@ -1002,7 +1007,7 @@ def _study_trials_long(
     ctr: float | None = None,
     initial_reward: float | None = None,
     dataset_name: str | None = None,
-    default_policy_loss: str = "kl_crm",
+    default_policy_loss: str = "sndr",
     default_use_log_trick: bool = True,
 ):
     """Flatten an Optuna study into a long-format DataFrame for replayable logs."""
@@ -1046,6 +1051,9 @@ def _study_trials_long(
                 "param_crm_M": float(params.get("crm_M", float("nan"))),
                 "param_crm_lambda": float(params.get("crm_lambda", float("nan"))),
                 "param_crm_iw_mode": str(params.get("crm_iw_mode", "clip")),
+                "param_dr_score_clip_m": float(
+                    attrs.get("dr_score_clip_m", float("nan"))
+                ),
                 "param_use_log_trick": int(
                     bool(params.get("use_log_trick", default_use_log_trick))
                 ),
@@ -1147,7 +1155,7 @@ def _enqueue_with_kl_gamma(
     kl_default: float = 0.05,
     crm_m_default: float = 100.0,
     crm_lambda_default: float = 1.0,
-    policy_loss_types: tuple[str, ...] = ("kl_crm",),
+    policy_loss_types: tuple[str, ...] = ("sndr",),
     search_use_log_trick: bool = True,
     use_log_trick_fixed: bool | None = None,
 ) -> dict | None:
@@ -1155,6 +1163,7 @@ def _enqueue_with_kl_gamma(
     if last_best is None:
         return None
     merged = dict(last_best)
+    merged.pop("dr_score_clip_m", None)
     if _policy_loss_needs_kl(policy_loss_types):
         merged.setdefault("kl_gamma", float(kl_default))
     else:
@@ -1711,12 +1720,14 @@ def _split_dr_vec_and_ess(
     dataset: dict,
     *,
     propensity_mode: str = "logged",
+    dr_clip_m: float | None = None,
 ) -> tuple[np.ndarray, float]:
     """Per-row value vector and ESS on a logged split (train or val), chunked.
 
-    Off-policy (``logged``): DR_i = DM_i + (pi_e/pi_b) * (r - q).
+    Off-policy (``logged``): DR_i = DM_i + ŵ_i * (r - q) with
+    ŵ = min(π_e/π_b, M) when ``dr_clip_m`` is finite, else raw IW.
     No-propensity (``uniform``): pure naive R_i = r_i * pi_e(a_i|x_i)
-    (no DM, no SNDR correction, no propensity weights).
+    (no DM, no SNDR correction, no propensity weights, no clip).
     """
     pscore = np.asarray(split_data["pscore"], dtype=np.float32)
     users = np.asarray(split_data["x_idx"], dtype=np.int64)
@@ -1746,6 +1757,8 @@ def _split_dr_vec_and_ess(
         users, trial_x, trial_a, score_lookup, policy_temperature=pt
     ).astype(np.float32)
     iw = pi_e_at_position / (pscore + 1e-12)
+    if dr_clip_m is not None and np.isfinite(float(dr_clip_m)):
+        iw = np.minimum(iw, float(dr_clip_m))
     dr_vec = dm_reward + iw * (reward - q_hat_factual)
     ess = float((iw.sum() ** 2) / ((iw**2).sum() + 1e-12))
     return dr_vec, ess
@@ -2401,7 +2414,7 @@ def regression_trainer_trial(
     policy_reward_mode: str = "exact",
     policy_reward_mc_sim: int = 8,
     split_cache: dict | None = None,
-    policy_loss_types: tuple[str, ...] = ("kl_crm",),
+    policy_loss_types: tuple[str, ...] = ("sndr",),
     dataset_name: str | None = None,
     search_use_log_trick: bool = True,
     use_log_trick_fixed: bool | None = None,
@@ -2413,6 +2426,7 @@ def regression_trainer_trial(
     optuna_batch_sizes: list[int] | None = None,
     optuna_selection: str = "ci_low",
     reward_model: str = "regression",
+    dr_score_clip_m: float | None = None,
 ):
     """
     OPC / no-propensity trainer with Optuna over CF hyperparameters.
@@ -2423,9 +2437,12 @@ def regression_trainer_trial(
     ``split_cache``: optional logged-split cache (``LazyRegressionSplitCache`` or a
     pre-built dict) so OPC and no-propensity see identical train/val data.
 
-    ``policy_loss_types``: policy-gradient losses to try (``kl_crm``, ``kl``, ``ipw``,
-    ``sndr``, ``crm``, ``naive``); if more than one, Optuna picks per trial. Default
-    ``kl_crm`` is the unified SNDR log-trick + KL + CRM variance objective.
+    ``policy_loss_types``: policy-gradient losses to try (``sndr`` default = pure SNDR;
+    also ``kl_crm``, ``kl``, ``ipw``, ``crm``, ``naive``). If more than one, Optuna
+    picks per trial.
+
+    ``dr_score_clip_m``: fixed IW clip for OPC DR trial scoring (default
+    ``DEFAULT_DR_SCORE_CLIP_M`` from offline sweep). Ignored for no-prop (pure naive).
 
     ``search_use_log_trick``: if False, always use direct-prob surrogate (no log trick)
     for applicable losses and do not tune ``use_log_trick`` in Optuna.
@@ -2450,6 +2467,13 @@ def regression_trainer_trial(
     for name in policy_loss_types:
         if name not in VALID_POLICY_LOSSES:
             raise ValueError(f"Unknown policy loss '{name}'")
+    fixed_dr_score_clip_m = (
+        float(DEFAULT_DR_SCORE_CLIP_M)
+        if dr_score_clip_m is None
+        else float(dr_score_clip_m)
+    )
+    # OPC only: clip DR selection IW. No-prop stays pure (no IW).
+    apply_dr_score_clip = uses_importance_weighting(propensity_mode)
 
     device = _training_device(require_cuda=require_cuda)
     torch.backends.cudnn.benchmark = torch.cuda.is_available()
@@ -2675,8 +2699,11 @@ def regression_trainer_trial(
             else:
                 crm_M = 100.0
                 crm_lambda = 1.0
-            # DR shrink sim: raw/clip beat Su shrink — keep clip mode (high M ≈ raw).
             crm_iw_mode = "clip"
+            # Fixed offline clip for OPC DR scoring (not an Optuna param).
+            dr_score_clip_m = (
+                float(fixed_dr_score_clip_m) if apply_dr_score_clip else float("inf")
+            )
             trial_use_log_trick = _resolve_trial_use_log_trick(
                 trial, search_use_log_trick, use_log_trick_fixed
             )
@@ -2750,6 +2777,7 @@ def regression_trainer_trial(
                 trial_scores_all,
                 dataset,
                 propensity_mode=propensity_mode,
+                dr_clip_m=dr_score_clip_m,
             )
             dr_vec_tr, ess_train = _split_dr_vec_and_ess(
                 train_data,
@@ -2758,6 +2786,7 @@ def regression_trainer_trial(
                 trial_scores_all,
                 dataset,
                 propensity_mode=propensity_mode,
+                dr_clip_m=dr_score_clip_m,
             )
             n = max(len(dr_vec), 2)
             r_hat = float(dr_vec.mean())
@@ -2791,6 +2820,7 @@ def regression_trainer_trial(
             trial.set_user_attr("ess", ess_val)
             trial.set_user_attr("ess_train", ess_train)
             trial.set_user_attr("optuna_selection", str(optuna_selection))
+            trial.set_user_attr("dr_score_clip_m", float(dr_score_clip_m))
 
             return value
 

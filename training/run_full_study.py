@@ -11,6 +11,7 @@ from training.trainer_trials import (
     VALID_OPTUNA_SELECTION,
     VALID_POLICY_LOSSES,
     VALID_REWARD_MODELS,
+    DEFAULT_DR_SCORE_CLIP_M,
     LazyRegressionSplitCache,
     DEFAULT_QHAT_ACTION_CHUNK,
     DEFAULT_QHAT_USER_CHUNK,
@@ -162,7 +163,7 @@ def _run_condition(
     policy_temperature: float,
     run_dir: Path,
     slim: bool = False,
-    policy_loss_types: tuple[str, ...] = ("kl_crm",),
+    policy_loss_types: tuple[str, ...] = ("sndr",),
     search_use_log_trick: bool = True,
     shared_regression_size: int = 50_000,
     qhat_user_chunk: int = DEFAULT_QHAT_USER_CHUNK,
@@ -177,6 +178,7 @@ def _run_condition(
     q_bad_value: float | None = None,
     rand_ctr_meta: dict | None = None,
     noise_component: str = "combined",
+    dr_score_clip_m: float | None = None,
 ):
     methods = _normalize_study_methods(methods)
     run_opc = "opc" in methods
@@ -328,6 +330,7 @@ def _run_condition(
             optuna_batch_sizes=optuna_batch_sizes,
             optuna_selection=optuna_selection,
             reward_model=str(reward_model),
+            dr_score_clip_m=dr_score_clip_m,
         )
     else:
         try:
@@ -426,6 +429,9 @@ def _run_condition(
         "study_methods": list(methods),
         "opc_policy_loss_types": list(policy_loss_types),
         "no_prop_policy_loss_types": list(noprop_policy_loss_types),
+        "dr_score_clip_m": float(
+            DEFAULT_DR_SCORE_CLIP_M if dr_score_clip_m is None else dr_score_clip_m
+        ),
         "shared_regression_size": int(
             shared_regression_bundle.get("sample_size", reg_size)
         ),
@@ -622,10 +628,12 @@ def main():
     parser.add_argument(
         "--policy-losses",
         nargs="+",
-        default=["kl_crm"],
+        default=["sndr"],
         choices=list(VALID_POLICY_LOSSES),
-        help="Policy-gradient losses for Optuna (default kl_crm = SNDR+KL+CRM, no split). "
-        "Multiple values = categorical over legacy losses.",
+        help="OPC policy-gradient loss (default sndr = pure SNDR train). "
+        "DR selection uses fixed IW clip (DEFAULT_DR_SCORE_CLIP_M). "
+        "Multiple values = Optuna categorical over losses. "
+        "No-propensity stays naive (no IW/clip).",
     )
     parser.add_argument(
         "--no-log-trick",
@@ -687,6 +695,7 @@ def main():
     print(f"Methods: {methods}")
     if "no_propensity" in methods:
         print(f"No-prop losses: {_no_prop_policy_loss_types(policy_loss_types)}")
+    print(f"DR score clip M (OPC fixed): {DEFAULT_DR_SCORE_CLIP_M}")
     print(f"Search use_log_trick: {search_use_log_trick}")
 
     all_summary_rows = []

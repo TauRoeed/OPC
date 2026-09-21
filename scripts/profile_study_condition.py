@@ -51,7 +51,7 @@ def main() -> None:
         policy_temperature=1.0,
         run_dir=run_dir,
         slim=True,
-        policy_loss_types=("kl_crm",),
+        policy_loss_types=("sndr",),
         search_use_log_trick=True,
         shared_regression_size=25_000,
         qhat_user_chunk=5000,

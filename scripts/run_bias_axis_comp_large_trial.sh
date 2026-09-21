@@ -1,17 +1,18 @@
 #!/usr/bin/env bash
-# Trial 2: axis × component noise @ large train, fixed val.
+# Bias trial: axis × component noise @ large train, fixed val.
+# Defaults: sndr train, logging_score q̂, fixed DR score clip M=1 (code default).
 # Train curve: 0.5M → 1M → 2M → 5M → 10M.
 # Usage:
-#   FIXED_VAL=100000 ./scripts/run_bias_axis_comp_large_trial.sh
-#   FIXED_VAL=100000 IMAGE=opc:gpu ./scripts/run_bias_axis_comp_large_trial.sh
+#   CUDA_VISIBLE_DEVICES=1,2,3 NUM_GPUS=3 MAX_WORKERS=90 FIXED_VAL=100000 \
+#     ./scripts/run_bias_axis_comp_large_trial.sh
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-RUN_TAG="${RUN_TAG:-bias_axis_comp_tr500k_10m_l5_t20_s5}"
-NUM_GPUS="${NUM_GPUS:-2}"
-MAX_WORKERS="${MAX_WORKERS:-16}"
+RUN_TAG="${RUN_TAG:-bias_axis_comp_sndr_logscore_clip1_tr500k_10m_v100k_t20_s5}"
+NUM_GPUS="${NUM_GPUS:-3}"
+MAX_WORKERS="${MAX_WORKERS:-90}"
 SHM="${SHM:-128g}"
 IMAGE="${IMAGE:-}"
 FIXED_VAL="${FIXED_VAL:-100000}"
@@ -35,6 +36,9 @@ ARGS=(
   --val-size "$FIXED_VAL"
   --seeds 0 1 2 3 4
   --n-trials 20
+  --policy-losses sndr
+  --reward-model logging_score
+  --slim
   --num-gpus "$NUM_GPUS"
   --max-workers "$MAX_WORKERS"
   --require-cuda
@@ -50,9 +54,10 @@ N_LEVEL=${#NOISE_LEVELS[@]}
 N_SEED=5
 N_COND=$((N_AXIS * N_COMP * N_LEVEL * N_SEED))
 
-echo "[$(date -Is)] starting trial 2 (large noise) $RUN_TAG"
+echo "[$(date -Is)] starting bias axis×comp trial $RUN_TAG"
 echo "  train=${TRAIN_SIZES[*]}  fixed_val=$FIXED_VAL"
 echo "  levels=${NOISE_LEVELS[*]}"
+echo "  loss=sndr  reward_model=logging_score  DR_score_clip_M=1 (fixed)"
 echo "  grid: ${N_AXIS} axes × ${N_COMP} comps × ${N_LEVEL} levels × ${N_SEED} seeds = ${N_COND} conditions"
 echo "  num_gpus=$NUM_GPUS max_workers=$MAX_WORKERS"
 echo "  log: $LOGFILE"
