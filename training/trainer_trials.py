@@ -211,10 +211,13 @@ def batch_schedule(train_size: int) -> tuple[int, list[int]]:
 
 # Wall-time model calibrated on RTX 3080 mid-size OPC slim profiles
 # (train=100k, val=50k, n_trials=1 → ~87s after dataloader/qhat fixes).
+# Train term ∝ n / batch_schedule(n); K chosen so 1M @ 16384 matches the
+# older linear ``3.5e-4 * n`` (same wall at the 1M default batch).
 _RUNTIME_SETUP_BASE_S = 28.0
 _RUNTIME_SETUP_PER_LOGGED_S = 7.5e-5  # sim cost ≈ train+val+reg samples
 _RUNTIME_TRIAL_BASE_S = 12.0  # model init + catalog eval / trial
-_RUNTIME_TRIAL_PER_TRAIN_S = 3.5e-4  # mean ~12–15 epochs @ schedule batch
+_RUNTIME_TRIAL_PER_TRAIN_S = 3.5e-4  # legacy: train cost at 1M-default batch
+_RUNTIME_TRIAL_BATCH_ANCHOR = 16_384  # batch embedded in PER_TRAIN (1M default)
 _RUNTIME_FINAL_REFIT_FRAC = 0.0  # best Optuna trial embeddings reused (no second train)
 
 
@@ -226,24 +229,34 @@ def estimate_condition_runtime_s(
     shared_regression_size: int = 50_000,
     n_methods: int = 1,
     slim: bool = True,
+    batch_size: int | None = None,
 ) -> dict[str, float]:
     """Estimate wall seconds for one study condition (one seed/noise cell).
 
-    Scales roughly linearly in ``train_size`` and ``n_trials``. Based on local
-    OPC slim GPU profiles; treat as order-of-magnitude (±2×), not a guarantee.
+    Scales roughly with ``n_trials`` and ``train_size / batch``. Batch defaults
+    to ``batch_schedule(train_size)``. Order-of-magnitude (±2×), not a guarantee.
 
     Returns dict with ``setup_s``, ``per_trial_s``, ``trials_s``, ``final_s``,
-    ``per_method_s``, ``total_s``.
+    ``per_method_s``, ``total_s``, ``batch_size``.
     """
     n = max(1, int(train_size))
     trials = max(0, int(n_trials))
     v = int(val_size) if val_size is not None else max(5_000, int(round(0.15 * n)))
     reg = max(0, int(shared_regression_size))
     methods = max(1, int(n_methods))
+    sched_default, _ = batch_schedule(n)
+    b = int(batch_size) if batch_size is not None else int(sched_default)
+    b = max(1, b)
 
     logged = float(n + v + reg)
     setup_s = _RUNTIME_SETUP_BASE_S + _RUNTIME_SETUP_PER_LOGGED_S * logged
-    per_trial_s = _RUNTIME_TRIAL_BASE_S + _RUNTIME_TRIAL_PER_TRAIN_S * float(n)
+    # Train ∝ steps/epoch ≈ n/batch; anchor keeps 1M@16384 = old linear estimate.
+    train_term = (
+        _RUNTIME_TRIAL_PER_TRAIN_S
+        * float(n)
+        * (float(_RUNTIME_TRIAL_BATCH_ANCHOR) / float(b))
+    )
+    per_trial_s = _RUNTIME_TRIAL_BASE_S + train_term
     if not slim:
         # Non-slim adds heavy get_trial_results (full-catalog DM/DR/IPW) per size.
         per_trial_s *= 1.35
@@ -262,6 +275,7 @@ def estimate_condition_runtime_s(
         "train_size": float(n),
         "n_trials": float(trials),
         "n_methods": float(methods),
+        "batch_size": float(b),
     }
 
 
@@ -279,7 +293,13 @@ def format_runtime_estimate(est: dict[str, float]) -> str:
         bits.append(f"final≈{est['final_s']:.0f}s")
     if int(est["n_methods"]) > 1:
         bits.append(f"×{int(est['n_methods'])} methods")
-    return f"~{total_h} wall ({', '.join(bits)}; train={int(est['train_size'])})"
+    batch_bit = ""
+    if "batch_size" in est:
+        batch_bit = f", batch={int(est['batch_size'])}"
+    return (
+        f"~{total_h} wall ({', '.join(bits)}; train={int(est['train_size'])}"
+        f"{batch_bit})"
+    )
 
 
 def _normalize_optuna_batch_sizes(
