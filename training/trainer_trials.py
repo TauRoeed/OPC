@@ -1151,6 +1151,25 @@ def _append_slim_winning_run_extras(
         )
 
 
+def _snap_batch_size_to_choices(
+    batch_size: int | float | None,
+    choices: list[int] | tuple[int, ...],
+    *,
+    default: int | None = None,
+) -> int:
+    """Map a carried-over batch size onto the current Optuna categorical grid."""
+    opts = [int(x) for x in choices]
+    if not opts:
+        raise ValueError("batch choices must be non-empty")
+    if batch_size is None:
+        return int(default) if default is not None else opts[len(opts) // 2]
+    b = int(batch_size)
+    if b in opts:
+        return b
+    # Nearest by absolute distance (prefer larger on ties).
+    return min(opts, key=lambda c: (abs(c - b), -c))
+
+
 def _enqueue_with_kl_gamma(
     last_best: dict | None,
     kl_default: float = 0.05,
@@ -1159,12 +1178,21 @@ def _enqueue_with_kl_gamma(
     policy_loss_types: tuple[str, ...] = ("sndr",),
     search_use_log_trick: bool = True,
     use_log_trick_fixed: bool | None = None,
+    *,
+    batch_choices: list[int] | tuple[int, ...] | None = None,
+    batch_default: int | None = None,
 ) -> dict | None:
-    """Optuna enqueue compatibility when new search dims were added."""
+    """Optuna enqueue compatibility when new search dims / batch grids change."""
     if last_best is None:
         return None
     merged = dict(last_best)
     merged.pop("dr_score_clip_m", None)
+    if batch_choices is not None:
+        merged["batch_size"] = _snap_batch_size_to_choices(
+            merged.get("batch_size"),
+            batch_choices,
+            default=batch_default,
+        )
     if _policy_loss_needs_kl(policy_loss_types):
         merged.setdefault("kl_gamma", float(kl_default))
     else:
@@ -2242,6 +2270,8 @@ def neighberhoodmodel_trainer_trial(
                     last_best_params,
                     search_use_log_trick=search_use_log_trick,
                     use_log_trick_fixed=use_log_trick_fixed,
+                    batch_choices=trial_batch_choices,
+                    batch_default=size_default_batch,
                 )
             )
 
@@ -2834,6 +2864,8 @@ def regression_trainer_trial(
                     policy_loss_types=policy_loss_types,
                     search_use_log_trick=search_use_log_trick,
                     use_log_trick_fixed=use_log_trick_fixed,
+                    batch_choices=trial_batch_choices,
+                    batch_default=size_default_batch,
                 )
             )
 

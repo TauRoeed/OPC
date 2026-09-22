@@ -39,8 +39,26 @@ def test_runtime_estimate_scales():
     assert "final≈" not in s
 
 
+def test_snap_batch_size_across_schedule():
+    from training.trainer_trials import _enqueue_with_kl_gamma, _snap_batch_size_to_choices
+
+    big = [81_920, 163_840, 327_680]
+    assert _snap_batch_size_to_choices(8192, big) == 81_920
+    assert _snap_batch_size_to_choices(16384, big) == 81_920
+    assert _snap_batch_size_to_choices(65536, big) == 81_920
+    assert _snap_batch_size_to_choices(200_000, big) == 163_840
+    enq = _enqueue_with_kl_gamma(
+        {"lr": 1e-3, "batch_size": 8192, "num_epochs": 10},
+        policy_loss_types=("sndr",),
+        batch_choices=big,
+        batch_default=163_840,
+    )
+    assert enq["batch_size"] == 81_920
+
+
 if __name__ == "__main__":
     test_batch_schedule_table()
     test_batch_schedule_monotone_default()
     test_runtime_estimate_scales()
+    test_snap_batch_size_across_schedule()
     print("ok")
