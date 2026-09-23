@@ -104,6 +104,7 @@ from utils.simulation_utils import (
     CustomCFDataset,
     CustomCFDatasetPS,
     calc_reward,
+    calc_uniform_reward,
     calc_reward_mc,
     ensure_exact_env_q_cache,
     get_weights_info,
@@ -1285,37 +1286,7 @@ def _uniform_policy_reward(
     action_chunk: int = DEFAULT_QHAT_ACTION_CHUNK,
 ) -> float:
     """Exact value of the uniform policy on the true env."""
-    if "env" not in dataset:
-        raise ValueError("uniform policy reward needs dataset['env']")
-    env = dataset["env"]
-    n_users = int(dataset["n_users"])
-    n_actions = int(dataset["n_actions"])
-    prior = np.asarray(
-        dataset.get("user_prior", np.ones(n_users, dtype=np.float64)),
-        dtype=np.float64,
-    )
-    prior = prior / prior.sum()
-    total = 0.0
-    from utils.chunk_progress import iter_user_action_blocks
-
-    user_values = None
-    users = None
-    for start, end, a0, a1 in iter_user_action_blocks(
-        n_users, n_actions, user_chunk, action_chunk, desc="uniform policy value"
-    ):
-        if users is None or start != users[0]:
-            if user_values is not None:
-                total += float(np.sum(user_values * prior[users]))
-            users = np.arange(start, end, dtype=np.int64)
-            user_values = np.zeros(end - start, dtype=np.float64)
-        b = end - start
-        users_rep = np.repeat(users, a1 - a0)
-        actions_rep = np.tile(np.arange(a0, a1), b)
-        rewards = env.reward_prob(users_rep, actions_rep).reshape(b, a1 - a0)
-        user_values += rewards.sum(axis=1) / float(n_actions)
-    if user_values is not None:
-        total += float(np.sum(user_values * prior[users]))
-    return float(total)
+    return calc_uniform_reward(dataset, user_chunk=user_chunk, action_chunk=action_chunk)
 
 
 def _simulate_from_embedding_policy(dataset, our_x, our_a, n_samples, random_state):

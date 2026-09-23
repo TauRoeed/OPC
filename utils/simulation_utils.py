@@ -2,6 +2,7 @@ import warnings
 warnings.filterwarnings("ignore")
 
 from dataclasses import dataclass
+import os
 import time
 import numpy as np
 import torch
@@ -96,6 +97,20 @@ class SyntheticBanditEnv:
 
         return 1.0 / ((1.0 /float(self.ctr)) + np.exp(-logits))
 
+    def reward_prob_block(self, users: np.ndarray, a0: int, a1: int) -> np.ndarray:
+        """reward_prob for every (user in users) × (action in [a0, a1)); one matmul."""
+        logits = (self.emb_x[users] @ self.emb_a[a0:a1].T) / max(self.temperature, 1e-8)
+        return 1.0 / ((1.0 / float(self.ctr)) + np.exp(-logits))
+
+
+def env_reward_block(env, users: np.ndarray, a0: int, a1: int) -> np.ndarray:
+    """(len(users), a1 - a0) true reward probs; matmul fast path when the env has one."""
+    if hasattr(env, "reward_prob_block"):
+        return env.reward_prob_block(users, a0, a1)
+    users_rep = np.repeat(users, a1 - a0)
+    actions_rep = np.tile(np.arange(a0, a1, dtype=np.int64), len(users))
+    return env.reward_prob(users_rep, actions_rep).reshape(len(users), a1 - a0)
+
 
 # ----------------------------
 # Metrics helpers
@@ -176,14 +191,9 @@ def ensure_exact_env_q_cache(
     for u0 in range(0, n_users, int(user_chunk)):
         u1 = min(u0 + int(user_chunk), n_users)
         users = np.arange(u0, u1, dtype=np.int64)
-        b = u1 - u0
         for a0 in range(0, n_actions, int(action_chunk)):
             a1 = min(a0 + int(action_chunk), n_actions)
-            users_rep = np.repeat(users, a1 - a0)
-            actions_rep = np.tile(np.arange(a0, a1, dtype=np.int64), b)
-            q[u0:u1, a0:a1] = env.reward_prob(users_rep, actions_rep).reshape(
-                b, a1 - a0
-            )
+            q[u0:u1, a0:a1] = env_reward_block(env, users, a0, a1)
     dataset["q_x_a"] = q
     print(
         f"[q_x_a] cached exact env rewards {n_users}x{n_actions} "
@@ -224,50 +234,156 @@ def calc_reward(dataset: dict, policy, chunk_size: int = 2048):
     if "env" not in dataset:
         raise ValueError("Policy object requires dataset['env'].")
 
+    pt = max(float(getattr(policy, "temperature", 1.0)), 1e-8)
+    device = _exact_reward_device(dataset)
+    if device is not None:
+        return _exact_value_torch(
+            dataset, device, user_emb=policy.user_emb, item_emb=policy.item_emb,
+            temperature=pt,
+        )
+
     env = dataset["env"]
     n_users = int(dataset["n_users"])
     n_actions = int(dataset["n_actions"])
-    prior = dataset.get("user_prior", np.ones(n_users, dtype=np.float64))
-    prior = prior.astype(np.float64)
-    prior /= prior.sum()   # normalize once
-
+    prior = _normalized_prior(dataset)
     q_cache = dataset.get("q_x_a")
-    total_value = 0.0
-
     action_chunk = int(getattr(policy, "action_chunk", chunk_size))
-    pt = max(float(getattr(policy, "temperature", 1.0)), 1e-8)
-    user_values = None
-    users = None
-    for start, end, a0, a1 in iter_user_action_blocks(
-        n_users,
-        n_actions,
-        chunk_size,
-        action_chunk,
-        desc="policy value",
-    ):
-        if users is None or start != users[0]:
-            if user_values is not None:
-                total_value += np.sum(user_values * prior[users])
-            users = np.arange(start, end, dtype=np.int64)
-            user_values = np.zeros(end - start, dtype=np.float64)
-        b = end - start
+
+    total_value = 0.0
+    for start in range(0, n_users, int(chunk_size)):
+        end = min(start + int(chunk_size), n_users)
+        users = np.arange(start, end, dtype=np.int64)
         u = policy.user_emb[users]
-        log_denom = _logsumexp_action_chunks(
-            u, policy.item_emb, pt, action_chunk
-        )
-        logits = (u @ policy.item_emb[a0:a1].T).astype(np.float64) / pt
-        probs = np.exp(logits - log_denom[:, None])
-        if q_cache is not None:
-            rewards = np.asarray(q_cache[users][:, a0:a1], dtype=np.float64)
-        else:
-            users_rep = np.repeat(users, a1 - a0)
-            actions_rep = np.tile(np.arange(a0, a1), b)
-            rewards = env.reward_prob(users_rep, actions_rep).reshape(b, a1 - a0)
-        user_values += np.sum(probs * rewards, axis=1)
-    if user_values is not None:
+        # normalizer depends only on the user block: compute once, not per action block
+        log_denom = _logsumexp_action_chunks(u, policy.item_emb, pt, action_chunk)
+        user_values = np.zeros(end - start, dtype=np.float64)
+        for a0 in range(0, n_actions, action_chunk):
+            a1 = min(a0 + action_chunk, n_actions)
+            logits = (u @ policy.item_emb[a0:a1].T).astype(np.float64) / pt
+            probs = np.exp(logits - log_denom[:, None])
+            if q_cache is not None:
+                rewards = np.asarray(q_cache[start:end, a0:a1], dtype=np.float64)
+            else:
+                rewards = env_reward_block(env, users, a0, a1)
+            user_values += np.sum(probs * rewards, axis=1)
         total_value += np.sum(user_values * prior[users])
 
     return float(total_value)
+
+
+def calc_uniform_reward(
+    dataset: dict, *, user_chunk: int = 5000, action_chunk: int = 8192
+) -> float:
+    """Exact value of the uniform policy: sum_u prior[u] * mean_a q(u, a)."""
+    if "env" not in dataset:
+        raise ValueError("uniform policy reward needs dataset['env']")
+    device = _exact_reward_device(dataset)
+    if device is not None:
+        return _exact_value_torch(dataset, device)
+
+    env = dataset["env"]
+    n_users = int(dataset["n_users"])
+    n_actions = int(dataset["n_actions"])
+    prior = _normalized_prior(dataset)
+    total = 0.0
+    for start in range(0, n_users, int(user_chunk)):
+        end = min(start + int(user_chunk), n_users)
+        users = np.arange(start, end, dtype=np.int64)
+        user_values = np.zeros(end - start, dtype=np.float64)
+        for a0 in range(0, n_actions, int(action_chunk)):
+            a1 = min(a0 + int(action_chunk), n_actions)
+            user_values += env_reward_block(env, users, a0, a1).sum(axis=1) / float(n_actions)
+        total += float(np.sum(user_values * prior[users]))
+    return float(total)
+
+
+# Exact full-catalog values on GPU. OPC_EXACT_REWARD_DEVICE: auto (default: CUDA if
+# available) | cpu. Block size in cells (~3 fp32 blocks live, 32MB each); memory is
+# released after every call.
+EXACT_REWARD_DEVICE_ENV = "OPC_EXACT_REWARD_DEVICE"
+EXACT_REWARD_GPU_BLOCK_CELLS = 8 * 1024 * 1024
+
+
+def _normalized_prior(dataset: dict) -> np.ndarray:
+    n_users = int(dataset["n_users"])
+    prior = np.asarray(
+        dataset.get("user_prior", np.ones(n_users, dtype=np.float64)), dtype=np.float64
+    )
+    return prior / prior.sum()
+
+
+def _exact_reward_device(dataset: dict):
+    """CUDA device for exact values, or None to use the numpy path."""
+    if os.environ.get(EXACT_REWARD_DEVICE_ENV, "auto").strip().lower() == "cpu":
+        return None
+    if not torch.cuda.is_available():
+        return None
+    if dataset.get("q_x_a") is None and not isinstance(dataset.get("env"), SyntheticBanditEnv):
+        return None
+    gpu = int(os.environ.get("OPC_WORKER_GPU", "0"))
+    if gpu < 0 or gpu >= torch.cuda.device_count():
+        gpu = 0
+    return torch.device(f"cuda:{gpu}")
+
+
+@torch.no_grad()
+def _exact_value_torch(
+    dataset: dict,
+    device,
+    *,
+    user_emb: np.ndarray | None = None,
+    item_emb: np.ndarray | None = None,
+    temperature: float = 1.0,
+) -> float:
+    """sum_u prior[u] * sum_a pi(a|u) q(u,a); softmax policy from embeddings, or uniform if None.
+
+    Same math as the numpy path in fp32 (TF32 matmuls disabled), accumulated in fp64.
+    """
+    env = dataset["env"]
+    n_users = int(dataset["n_users"])
+    n_actions = int(dataset["n_actions"])
+    q_cache = dataset.get("q_x_a")
+    rows = max(1, min(n_users, EXACT_REWARD_GPU_BLOCK_CELLS // max(n_actions, 1)))
+
+    def t(a):
+        return torch.as_tensor(np.asarray(a, dtype=np.float32), device=device)
+
+    prev_precision = torch.get_float32_matmul_precision()
+    torch.set_float32_matmul_precision("highest")
+    try:
+        prior = torch.as_tensor(_normalized_prior(dataset), device=device)
+        if q_cache is not None:
+            q_all = t(q_cache)
+        else:
+            env_x, env_a_t = t(env.emb_x), t(env.emb_a).T.contiguous()
+            inv_ctr = 1.0 / float(env.ctr)
+            env_temp = max(float(env.temperature), 1e-8)
+        if user_emb is not None:
+            pol_x, pol_a_t = t(user_emb), t(item_emb).T.contiguous()
+            pt = max(float(temperature), 1e-8)
+
+        total = torch.zeros((), dtype=torch.float64, device=device)
+        for u0 in range(0, n_users, rows):
+            u1 = min(u0 + rows, n_users)
+            # In-place ops keep ~2 blocks live (same arithmetic as the out-of-place form).
+            if q_cache is not None:
+                q = q_all[u0:u1]
+            else:
+                q = (env_x[u0:u1] @ env_a_t).div_(-env_temp).exp_().add_(inv_ctr).reciprocal_()
+            if user_emb is None:
+                v = q.sum(dim=1, dtype=torch.float64) / float(n_actions)
+            else:
+                probs = torch.softmax((pol_x[u0:u1] @ pol_a_t).div_(pt), dim=1)
+                v = probs.mul_(q).sum(dim=1, dtype=torch.float64)
+                del probs
+            del q
+            total += (v * prior[u0:u1]).sum()
+        return float(total)
+    finally:
+        torch.set_float32_matmul_precision(prev_precision)
+        # Return blocks and uploaded embeddings to the driver: parallel workers share the GPU.
+        q_all = env_x = env_a_t = pol_x = pol_a_t = prior = q = probs = None
+        torch.cuda.empty_cache()
 
 
 def calc_reward_mc(dataset: dict, policy, n_sim=30):
