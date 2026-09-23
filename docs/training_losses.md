@@ -71,7 +71,7 @@ Relevant code: `AnalyticRewardModel` and `fit_shared_regression_bundle` in
 Supported policy-loss names (`VALID_POLICY_LOSSES` / `--policy-losses`):
 
 ```text
-kl_crm (default), kl, ipw, sndr, crm, naive
+sndr (default), kl_crm, kl, ipw, crm, naive
 ```
 
 If more than one name is passed, Optuna treats `policy_loss` as a categorical.
@@ -79,20 +79,26 @@ If more than one name is passed, Optuna treats `policy_loss` as a categorical.
 ### OPC arm
 
 OPC uses logged propensities (`propensity_mode="logged"`) and IW / DR-style
-losses. The full-study default is the unified `kl_crm` loss with the log trick
-fixed on:
+losses. The full-study default is pure `sndr` (negative SNDR surrogate only;
+no KL, no CRM) with the log trick fixed on.
+
+Legacy / ablation: `--policy-losses kl_crm` restores the unified loss
 
 ```text
-OPC loss
+OPC loss (kl_crm)
     = negative SNDR log-trick surrogate
     + kl_gamma  * batch-MC KL penalty
     + crm_lambda * CRM variance penalty
 ```
 
 In `run_full_study.py`, OPC sets `use_log_trick_fixed=True` (not tuned by
-Optuna). Ablations can pass other losses, e.g. `--policy-losses sndr` or
-`--policy-losses ipw`, often together with hurt-logging knobs and
-`--optuna-selection r_hat`.
+Optuna). Other ablations: `--policy-losses ipw`, hurt-logging knobs,
+`--optuna-selection r_hat`, etc.
+
+**DR trial scoring (selection only):** importance weights are clipped at fixed
+`DEFAULT_DR_SCORE_CLIP_M = 1` (`ŵ = min(π_e/π_b, M)`). Chosen offline
+(`scripts/sim_dr_score_clip_logging_score.py`); not searched by Optuna.
+Training SNDR uses unclipped IW unless a CRM-style loss sets `crm_M`.
 
 ### No-propensity arm
 
@@ -118,7 +124,7 @@ Minimizing this loss increases the learned probability of logged actions that
 received larger rewards. Zero-reward observations contribute zero directly to
 the loss.
 
-## 3. OPC training loss in detail (`kl_crm`)
+## 3. OPC training loss in detail (`kl_crm` ablation)
 
 ### 3.1 Importance weights
 
@@ -145,7 +151,8 @@ DM_i = sum over actions a [q(x_i, a) * pi_theta(a | x_i)]
 
 ### 3.3 SNDR log-trick surrogate
 
-The default OPC path uses a policy-gradient surrogate (`use_log_trick=True`).
+The default OPC path (`sndr`) and `kl_crm` both use a policy-gradient
+surrogate (`use_log_trick=True`).
 Probabilities used as coefficients are detached (treated as constants), while
 gradients flow through log policy probabilities.
 
@@ -224,7 +231,7 @@ This discourages policies whose estimated risk has high sample variance. In the
 unified `KLCRMPolicyLoss`, gradients flow through `clipped_w_i`, so
 `crm_lambda` changes the policy update.
 
-### 3.6 Complete OPC default loss
+### 3.6 Complete `kl_crm` loss (legacy / ablation)
 
 ```text
 OPC loss (kl_crm)
@@ -233,7 +240,7 @@ OPC loss (kl_crm)
       + crm_lambda * sqrt(sample_variance(u) / n + epsilon)
 ```
 
-OPC Optuna parameters for default `kl_crm`:
+OPC Optuna parameters for `kl_crm`:
 
 - `lr`
 - `num_epochs`
@@ -244,7 +251,8 @@ OPC Optuna parameters for default `kl_crm`:
 - `crm_lambda`
 
 (`use_log_trick` is fixed True in the full study; `policy_loss` is fixed when
-only one `--policy-losses` value is passed.)
+only one `--policy-losses` value is passed. Default full-study loss is `sndr`,
+which only searches lr / epochs / batch / lr_decay.)
 
 ## 4. No-propensity training loss in detail
 
@@ -306,17 +314,20 @@ Larger is better. Recent hurt-logging ablations often use `r_hat` together with
 
 ### 5.1 OPC validation row value
 
-OPC keeps the doubly robust validation estimator (not self-normalized):
+OPC keeps the doubly robust validation estimator (not self-normalized). For
+Optuna / `ci_low` scoring, IW is clipped at fixed `M = DEFAULT_DR_SCORE_CLIP_M`
+(default 1):
 
 ```text
 DM_i = sum over actions a [q(x_i, a) * pi_theta(a | x_i)]
-w_i  = pi_i / pi_b_i
+w_i  = min(pi_i / pi_b_i, M)
 
 OPC row_value_i = DM_i + w_i * (r_i - q_i)
 ```
 
 This evaluation formula uses the actual probabilities, not the detached
-log-trick surrogate used to create training gradients.
+log-trick surrogate used to create training gradients. No-propensity never
+applies this clip (pure naive `r_i * pi_i`).
 
 ### 5.2 No-propensity validation row value
 
@@ -335,7 +346,7 @@ selection only when `--optuna-selection actual_reward`.
 
 CLI `--policy-losses` accepts any of:
 
-### 6.1 `sndr`
+### 6.1 `sndr` (full-study default)
 
 Negative SNDR surrogate only (section 3.3), no KL, no CRM.
 
@@ -378,11 +389,12 @@ gradients through the clipped weights).
 Same as the no-propensity loss (section 4). Available as an OPC ablation loss
 name, but the no-propensity arm always uses it.
 
-Full-study defaults remain:
+Full-study defaults:
 
 ```text
-OPC:           kl_crm, propensity_mode=logged, use_log_trick fixed True
-no-propensity: naive,  propensity_mode=uniform, use_log_trick fixed False
+OPC:           sndr, propensity_mode=logged, use_log_trick fixed True,
+               DR score clip M=1 (selection only)
+no-propensity: naive, propensity_mode=uniform, use_log_trick fixed False
 ```
 
 ## 7. Logging-damage and study knobs
