@@ -1460,6 +1460,30 @@ class RegressionScoresLookup:
                 self._q_hat_gpu = torch.as_tensor(
                     arr, device=device, dtype=torch.float32
                 )
+        # Linear reward model without a dense cache: q_hat(u, a) = link(s_u + t_a), so
+        # batch rows come from per-user/per-action scores on the device (same fp64 math
+        # as the numpy block path, rounded to fp32).
+        self._linear_gpu = None
+        parts = (
+            regression_model.linear_qhat_parts(0)
+            if self.q_hat_all is None
+            and torch.device(device).type == "cuda"
+            and int(getattr(regression_model, "len_list", 1)) == 1
+            and hasattr(regression_model, "linear_qhat_parts")
+            else None
+        )
+        if parts is not None:
+            w_context, action_scores, kind = parts
+            user_scores = (
+                np.asarray(self.user_context, dtype=np.float32) @ w_context
+                if kind == "logistic"
+                else np.zeros(self.user_context.shape[0])
+            )
+            self._linear_gpu = (
+                kind,
+                torch.as_tensor(user_scores, device=device, dtype=torch.float64),
+                torch.as_tensor(action_scores, device=device, dtype=torch.float64),
+            )
 
     def qhat_rows_numpy(self, user_idx: np.ndarray) -> np.ndarray:
         """(n_rows, n_actions) q_hat for user indices; exact same math as lazy path."""
@@ -1479,7 +1503,32 @@ class RegressionScoresLookup:
             q = q[:, :, 0]
         return q[inverse]
 
+    def qhat_block_numpy(self, user_idx: np.ndarray, a0: int, a1: int) -> np.ndarray:
+        """(n_rows, a1 - a0) q_hat for user indices; only the requested action slice."""
+        user_idx = np.asarray(user_idx, dtype=np.int64).reshape(-1)
+        if self.q_hat_all is not None:
+            return self.q_hat_all[user_idx, a0:a1]
+        unique, inverse = np.unique(user_idx, return_inverse=True)
+        ctx = np.asarray(self.user_context[unique], dtype=np.float32)
+        q = _predict_regression_qhat_user_action_block(self.regression_model, ctx, a0, a1)
+        if q.ndim == 3:
+            q = q[:, :, 0]
+        return q[inverse]
+
     def __getitem__(self, user_idx):
+        if self._linear_gpu is not None:
+            kind, user_scores, action_scores = self._linear_gpu
+            idx = torch.as_tensor(user_idx, device=user_scores.device).long().reshape(-1)
+            if kind == "constant":
+                return action_scores.float().expand(idx.shape[0], -1).clone()
+            # fp64 logits in action chunks keep peak memory near the fp32 output.
+            s = user_scores[idx][:, None]
+            out = torch.empty((idx.shape[0], self.n_actions), device=s.device, dtype=torch.float32)
+            step = max(1, (8 * 1024 * 1024) // max(1, idx.shape[0]))
+            for a0 in range(0, self.n_actions, step):
+                a1 = min(self.n_actions, a0 + step)
+                out[:, a0:a1] = torch.sigmoid(s + action_scores[None, a0:a1])
+            return out
         if self._q_hat_gpu is not None:
             if isinstance(user_idx, torch.Tensor):
                 idx = user_idx.detach().long()
@@ -1625,7 +1674,7 @@ def _dm_reward_rows_chunked(
             desc="DR DM",
             n_rows=re - rs,
         ):
-            q = score_lookup.qhat_rows_numpy(u_block)[:, a0:a1]
+            q = score_lookup.qhat_block_numpy(u_block, a0, a1)
             if q.ndim == 1:
                 q = q[:, None]
             dm[rs:re] += (q * pi).sum(axis=1)

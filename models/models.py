@@ -12,7 +12,7 @@ from torch.utils.data import DataLoader, TensorDataset
 from sklearn.utils import check_random_state
 # from memory_profiler import profile
 
-from scipy.special import softmax
+from scipy.special import expit, softmax
 from abc import ABCMeta
 
 
@@ -21,6 +21,7 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 from sklearn.base import BaseEstimator, ClassifierMixin, clone, is_classifier
+from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import KFold
 from sklearn.utils import check_random_state
 from sklearn.utils import check_scalar
@@ -872,6 +873,66 @@ class RegressionModel(BaseEstimator):
             )
             q_hat[test_idx, :, :] = self.predict(context=context[test_idx])
         return q_hat
+
+    def linear_qhat_parts(self, pos: int = 0):
+        """(w_context, action_scores, kind) when q_hat(x, a) = link(x @ w_context + action_scores[a]).
+
+        Holds for the default concat features ``[x, action_context[a]]`` with a binary
+        ``LogisticRegression`` (link = expit; action_scores includes the intercept) or the
+        single-class constant model (kind "constant", action_scores = p). Returns None
+        otherwise, e.g. a subclass that overrides ``_pre_process_for_reg_model``.
+        """
+        if type(self)._pre_process_for_reg_model is not RegressionModel._pre_process_for_reg_model:
+            return None
+        model = self.base_model_list[pos]
+        n_actions = int(np.asarray(self.action_context).shape[0])
+        if isinstance(model, _ConstantBinaryProbaClassifier):
+            # Mirror predict_pairs exactly (is_classifier decides predict_proba vs predict).
+            x0 = np.zeros((1, 1))
+            value = (
+                model.predict_proba(x0)[0, 1] if is_classifier(model) else model.predict(x0)[0]
+            )
+            return None, np.full(n_actions, float(value), dtype=np.float64), "constant"
+        if (
+            isinstance(model, LogisticRegression)
+            and getattr(model, "coef_", None) is not None
+            and model.coef_.shape[0] == 1
+            and len(model.classes_) == 2
+        ):
+            coef = np.asarray(model.coef_[0], dtype=np.float64)
+            action_context = np.asarray(self.action_context)
+            d_x = coef.shape[0] - action_context.shape[1]
+            action_scores = action_context @ coef[d_x:] + float(model.intercept_[0])
+            return coef[:d_x], np.asarray(action_scores, dtype=np.float64), "logistic"
+        return None
+
+    def predict_user_action_block(
+        self, context: np.ndarray, action_start: int, action_end: int
+    ) -> np.ndarray:
+        """q_hat for every context row × actions[action_start:action_end]; (n, n_a, len_list).
+
+        Same values as ``predict`` restricted to the block; linear models use one
+        outer sum instead of one ``predict_proba`` call per action.
+        """
+        context = np.asarray(context)
+        n = int(context.shape[0])
+        a0, a1 = int(action_start), int(action_end)
+        out = np.zeros((n, a1 - a0, self.len_list), dtype=np.float64)
+        for pos_ in range(self.len_list):
+            parts = self.linear_qhat_parts(pos_)
+            if parts is None:
+                for local_a, action_ in enumerate(range(a0, a1)):
+                    out[:, local_a, pos_] = self.predict_pairs(
+                        context, np.full(n, action_, dtype=int), pos=pos_
+                    )
+                continue
+            w_context, action_scores, kind = parts
+            if kind == "constant":
+                out[:, :, pos_] = action_scores[a0:a1][None, :]
+            else:
+                logits = (context @ w_context)[:, None] + action_scores[None, a0:a1]
+                out[:, :, pos_] = expit(logits)
+        return out
 
     def predict_pairs(self, context: np.ndarray, action: np.ndarray, pos: int = 0) -> np.ndarray:
         """
