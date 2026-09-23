@@ -159,16 +159,15 @@ def load_myket(root: str, *, download: bool = True):
     """
     root = ensure_myket(root, download=download)
 
-    # interactions (ratings equivalent)
+    # interactions (ratings equivalent): one row per install event
+    # columns: user_id, app_name, timestamp, state_label, feature1, feature2
     df = pd.read_csv(root / "myket.csv")
 
     ratings = (
-        df.reset_index()
-        .rename(columns={
-            "index": "user_id",     # real user id
-            "user_id": "item_id"    # app/package name
-        })
+        df.rename(columns={"app_name": "item_id"})  # app/package name
         [["user_id", "item_id"]]
+        .drop_duplicates()  # repeat installs of the same app -> one positive
+        .reset_index(drop=True)
     )
 
     ratings["user_id"] = ratings["user_id"].astype(int)
@@ -184,7 +183,7 @@ def load_myket(root: str, *, download: bool = True):
 
     # items
     items = pd.read_csv(root / "app_info_sample.csv") \
-        .rename(columns={"app_name": "item_id"})
+        .rename(columns={"app_name": "item_id", "category_en": "category"})
 
     items["item_id"] = items["item_id"].astype(str)
 
