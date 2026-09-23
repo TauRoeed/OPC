@@ -183,7 +183,7 @@ Set `IMAGE=opc:gpu` to launch inside Docker (script uses `nohup`).
 ### Runtime estimate
 
 ```bash
-python -m scripts.estimate_study_runtime --train-size 1000000 --n-trials 20 --n-methods 2
+python -m scripts.estimate_study_runtime --train-size 1000000 --n-trials 20 --methods 2
 ```
 
 Wall scales roughly with `n_trials × (train_size / batch)` using `batch_schedule`. Order-of-magnitude only (±2×).
