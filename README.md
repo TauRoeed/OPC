@@ -89,6 +89,8 @@ python -m BPR.generate_artifacts --dataset lastfm --root datasets/lastfm/lastfm_
 python -m BPR.generate_artifacts --dataset msd --root datasets/msd/msd_taste_profile.hdf5
 ```
 
+lastfm / msd also fetch side metadata (user profiles, artist genres and tags; ~1.2GB); see `BPR/README.md`.
+
 Disable auto-download: add `--no-download`.  
 Smoke test: `python -m BPR.smoke_test_loaders --include-large`.
 

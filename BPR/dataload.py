@@ -1,3 +1,5 @@
+import sqlite3
+
 import pandas as pd
 from pathlib import Path
 from typing import Dict, Optional, Tuple, Any
@@ -13,8 +15,10 @@ from BPR.dataset_download import (
     ensure_kuairand_pure,
     ensure_kuairec,
     ensure_lastfm,
+    ensure_lastfm_profiles,
     ensure_movielens_1m,
     ensure_msd,
+    ensure_msd_metadata,
     ensure_myket,
 )
 
@@ -52,17 +56,17 @@ DATASET_METADATA_CONFIG = {
     "lastfm": {
         "item_id_col": "item_id",
         "item_numeric_cols": [],
-        "item_categorical_cols": [],
-        "item_multivalue_sep": {},
+        "item_categorical_cols": ["tags"],
+        "item_multivalue_sep": {"tags": "|"},
         "user_id_col": "user_id",
-        "user_numeric_cols": [],
-        "user_categorical_cols": [],
+        "user_numeric_cols": ["age"],
+        "user_categorical_cols": ["gender", "country"],
     },
     "msd": {
         "item_id_col": "item_id",
         "item_numeric_cols": [],
-        "item_categorical_cols": [],
-        "item_multivalue_sep": {},
+        "item_categorical_cols": ["genre", "tags"],
+        "item_multivalue_sep": {"tags": "|"},
         "user_id_col": "user_id",
         "user_numeric_cols": [],
         "user_categorical_cols": [],
@@ -190,12 +194,125 @@ def load_myket(root: str, *, download: bool = True):
     return ratings, users, items
 
 
+LASTFM_AGE_RANGE = (10, 80)  # profile ages outside this range are treated as missing
+LASTFM_TOP_COUNTRIES = 20    # remaining countries collapse to "other"
+ARTIST_TOP_TAGS = 50         # Last.fm tag vocabulary size for artist metadata
+
+
+def _load_lastfm_user_profiles(profile_path: Path) -> pd.DataFrame:
+    """Last.fm-360K profiles -> user_id, gender, age, country."""
+    prof = pd.read_csv(
+        profile_path, sep="\t", header=None, quoting=3, dtype=str,
+        names=["user_id", "gender", "age", "country", "signup"],
+    )
+    age = pd.to_numeric(prof["age"], errors="coerce")
+    lo, hi = LASTFM_AGE_RANGE
+    age = age.where(age.between(lo, hi))
+    prof["age"] = age.fillna(age.median()).astype(np.float32)
+    top = prof["country"].value_counts().index[:LASTFM_TOP_COUNTRIES]
+    prof["country"] = prof["country"].where(prof["country"].isin(top), "other")
+    return prof[["user_id", "gender", "age", "country"]]
+
+
+def _load_msd_track_tags(meta: dict[str, Path]) -> pd.DataFrame:
+    """MSD Last.fm tags -> track_id, tag (lowercased)."""
+    con = sqlite3.connect(meta["lastfm_tags"])
+    try:
+        tags = pd.read_sql(
+            "SELECT tids.tid AS track_id, tags.tag AS tag FROM tid_tag "
+            "JOIN tids ON tids.ROWID = tid_tag.tid "
+            "JOIN tags ON tags.ROWID = tid_tag.tag",
+            con,
+        )
+    finally:
+        con.close()
+    tags["tag"] = tags["tag"].str.lower()
+    return tags.drop_duplicates()
+
+
+def _load_msd_unique_tracks(meta: dict[str, Path]) -> pd.DataFrame:
+    return pd.read_csv(
+        meta["unique_tracks"], sep="<SEP>", engine="python", header=None, quoting=3,
+        names=["track_id", "song_id", "artist", "title"],
+    )
+
+
+def _artist_tag_strings(track_tags: pd.DataFrame, track_artist: pd.DataFrame) -> pd.Series:
+    """artist -> "tag1|tag2|..." over the ARTIST_TOP_TAGS most widespread tags."""
+    at = track_tags.merge(track_artist, on="track_id")[["artist", "tag"]].drop_duplicates()
+    vocab = at["tag"].value_counts().index[:ARTIST_TOP_TAGS]
+    at = at[at["tag"].isin(vocab)]
+    return at.groupby("artist")["tag"].agg(lambda t: "|".join(sorted(t)))
+
+
+def _artist_majority_genre(tagtraum_path: Path, track_artist: pd.DataFrame) -> pd.Series:
+    """artist -> most frequent tagtraum majority genre across the artist's tracks."""
+    genres = pd.read_csv(
+        tagtraum_path, sep="\t", comment="#", header=None,
+        names=["track_id", "genre", "genre2"],
+    )
+    g = genres.merge(track_artist, on="track_id")
+    return g.groupby("artist")["genre"].agg(lambda s: s.value_counts().index[0])
+
+
+def _attach_artist_metadata(
+    kind: str,
+    hdf5_path: Path,
+    users_df: pd.DataFrame,
+    items_df: pd.DataFrame,
+    *,
+    songs: Optional[pd.DataFrame],
+    download: bool,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Join optional side metadata; on missing files, warn and return inputs unchanged.
+
+    MSD side files live next to the MSD HDF5 (``<datasets>/msd``); LastFM reuses
+    them from the sibling ``msd`` folder for artist tags (matched by lowercase name).
+    """
+    msd_dir = hdf5_path.parent if kind == "msd" else hdf5_path.parent.parent / "msd"
+    try:
+        meta = ensure_msd_metadata(msd_dir, download=download)
+        unique_tracks = _load_msd_unique_tracks(meta)
+        track_tags = _load_msd_track_tags(meta)
+        if kind == "msd":
+            # Taste-profile items are artist names from its own song table.
+            track_artist = unique_tracks[["track_id", "song_id"]].merge(
+                songs[["song_id", "artist"]], on="song_id"
+            )[["track_id", "artist"]]
+            genre = _artist_majority_genre(meta["tagtraum"], track_artist)
+            items_df = items_df.assign(genre=items_df["item_id"].map(genre))
+            tags = _artist_tag_strings(track_tags, track_artist)
+            items_df = items_df.assign(tags=items_df["item_id"].map(tags))
+        else:
+            track_artist = unique_tracks[["track_id"]].assign(
+                artist=unique_tracks["artist"].str.lower()
+            )
+            tags = _artist_tag_strings(track_tags, track_artist)
+            items_df = items_df.assign(tags=items_df["item_id"].str.lower().map(tags))
+        print(f"{kind}: artist tags for {items_df['tags'].notna().mean():.1%} of items")
+    except (FileNotFoundError, OSError, sqlite3.Error) as exc:
+        print(f"WARNING: {kind}: skipping artist metadata ({exc})")
+
+    if kind == "lastfm":
+        try:
+            profiles = _load_lastfm_user_profiles(
+                ensure_lastfm_profiles(hdf5_path.parent, download=download)
+            )
+            users_df = users_df.merge(profiles, on="user_id", how="left")
+            print(f"lastfm: user profiles for {users_df['country'].notna().mean():.1%} of users")
+        except (FileNotFoundError, OSError) as exc:
+            print(f"WARNING: lastfm: skipping user profiles ({exc})")
+
+    return users_df, items_df
+
+
 def load_artistwise_dfs(
     hdf5_path: str,
     *,
     min_plays: float = 1.0,
     download: bool = True,
     dataset: str | None = None,
+    with_metadata: bool = True,
 ):
     """
     Generic artist-wise loader for LastFM or MSD.
@@ -207,8 +324,12 @@ def load_artistwise_dfs(
 
     Returns:
       ratings: user_id, item_id (artist), rating (total plays)
-      users:   user_id
-      items:   item_id (artist)
+      users:   user_id [, gender, age, country]   (LastFM, with_metadata)
+      items:   item_id (artist) [, genre, tags]   (with_metadata; genre MSD only)
+
+    With ``with_metadata=True`` optional side files (Last.fm-360K profiles, MSD
+    tagtraum genres and Last.fm tags) are joined in, downloading them when
+    ``download=True``; if unavailable the frames are returned without them.
     """
     path = Path(hdf5_path)
     name = (dataset or path.name).lower()
@@ -238,19 +359,24 @@ def load_artistwise_dfs(
             else:
                 hdf5_path = ensure_lastfm(hdf5_path, download=download)
 
+    songs = None
     with h5py.File(hdf5_path, "r") as f:
         if "artist_user_plays" in f:
             # LastFM
+            kind = "lastfm"
             g = f["artist_user_plays"]
             users = np.array(f["user"].asstr()[:])
             artists = np.array(f["artist"].asstr()[:])
 
         elif "track_user_plays" in f:
             # MSD
+            kind = "msd"
             g = f["track_user_plays"]
             users = np.array(f["user"].asstr()[:])
             track = np.array(f["track"].asstr()[:])
             artists = track[:, 1] if track.ndim == 2 else track
+            if track.ndim == 2:
+                songs = pd.DataFrame({"song_id": track[:, 0], "artist": track[:, 1]})
 
         else:
             raise ValueError("Unknown HDF5 format")
@@ -284,6 +410,11 @@ def load_artistwise_dfs(
 
     users_df = pd.DataFrame({"user_id": ratings["user_id"].unique()})
     items_df = pd.DataFrame({"item_id": ratings["item_id"].unique()})
+
+    if with_metadata:
+        users_df, items_df = _attach_artist_metadata(
+            kind, Path(hdf5_path), users_df, items_df, songs=songs, download=download
+        )
 
     return ratings, users_df, items_df
 

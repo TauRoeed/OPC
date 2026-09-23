@@ -24,6 +24,19 @@ python -m BPR.generate_artifacts --dataset ml --root datasets/ml-1m
 python -m BPR.generate_artifacts --dataset ml --config path/to/custom.json --epochs 10
 ```
 
+## Side metadata (lastfm / msd)
+
+The HDF5 interaction files carry no features, so the loaders join optional side
+files (auto-downloaded unless `--no-download`; skipped with a warning if missing):
+
+| dataset | metadata | source (saved under) |
+|---------|----------|----------------------|
+| lastfm | user gender, age (10–80, else median), country (top 20 + other) | Last.fm-360K release, `datasets/lastfm/` (~543MB archive) |
+| lastfm | artist tags (top 50), matched by lowercase name to MSD artists | MSD Last.fm tags, `datasets/msd/` |
+| msd | artist majority tagtraum genre (15) + tags (top 50) | `unique_tracks.txt`, `msd_tagtraum_cd2.cls`, `lastfm_tags.db` (~650MB), `datasets/msd/` |
+
+lastfm reads the MSD side files from the sibling `msd/` folder of its HDF5.
+
 ## Output files
 
 For `<dataset>` in `{ml,myket,anime,lastfm,msd}`:

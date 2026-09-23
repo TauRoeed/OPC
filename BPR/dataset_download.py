@@ -21,6 +21,11 @@ URLS = {
     "msd_hdf5": "https://github.com/benfred/recommender_data/releases/download/v1.0/msd_taste_profile.hdf5",
     "kuairec_zip": "https://zenodo.org/records/18164998/files/KuaiRec.zip",
     "kuairand_pure_tar": "https://zenodo.org/records/10439422/files/KuaiRand-Pure.tar.gz",
+    # Metadata side files (optional; used for item/user metadata only)
+    "lastfm_360k_tar": "https://zenodo.org/records/6090214/files/lastfm-dataset-360K.tar.gz?download=1",
+    "msd_unique_tracks": "http://millionsongdataset.com/sites/default/files/AdditionalFiles/unique_tracks.txt",
+    "msd_tagtraum_zip": "https://www.tagtraum.com/genres/msd_tagtraum_cd2.cls.zip",
+    "msd_lastfm_tags_db": "http://millionsongdataset.com/sites/default/files/lastfm/lastfm_tags.db",
 }
 
 DEFAULT_PATHS = {
@@ -169,6 +174,66 @@ def ensure_msd(path: str | Path, *, download: bool = True) -> Path:
         url=URLS["msd_hdf5"],
         download=download,
     )
+
+
+def ensure_lastfm_profiles(root: str | Path, *, download: bool = True) -> Path:
+    """Ensure Last.fm-360K user profiles (gender/age/country/signup); return the TSV path.
+
+    Only ``usersha1-profile.tsv`` is extracted from the original release archive.
+    """
+    root = Path(root)
+    profile = root / "lastfm-dataset-360K" / "usersha1-profile.tsv"
+    if profile.exists():
+        return profile
+    if not download:
+        raise FileNotFoundError(f"Last.fm-360K profiles missing: {profile}")
+
+    archive = root / "lastfm-dataset-360K.tar.gz"
+    if not archive.exists():
+        print(f"Downloading Last.fm-360K release to {archive} ...")
+        _download_file(URLS["lastfm_360k_tar"], archive)
+
+    print(f"Extracting {profile.name} from {archive} ...")
+    with tarfile.open(archive, "r:gz") as tf:
+        member = tf.getmember("lastfm-dataset-360K/usersha1-profile.tsv")
+        tf.extract(member, root, filter="data")
+    return profile
+
+
+def ensure_msd_metadata(root: str | Path, *, download: bool = True) -> dict[str, Path]:
+    """Ensure MSD side files for artist metadata; return their paths.
+
+    - unique_tracks.txt: track_id <SEP> song_id <SEP> artist <SEP> title
+    - msd_tagtraum_cd2.cls: track_id \\t majority genre [\\t minority genre]
+    - lastfm_tags.db: SQLite with Last.fm tags per MSD track
+    """
+    root = Path(root)
+    paths = {
+        "unique_tracks": root / "unique_tracks.txt",
+        "tagtraum": root / "msd_tagtraum_cd2.cls",
+        "lastfm_tags": root / "lastfm_tags.db",
+    }
+    missing = [k for k, p in paths.items() if not p.exists()]
+    if not missing:
+        return paths
+    if not download:
+        raise FileNotFoundError(f"MSD metadata missing under {root}: {missing}")
+
+    root.mkdir(parents=True, exist_ok=True)
+    if "unique_tracks" in missing:
+        print(f"Downloading unique_tracks.txt to {paths['unique_tracks']} ...")
+        _download_file(URLS["msd_unique_tracks"], paths["unique_tracks"])
+    if "tagtraum" in missing:
+        archive = root / "msd_tagtraum_cd2.cls.zip"
+        if not archive.exists():
+            print(f"Downloading tagtraum genres to {archive} ...")
+            _download_file(URLS["msd_tagtraum_zip"], archive)
+        with zipfile.ZipFile(archive, "r") as zf:
+            zf.extract(paths["tagtraum"].name, root)
+    if "lastfm_tags" in missing:
+        print(f"Downloading lastfm_tags.db to {paths['lastfm_tags']} ...")
+        _download_file(URLS["msd_lastfm_tags_db"], paths["lastfm_tags"])
+    return paths
 
 
 def _resolve_data_subdir(root: Path, required: list[str]) -> Path | None:
