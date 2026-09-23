@@ -95,6 +95,12 @@ from utils.noise_levels import (
     resolve_noise_spec,
 )
 from utils.noise_snr import dataset_snr_report
+from utils.seeding import (
+    DEFAULT_CPU_THREADS,
+    enable_determinism,
+    pin_cpu_threads,
+    seed_everything,
+)
 from utils.simulation_utils import generate_dataset
 
 
@@ -179,6 +185,8 @@ def _run_condition(
     rand_ctr_meta: dict | None = None,
     noise_component: str = "combined",
     dr_score_clip_m: float | None = None,
+    deterministic: bool = True,
+    cpu_threads: int = DEFAULT_CPU_THREADS,
 ):
     methods = _normalize_study_methods(methods)
     run_opc = "opc" in methods
@@ -199,6 +207,11 @@ def _run_condition(
             f"{format_runtime_estimate(est)}",
             flush=True,
         )
+    # One experiment seed drives every RNG; re-seed per condition so results do not
+    # depend on run order or worker process.
+    enable_determinism(deterministic)
+    cpu_threads = pin_cpu_threads(cpu_threads)
+    seed_everything(seed)
     noise_spec = resolve_noise_spec(
         noise_level, axis=noise_axis, component=noise_component
     )
@@ -331,6 +344,7 @@ def _run_condition(
             optuna_selection=optuna_selection,
             reward_model=str(reward_model),
             dr_score_clip_m=dr_score_clip_m,
+            seed=int(seed),
         )
     else:
         try:
@@ -369,6 +383,7 @@ def _run_condition(
             optuna_batch_sizes=optuna_batch_sizes,
             optuna_selection=optuna_selection,
             reward_model=str(reward_model),
+            seed=int(seed),
         )
     else:
         try:
@@ -405,6 +420,8 @@ def _run_condition(
         "noise_apply_user": apply_user,
         "noise_apply_item": apply_item,
         "seed": int(seed),
+        "deterministic": bool(deterministic),
+        "cpu_threads": int(cpu_threads),
         "params": params,
         "ctr": float(params["ctr"]),
         "eps1": float(eps1),
@@ -626,6 +643,20 @@ def main():
         "post-hoc get_trial_results (full-catalog reward + val DM/DR/IPW/SNDR).",
     )
     parser.add_argument(
+        "--deterministic",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Deterministic torch/cuDNN/cuBLAS kernels so a seed reproduces results "
+        "exactly (default: on). All RNGs are seeded from --seeds either way.",
+    )
+    parser.add_argument(
+        "--cpu-threads",
+        type=int,
+        default=DEFAULT_CPU_THREADS,
+        help="CPU threads for numpy/BLAS/torch in every process (default: 4). Fixed so the "
+        "same seed reproduces exactly across serial/parallel runs and machines.",
+    )
+    parser.add_argument(
         "--policy-losses",
         nargs="+",
         default=["sndr"],
@@ -779,6 +810,8 @@ def main():
                                             policy_temperature=args.policy_temperature,
                                             run_dir=run_dir,
                                             slim=bool(args.slim),
+                                            deterministic=bool(args.deterministic),
+                                            cpu_threads=int(args.cpu_threads),
                                             policy_loss_types=policy_loss_types,
                                             search_use_log_trick=search_use_log_trick,
                                             shared_regression_size=args.shared_regression_size,

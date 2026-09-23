@@ -16,6 +16,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from utils.seeding import DEFAULT_CPU_THREADS, pin_cpu_threads
 from training.run_full_study import (
     _finalize_summary_df,
     _run_condition,
@@ -112,6 +113,8 @@ def _execute_h1_cell(config: dict) -> None:
         policy_temperature=float(config["policy_temperature"]),
         run_dir=run_dir,
         slim=bool(config.get("slim", False)),
+        deterministic=bool(config.get("deterministic", True)),
+        cpu_threads=int(config.get("cpu_threads", DEFAULT_CPU_THREADS)),
         policy_loss_types=tuple(config["policy_loss_types"]),
         logging_uniform_mix=log_mix,
         reward_model="oracle",
@@ -204,6 +207,8 @@ def _iter_h1_configs(args, out_root: Path, n_rand_by_dataset: dict[str, int]):
                                     if float(log_mix) > 0
                                     else 1.0,
                                     "slim": bool(args.slim),
+                                    "deterministic": bool(args.deterministic),
+                                    "cpu_threads": int(args.cpu_threads),
                                     "policy_loss_types": list(args.policy_losses),
                                     "n_rand_samples": n_rand,
                                     "require_cuda": bool(args.require_cuda),
@@ -268,6 +273,20 @@ def main():
     p.add_argument("--n-rand-ctr-samples", type=int, default=10_000)
     p.add_argument("--policy-losses", nargs="+", default=["sndr"])
     p.add_argument("--slim", action="store_true")
+    p.add_argument(
+        "--deterministic",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Deterministic torch/cuDNN/cuBLAS kernels so a seed reproduces results "
+        "exactly (default: on). All RNGs are seeded from --seeds either way.",
+    )
+    p.add_argument(
+        "--cpu-threads",
+        type=int,
+        default=DEFAULT_CPU_THREADS,
+        help="CPU threads for numpy/BLAS/torch in every process (default: 4). Fixed so the "
+        "same seed reproduces exactly across serial/parallel runs and machines.",
+    )
     p.add_argument("--require-cuda", action="store_true")
     p.add_argument(
         "--skip-completed",
@@ -300,6 +319,7 @@ def main():
     )
     p.add_argument("--fail-fast", action="store_true")
     args = p.parse_args()
+    pin_cpu_threads(args.cpu_threads)  # env is inherited by spawned workers
 
     out_root = args.out_dir / f"run_{args.run_tag}"
     out_root.mkdir(parents=True, exist_ok=True)

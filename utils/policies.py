@@ -71,7 +71,7 @@ class Policy:
         self.temperature = float(temperature)
         self.user_chunk = int(user_chunk)
         self.action_chunk = int(action_chunk)
-        self.rng = np.random.default_rng() if rng is None else rng
+        self.rng = np.random.default_rng(np.random.randint(0, 2**31 - 1)) if rng is None else rng
         self.uniform_mix = float(np.clip(uniform_mix, 0.0, 1.0))
 
         self.set_embeddings(user_emb=user_emb, item_emb=item_emb)
@@ -212,7 +212,7 @@ class MixturePolicy:
         w /= s
         self.w0, self.wN, self.wO = float(w[0]), float(w[1]), float(w[2])
         self.p0, self.pN, self.pO = p0, pN, pO
-        self.rng = np.random.default_rng() if rng is None else rng
+        self.rng = np.random.default_rng(np.random.randint(0, 2**31 - 1)) if rng is None else rng
 
     def sample_actions(self, users: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         users = np.asarray(users, dtype=np.int64)

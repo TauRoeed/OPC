@@ -31,6 +31,7 @@ def _apply_parallel_thread_limits(workers: int) -> int:
         return 1
     cpus = os.cpu_count() or 8
     per_worker = max(1, min(4, cpus // workers))
+    # --cpu-threads (pinned in main) wins; this only fills unset vars.
     for key in (
         "OMP_NUM_THREADS",
         "MKL_NUM_THREADS",
@@ -39,8 +40,8 @@ def _apply_parallel_thread_limits(workers: int) -> int:
     ):
         os.environ.setdefault(key, str(per_worker))
     print(
-        f"Parallel pool: {workers} workers; per-worker CPU threads={per_worker} "
-        f"(override via OMP_NUM_THREADS etc.)",
+        f"Parallel pool: {workers} workers; per-worker CPU threads="
+        f"{os.environ.get('OMP_NUM_THREADS', per_worker)} (set via --cpu-threads)",
         flush=True,
     )
     return per_worker
@@ -61,6 +62,7 @@ def _parallel_worker_init(worker_slot, num_gpus: int) -> None:
         flush=True,
     )
 
+from utils.seeding import DEFAULT_CPU_THREADS, pin_cpu_threads
 from training.run_full_study import (
     VALID_NOISE_AXES,
     VALID_NOISE_COMPONENTS,
@@ -345,6 +347,8 @@ def _execute_run(config: dict):
         policy_reward_mc_sim=config["policy_reward_mc_sim"],
         policy_temperature=config["policy_temperature"],
         slim=bool(config.get("slim", False)),
+        deterministic=bool(config.get("deterministic", True)),
+        cpu_threads=int(config.get("cpu_threads", DEFAULT_CPU_THREADS)),
         run_dir=run_dir,
         policy_loss_types=tuple(config["policy_loss_types"]),
         search_use_log_trick=bool(config.get("search_use_log_trick", True)),
@@ -568,6 +572,20 @@ def main():
         "DM/DR/IPW/SNDR). Keeps per-trial actual_reward/r_hat from the Optuna objective.",
     )
     parser.add_argument(
+        "--deterministic",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Deterministic torch/cuDNN/cuBLAS kernels so a seed reproduces results "
+        "exactly (default: on). All RNGs are seeded from --seeds either way.",
+    )
+    parser.add_argument(
+        "--cpu-threads",
+        type=int,
+        default=DEFAULT_CPU_THREADS,
+        help="CPU threads for numpy/BLAS/torch in every process (default: 4). Fixed so the "
+        "same seed reproduces exactly across serial/parallel runs and machines.",
+    )
+    parser.add_argument(
         "--methods",
         nargs="+",
         default=list(VALID_STUDY_METHODS),
@@ -582,6 +600,7 @@ def main():
     )
     parser.add_argument("--fail-fast", action="store_true", default=False)
     args = parser.parse_args()
+    pin_cpu_threads(args.cpu_threads)  # env is inherited by spawned workers
     methods = _normalize_study_methods(args.methods)
     policy_loss_types = tuple(str(x).lower() for x in args.policy_losses)
     search_use_log_trick = not bool(args.no_log_trick)
@@ -636,6 +655,8 @@ def main():
             "policy_reward_mc_sim": int(args.policy_reward_mc_sim),
             "policy_temperature": float(args.policy_temperature),
             "slim": bool(args.slim),
+            "deterministic": bool(args.deterministic),
+            "cpu_threads": int(args.cpu_threads),
             "policy_loss_types": list(policy_loss_types),
             "study_methods": list(methods),
             "search_use_log_trick": search_use_log_trick,

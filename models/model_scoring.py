@@ -628,7 +628,7 @@ def estimate_dm_reward_mc(policy, regression_model, x_context: np.ndarray, users
     Monte Carlo estimate of DM term: E_{a~pi}[ q_hat(x_u, a) ] per user.
     Requires RegressionModel.predict_pairs(x_context, a_idx) (we add a safe fallback below).
     """
-    rng = np.random.default_rng() if rng is None else rng
+    rng = np.random.default_rng(np.random.randint(0, 2**31 - 1)) if rng is None else rng
     users = np.asarray(users, dtype=np.int64)
     x_context = np.asarray(x_context)
     n = users.shape[0]

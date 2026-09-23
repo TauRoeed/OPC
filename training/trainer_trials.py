@@ -95,6 +95,7 @@ from models.estimators import (
 )
 
 from utils.chunk_progress import iter_action_blocks, iter_user_action_blocks
+from utils.seeding import derive_seed, deterministic_enabled, optuna_sampler, seed_everything
 from utils.simulation_utils import (
     eval_policy,
     generate_dataset,
@@ -1997,10 +1998,11 @@ def neighberhoodmodel_trainer_trial(
     search_use_log_trick: bool = True,
     use_log_trick_fixed: bool | None = None,
     optuna_batch_sizes: list[int] | None = None,
+    seed: int = 0,
 ):
 
     device = _training_device()
-    torch.backends.cudnn.benchmark = torch.cuda.is_available()
+    torch.backends.cudnn.benchmark = torch.cuda.is_available() and not deterministic_enabled()
     if torch.cuda.is_available():
         torch.set_float32_matmul_precision("high")
     cli_optuna_batches = (
@@ -2151,6 +2153,7 @@ def neighberhoodmodel_trainer_trial(
 
         # --- Optuna objective bound to this run's data ---
         def objective(trial):
+            seed_everything(derive_seed(seed, method_label, train_size, "trial", trial.number))
             print()
             print(f"[Neighborhood] Trial {trial.number} started")
             lr = trial.suggest_float("lr", 1e-4, 1e-1, log=True)
@@ -2253,7 +2256,9 @@ def neighberhoodmodel_trainer_trial(
             )
 
         # --- run Optuna for this run ---
-        study = optuna.create_study(direction="maximize")
+        study = optuna.create_study(
+            direction="maximize", sampler=optuna_sampler(seed, method_label, train_size)
+        )
 
         if last_best_params is not None:
             study.enqueue_trial(
@@ -2449,6 +2454,7 @@ def regression_trainer_trial(
     optuna_selection: str = "ci_low",
     reward_model: str = "regression",
     dr_score_clip_m: float | None = None,
+    seed: int = 0,
 ):
     """
     OPC / no-propensity trainer with Optuna over CF hyperparameters.
@@ -2471,6 +2477,9 @@ def regression_trainer_trial(
 
     ``optuna_selection``: what Optuna maximizes — ``ci_low`` (default), ``r_hat``,
     or ``actual_reward`` (oracle selection; debug only).
+
+    ``seed``: experiment seed; Optuna sampler, model init, batch order and dropout
+    per trial are derived from it (``utils.seeding``).
 
     ``reward_model``: shared q_hat source — ``regression`` (default fit),
     ``logging_score`` (CTR link on noisy embeddings), or ``oracle`` (clean env).
@@ -2498,7 +2507,7 @@ def regression_trainer_trial(
     apply_dr_score_clip = uses_importance_weighting(propensity_mode)
 
     device = _training_device(require_cuda=require_cuda)
-    torch.backends.cudnn.benchmark = torch.cuda.is_available()
+    torch.backends.cudnn.benchmark = torch.cuda.is_available() and not deterministic_enabled()
     if torch.cuda.is_available():
         torch.set_float32_matmul_precision("high")
     _log_training_device(method_label, device)
@@ -2702,6 +2711,7 @@ def regression_trainer_trial(
 
         # --- Define Optuna objective ---
         def objective(trial):
+            seed_everything(derive_seed(seed, method_label, train_size, "trial", trial.number))
             print(f"\n[Regression] Optuna Trial {trial.number}")
             lr = trial.suggest_float("lr", 1e-4, 1e-3, log=True)
             epochs = trial.suggest_int("num_epochs", 5, 25)
@@ -2847,7 +2857,9 @@ def regression_trainer_trial(
             return value
 
         # --- Run Optuna search ---
-        study = optuna.create_study(direction="maximize")
+        study = optuna.create_study(
+            direction="maximize", sampler=optuna_sampler(seed, method_label, train_size)
+        )
         if last_best_params is not None:
             study.enqueue_trial(
                 _enqueue_with_kl_gamma(
@@ -2862,6 +2874,7 @@ def regression_trainer_trial(
 
         study.optimize(objective, n_trials=n_trials, show_progress_bar=False)
         last_optuna_study = study
+        seed_everything(derive_seed(seed, method_label, train_size, "post"))
 
         best_params = study.best_params
         if "policy_loss" not in best_params and len(policy_loss_types) == 1:
@@ -3053,6 +3066,7 @@ def no_propensity_trainer_trial(
     optuna_batch_sizes: list[int] | None = None,
     optuna_selection: str = "ci_low",
     reward_model: str = "regression",
+    seed: int = 0,
 ):
     """
     Explicit no-propensity baseline with parity to regression trainer:
@@ -3089,6 +3103,7 @@ def no_propensity_trainer_trial(
         optuna_batch_sizes=optuna_batch_sizes,
         optuna_selection=optuna_selection,
         reward_model=reward_model,
+        seed=seed,
     )
 
 
@@ -3373,7 +3388,7 @@ def mlp_trial_reward_fit_once(
     emb_dim = int(dataset["emb_dim"])
 
     device = _training_device()
-    torch.backends.cudnn.benchmark = torch.cuda.is_available()
+    torch.backends.cudnn.benchmark = torch.cuda.is_available() and not deterministic_enabled()
     if torch.cuda.is_available():
         torch.set_float32_matmul_precision("high")
 
@@ -3464,6 +3479,7 @@ def mlp_trial_reward_fit_once(
     # Optuna objective: CF only
     # ---------------------------
     def objective(trial):
+        seed_everything(derive_seed(seed, "mlp_reward", "trial", trial.number))
         # lr = trial.suggest_float("lr", 1e-4, 5e-3, log=True)
         lr = trial.suggest_float("lr", 1e-4, 1e-1, log=True)
         epochs = trial.suggest_int("num_epochs", 1, 10)
@@ -3557,7 +3573,7 @@ def mlp_trial_reward_fit_once(
     # ---------------------------
     # Run Optuna
     # ---------------------------
-    study = optuna.create_study(direction="maximize")
+    study = optuna.create_study(direction="maximize", sampler=optuna_sampler(seed, "mlp_reward"))
     study.optimize(objective, n_trials=n_trials, show_progress_bar=False)
 
     trial_df = study.trials_dataframe()[[

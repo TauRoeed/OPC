@@ -202,6 +202,19 @@ Wall scales roughly with `n_trials × (train_size / batch)` using `batch_schedul
 - `--policy-reward-mode mc --policy-reward-mc-sim 8` — faster approximate reward eval.
 - `--num-gpus` / `--max-workers` — parallel only; OOM backoff on by default.
 
+### Reproducibility
+
+Each `--seeds` value is the single seed for its condition: data generation, splits,
+Optuna sampler, model init, batch order and dropout are all derived from it
+(`utils/seeding.py`). The same seed reproduces results bit-for-bit across serial,
+parallel and H1 runners and regardless of run order; `--seeds 0 1 2 ...` gives
+independent repeats for robustness.
+
+- `--cpu-threads 4` (default) — fixed numpy/BLAS/torch threads; a different count gives
+  slightly different floating-point results, so keep it fixed across runs you compare.
+- `--deterministic` (default) / `--no-deterministic` — deterministic torch/cuDNN kernels.
+- Exact equality also assumes the same GPU model and library versions.
+
 ### Batch schedule (default Optuna neighborhood)
 
 | train_size ≤ | default batch | Optuna choices |
