@@ -29,7 +29,7 @@ from sklearn.utils import check_scalar
 from utils.saito_helpers import check_bandit_feedback_inputs
 
 
-class _ConstantBinaryProbaClassifier(BaseEstimator, ClassifierMixin):
+class _ConstantBinaryProbaClassifier(ClassifierMixin, BaseEstimator):
     """When training labels are a single class, ``LogisticRegression`` cannot fit; this mirrors ``predict_proba[:, 1]``."""
 
     def __init__(self, p_positive: float = 0.5):
