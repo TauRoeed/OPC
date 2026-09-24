@@ -75,6 +75,18 @@ class CustomCFDatasetPS(Dataset):
             self.pscore[i],
         )
 
+    def __getitems__(self, indices):
+        """Whole batch in one indexing op (DataLoader calls this instead of per-row
+        ``__getitem__``); same values/dtypes as default_collate over rows. Use with
+        ``collate_fn=collate_prebatched``."""
+        idx = torch.as_tensor(indices, dtype=torch.long)
+        return [self.user_idx[idx], self.action_idx[idx], self.rewards[idx], self.pscore[idx]]
+
+
+def collate_prebatched(batch):
+    """DataLoader collate_fn for datasets whose ``__getitems__`` already returns a batch."""
+    return batch
+
 # ----------------------------
 # Scalable environment
 # ----------------------------
