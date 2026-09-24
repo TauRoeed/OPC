@@ -836,6 +836,11 @@ def fit_shared_regression_bundle(
         )
         kind = f"{kind}_bounded_{eps:g}"
 
+    # The reward model's own user vectors (noisy logging view, or clean env vectors for
+    # the oracle). Every q_hat call (training, selection, post-hoc) must use this copy;
+    # read-only so nothing downstream can modify it.
+    user_context = np.array(user_context, dtype=np.float32, copy=True)
+    user_context.setflags(write=False)
     bundle = {
         "regression_model": model,
         "user_context": user_context,
@@ -1963,7 +1968,15 @@ def get_trial_results(
     *,
     user_chunk: int = DEFAULT_QHAT_USER_CHUNK,
     action_chunk: int = DEFAULT_QHAT_ACTION_CHUNK,
+    reward_context: np.ndarray | None = None,
 ):
+    """Post-hoc metrics for a policy given by (our_x, our_a).
+
+    ``our_x``/``our_a`` are the policy's embeddings (learned ones for a trial).
+    ``reward_context`` is the reward model's own user vectors (``bundle["user_context"]``);
+    q_hat is always evaluated on it, never on the policy's embeddings. ``None`` keeps
+    the legacy behaviour for callers without a shared bundle.
+    """
     t0 = time.time()
     uids = np.asarray(val_data["x_idx"], dtype=np.int64)
     xw = np.asarray(our_x[uids], dtype=np.float32)
@@ -1991,8 +2004,9 @@ def get_trial_results(
     else:
         policy_reward = calc_reward(dataset, policy_object)
     print(f"Policy reward time: {time.time() - t0} seconds")
-    # eval_policy expects model.predict(x_idx)
-    eval_metrics = eval_policy(neighberhoodmodel, val_data, original_policy_prob, policy_val)
+    # eval_policy feeds val_data["x"] to the reward model: give it the model's own vectors.
+    val_for_qhat = val_data if reward_context is None else {**val_data, "x": reward_context[uids]}
+    eval_metrics = eval_policy(neighberhoodmodel, val_for_qhat, original_policy_prob, policy_val)
 
     action_diff_to_real = np.sqrt(np.mean((emb_a - our_a) ** 2))
     action_delta = np.sqrt(np.mean((original_a - our_a) ** 2))
@@ -2013,7 +2027,7 @@ def get_trial_results(
 
     q_hat_val = predict_regression_qhat_users(
         regression_model,
-        our_x,
+        our_x if reward_context is None else reward_context,
         uids,
         user_chunk=user_chunk,
         action_chunk=action_chunk,
@@ -2689,6 +2703,7 @@ def regression_trainer_trial(
             dm,
             policy_reward_mode=policy_reward_mode,
             policy_reward_mc_sim=policy_reward_mc_sim,
+            reward_context=shared_regression_bundle["user_context"],
         )
     results[0]["val_size"] = float(v_baseline)
     results[0].update(_log_constants)
@@ -2996,6 +3011,7 @@ def regression_trainer_trial(
                 dm,
                 policy_reward_mode=policy_reward_mode,
                 policy_reward_mc_sim=policy_reward_mc_sim,
+                reward_context=shared_regression_bundle["user_context"],
             )
         trial_res = {
             **trial_res,
