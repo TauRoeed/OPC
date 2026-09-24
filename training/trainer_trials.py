@@ -18,6 +18,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader, Dataset
 import torch.optim as optim
+from scipy.special import expit
 
 torch.backends.cudnn.benchmark = torch.cuda.is_available()
 if torch.cuda.is_available():
@@ -686,32 +687,38 @@ def build_regression_split_cache(
 
 
 class AnalyticRewardModel:
-    """Closed-form q_hat from the CTR link: 1 / (1/ctr + exp(-dot(x,a)/T)).
+    """Closed-form q_hat from the simulator's click model: sigmoid(scale * dot(x, a) + offset).
 
-    Used by ``--reward-model logging_score`` (noisy ``our_x``/``our_a``) and
-    ``oracle`` (clean env embeddings). Duck-types the RegressionModel surface
-    needed by lazy q_hat / DR scoring (``predict_pairs``, action blocks).
+    ``scale`` / ``offset`` are the env's calibrated values (``SyntheticBanditEnv``). Used by
+    ``--reward-model logging_score`` (biased ``our_x``/``our_a``) and ``oracle`` (clean env
+    vectors, i.e. the true q). Duck-types the RegressionModel surface needed by lazy q_hat /
+    DR scoring (``predict_pairs``, action blocks).
     """
 
     def __init__(
         self,
         action_context: np.ndarray,
         *,
-        ctr: float,
-        temperature: float = 1.0,
+        scale: float = 1.0,
+        offset: float = 0.0,
         kind: str = "analytic",
     ):
         self.action_context = np.asarray(action_context, dtype=np.float32)
         self.n_actions = int(self.action_context.shape[0])
         self.len_list = 1
-        self.ctr = float(ctr)
-        if self.ctr <= 0.0:
-            raise ValueError(f"ctr must be > 0, got {self.ctr}")
-        self.temperature = float(temperature)
+        self.scale = float(scale)
+        self.offset = float(offset)
+        if not (np.isfinite(self.scale) and np.isfinite(self.offset)):
+            raise ValueError(f"scale / offset must be finite, got {self.scale}, {self.offset}")
         self.kind = str(kind)
 
-    def _link(self, logits: np.ndarray) -> np.ndarray:
-        return (1.0 / ((1.0 / self.ctr) + np.exp(-logits))).astype(np.float32)
+    @classmethod
+    def from_env(cls, env, action_context: np.ndarray, *, kind: str) -> "AnalyticRewardModel":
+        return cls(action_context, scale=float(env.scale), offset=float(env.offset), kind=kind)
+
+    def _link(self, dots: np.ndarray) -> np.ndarray:
+        # same arithmetic as SyntheticBanditEnv: fp32 dot products, fp64 link
+        return expit(self.scale * dots.astype(np.float64) + self.offset).astype(np.float32)
 
     def predict_pairs(
         self, context: np.ndarray, action: np.ndarray, pos: int = 0
@@ -722,18 +729,14 @@ class AnalyticRewardModel:
         if context.shape[0] != action.shape[0]:
             raise ValueError("context and action must have same length")
         a = self.action_context[action]
-        pt = max(self.temperature, 1e-8)
-        logits = (context * a).sum(axis=1) / pt
-        return self._link(logits)
+        return self._link(np.einsum("ij,ij->i", context, a, dtype=np.float64))
 
     def predict_user_action_block(
         self, context: np.ndarray, action_start: int, action_end: int
     ) -> np.ndarray:
         context = np.asarray(context, dtype=np.float32)
         a = self.action_context[int(action_start) : int(action_end)]
-        pt = max(self.temperature, 1e-8)
-        logits = (context @ a.T) / pt
-        q = self._link(logits)
+        q = self._link(context @ a.T)
         return q[:, :, None]
 
     def predict(self, context: np.ndarray) -> np.ndarray:
@@ -755,8 +758,8 @@ def fit_shared_regression_bundle(
 
     ``reward_model``:
       - ``regression``: fit LogisticRegression on concat(our_x, our_a) from reg slice
-      - ``logging_score``: CTR link on noisy logging embeddings (no fit)
-      - ``oracle``: CTR link on clean env embeddings (sim diagnosis only)
+      - ``logging_score``: the env's click model on the biased logging vectors (no fit)
+      - ``oracle``: the env's click model on the clean vectors = true q (sim diagnosis only)
 
     ``q_error`` in [0, 1]: convex mix with a constant bad predictor after building
     the base model.  With oracle base and constant bad, ||q_hat - q_oracle||_inf <= eps.
@@ -793,32 +796,22 @@ def fit_shared_regression_bundle(
         sample_size = n
     elif kind == "logging_score":
         env = dataset["env"]
-        model = AnalyticRewardModel(
-            action_context=our_a,
-            ctr=float(env.ctr),
-            temperature=float(getattr(env, "temperature", 1.0)),
-            kind="logging_score",
-        )
+        model = AnalyticRewardModel.from_env(env, our_a, kind="logging_score")
         user_context = our_x
         sample_size = 0
         print(
-            f"[RewardModel=logging_score] CTR link on noisy our_x/our_a "
-            f"(ctr={env.ctr:g}, no fit)",
+            f"[RewardModel=logging_score] env click model on biased our_x/our_a "
+            f"(scale={env.scale:.4g}, offset={env.offset:.4g}, no fit)",
             flush=True,
         )
     else:  # oracle
         env = dataset["env"]
-        model = AnalyticRewardModel(
-            action_context=np.asarray(env.emb_a, dtype=np.float32),
-            ctr=float(env.ctr),
-            temperature=float(getattr(env, "temperature", 1.0)),
-            kind="oracle",
-        )
+        model = AnalyticRewardModel.from_env(env, np.asarray(env.emb_a, dtype=np.float32), kind="oracle")
         user_context = np.asarray(env.emb_x, dtype=np.float32)
         sample_size = 0
         print(
-            f"[RewardModel=oracle] CTR link on clean env emb "
-            f"(ctr={env.ctr:g}, sim-only)",
+            f"[RewardModel=oracle] env click model on clean vectors "
+            f"(scale={env.scale:.4g}, offset={env.offset:.4g}, sim-only)",
             flush=True,
         )
 
@@ -2547,7 +2540,7 @@ def regression_trainer_trial(
     per trial are derived from it (``utils.seeding``).
 
     ``reward_model``: shared q_hat source — ``regression`` (default fit),
-    ``logging_score`` (CTR link on noisy embeddings), or ``oracle`` (clean env).
+    ``logging_score`` (env click model on biased vectors), or ``oracle`` (clean env).
     """
     optuna_selection = str(optuna_selection).lower()
     if optuna_selection not in VALID_OPTUNA_SELECTION:

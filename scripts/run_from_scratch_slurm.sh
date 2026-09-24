@@ -15,10 +15,8 @@
 #
 # Full sweep (defaults below):
 #   datasets: ml, myket, anime
-#   noise mode: kmeans_templates (default; no mode sweep)
-#   noise axes: combined, context, action, metadata
-#   noise levels: low, medium, high
-#   CTR levels: 0.05, 0.1, 0.2
+#   representation bias: low, medium, high (all three types at that level)
+#   CTR levels (reference logger at medium bias): 0.05, 0.1, 0.2
 #   train sizes: 5000, 25000, 50000, 100000
 #   val sizes: 10000, 50000, 100000
 #   seeds: 0-4 (5 seeds)
@@ -123,18 +121,15 @@ if [[ "${SKIP_STUDY:-0}" != "1" ]]; then
   log "Step 3/3: parallel study (${MAX_WORKERS} workers / ${NUM_GPUS} GPUs, slim, require-cuda)"
   "$PYTHON" -m training.run_full_study_parallel \
     --datasets ml myket anime \
-    --noise-axes combined context action metadata \
-    --noise-levels low medium high \
+    --bias-configs low medium high \
     --ctr-levels 0.05 0.1 0.2 \
     --train-sizes 5000 25000 50000 100000 \
     --val-sizes 10000 50000 100000 \
     --seeds 0 1 2 3 4 \
     --n-trials 20 \
-    --num-runs 1 \
     --batch-size 2048 \
     --policy-reward-mode exact \
     --optuna-batch-sizes 256 512 1024 2048 4096 \
-    --policy-temperature 1.0 \
     --emb-dir "$EMB_DIR" \
     --out-dir "$OUT_DIR" \
     --run-tag "$RUN_TAG" \

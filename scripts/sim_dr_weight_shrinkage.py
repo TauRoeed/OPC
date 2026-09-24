@@ -14,59 +14,15 @@ from models.models import RegressionModel
 from training.trainer_trials import (
     _build_regression_logged_split,
 )
-from utils.noise_levels import resolve_noise_spec
 from utils.policies import Policy
 from utils.simulation_utils import calc_reward, generate_dataset
 
 
-def _load_ml(emb_dir: Path) -> tuple[np.ndarray, np.ndarray, np.ndarray | None, np.ndarray | None]:
+def _build_dataset(emb_dir: Path, *, bias: str, seed: int, ctr: float) -> dict:
+    """ML world at one representation-bias configuration (utils/representation_bias.py)."""
     emb_x = np.load(emb_dir / "ml_user_factors.npy")
     emb_a = np.load(emb_dir / "ml_item_factors.npy")
-    meta_x_p = emb_dir / "ml_user_metadata.npy"
-    meta_a_p = emb_dir / "ml_item_metadata.npy"
-    meta_x = np.load(meta_x_p) if meta_x_p.exists() else None
-    meta_a = np.load(meta_a_p) if meta_a_p.exists() else None
-    return emb_x, emb_a, meta_x, meta_a
-
-
-def _build_dataset(
-    emb_dir: Path,
-    *,
-    noise_axis: str,
-    noise_component: str,
-    noise_level: str,
-    seed: int,
-    ctr: float,
-) -> dict:
-    emb_x, emb_a, meta_x, meta_a = _load_ml(emb_dir)
-    spec = resolve_noise_spec(noise_level, axis=noise_axis, component=noise_component)
-    params = {
-        "n_users": int(emb_x.shape[0]),
-        "n_actions": int(emb_a.shape[0]),
-        "emb_dim": int(emb_x.shape[1]),
-        "n_clusters": max(8, min(64, int(np.sqrt(emb_a.shape[0])))),
-        "eps1": float(spec["eps1"]),
-        "eps2": float(spec["eps2"]),
-        "eps_meta": float(spec["eps_meta"]),
-        "sigma1": 1.0,
-        "sigma2": 1.0,
-        "sigma_meta": 1.0,
-        "noise_mode": "kmeans_templates",
-        "noise_apply_user": bool(spec["apply_user"]),
-        "noise_apply_item": bool(spec["apply_item"]),
-        "ctr": float(ctr),
-        "policy_temperature": 1.0,
-        "logging_uniform_mix": 0.0,
-    }
-    return generate_dataset(
-        params,
-        seed=seed,
-        emb_a=emb_a,
-        emb_x=emb_x,
-        metadata_a=meta_a,
-        metadata_x=meta_x,
-        store_original=True,
-    )
+    return generate_dataset({"bias": bias, "ctr": float(ctr)}, seed=seed, emb_a=emb_a, emb_x=emb_x)
 
 
 def _iw_transform(w: np.ndarray, form: str, lam: float) -> np.ndarray:
@@ -189,7 +145,7 @@ def run_cell(
         user_emb=our_x,
         item_emb=our_a,
         emb_dim=int(our_x.shape[1]),
-        temperature=1.0,
+        temperature=float(dataset["policy_temperature"]),
         user_chunk=4096,
         action_chunk=4096,
         rng=np.random.default_rng(seed),
@@ -200,7 +156,7 @@ def run_cell(
         user_emb=emb_x,
         item_emb=emb_a,
         emb_dim=int(emb_x.shape[1]),
-        temperature=1.0,
+        temperature=float(dataset["policy_temperature"]),
         user_chunk=4096,
         action_chunk=4096,
         rng=np.random.default_rng(seed + 1),
@@ -282,18 +238,17 @@ def main() -> None:
     out = args.out_dir
     out.mkdir(parents=True, exist_ok=True)
 
+    # bias applies to users and items; group = the old cluster cells, warp = the old linear cells
     cells = [
-        ("context_cluster_high", "context", "cluster", "high"),
-        ("action_linear_high", "action", "linear", "high"),
+        ("group_high", "none/high/none"),
+        ("warp_high", "high/none/none"),
     ]
     frames = []
-    for name, axis, comp, level in cells:
+    for name, bias in cells:
         print(f"=== cell {name} ===", flush=True)
         ds = _build_dataset(
             args.emb_dir,
-            noise_axis=axis,
-            noise_component=comp,
-            noise_level=level,
+            bias=bias,
             seed=int(args.seed),
             ctr=float(args.ctr),
         )

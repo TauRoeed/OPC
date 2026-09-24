@@ -8,8 +8,7 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 from sklearn.utils import check_random_state
-from sklearn.cluster import MiniBatchKMeans
-from scipy.special import softmax
+from scipy.special import expit, softmax
 
 from models.estimators import (
     SelfNormalizedInverseProbabilityWeighting as IPW,
@@ -92,27 +91,27 @@ def collate_prebatched(batch):
 # ----------------------------
 @dataclass
 class SyntheticBanditEnv:
-    """On-the-fly reward probabilities for (user, action) pairs."""
-    emb_x: np.ndarray  # (n_users, d)
+    """True click model on the clean vectors: q(u, a) = sigmoid(scale * x_u·a_a + offset).
+
+    ``scale`` and ``offset`` come from the world calibration (utils.representation_bias);
+    ``ctr`` is the calibration target CTR, kept for reporting (not a ceiling).
+    """
+    emb_x: np.ndarray  # (n_users, d) clean (centered) vectors
     emb_a: np.ndarray  # (n_actions, d)
-    ctr: float = 0.0
-    temperature: float = 1.0
+    scale: float = 1.0
+    offset: float = 0.0
+    ctr: float = 0.05
 
     def reward_prob(self, users: np.ndarray, actions: np.ndarray) -> np.ndarray:
         users = np.asarray(users, dtype=np.int64)
         actions = np.asarray(actions, dtype=np.int64)
-
-        x = self.emb_x[users]
-        a = self.emb_a[actions]
-
-        logits = (x * a).sum(axis=1) / max(self.temperature, 1e-8)
-
-        return 1.0 / ((1.0 /float(self.ctr)) + np.exp(-logits))
+        dots = np.einsum("ij,ij->i", self.emb_x[users], self.emb_a[actions], dtype=np.float64)
+        return expit(float(self.scale) * dots + float(self.offset))
 
     def reward_prob_block(self, users: np.ndarray, a0: int, a1: int) -> np.ndarray:
         """reward_prob for every (user in users) × (action in [a0, a1)); one matmul."""
-        logits = (self.emb_x[users] @ self.emb_a[a0:a1].T) / max(self.temperature, 1e-8)
-        return 1.0 / ((1.0 / float(self.ctr)) + np.exp(-logits))
+        dots = (self.emb_x[users] @ self.emb_a[a0:a1].T).astype(np.float64)
+        return expit(float(self.scale) * dots + float(self.offset))
 
 
 def env_reward_block(env, users: np.ndarray, a0: int, a1: int) -> np.ndarray:
@@ -368,8 +367,7 @@ def _exact_value_torch(
             q_all = t(q_cache)
         else:
             env_x, env_a_t = t(env.emb_x), t(env.emb_a).T.contiguous()
-            inv_ctr = 1.0 / float(env.ctr)
-            env_temp = max(float(env.temperature), 1e-8)
+            env_scale, env_offset = float(env.scale), float(env.offset)
         if user_emb is not None:
             pol_x, pol_a_t = t(user_emb), t(item_emb).T.contiguous()
             pt = max(float(temperature), 1e-8)
@@ -381,7 +379,7 @@ def _exact_value_torch(
             if q_cache is not None:
                 q = q_all[u0:u1]
             else:
-                q = (env_x[u0:u1] @ env_a_t).div_(-env_temp).exp_().add_(inv_ctr).reciprocal_()
+                q = (env_x[u0:u1] @ env_a_t).mul_(env_scale).add_(env_offset).sigmoid_()
             if user_emb is None:
                 v = q.sum(dim=1, dtype=torch.float64) / float(n_actions)
             else:
@@ -435,362 +433,61 @@ def calc_reward_mc(dataset: dict, policy, n_sim=30):
 
 
 
-def generate_linear_transform_noise(
-    X: np.ndarray,
-    *,
-    seed: int = 12345,
-    sigma: float = 1.0,
-    chunk_size: int = 100_000,
-) -> np.ndarray:
-
-    """Return one general/linear noise vector per row (item/user).
-
-    Shared random matrix ``W`` warps every row (``X @ W``) then adds isotropic
-    Gaussian noise. This is the ``eps1`` / ``linear`` / ``general`` component.
-    """
-    rng = np.random.default_rng(seed)
-    X = X.astype(np.float32, copy=False)
-    n, d = X.shape
-    W = rng.normal(0.0, 1.0, size=(d, d)).astype(np.float32)
-    out = np.empty_like(X, dtype=np.float32)
-    for s in range(0, n, chunk_size):
-        e = min(n, s + chunk_size)
-        Xb = X[s:e]
-        b = e - s
-        mean = Xb @ W
-        out[s:e] = mean + sigma * rng.normal(0.0, 1.0, size=(b, d)).astype(np.float32)
-    return out
-
-
-def generate_random_cluster_template_noise(
-    X: np.ndarray,
-    *,
-    n_clusters: int,
-    seed: int = 12345,
-    sigma: float = 1.0,
-    chunk_size: int = 100_000,
-) -> np.ndarray:
-    """Legacy random-cluster template noise (one vector per row)."""
-    rng = np.random.default_rng(seed)
-    X = X.astype(np.float32, copy=False)
-    n, d = X.shape
-    centroids = rng.normal(0.0, 1.0, size=(n_clusters, d)).astype(np.float32)
-    templates = rng.normal(0.0, 1.0, size=(n_clusters, d)).astype(np.float32)
-    c_norm2 = np.sum(centroids * centroids, axis=1)
-    out = np.empty_like(X, dtype=np.float32)
-
-    for s in range(0, n, chunk_size):
-        e = min(n, s + chunk_size)
-        Xb = X[s:e]
-        b = e - s
-        x_norm2 = np.sum(Xb * Xb, axis=1, keepdims=True)
-        dist2 = x_norm2 - 2.0 * (Xb @ centroids.T) + c_norm2[None, :]
-        cid = np.argmin(dist2, axis=1)
-        mean = templates[cid]
-        out[s:e] = mean + sigma * rng.normal(0.0, 1.0, size=(b, d)).astype(np.float32)
-    return out
-
-
-def generate_kmeans_cluster_template_noise(
-    X: np.ndarray,
-    *,
-    n_clusters: int,
-    seed: int = 12345,
-    sigma: float = 1.0,
-) -> np.ndarray:
-    """KMeans cluster-template noise (one vector per row)."""
-    rng = np.random.default_rng(seed)
-    X = X.astype(np.float32, copy=False)
-    n, d = X.shape
-    kmeans = MiniBatchKMeans(
-        n_clusters=int(n_clusters),
-        random_state=int(seed),
-        batch_size=min(10_000, max(256, n)),
-        n_init=10,
-        reassignment_ratio=0.0,
-    )
-    cluster_ids = kmeans.fit_predict(X).astype(np.int32)
-    templates = rng.normal(0.0, 1.0, size=(n_clusters, d)).astype(np.float32)
-    mean = templates[cluster_ids]
-    return (mean + sigma * rng.normal(0.0, 1.0, size=(n, d)).astype(np.float32)).astype(np.float32)
-
-
-def generate_metadata_projection_noise(
-    metadata: np.ndarray,
-    *,
-    out_dim: int,
-    seed: int = 12345,
-    sigma: float = 1.0,
-    chunk_size: int = 100_000,
-) -> np.ndarray:
-    """
-    Metadata-based noise: project metadata into embedding space and add Gaussian noise.
-    Returns one noise vector per row.
-    """
-    rng = np.random.default_rng(seed)
-    M = np.asarray(metadata, dtype=np.float32)
-    if M.ndim != 2:
-        raise ValueError("metadata must be a 2D array.")
-    n, m_dim = M.shape
-    if m_dim == 0:
-        return np.zeros((n, out_dim), dtype=np.float32)
-
-    Wm = rng.normal(0.0, 1.0, size=(m_dim, out_dim)).astype(np.float32)
-    out = np.empty((n, out_dim), dtype=np.float32)
-    for s in range(0, n, chunk_size):
-        e = min(n, s + chunk_size)
-        Mb = M[s:e]
-        b = e - s
-        mean = Mb @ Wm
-        out[s:e] = mean + sigma * rng.normal(0.0, 1.0, size=(b, out_dim)).astype(np.float32)
-    return out
-
-
-def mix_ground_truth_with_noises(
-    X_gt: np.ndarray,
-    noise_vecs: list[np.ndarray],
-    epsilons: list[float],
-) -> np.ndarray:
-    """
-    Compose embeddings:
-      gt * (1 - sum(eps)) + sum_i (noise_i * eps_i)
-    """
-    if len(noise_vecs) != len(epsilons):
-        raise ValueError("noise_vecs and epsilons must have same length.")
-    eps_sum = float(np.sum(epsilons))
-    out = (1.0 - eps_sum) * X_gt.astype(np.float32, copy=False)
-    for noise, eps in zip(noise_vecs, epsilons):
-        out = out + float(eps) * noise.astype(np.float32, copy=False)
-    return out.astype(np.float32, copy=False)
-
-
-def generate_noised_embeddings(
-    X: np.ndarray,
-    n_clusters: int,
-    eps1: float,
-    eps2: float,
-    seed: int = 12345,
-    chunk_size: int = 100_000,
-    sigma1: float = 1.0,
-    sigma2: float = 1.0,
-    noise_mode: str = "random_centroids",
-) -> np.ndarray:
-    """
-    Backward-compatible wrapper around split noise generators.
-    """
-    X = X.astype(np.float32, copy=False)
-    noise1 = generate_linear_transform_noise(
-        X,
-        seed=seed,
-        sigma=sigma1,
-        chunk_size=chunk_size,
-    )
-    if noise_mode == "random_centroids":
-        noise2 = generate_random_cluster_template_noise(
-            X,
-            n_clusters=n_clusters,
-            seed=seed + 73,
-            sigma=sigma2,
-            chunk_size=chunk_size,
-        )
-    elif noise_mode == "kmeans_templates":
-        noise2 = generate_kmeans_cluster_template_noise(
-            X,
-            n_clusters=n_clusters,
-            seed=seed + 73,
-            sigma=sigma2,
-        )
-    else:
-        raise ValueError(f"Unsupported noise_mode='{noise_mode}'.")
-    return mix_ground_truth_with_noises(X, [noise1, noise2], [eps1, eps2])
-
-
 # ----------------------------
 # Dataset generation
 # ----------------------------
-def generate_dataset(params, seed=12345, emb_a=None, emb_x=None, user_prior=None, 
-                     metadata_a=None, metadata_x=None, materialize_q_x_a: bool = False, dtype=np.float32, 
-                     store_original: bool = False):
-    random_ = check_random_state(seed)
+_LEGACY_NOISE_KEYS = {
+    "eps1", "eps2", "eps_meta", "sigma1", "sigma2", "sigma_meta", "noise_mode", "noise_axis",
+    "noise_component", "noise_apply_user", "noise_apply_item", "n_clusters", "policy_temperature",
+}
 
-    # embeddings
+
+def generate_dataset(params, seed=12345, emb_a=None, emb_x=None, metadata_a=None, metadata_x=None,
+                     store_original: bool = True, dtype=np.float32):
+    """Simulated world for one condition (see ``utils.representation_bias.build_world``).
+
+    ``params``: ``bias`` (a level, or 'warp/group/vector' levels; default 'medium'), ``ctr``
+    (target CTR of the reference policy), ``best_ctr``, ``centering``, ``logging_spread``,
+    ``ctr_reference`` ('logger' | 'uniform'), ``reference_bias``, ``group_source``
+    ('cluster' | 'metadata'), ``logging_uniform_mix``, ``strict``. ``n_users``, ``n_actions``,
+    ``emb_dim`` are only needed when ``emb_x`` / ``emb_a`` are not given (Gaussian vectors).
+    ``store_original`` is kept for callers; the biased snapshot is always stored.
+    """
+    from utils.representation_bias import WorldConfig, build_world, parse_bias
+
+    legacy = sorted(_LEGACY_NOISE_KEYS & set(params))
+    if legacy:
+        raise ValueError(
+            f"legacy noise parameters {legacy} are no longer supported: the simulator uses "
+            "representation-bias levels (params['bias']) and a calibrated logging temperature; "
+            "see utils/representation_bias.py"
+        )
+    random_ = check_random_state(seed)
     if emb_a is not None:
         emb_a = np.load(emb_a) if isinstance(emb_a, str) else np.asarray(emb_a)
     else:
         emb_a = random_.normal(size=(params["n_actions"], params["emb_dim"])).astype(dtype)
-
     if emb_x is not None:
         emb_x = np.load(emb_x) if isinstance(emb_x, str) else np.asarray(emb_x)
     else:
         emb_x = random_.normal(size=(params["n_users"], params["emb_dim"])).astype(dtype)
 
-    # Example: lognormal-ish “activity” distribution
-    if user_prior is not None:
-        user_prior = np.load(user_prior) if isinstance(user_prior, str) else np.asarray(user_prior)
-    else:
-        user_prior = random_.exponential(scale=1.0, size=(params["n_users"],)).astype(dtype)
-    
-    user_prior = user_prior / user_prior.sum()
-
-    # split noise generation + composition:
-    # gt * (1 - sum(eps)) + sum_i (noise_i * eps_i)
-    noise_mode = params.get("noise_mode", "random_centroids")
-    sigma1 = float(params.get("sigma1", 1.0))
-    sigma2 = float(params.get("sigma2", 1.0))
-    sigma_meta = float(params.get("sigma_meta", 1.0))
-    chunk_size = int(params.get("noise_chunk_size", 100_000))
-
-    item_noise_linear = generate_linear_transform_noise(
-        emb_a,
-        seed=seed,
-        sigma=sigma1,
-        chunk_size=chunk_size,
+    defaults = WorldConfig()
+    config = WorldConfig(
+        centering=float(params.get("centering", defaults.centering)),
+        logging_spread=float(params.get("logging_spread", defaults.logging_spread)),
+        target_ctr=float(params.get("ctr", defaults.target_ctr)),
+        ctr_reference=str(params.get("ctr_reference", defaults.ctr_reference)),
+        reference_bias=tuple(parse_bias(params.get("reference_bias", defaults.reference_bias)).values()),
+        best_ctr=float(params.get("best_ctr", defaults.best_ctr)),
+        group_source=str(params.get("group_source", defaults.group_source)),
+        strict=bool(params.get("strict", defaults.strict)),
     )
-
-    user_noise_linear = generate_linear_transform_noise(
-        emb_x,
-        seed=seed + 1,
-        sigma=sigma1,
-        chunk_size=chunk_size,
+    return build_world(
+        emb_x, emb_a, params.get("bias", "medium"), seed=int(seed), config=config,
+        metadata_x=metadata_x, metadata_a=metadata_a,
+        logging_uniform_mix=float(params.get("logging_uniform_mix", 0.0)),
     )
-
-    if noise_mode == "kmeans_templates":
-        item_noise_cluster = generate_kmeans_cluster_template_noise(
-            emb_a,
-            n_clusters=params["n_clusters"],
-            seed=seed + 73,
-            sigma=sigma2,
-        )
-
-        user_noise_cluster = generate_kmeans_cluster_template_noise(
-            emb_x,
-            n_clusters=params["n_clusters"],
-            seed=seed + 74,
-            sigma=sigma2,
-        )
-
-    elif noise_mode == "random_centroids":
-        item_noise_cluster = generate_random_cluster_template_noise(
-            emb_a,
-            n_clusters=params["n_clusters"],
-            seed=seed + 73,
-            sigma=sigma2,
-            chunk_size=chunk_size,
-        )
-        user_noise_cluster = generate_random_cluster_template_noise(
-            emb_x,
-            n_clusters=params["n_clusters"],
-            seed=seed + 74,
-            sigma=sigma2,
-            chunk_size=chunk_size,
-        )
-        
-    else:
-        raise ValueError(f"Unsupported noise_mode='{noise_mode}'.")
-
-    eps1 = float(params["eps1"])
-    eps2 = float(params["eps2"])
-    # Where to apply noise: axis=context → users only; action → items only;
-    # combined / metadata → both. Defaults keep legacy "both sides" behavior.
-    apply_user = bool(params.get("noise_apply_user", True))
-    apply_item = bool(params.get("noise_apply_item", True))
-
-    item_noises = [item_noise_linear, item_noise_cluster]
-    user_noises = [user_noise_linear, user_noise_cluster]
-    item_eps = [eps1, eps2] if apply_item else [0.0, 0.0]
-    user_eps = [eps1, eps2] if apply_user else [0.0, 0.0]
-
-    eps_meta = float(params.get("eps_meta", 0.0))
-    if eps_meta > 0.0 and (apply_user or apply_item):
-        if metadata_a is None:
-            metadata_a = params.get("metadata_a", None)
-        if metadata_x is None:
-            metadata_x = params.get("metadata_x", None)
-
-        meta_a_arr = None
-        meta_x_arr = None
-        if apply_item and metadata_a is not None:
-            meta_a_arr = np.load(metadata_a) if isinstance(metadata_a, str) else np.asarray(metadata_a)
-            if meta_a_arr.shape[0] != emb_a.shape[0]:
-                raise ValueError("metadata_a rows must match emb_a rows.")
-            item_noises.append(
-                generate_metadata_projection_noise(
-                    meta_a_arr,
-                    out_dim=emb_a.shape[1],
-                    seed=seed + 131,
-                    sigma=sigma_meta,
-                    chunk_size=chunk_size,
-                )
-            )
-            item_eps.append(eps_meta)
-
-        if apply_user and metadata_x is not None:
-            meta_x_arr = np.load(metadata_x) if isinstance(metadata_x, str) else np.asarray(metadata_x)
-            if meta_x_arr.shape[0] != emb_x.shape[0]:
-                raise ValueError("metadata_x rows must match emb_x rows.")
-            user_noises.append(
-                generate_metadata_projection_noise(
-                    meta_x_arr,
-                    out_dim=emb_x.shape[1],
-                    seed=seed + 132,
-                    sigma=sigma_meta,
-                    chunk_size=chunk_size,
-                )
-            )
-            user_eps.append(eps_meta)
-
-        added_meta = (meta_a_arr is not None) or (meta_x_arr is not None)
-        if not added_meta:
-            raise ValueError(
-                "eps_meta > 0 but no metadata_a/metadata_x was provided "
-                f"for requested sides (apply_user={apply_user}, apply_item={apply_item})."
-            )
-
-    if apply_item and any(float(e) > 0 for e in item_eps):
-        our_a = mix_ground_truth_with_noises(emb_a, item_noises, item_eps)
-    else:
-        our_a = np.asarray(emb_a, dtype=np.float32).copy()
-
-    if apply_user and any(float(e) > 0 for e in user_eps):
-        our_x = mix_ground_truth_with_noises(emb_x, user_noises, user_eps)
-    else:
-        our_x = np.asarray(emb_x, dtype=np.float32).copy()
-
-    # env always available
-    env = SyntheticBanditEnv(emb_x=emb_x, emb_a=emb_a, ctr=float(params.get("ctr", 0.05)))
-
-    # optional q_x_a (dangerous!)
-    q_x_a = None
-    if materialize_q_x_a:
-        score = emb_x @ emb_a.T  # (n_users x n_actions) HUGE
-        const = 1.0 / float(params["ctr"])
-        q_x_a = (1.0 / (const + np.exp(-score))).astype(dtype)
-
-    dataset = dict(
-        emb_a=emb_a.astype(dtype),
-        our_a=our_a.astype(dtype),
-        emb_x=emb_x.astype(dtype),
-        our_x=our_x.astype(dtype),
-        n_actions=int(emb_a.shape[0]),
-        n_users=int(emb_x.shape[0]),
-        emb_dim=int(emb_x.shape[1]),
-        env=env,
-        user_prior=user_prior,
-    )
-
-    dataset["policy_temperature"] = float(params.get("policy_temperature", 1.0))
-    dataset["logging_uniform_mix"] = float(
-        np.clip(float(params.get("logging_uniform_mix", 0.0)), 0.0, 1.0)
-    )
-
-    if store_original:
-        dataset["original_a"] = our_a.copy().astype(dtype)
-        dataset["original_x"] = our_x.copy().astype(dtype)
-
-    if materialize_q_x_a:
-        dataset["q_x_a"] = q_x_a
-
-    return dataset
 
 
 # ----------------------------

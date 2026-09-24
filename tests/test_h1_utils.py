@@ -7,8 +7,8 @@ import unittest
 import numpy as np
 
 from utils.bounded_q_model import BoundedErrorRewardModel, ConstantRewardModel
-from utils.rand_ctr import calibrate_ctr_from_rand, estimate_rand_ctr
-from utils.simulation_utils import SyntheticBanditEnv, generate_dataset
+from utils.rand_ctr import estimate_rand_ctr
+from utils.simulation_utils import calc_uniform_reward, generate_dataset
 
 
 class TestBoundedQ(unittest.TestCase):
@@ -19,7 +19,7 @@ class TestBoundedQ(unittest.TestCase):
         from training.trainer_trials import AnalyticRewardModel
 
         oracle = AnalyticRewardModel(
-            action_context=emb_a, ctr=0.1, kind="oracle"
+            action_context=emb_a, scale=1.0, offset=-2.0, kind="oracle"
         )
         bad = ConstantRewardModel(0.5, n_actions=40)
         bounded = BoundedErrorRewardModel(oracle, bad, eps=0.0, n_actions=40)
@@ -37,7 +37,7 @@ class TestBoundedQ(unittest.TestCase):
         from training.trainer_trials import AnalyticRewardModel
 
         oracle = AnalyticRewardModel(
-            action_context=emb_a, ctr=0.2, kind="oracle"
+            action_context=emb_a, scale=0.8, offset=-1.5, kind="oracle"
         )
         bad_val = 0.33
         bad = ConstantRewardModel(bad_val, n_actions=20)
@@ -52,7 +52,7 @@ class TestBoundedQ(unittest.TestCase):
         from training.trainer_trials import AnalyticRewardModel
 
         oracle = AnalyticRewardModel(
-            action_context=emb_a, ctr=0.15, kind="oracle"
+            action_context=emb_a, scale=1.2, offset=-1.0, kind="oracle"
         )
         bad = ConstantRewardModel(0.0, n_actions=30)
         eps = 0.4
@@ -63,34 +63,19 @@ class TestBoundedQ(unittest.TestCase):
 
 
 class TestRandCTR(unittest.TestCase):
-    def test_estimate_and_calibrate(self):
+    def test_world_calibrated_to_random_policy_ctr(self):
+        # H1 worlds: the uniform random policy's CTR is the calibration target.
         rng = np.random.default_rng(3)
-        emb_x = rng.normal(size=(50, 8)).astype(np.float32)
-        emb_a = rng.normal(size=(60, 8)).astype(np.float32)
-        params = {
-            "n_users": 50,
-            "n_actions": 60,
-            "emb_dim": 8,
-            "n_clusters": 8,
-            "eps1": 0.05,
-            "eps2": 0.05,
-            "eps_meta": 0.0,
-            "ctr": 0.1,
-            "noise_mode": "kmeans_templates",
-        }
-        ds = generate_dataset(
-            params=params, seed=0, emb_a=emb_a, emb_x=emb_x, store_original=True
-        )
-        est = estimate_rand_ctr(ds, n_samples=20_000, seed=1)
-        self.assertIn("rand_ctr", est)
-        self.assertGreaterEqual(est["rand_ctr"], 0.0)
-        self.assertLessEqual(est["rand_ctr"], 1.0)
-
-        cal = calibrate_ctr_from_rand(
-            emb_x, emb_a, target_rand_ctr=0.08, n_samples=10_000, seed=2
-        )
-        self.assertIn("ctr_calibrated", cal)
-        self.assertGreater(cal["ctr_calibrated"], 0.0)
+        emb_x = rng.normal(size=(300, 8)).astype(np.float32)
+        emb_a = rng.normal(size=(400, 8)).astype(np.float32)
+        params = {"bias": "medium", "ctr": 0.08, "ctr_reference": "uniform"}
+        ds = generate_dataset(params=params, seed=0, emb_a=emb_a, emb_x=emb_x)
+        exact = calc_uniform_reward(ds)
+        self.assertAlmostEqual(ds["world"]["uniform_ctr"], 0.08, places=6)  # calibration sample
+        self.assertLess(abs(exact - 0.08), 0.004)  # full population
+        est = estimate_rand_ctr(ds, n_samples=200_000, seed=1)
+        self.assertLess(abs(est["rand_q_mean"] - exact), 0.004)
+        self.assertEqual(est["density_regime"], "ModerateReward")
 
 
 if __name__ == "__main__":

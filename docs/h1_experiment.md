@@ -2,10 +2,10 @@
 
 **Hypothesis.** If logging is strongly biased, train size `n` is large, and the reward model `q_hat` is bad, **OPC can lose to naive** on true policy value. Naive is still biased. Correction variance / a bad DM term can dominate.
 
-**One-liner (full ablation).** Sweeps datasets, noise, train size, rand_CTR, q-error, logging mix, val size, and 15 seeds. Then analyzes.
+**One-liner (full ablation).** Sweeps datasets, representation bias, train size, rand_CTR, q-error, logging mix, val size, and 15 seeds. Then analyzes.
 
 ```bash
-python -m training.run_h1_study --datasets ml anime myket kuairec --run-tag h1_full --train-sizes 5000 25000 100000 250000 400000 --target-rand-ctrs 0.02 0.08 0.18 --q-errors 0.0 0.25 0.5 0.75 1.0 --logging-mixes 0.0 0.3 --noise-levels low medium high extreme brutal --val-sizes 50000 100000 200000 --seeds 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 --n-trials 15 --policy-losses sndr --policy-temperature 2.0 --qhat-user-chunk 10000 --qhat-action-chunk 10000 --num-gpus 2 --workers-per-gpu 16 --require-cuda --slim && python -m training.analyze_h1_study --root artifacts/h1_study/run_h1_full
+python -m training.run_h1_study --datasets ml anime myket kuairec --run-tag h1_full --train-sizes 5000 25000 100000 250000 400000 --target-rand-ctrs 0.02 0.08 0.18 --q-errors 0.0 0.25 0.5 0.75 1.0 --logging-mixes 0.0 0.3 --bias-configs low medium high --val-sizes 50000 100000 200000 --seeds 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 --n-trials 15 --policy-losses sndr --qhat-user-chunk 10000 --qhat-action-chunk 10000 --num-gpus 2 --workers-per-gpu 16 --require-cuda --slim && python -m training.analyze_h1_study --root artifacts/h1_study/run_h1_full
 ```
 
 Uses **2 GPUs** and **16 workers per GPU** (32 processes). User–item scoring chunks are **10k**. OOM backoff drops workers if VRAM dies.
@@ -23,15 +23,15 @@ SMOKE=1 ./scripts/run_h1_study.sh
 | Axis | Values | Meaning |
 |------|--------|---------|
 | dataset | `ml`, `anime`, `myket`, `kuairec` | BPR embedding catalogs |
-| `noise_level` | low, medium, high, extreme, brutal | embedding mix vs ground truth |
+| `noise_level` (bias) | low, medium, high | representation bias of all three types; keeps 90 / 75 / 50 % of the signal |
 | `train_size` `n` | 5k, 25k, 100k, 250k, 400k | logged trajectories used to learn `pi` |
 | `val_size` | 50k, 100k, 200k | validation logged trajectories |
-| `target_rand_ctr` `rho` | 0.02, 0.08, 0.18 | Sparse / Moderate / Dense. Sim `ctr` is **calibrated** so random-item mean reward ≈ `rho` |
+| `target_rand_ctr` `rho` | 0.02, 0.08, 0.18 | Sparse / Moderate / Dense. The click model is **calibrated** so the uniform random policy's CTR = `rho` |
 | `q_error` `eps` | 0, 0.25, 0.5, 0.75, 1 | how wrong `q_hat` is vs true `q*` |
-| `logging_mix` `alpha` | 0, 0.3 | CleanLog vs HurtLog (`alpha=0.3` and temperature `T=2`) |
+| `logging_mix` `alpha` | 0, 0.3 | CleanLog vs HurtLog (`alpha=0.3` uniform mix) |
 | seeds | 0–14 | repeats |
 
-Fixed: noise mode `kmeans_templates` / axis `combined`, OPC loss `sndr` (no KL/CRM), naive loss `naive`, qhat chunks 10k, 16 workers/GPU.
+Fixed: bias on users and items, logging spread 0.5, best item 30%, OPC loss `sndr` (no KL/CRM), naive loss `naive`, qhat chunks 10k, 16 workers/GPU.
 
 Outcome:
 
@@ -47,17 +47,10 @@ delta  =  V(OPC)  -  V(naive)
 
 BPR embeddings already exist: clean user factors `e_x` and item factors `e_a`.
 
-### 1. Calibrate density
+### 1. Clean world
 
-Pick target `rho` (rand_CTR). Choose sim link parameter `ctr` so that, under **uniform** user and item,
-
-```text
-E[ q_link(e_x[u], e_a[a]; ctr) ]  ≈  rho
-```
-
-`rho` is **mean reward under random items**. It is **not** “optimal CTR”. `ctr` is only a link ceiling given scores.
-
-### 2. True world
+Center the vectors: `x = e_x − 0.8·mean(e_x)`, `a = e_a − 0.8·mean(e_a)` (removes most of the
+shared popularity direction). Details: [representation_bias.md](representation_bias.md).
 
 User traffic:
 
@@ -65,30 +58,42 @@ User traffic:
 P(u)  proportional to  Exp(1)    then normalize
 ```
 
-True mean reward uses **clean** embeddings (`SyntheticBanditEnv`):
+### 2. Calibrate density and the true clicks
+
+With `z(u,a)` the clean score `x_u · a_a` standardized over all pairs, true clicks are
 
 ```text
-s*(u,a)  =  e_x[u] · e_a[a] / T_env     (T_env = 1)
-q*(u,a)  =  1 / ( 1/ctr + exp(-s*) )
+q*(u,a)  =  sigmoid( alpha * z(u,a) + b )
 r        ~  Bernoulli(q*)
 ```
 
-### 3. What the logger and learner see
-
-Noisy copies of the embeddings:
+`alpha` is set so each user's best item averages 30% (`--best-ctr`). `b` is set so the
+**uniform random policy** has CTR `rho`:
 
 ```text
-our  =  (1 - eps1 - eps2 - eps_meta) * gt
-     +  eps1 * N_linear
-     +  eps2 * N_cluster
-     +  eps_meta * N_meta
+sum_u P(u) * mean_a q*(u,a)  =  rho
 ```
 
-Rewards stay `q*` on clean `e_x`, `e_a`. Logging and the CF model start from `our_x`, `our_a`.
+`b` is fit on a sample (1000 users drawn from `P(u)` × 2048 random items). The value
+reported per cell (`measured_rand_ctr`) is the exact sum over all users and items; it is
+typically within about 1% (relative) of `rho`. `rho` is **mean reward under random items**.
+It is **not** "optimal CTR".
+
+### 3. What the logger and learner see
+
+Biased copies of the vectors (`our_x`, `our_a`). Three types, applied to both sides:
+
+- a global warp (one linear map);
+- a group offset (per k-means cluster);
+- a per-vector offset.
+
+At level `L`, all three together keep 90 / 75 / 50 % of the signal (low / medium / high).
+Rewards stay `q*` on the clean vectors. Logging and the CF model start from `our_x`, `our_a`.
 
 ### 4. Logging policy
 
-Softmax on **noisy** dots, temperature `T` (`T=2` on HurtLog):
+Softmax on **biased** dots at the calibrated temperature `T` (the clean logger spreads over
+half the catalog, `--logging-spread 0.5`):
 
 ```text
 pi_soft(a|u)  =  softmax_a( our_x[u] · our_a[a] / T )
@@ -113,10 +118,10 @@ Logged tuple: `(u, a, r, p)`.
 
 ### 6. Frozen reward model (H1 dial)
 
-Oracle `q*` mixed with a constant `b = rho`:
+Oracle `q*` mixed with a constant `b_bad = rho`:
 
 ```text
-q_hat(u,a)  =  (1 - eps) * q*(u,a)  +  eps * b
+q_hat(u,a)  =  (1 - eps) * q*(u,a)  +  eps * b_bad
 ```
 
 Because rewards are in `[0, 1]`:
@@ -129,7 +134,7 @@ max |q_hat - q*|  <=  eps
 
 ### 7. What we learn
 
-Collaborative-filtering policy. Init from noisy `our`. Freeze those tables. Train residual MLPs:
+Collaborative-filtering policy. Init from biased `our`. Freeze those tables. Train residual MLPs:
 
 ```text
 u' = our_x[u] + MLP_u( LN(our_x[u]) )
@@ -200,7 +205,7 @@ B_naive  <  c1 * eps  +  c2 * E[w^2] / n
 
 Large `n` kills the variance term. Then you need **large `eps`** and/or **HurtLog** (heavy `w`) for naive to win.
 
-`rho` enters as: reward sparsity, the calibrated `ctr`, and the constant bad predictor `b = rho`.
+`rho` enters as: reward sparsity, the calibrated click offset `b`, and the constant bad predictor `b_bad = rho`.
 
 ---
 
@@ -225,7 +230,8 @@ Those cutoffs come from the grid, not from a theorem.
 |------|------|
 | `training/run_h1_study.py` | grid |
 | `training/analyze_h1_study.py` | delta + thresholds |
-| `utils/rand_ctr.py` | estimate `rho`, calibrate `ctr` |
+| `utils/representation_bias.py` | world: bias, `T`, click model calibrated to `rho` |
+| `utils/rand_ctr.py` | Monte Carlo estimate of `rho` |
 | `utils/bounded_q_model.py` | `eps`-bounded `q_hat` |
 | `scripts/run_h1_study.sh` | smoke / full wrapper |
 | `utils/simulation_utils.py` | `q*`, logs, true `V` |

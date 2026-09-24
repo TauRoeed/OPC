@@ -1,15 +1,14 @@
 #!/usr/bin/env bash
-# Bias-axis follow-up: fixed validation sizes + more seeds + harder noise.
+# Bias follow-up: fixed validation sizes + more seeds at the highest bias level.
 #
 # Default grid:
-#   axes: context action metadata combined
-#   levels: high extreme brutal catastrophic
+#   bias: warp, group, vector alone and all three, at high
 #   val sizes: 20k 50k (fixed; NOT val_frac)
 #   seeds: 0..9
 #   train: 5k 25k 50k 100k
 #   ctr: 0.05
 #
-# Conditions: 4 axes × 4 levels × 10 seeds × 2 vals = 320
+# Conditions: 4 bias configs × 10 seeds × 2 vals = 80
 # Outputs under: artifacts/full_study/run_<RUN_TAG>/val_20000/ and val_50000/
 #
 # Native:
@@ -48,13 +47,10 @@ N_TRIALS="${N_TRIALS:-20}"
 COMMON=(
   -m training.run_full_study_parallel
   --datasets ml
-  --noise-axes context action metadata combined
-  --noise-modes kmeans_templates
   --ctr-levels 0.05
   --train-sizes 5000 25000 50000 100000
   --val-sizes 20000 50000
   --n-trials "$N_TRIALS"
-  --num-runs 1
   --policy-reward-mode exact
   --emb-dir "$EMB_DIR"
   --out-dir "$OUT_DIR"
@@ -70,15 +66,12 @@ if [[ "${SMOKE:-0}" == "1" ]]; then
   COMMON=(
     -m training.run_full_study_parallel
     --datasets ml
-    --noise-axes context
-    --noise-modes kmeans_templates
-    --noise-levels brutal catastrophic
+    --bias-configs high
     --ctr-levels 0.05
     --train-sizes 5000 25000
     --val-sizes 20000
     --seeds 0 1
     --n-trials 2
-    --num-runs 1
     --policy-reward-mode exact
     --emb-dir "$EMB_DIR"
     --out-dir "$OUT_DIR"
@@ -90,7 +83,7 @@ if [[ "${SMOKE:-0}" == "1" ]]; then
   )
 else
   COMMON+=(
-    --noise-levels high extreme brutal catastrophic
+    --bias-configs high/none/none none/high/none none/none/high high
     --seeds 0 1 2 3 4 5 6 7 8 9
   )
 fi

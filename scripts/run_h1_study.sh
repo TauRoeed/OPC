@@ -17,7 +17,7 @@ if [[ "${SMOKE:-0}" == "1" ]]; then
     --target-rand-ctrs 0.08 \
     --q-errors 0.0 1.0 \
     --logging-mixes 0.0 0.3 \
-    --noise-levels high \
+    --bias-configs high \
     --val-sizes 50000 \
     --seeds 0 \
     --n-trials 3 \
@@ -25,8 +25,7 @@ if [[ "${SMOKE:-0}" == "1" ]]; then
     --qhat-user-chunk 10000 \
     --qhat-action-chunk 10000 \
     --max-workers 2 \
-    --slim \
-    --n-rand-ctr-samples 5000
+    --slim
   python -m training.analyze_h1_study --root "artifacts/h1_study/run_${TAG}_smoke"
   exit 0
 fi
@@ -39,12 +38,11 @@ python -m training.run_h1_study \
   --target-rand-ctrs 0.02 0.08 0.18 \
   --q-errors 0.0 0.25 0.5 0.75 1.0 \
   --logging-mixes 0.0 0.3 \
-  --noise-levels low medium high extreme brutal \
+  --bias-configs low medium high \
   --val-sizes 50000 100000 200000 \
   --seeds 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 \
   --n-trials 15 \
   --policy-losses sndr \
-  --policy-temperature 2.0 \
   --qhat-user-chunk 10000 \
   --qhat-action-chunk 10000 \
   --num-gpus 2 \

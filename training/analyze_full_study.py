@@ -9,7 +9,7 @@ import pandas as pd
 from training.metrics_utils import pct_change
 
 
-_LEVEL_ORDER = ["low", "medium", "high"]
+_LEVEL_ORDER = ["none", "low", "medium", "high"]
 
 
 def _ensure_dir(path: Path):
@@ -23,6 +23,11 @@ def _parse_condition_dirname(name: str):
             continue
         k, v = part.split("=", 1)
         out[k] = v
+    if "bias" in out:  # representation-bias run keys: map onto the legacy grouping tags
+        out.setdefault("level", out["bias"])
+        out.setdefault("noise", "representation_bias")
+        out.setdefault("axis", "both")
+        out.setdefault("comp", "combined")
     return out
 
 

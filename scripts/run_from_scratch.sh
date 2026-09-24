@@ -91,18 +91,14 @@ if [[ "${SKIP_STUDY:-0}" != "1" ]]; then
   log "Step 3/3: parallel study (run_full_study_parallel defaults)"
   STUDY_ARGS=(
     --datasets ${STUDY_DATASETS}
-    --noise-modes kmeans_templates
-    --noise-axes combined
-    --noise-levels low high
+    --bias-configs low high
     --ctr-levels 0.05
     --train-sizes 5000 25000 50000 100000
     --seeds 0 1 2
     --n-trials 20
-    --num-runs 1
     --batch-size 2048
     --policy-reward-mode exact
     --optuna-batch-sizes 256 512 1024 2048 4096
-    --policy-temperature 1.0
     --val-frac 0.15
     --val-min 5000
     --emb-dir "$EMB_DIR"
@@ -114,14 +110,11 @@ if [[ "${SKIP_STUDY:-0}" != "1" ]]; then
     STUDY_DATASETS="ml"
     STUDY_ARGS=(
       --datasets ml
-      --noise-modes kmeans_templates
-      --noise-axes combined
-      --noise-levels low
+      --bias-configs low
       --ctr-levels 0.05
       --train-sizes 5000
       --seeds 0
       --n-trials 1
-      --num-runs 1
       --batch-size 512
       --policy-reward-mode exact
       --optuna-batch-sizes 128 256 512 1024 2048

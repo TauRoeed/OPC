@@ -167,14 +167,12 @@ if [[ "${SKIP_STUDY:-0}" != "1" ]]; then
     RUN_TAG="${RUN_TAG}_smoke"
     STUDY_ARGS+=(
       --datasets ml
-      --noise-axes combined
-      --noise-levels low
+      --bias-configs low
       --ctr-levels 0.05
       --train-sizes 5000
       --val-size 500
       --seeds 0
       --n-trials 1
-      --num-runs 1
       --max-workers 1
       --num-gpus 1
       --run-tag "$RUN_TAG"
@@ -182,14 +180,12 @@ if [[ "${SKIP_STUDY:-0}" != "1" ]]; then
   else
     STUDY_ARGS+=(
       --datasets ml myket anime
-      --noise-axes combined context action metadata
-      --noise-levels low medium high
+      --bias-configs low medium high
       --ctr-levels 0.05 0.1 0.2
       --train-sizes 5000 25000 50000 100000
       --val-sizes 10000 50000 100000
       --seeds 0 1 2 3 4
       --n-trials 20
-      --num-runs 1
       --max-workers "$MAX_WORKERS"
       --num-gpus "$NUM_GPUS"
       --run-tag "$RUN_TAG"

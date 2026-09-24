@@ -4,7 +4,7 @@ Master tracker for continuing OPC research. Code lives under `utils/`, `training
 
 ## Priority (current phase)
 
-1. **Noise / SNR characterization** — measure, compare, link to correction magnitude.
+1. **Representation-bias world** — calibrated bias types and levels, link to correction magnitude.
 2. **KuaiRec / KuaiRand-Pure** — loaders + BPR wiring (no full study runs yet).
 3. Regimes, bias examples, paper contributions, reflection (docs scaffolding).
 
@@ -13,7 +13,7 @@ Master tracker for continuing OPC research. Code lives under `utils/`, `training
 | Track | Status | Docs / code |
 |-------|--------|-------------|
 | Workplan + framework | done | this file |
-| Noise / SNR | done (v1) | [noise_snr.md](noise_snr.md), `utils/noise_snr.py`, `utils/noise_levels.py`, `training/characterize_noise_snr.py` |
+| Simulated world / bias | done (v2: representation bias) | [representation_bias.md](representation_bias.md), `utils/representation_bias.py`, `training/characterize_world.py` |
 | Experimental regimes | done (catalog) | [regimes.md](regimes.md) |
 | Additional datasets | loaders done | [datasets_kuai.md](datasets_kuai.md), `BPR/` Kuai loaders |
 | Bias modeling | scaffold | [bias_examples.md](bias_examples.md), [bias_axis_trial.md](bias_axis_trial.md) |
@@ -24,18 +24,18 @@ Master tracker for continuing OPC research. Code lives under `utils/`, `training
 
 ## Next actions
 
-- [x] Run `python -m training.characterize_noise_snr --datasets ml` → `artifacts/noise_snr/`.
+- [x] Run `python -m training.characterize_world` → `artifacts/world/` (all seven datasets calibrated).
 - [x] Download KuaiRec / KuaiRand-Pure once; generate BPR artifacts.
-- [ ] Bias trial 1 — min val @ 1M train, no noise-type sweep — [bias_axis_trial.md](bias_axis_trial.md); tag `bias_min_val_tr1m_t20_s5`
-- [ ] Bias trial 2 — noise grid @ 0.5M–10M train, fixed val — tag `bias_axis_comp_tr500k_10m_l5_t20_s5`
-- [ ] Real-world noise captions — [bias_examples.md](bias_examples.md)
+- [ ] Bias trial 1 — min val @ 1M train, no bias-type sweep — [bias_axis_trial.md](bias_axis_trial.md); tag `bias_min_val_tr1m_t20_s5`
+- [ ] Bias trial 2 — bias types × levels @ 0.5M–10M train, fixed val — tag `bias_types_sndr_logscore_clip1_tr500k_10m_v100k_t20_s5`
+- [x] Real-world bias captions — [bias_examples.md](bias_examples.md)
 - [ ] Test H1 — see [h1_experiment.md](h1_experiment.md); run `./scripts/run_h1_study.sh`
-- [ ] Plot OPC lift vs measured SNR (reuse existing `artifacts/full_study` + new `snr` in `run_meta.json`).
+- [ ] Plot OPC lift vs signal kept (`signal_kept` column; `world` and `snr` in `run_meta.json`).
 - [ ] Fill paper Results placeholders from hurtlog / reward-model ablations.
 - [ ] Design theory/complexity × SNR experiment grid (later).
 
 ## Out of scope (this phase)
 
 - Full study sweeps on Kuai.
-- New noise generators beyond characterization.
+- New bias types beyond warp / group / vector.
 - Formal theorems.

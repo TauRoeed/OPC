@@ -8,11 +8,11 @@ Self-review of methodology, assumptions, and direction.
 2. **Propensities are known / logged exactly** — production logs often have clipped, stale, or approximate scores.
 3. **Binary bandit rewards** — CTR-style; ignores dwell, multi-objective, delayed feedback.
 4. **Matched search budget** — OPC vs NoProp fair only if Optuna budgets and splits stay identical.
-5. **Noise model covers “bias”** — structured embedding noise + uniform mix is not a full taxonomy of industrial biases.
+5. **Bias model coverage** — three representation-bias types + uniform mix is not a full taxonomy of industrial biases.
 
 ## Methodology risks
 
-- **Confounding ε label vs SNR** — same level can yield different measured SNR across datasets/modes; prefer reporting measured SNR ([noise_snr.md](noise_snr.md)).
+- **Confounding ε label vs signal** — the same ε gives different damage across datasets; bias levels are therefore calibrated per dataset on signal kept ([representation_bias.md](representation_bias.md)).
 - **Selection metric mismatch** — `ci_low` vs `r_hat` vs oracle actual reward can invert method ranking.
 - **Reward-model misspecification** — SNDR quality tracks `q̂`; oracle/logscore ablations already hint at this.
 - **Dataset coverage** — early results lean on `ml`/`anime`; Kuai adds short-video + random exposure but not yet in result tables.
@@ -21,7 +21,7 @@ Self-review of methodology, assumptions, and direction.
 ## Research direction questions
 
 1. Is the main contribution “when OPC helps” (regime map) or a new estimator?
-2. Do different noise *types* need different corrections at matched SNR, or only severity matters?
+2. Do different bias *types* need different corrections at matched signal kept, or only severity matters?
 3. Can we diagnose operating regime from observable stats (propensity ESS, SNR proxies, val gap) without GT?
 
 ## Testable hypothesis

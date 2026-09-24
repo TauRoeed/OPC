@@ -3,7 +3,8 @@
 Offline policy comparison experiments with matrix-factorization embeddings.
 
 **Loss / Optuna details:** [`docs/training_losses.md`](docs/training_losses.md)  
-**Research notes:** [`docs/research_workplan.md`](docs/research_workplan.md)
+**Research notes:** [`docs/research_workplan.md`](docs/research_workplan.md)  
+**Simulator:** [`docs/representation_bias.md`](docs/representation_bias.md)
 
 Main flow:
 1. Fit/generate BPR artifacts (user/item factors + metadata arrays).
@@ -19,6 +20,9 @@ Main flow:
 | Optuna objective | `ci_low` = DR/naive mean − t·SE |
 | OPC DR score IW clip | fixed `M=1` (`DEFAULT_DR_SCORE_CLIP_M`); **not** Optuna-searched |
 | Reward model `q̂` | `regression` (bias script often uses `logging_score`) |
+| Representation bias (`--bias-configs`) | `low medium high` (all three types at that level) |
+| Reference CTR (`--ctr-levels`) | 5% for the logger at medium bias; best item 30% |
+| Logging temperature | calibrated: clean logger over 50% of the catalog (`--logging-spread`) |
 | Batch sizes | `batch_schedule(train_size)` unless you pass `--optuna-batch-sizes` |
 | Skip finished cells | `--skip-completed` on (checks `summary_metrics.csv` only) |
 
@@ -29,11 +33,11 @@ Offline clip pick: `scripts/sim_dr_score_clip_logging_score.py` → `artifacts/o
 - `BPR/` - BPR training and artifact generation.
 - `training/` - experiment runners and trainers.
 - `models/` - model definitions and estimators.
-- `utils/` - simulation, policy, noise/SNR, plotting.
+- `utils/` - simulated world (representation bias), policy, SNR, plotting.
 - `datasets/` - dataset files (MovieLens, etc.).
 - `artifacts/` - generated outputs.
 - `scripts/` - bias trial, runtime estimate, clip sweeps, profiling.
-- `docs/` - paper outline, workplan, SNR/regime/bias notes.
+- `docs/` - paper outline, workplan, simulator/regime/bias notes.
 
 ## Quick Setup
 
@@ -117,14 +121,31 @@ For each dataset `<name>`:
 
 OPC trains with `sndr` by default. Trial selection uses DR with IW clipped at `M=1`. No-propensity stays pure naive.
 
+### Simulated world
+
+Each condition builds a world from the dataset's BPR vectors
+([`docs/representation_bias.md`](docs/representation_bias.md)):
+
+- **Truth.** The clean vectors are centered (80% of the mean removed, so scores are not just
+  popularity). Clicks follow `sigmoid(α·z + b)` on the standardized clean score `z`: α puts
+  each user's best item at 30% on average, and b puts the logger at medium bias at 5% CTR.
+- **What the learner sees.** Biased copies of users and items, with three types applied in
+  order: a global warp, a group offset (k-means clusters, or metadata groups) and a
+  per-vector offset. Each type is `none` / `low` / `medium` / `high`. All three at
+  low / medium / high keep 90 / 75 / 50 % of the signal (calibrated per dataset).
+- **Logger.** `softmax(biased scores / T)`, with T set so the clean logger spreads over half
+  the catalog.
+
+The truth is identical across bias configurations for a dataset and seed. Every
+calibrated value is written to `run_meta.json → world`. Inspect a dataset with
+`python -m training.characterize_world --datasets ml`.
+
 ### Small Local Run
 
 ```bash
 python -m training.run_full_study \
   --datasets ml \
-  --noise-modes kmeans_templates \
-  --noise-axes combined \
-  --noise-levels low medium high \
+  --bias-configs low medium high \
   --ctr-levels 0.05 \
   --seeds 0 1 \
   --train-sizes 5000 25000 \
@@ -141,9 +162,7 @@ Batch comes from `batch_schedule` (omit `--batch-size` / `--optuna-batch-sizes` 
 ```bash
 python -m training.run_full_study_parallel \
   --datasets ml anime \
-  --noise-modes kmeans_templates \
-  --noise-axes combined \
-  --noise-levels low high \
+  --bias-configs low high high/none/none none/none/high \
   --ctr-levels 0.05 \
   --seeds 0 1 2 \
   --train-sizes 5000 25000 50000 \
@@ -162,7 +181,7 @@ Docker one-liner (4 GPUs / 120 workers example):
 docker run --rm --gpus all --shm-size=128g \
   -v "$PWD:/app" -w /app opc:gpu \
   -m training.run_full_study_parallel \
-  --datasets ml --noise-levels low high brutal \
+  --datasets ml --bias-configs low medium high \
   --train-sizes 500000 1000000 2000000 5000000 10000000 \
   --val-size 100000 --seeds 0 1 2 3 4 --n-trials 15 \
   --policy-losses sndr --reward-model logging_score --slim \
@@ -170,13 +189,14 @@ docker run --rm --gpus all --shm-size=128g \
   --run-tag my_bias_run
 ```
 
-### Bias axis × component trial
+### Bias type trial
 
-Large ML bias grid (sndr + `logging_score` + fixed clip M=1):
+Large ML bias grid (sndr + `logging_score` + fixed clip M=1): each bias type alone and all
+three together, per level ([`docs/bias_axis_trial.md`](docs/bias_axis_trial.md)):
 
 ```bash
 CUDA_VISIBLE_DEVICES=0,1,2,3 NUM_GPUS=4 MAX_WORKERS=120 \
-  NOISE_LEVELS="low high brutal" \
+  BIAS_LEVELS="low medium high" \
   ./scripts/run_bias_axis_comp_large_trial.sh
 ```
 
@@ -193,6 +213,8 @@ Wall scales roughly with `n_trials × (train_size / batch)` using `batch_schedul
 ### Useful Flags
 
 - `--policy-losses sndr` (default) — OPC train; DR selection still clips IW at M=1.
+- `--bias-configs` — levels per condition: `medium` (all three types) or `warp/group/vector`, e.g. `high/none/low`.
+- `--bias-groups {cluster,metadata}`, `--env-centering`, `--logging-spread`, `--best-ctr`, `--ctr-reference {logger,uniform}` — world calibration (see the simulator doc).
 - `--reward-model {regression,logging_score,oracle}` — shared `q̂` for DM/DR/SNDR.
 - `--optuna-selection {ci_low,r_hat,actual_reward}` — what Optuna maximizes.
 - `--methods opc no_propensity` — or one arm only (e.g. finish no-prop after OPC).
@@ -239,14 +261,14 @@ Enqueued `--batch-size` values snap onto the current grid when needed.
 
 Each condition:
 
-`artifacts/full_study/run_<run-tag>/dataset=...__noise=...__axis=...__level=...__ctr=...__seed=.../`
+`artifacts/full_study/run_<run-tag>/dataset=...__bias=...__ctr=...__seed=.../` (bias label: `medium`, or `w-high.g-none.v-low` for mixed levels)
 
 Common files:
 
 - `summary_metrics.csv` — per-method summary (also the skip-completed marker).
 - `opc_trials_long.csv` / `no_prop_trials_long.csv` — Optuna trial logs.
 - `opc_runs_long.csv` / `no_prop_runs_long.csv` — per-run logs.
-- `run_meta.json` — exact parameters (includes `dr_score_clip_m`, policy losses).
+- `run_meta.json` — exact parameters (includes `dr_score_clip_m`, policy losses) and the calibrated `world`.
 
 At run root:
 

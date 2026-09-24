@@ -65,8 +65,6 @@ def _parallel_worker_init(worker_slot, num_gpus: int) -> None:
 from utils.seeding import DEFAULT_CPU_THREADS, pin_cpu_threads
 from training.memory_budget import describe_plan, device_capacities, plan_worker_groups
 from training.run_full_study import (
-    VALID_NOISE_AXES,
-    VALID_NOISE_COMPONENTS,
     VALID_STUDY_METHODS,
     _collect_existing_summaries,
     _finalize_summary_df,
@@ -81,15 +79,17 @@ from training.trainer_trials import (
     VALID_OPTUNA_SELECTION,
     VALID_REWARD_MODELS,
 )
+from utils.representation_bias import add_world_arguments, resolve_bias_configs, world_options_from_args
 
 
 def _iter_run_configs(args, out_dir: Path, val_size_configs: list):
-    """Yield run configs in order: seed → dataset → ctr → [val] → noises.
+    """Yield run configs in order: seed → dataset → ctr → [val] → bias.
 
     ``val`` nest/key suffix only when ``--val-size`` / ``--val-sizes`` is set
-    (label != ``frac``). Noise nest (inner): mode → axis → component → level.
+    (label != ``frac``).
     """
     multi_val = len(val_size_configs) > 1
+    bias_configs = resolve_bias_configs(args.bias_configs)
     for seed in args.seeds:
         for dataset_name in args.datasets:
             for ctr in args.ctr_levels:
@@ -100,31 +100,20 @@ def _iter_run_configs(args, out_dir: Path, val_size_configs: list):
                         if multi_val
                         else out_dir
                     )
-                    for noise_mode in args.noise_modes:
-                        for noise_axis in args.noise_axes:
-                            for noise_component in args.noise_components:
-                                for noise_level in args.noise_levels:
-                                    run_key = (
-                                        f"dataset={dataset_name}__noise={noise_mode}"
-                                        f"__axis={noise_axis}__comp={noise_component}"
-                                        f"__level={noise_level}"
-                                        f"__ctr={ctr:g}__seed={seed}"
-                                    )
-                                    # Tag folder with val only for real fixed/swept vals.
-                                    if use_val:
-                                        run_key = f"{run_key}__val={val_label}"
-                                    yield {
-                                        "dataset_name": dataset_name,
-                                        "noise_mode": noise_mode,
-                                        "noise_axis": noise_axis,
-                                        "noise_component": noise_component,
-                                        "noise_level": noise_level,
-                                        "ctr": float(ctr),
-                                        "seed": int(seed),
-                                        "run_key": run_key,
-                                        "run_dir": str(val_root / run_key),
-                                        "val_size": val_size_cfg,
-                                    }
+                    for bias in bias_configs:
+                        run_key = f"dataset={dataset_name}__bias={bias}__ctr={ctr:g}__seed={seed}"
+                        # Tag folder with val only for real fixed/swept vals.
+                        if use_val:
+                            run_key = f"{run_key}__val={val_label}"
+                        yield {
+                            "dataset_name": dataset_name,
+                            "bias": bias,
+                            "ctr": float(ctr),
+                            "seed": int(seed),
+                            "run_key": run_key,
+                            "run_dir": str(val_root / run_key),
+                            "val_size": val_size_cfg,
+                        }
 
 
 def _is_oom_like(exc: BaseException) -> bool:
@@ -354,10 +343,7 @@ def _execute_run(config: dict):
     opc_df, noprop_df, opc_trials, noprop_trials, meta = _run_condition(
         dataset_name=config["dataset_name"],
         emb_dir=Path(config["emb_dir"]),
-        noise_mode=config["noise_mode"],
-        noise_axis=config["noise_axis"],
-        noise_component=config.get("noise_component", "combined"),
-        noise_level=config["noise_level"],
+        bias=config["bias"],
         ctr=config["ctr"],
         seed=config["seed"],
         train_sizes=config["train_sizes"],
@@ -369,7 +355,6 @@ def _execute_run(config: dict):
         val_max=config["val_max"],
         policy_reward_mode=config["policy_reward_mode"],
         policy_reward_mc_sim=config["policy_reward_mc_sim"],
-        policy_temperature=config["policy_temperature"],
         slim=bool(config.get("slim", False)),
         deterministic=bool(config.get("deterministic", True)),
         cpu_threads=int(config.get("cpu_threads", DEFAULT_CPU_THREADS)),
@@ -387,6 +372,7 @@ def _execute_run(config: dict):
         logging_uniform_mix=float(config.get("logging_uniform_mix", 0.0)),
         optuna_selection=str(config.get("optuna_selection", "ci_low")),
         reward_model=str(config.get("reward_model", "regression")),
+        world_options=config.get("world_options"),
     )
 
     summary_df = _finalize_summary_df(
@@ -394,10 +380,6 @@ def _execute_run(config: dict):
         noprop_df,
         meta,
         dataset=config["dataset_name"],
-        noise_mode=config["noise_mode"],
-        noise_axis=config["noise_axis"],
-        noise_component=config.get("noise_component", "combined"),
-        noise_level=config["noise_level"],
         seed=config["seed"],
     )
 
@@ -415,38 +397,12 @@ def main():
         description="Run full OPC vs no-propensity sweeps in parallel."
     )
     parser.add_argument("--datasets", nargs="+", default=["ml", "anime"])
-    parser.add_argument(
-        "--noise-modes",
-        nargs="+",
-        default=["kmeans_templates"],
-        help="Available: kmeans_templates, random_centroids.",
-    )
-    parser.add_argument(
-        "--noise-axes",
-        nargs="+",
-        default=["combined"],
-        choices=list(VALID_NOISE_AXES),
-        help="Where to apply noise: context=users, action=items, combined=both. "
-        "Legacy metadata = both + metadata component.",
-    )
-    parser.add_argument(
-        "--noise-components",
-        nargs="+",
-        default=["combined"],
-        choices=list(VALID_NOISE_COMPONENTS),
-        help="Which mixture term: linear|general, cluster, metadata, or combined.",
-    )
-    parser.add_argument(
-        "--noise-levels",
-        nargs="+",
-        default=["low", "high"],
-        help="Noise levels: low/medium/high/extreme/brutal/catastrophic.",
-    )
+    add_world_arguments(parser)
     parser.add_argument(
         "--logging-uniform-mix",
         type=float,
         default=0.0,
-        help="Mix logging with uniform: π_b=(1-α)·π_noisy + α/|A|. Try 0.2–0.5.",
+        help="Mix logging with uniform: π_b=(1-α)·π_biased + α/|A|. Try 0.2–0.5.",
     )
     parser.add_argument(
         "--optuna-selection",
@@ -465,7 +421,7 @@ def main():
         nargs="+",
         type=float,
         default=[0.05],
-        help="CTR levels to sweep in the simulator.",
+        help="Target CTR of the reference policy (see --ctr-reference) to sweep.",
     )
     parser.add_argument(
         "--train-sizes",
@@ -502,12 +458,6 @@ def main():
         type=int,
         default=8,
         help="MC draws when --policy-reward-mode mc.",
-    )
-    parser.add_argument(
-        "--policy-temperature",
-        type=float,
-        default=1.0,
-        help="Softmax temperature for dot-product policies. Default 1.",
     )
     parser.add_argument("--val-size", type=int, default=None)
     parser.add_argument(
@@ -637,6 +587,11 @@ def main():
     policy_loss_types = tuple(str(x).lower() for x in args.policy_losses)
     search_use_log_trick = not bool(args.no_log_trick)
     val_size_configs = _resolve_val_size_configs(args)
+    try:
+        bias_configs = resolve_bias_configs(args.bias_configs)
+    except ValueError as e:
+        parser.error(str(e))
+    world_options = world_options_from_args(args)
 
     emb_dir = Path(args.emb_dir)
     run_tag = args.run_tag or datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -657,7 +612,7 @@ def main():
     print(
         "Run order: seed → dataset → ctr → "
         + ("val → " if any(lbl != "frac" for _, lbl in val_size_configs) else "")
-        + "noise_mode → noise_axis → noise_component → noise_level",
+        + f"bias {bias_configs}; world options: {world_options}",
         flush=True,
     )
     for base_cfg in _iter_run_configs(args, out_dir, val_size_configs):
@@ -685,7 +640,7 @@ def main():
             "val_max": args.val_max,
             "policy_reward_mode": args.policy_reward_mode,
             "policy_reward_mc_sim": int(args.policy_reward_mc_sim),
-            "policy_temperature": float(args.policy_temperature),
+            "world_options": world_options,
             "slim": bool(args.slim),
             "deterministic": bool(args.deterministic),
             "cpu_threads": int(args.cpu_threads),
@@ -742,10 +697,8 @@ def main():
                     "run_tag": run_tag,
                     "created_at": datetime.utcnow().isoformat() + "Z",
                     "datasets": args.datasets,
-                    "noise_modes": args.noise_modes,
-                    "noise_axes": args.noise_axes,
-                    "noise_components": args.noise_components,
-                    "noise_levels": args.noise_levels,
+                    "bias_configs": bias_configs,
+                    "world_options": world_options,
                     "ctr_levels": args.ctr_levels,
                     "seeds": args.seeds,
                     "train_sizes": args.train_sizes,
@@ -766,7 +719,6 @@ def main():
                     "policy_reward_mode": args.policy_reward_mode,
                     "policy_reward_mc_sim": args.policy_reward_mc_sim,
                     "optuna_batch_sizes": args.optuna_batch_sizes,
-                    "policy_temperature": args.policy_temperature,
                     "max_workers": args.max_workers,
                     "min_workers": min_workers,
                     "oom_backoff": bool(args.oom_backoff),

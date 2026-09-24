@@ -20,14 +20,13 @@ mkdir -p "$LOG_DIR"
 COMMON=(
   -m training.run_full_study_parallel
   --datasets ml
-  --noise-axes combined
   --seeds 0 1 2
   --n-trials 20
   --max-workers "$WORKERS"
   --num-gpus 1
   --optuna-selection r_hat
   --logging-uniform-mix 0.3
-  --policy-temperature 2
+  --logging-spread 0.8
   --policy-reward-mode exact
   --optuna-batch-sizes 4096 8192 16384
   --emb-dir BPR/embeddings
@@ -55,14 +54,14 @@ run_job() {
   echo "[$(date -Is)] pid=$(cat "$LOG_DIR/${tag}.pid") tag=$tag"
 }
 
-# 1) IPW expanded: was tiny winner — fill high/extreme/brutal × both CTRs × all trains
+# 1) IPW expanded: was tiny winner — fill medium/high bias × both CTRs × all trains
 run_job "$GPU0" abl_ipw_hurtlog_v2 \
   --policy-losses ipw \
-  --noise-levels high extreme brutal \
+  --bias-configs medium high \
   --ctr-levels 0.02 0.1 \
   --train-sizes 10000 25000 100000
 
-# 2) SNDR + kl_crm control under same hurt (brutal new + high/extreme for fair kl_crm compare)
+# 2) SNDR + kl_crm control under same hurt (high bias + medium/high for fair kl_crm compare)
 #    Split: if GPU0==GPU1, wait for IPW first (caller should set SEQUENTIAL=1)
 if [[ "${SEQUENTIAL:-0}" == "1" ]] || [[ "$GPU0" == "$GPU1" ]]; then
   echo "[$(date -Is)] sequential: waiting for IPW job..."
@@ -71,7 +70,7 @@ fi
 
 run_job "$GPU1" abl_sndr_brutal_hurtlog \
   --policy-losses sndr \
-  --noise-levels brutal \
+  --bias-configs high \
   --ctr-levels 0.02 0.1 \
   --train-sizes 10000 25000 100000
 
@@ -79,7 +78,7 @@ if [[ "${SEQUENTIAL:-0}" == "1" ]] || [[ "$GPU0" == "$GPU1" ]]; then
   wait "$(cat "$LOG_DIR/abl_sndr_brutal_hurtlog.pid")" || true
   run_job "$GPU1" abl_klcrm_hurtlog_ctrl \
     --policy-losses kl_crm \
-    --noise-levels high extreme brutal \
+    --bias-configs medium high \
     --ctr-levels 0.02 0.1 \
     --train-sizes 10000 25000 100000
 else
@@ -88,7 +87,7 @@ else
     wait "$(cat "$LOG_DIR/abl_ipw_hurtlog_v2.pid")" || true
     run_job "$GPU0" abl_klcrm_hurtlog_ctrl \
       --policy-losses kl_crm \
-      --noise-levels high extreme brutal \
+      --bias-configs medium high \
       --ctr-levels 0.02 0.1 \
       --train-sizes 10000 25000 100000
     wait

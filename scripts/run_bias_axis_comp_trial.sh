@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Compat wrapper → large noise trial (trial 2).
+# Compat wrapper → large bias-type trial (trial 2).
 # Prefer:
 #   ./scripts/run_bias_min_val_trial.sh          # trial 1: min val @ 1M train
 #   FIXED_VAL=... ./scripts/run_bias_axis_comp_large_trial.sh   # trial 2

@@ -23,8 +23,7 @@ mkdir -p "$LOG_DIR"
 COMMON=(
   -m training.run_full_study_parallel
   --datasets ml
-  --noise-axes combined
-  --noise-levels brutal extreme
+  --bias-configs high
   --ctr-levels 0.1
   --train-sizes 100000
   --seeds 0 1 2
@@ -33,7 +32,7 @@ COMMON=(
   --num-gpus 1
   --optuna-selection r_hat
   --logging-uniform-mix 0.3
-  --policy-temperature 2
+  --logging-spread 0.8
   --policy-reward-mode exact
   --optuna-batch-sizes 4096 8192 16384
   --emb-dir BPR/embeddings

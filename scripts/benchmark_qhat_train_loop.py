@@ -26,32 +26,7 @@ from utils.simulation_utils import CustomCFDatasetPS, generate_dataset
 def _load_ml_dataset(emb_dir: Path, seed: int) -> dict:
     emb_x = np.load(emb_dir / "ml_user_factors.npy")
     emb_a = np.load(emb_dir / "ml_item_factors.npy")
-    meta_a = np.load(emb_dir / "ml_item_metadata.npy")
-    meta_x = np.load(emb_dir / "ml_user_metadata.npy")
-    params = {
-        "n_users": int(emb_x.shape[0]),
-        "n_actions": int(emb_a.shape[0]),
-        "emb_dim": int(emb_x.shape[1]),
-        "n_clusters": 32,
-        "eps1": 0.05,
-        "eps2": 0.05,
-        "eps_meta": 0.0,
-        "sigma1": 1.0,
-        "sigma2": 1.0,
-        "sigma_meta": 1.0,
-        "ctr": 0.05,
-        "policy_temperature": 2.0,
-        "logging_uniform_mix": 0.0,
-    }
-    return generate_dataset(
-        params,
-        seed=seed,
-        emb_a=emb_a,
-        emb_x=emb_x,
-        metadata_a=meta_a,
-        metadata_x=meta_x,
-        store_original=True,
-    )
+    return generate_dataset({"bias": "low", "ctr": 0.05}, seed=seed, emb_a=emb_a, emb_x=emb_x)
 
 
 def _make_train_loader(train_data: dict, batch_size: int):

@@ -13,7 +13,6 @@ import json
 from datetime import datetime
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 
 from utils.seeding import DEFAULT_CPU_THREADS, pin_cpu_threads
@@ -25,81 +24,29 @@ from training.run_full_study_parallel import (
     _resolve_num_gpus,
     _run_with_memory_cap,
 )
-from utils.noise_levels import VALID_NOISE_LEVELS
-from utils.rand_ctr import calibrate_ctr_from_rand, estimate_rand_ctr
-from utils.rand_ctr_sample_size import n_for_rand_ctr
-
-
-def _dataset_paths(emb_dir: Path, dataset_name: str):
-    return (
-        emb_dir / f"{dataset_name}_user_factors.npy",
-        emb_dir / f"{dataset_name}_item_factors.npy",
-    )
-
-
-def _resolve_ctr(
-    *,
-    dataset_name: str,
-    emb_dir: Path,
-    ctr_arg: float | None,
-    target_rand_ctr: float | None,
-    seed: int,
-) -> tuple[float, dict]:
-    user_path, item_path = _dataset_paths(emb_dir, dataset_name)
-    emb_x = np.load(user_path)
-    emb_a = np.load(item_path)
-
-    meta: dict = {}
-    if target_rand_ctr is not None:
-        cal = calibrate_ctr_from_rand(
-            emb_x,
-            emb_a,
-            target_rand_ctr=float(target_rand_ctr),
-            seed=int(seed),
-        )
-        ctr = float(cal["ctr_calibrated"])
-        meta["ctr_mode"] = "calibrated_to_target"
-        meta["target_rand_ctr"] = float(target_rand_ctr)
-        meta.update(cal)
-    elif ctr_arg is not None:
-        ctr = float(ctr_arg)
-        meta["ctr_mode"] = "fixed"
-    else:
-        ctr = 0.05
-        meta["ctr_mode"] = "default"
-
-    meta["ctr_used"] = float(ctr)
-    return ctr, meta
+from utils.rand_ctr_sample_size import density_regime
+from utils.representation_bias import add_world_arguments, resolve_bias_configs, world_options_from_args
 
 
 def _execute_h1_cell(config: dict) -> None:
-    """Worker entry (spawn-safe). GPU via OPC_WORKER_GPU from pool init."""
+    """Worker entry (spawn-safe). GPU via OPC_WORKER_GPU from pool init.
+
+    The world is calibrated so the uniform random policy has CTR ``target_rand_ctr``
+    (``ctr_reference='uniform'``); the measured value is its exact full-catalog CTR.
+    """
     run_dir = Path(config["run_dir"])
     run_dir.mkdir(parents=True, exist_ok=True)
-    emb_dir = Path(config["emb_dir"])
     dataset_name = config["dataset_name"]
     seed = int(config["seed"])
     target = float(config["target_rand_ctr"])
     q_err = float(config["q_error"])
     log_mix = float(config["logging_uniform_mix"])
-    n_rand = int(config["n_rand_samples"])
-
-    ctr, ctr_meta = _resolve_ctr(
-        dataset_name=dataset_name,
-        emb_dir=emb_dir,
-        ctr_arg=config.get("ctr_fixed"),
-        target_rand_ctr=target if config.get("ctr_fixed") is None else None,
-        seed=seed,
-    )
-    q_bad = float(target if config.get("ctr_fixed") is None else ctr)
 
     opc_df, noprop_df, _, _, meta = _run_condition(
         dataset_name=dataset_name,
-        emb_dir=emb_dir,
-        noise_mode=config["noise_mode"],
-        noise_axis=config["noise_axis"],
-        noise_level=config["noise_level"],
-        ctr=ctr,
+        emb_dir=Path(config["emb_dir"]),
+        bias=config["bias"],
+        ctr=target,
         seed=seed,
         train_sizes=config["train_sizes"],
         n_trials=int(config["n_trials"]),
@@ -110,7 +57,6 @@ def _execute_h1_cell(config: dict) -> None:
         val_max=None,
         policy_reward_mode="exact",
         policy_reward_mc_sim=8,
-        policy_temperature=float(config["policy_temperature"]),
         run_dir=run_dir,
         slim=bool(config.get("slim", False)),
         deterministic=bool(config.get("deterministic", True)),
@@ -119,69 +65,56 @@ def _execute_h1_cell(config: dict) -> None:
         logging_uniform_mix=log_mix,
         reward_model="oracle",
         q_error=q_err,
-        q_bad_value=q_bad,
-        rand_ctr_meta={},
+        q_bad_value=target,
+        world_options={**(config.get("world_options") or {}), "ctr_reference": "uniform"},
+        record_uniform_value=True,
         qhat_user_chunk=int(config.get("qhat_user_chunk", 10_000)),
         qhat_action_chunk=int(config.get("qhat_action_chunk", 10_000)),
         require_cuda=bool(config.get("require_cuda", False)),
     )
 
-    from utils.simulation_utils import generate_dataset
-
-    user_path, item_path = _dataset_paths(emb_dir, dataset_name)
-    emb_x = np.load(user_path)
-    emb_a = np.load(item_path)
-    ds = generate_dataset(
-        params=meta["params"],
-        seed=seed,
-        emb_a=emb_a,
-        emb_x=emb_x,
-        store_original=True,
-    )
-    rand_meta = estimate_rand_ctr(ds, n_samples=n_rand, seed=seed + 99)
-    rand_meta.update(ctr_meta)
-    rand_meta["q_error"] = q_err
-    rand_meta["logging_uniform_mix"] = log_mix
-    rand_meta["n_users"] = int(emb_x.shape[0])
-    rand_meta["n_rand_recommended"] = n_rand
-
-    (run_dir / "run_meta.json").write_text(
-        json.dumps({**meta, "rand_ctr": rand_meta}, indent=2)
-    )
+    world = meta["world"]
+    rand_ctr = float(world["uniform_value"])
+    meta["rand_ctr"] = {
+        "ctr_mode": "calibrated_to_target",
+        "target_rand_ctr": target,
+        "rand_ctr": rand_ctr,  # exact: prior-weighted users x all items
+        "rand_ctr_calibration_sample": float(world["uniform_ctr"]),
+        "density_regime": density_regime(rand_ctr),
+        "q_error": q_err,
+        "logging_uniform_mix": log_mix,
+    }
+    (run_dir / "run_meta.json").write_text(json.dumps(meta, indent=2))
 
     summary_df = _finalize_summary_df(
         opc_df,
         noprop_df,
         meta,
         dataset=dataset_name,
-        noise_mode=config["noise_mode"],
-        noise_axis=config["noise_axis"],
-        noise_level=config["noise_level"],
         seed=seed,
         q_error=q_err,
         logging_uniform_mix=log_mix,
         target_rand_ctr=target,
-        measured_rand_ctr=float(rand_meta["rand_ctr"]),
-        density_regime=str(rand_meta["density_regime"]),
+        measured_rand_ctr=rand_ctr,
+        density_regime=density_regime(rand_ctr),
         val_size=int(config["val_size"]),
     )
     summary_df.to_csv(run_dir / "summary_metrics.csv", index=False)
 
 
-def _iter_h1_configs(args, out_root: Path, n_rand_by_dataset: dict[str, int]):
-    ctr_targets = [args.ctr] if args.ctr is not None else list(args.target_rand_ctrs)
+def _iter_h1_configs(args, out_root: Path):
     val_sizes = list(args.val_sizes) if args.val_sizes else [int(args.val_size)]
-    noise_levels = list(args.noise_levels)
+    bias_configs = resolve_bias_configs(args.bias_configs)
+    world_options = world_options_from_args(args)
     for dataset_name in args.datasets:
-        n_rand = int(n_rand_by_dataset[dataset_name])
         for seed in args.seeds:
-            for noise_level in noise_levels:
-                for target in ctr_targets:
+            for bias in bias_configs:
+                for target in args.target_rand_ctrs:
                     for q_err in args.q_errors:
                         for log_mix in args.logging_mixes:
                             for val_size in val_sizes:
                                 run_key = (
-                                    f"dataset={dataset_name}__noise={noise_level}"
+                                    f"dataset={dataset_name}__bias={bias}"
                                     f"__target_rho={target:g}__qerr={q_err:g}"
                                     f"__logmix={log_mix:g}__val={int(val_size)}"
                                     f"__seed={seed}"
@@ -191,11 +124,9 @@ def _iter_h1_configs(args, out_root: Path, n_rand_by_dataset: dict[str, int]):
                                     "run_dir": str(out_root / run_key),
                                     "dataset_name": dataset_name,
                                     "emb_dir": str(args.emb_dir),
-                                    "noise_mode": args.noise_mode,
-                                    "noise_axis": args.noise_axis,
-                                    "noise_level": noise_level,
+                                    "bias": bias,
+                                    "world_options": world_options,
                                     "target_rand_ctr": float(target),
-                                    "ctr_fixed": args.ctr,
                                     "q_error": float(q_err),
                                     "logging_uniform_mix": float(log_mix),
                                     "seed": int(seed),
@@ -203,14 +134,10 @@ def _iter_h1_configs(args, out_root: Path, n_rand_by_dataset: dict[str, int]):
                                     "n_trials": int(args.n_trials),
                                     "batch_size": int(args.batch_size),
                                     "val_size": int(val_size),
-                                    "policy_temperature": float(args.policy_temperature)
-                                    if float(log_mix) > 0
-                                    else 1.0,
                                     "slim": bool(args.slim),
                                     "deterministic": bool(args.deterministic),
                                     "cpu_threads": int(args.cpu_threads),
                                     "policy_loss_types": list(args.policy_losses),
-                                    "n_rand_samples": n_rand,
                                     "require_cuda": bool(args.require_cuda),
                                     "qhat_user_chunk": int(args.qhat_user_chunk),
                                     "qhat_action_chunk": int(args.qhat_action_chunk),
@@ -224,23 +151,14 @@ def main():
     p.add_argument("--out-dir", type=Path, default=Path("artifacts/h1_study"))
     p.add_argument("--run-tag", default="h1_v1")
 
-    p.add_argument("--noise-mode", default="kmeans_templates")
-    p.add_argument("--noise-axis", default="combined")
-    p.add_argument(
-        "--noise-levels",
-        nargs="+",
-        default=["low", "medium", "high", "extreme", "brutal"],
-        choices=list(VALID_NOISE_LEVELS),
-        help="Embedding noise: lower (low/medium) and higher (extreme/brutal) vs high.",
-    )
-
+    add_world_arguments(p, ctr_reference=False)
     p.add_argument(
         "--target-rand-ctrs",
         nargs="+",
         type=float,
         default=[0.02, 0.08, 0.18],
+        help="CTR of the uniform random policy; the world's click model is calibrated to it.",
     )
-    p.add_argument("--ctr", type=float, default=None)
     p.add_argument(
         "--train-sizes",
         nargs="+",
@@ -254,7 +172,6 @@ def main():
         default=[0.0, 0.25, 0.5, 0.75, 1.0],
     )
     p.add_argument("--logging-mixes", nargs="+", type=float, default=[0.0, 0.3])
-    p.add_argument("--policy-temperature", type=float, default=2.0)
     p.add_argument("--seeds", nargs="+", type=int, default=list(range(15)))
 
     p.add_argument("--n-trials", type=int, default=15)
@@ -270,7 +187,6 @@ def main():
     p.add_argument("--qhat-user-chunk", type=int, default=10_000)
     p.add_argument("--qhat-action-chunk", type=int, default=10_000)
     p.add_argument("--shared-regression-size", type=int, default=50_000)
-    p.add_argument("--n-rand-ctr-samples", type=int, default=10_000)
     p.add_argument("--policy-losses", nargs="+", default=["sndr"])
     p.add_argument("--slim", action="store_true")
     p.add_argument(
@@ -326,21 +242,16 @@ def main():
     )
     p.add_argument("--fail-fast", action="store_true")
     args = p.parse_args()
+    try:
+        resolve_bias_configs(args.bias_configs)
+    except ValueError as e:
+        p.error(str(e))
     pin_cpu_threads(args.cpu_threads)  # env is inherited by spawned workers
 
     out_root = args.out_dir / f"run_{args.run_tag}"
     out_root.mkdir(parents=True, exist_ok=True)
 
-    n_rand_by_dataset: dict[str, int] = {}
-    for dataset_name in args.datasets:
-        user_path, _ = _dataset_paths(args.emb_dir, dataset_name)
-        n_users = int(np.load(user_path).shape[0])
-        sample_info = n_for_rand_ctr(n_users=n_users, eps=0.01, alpha=0.05)
-        n_rand_by_dataset[dataset_name] = max(
-            int(args.n_rand_ctr_samples), int(sample_info["n_recommended"])
-        )
-
-    all_cfgs = list(_iter_h1_configs(args, out_root, n_rand_by_dataset))
+    all_cfgs = list(_iter_h1_configs(args, out_root))
     run_configs = []
     skipped = 0
     for cfg in all_cfgs:
@@ -401,11 +312,10 @@ def main():
         "n_fail": len(failures),
         "axes": {
             "datasets": list(args.datasets),
-            "noise_levels": list(args.noise_levels),
+            "bias_configs": resolve_bias_configs(args.bias_configs),
+            "world_options": {**world_options_from_args(args), "ctr_reference": "uniform"},
             "train_sizes": args.train_sizes,
-            "target_rand_ctrs": list(args.target_rand_ctrs)
-            if args.ctr is None
-            else [args.ctr],
+            "target_rand_ctrs": list(args.target_rand_ctrs),
             "q_errors": args.q_errors,
             "logging_mixes": args.logging_mixes,
             "val_sizes": list(args.val_sizes) if args.val_sizes else [int(args.val_size)],

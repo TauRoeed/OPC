@@ -6,7 +6,7 @@ import pandas as pd
 from training.run_full_study import _run_condition
 from utils.seeding import derive_seed
 
-N_USERS, N_ITEMS, DIM = 400, 150, 8
+N_USERS, N_ITEMS, DIM = 400, 600, 8  # enough items for a 5% logger next to a 30% best item
 
 
 def test_derive_seed_is_stable():
@@ -30,9 +30,7 @@ def _run(tmp_path, seed, tag):
     opc_df, noprop_df, opc_trials, noprop_trials, _ = _run_condition(
         dataset_name="toy",
         emb_dir=tmp_path,
-        noise_mode="kmeans_templates",
-        noise_axis="combined",
-        noise_level="low",
+        bias="low",
         ctr=0.05,
         seed=seed,
         train_sizes=[1000],
@@ -44,7 +42,6 @@ def _run(tmp_path, seed, tag):
         val_max=None,
         policy_reward_mode="exact",
         policy_reward_mc_sim=8,
-        policy_temperature=1.0,
         run_dir=run_dir,
         slim=True,
         shared_regression_size=2000,

@@ -22,6 +22,11 @@ def _parse_folder(name: str) -> dict:
         if "=" in part:
             k, v = part.split("=", 1)
             out[k] = v
+    if "bias" in out:  # representation-bias run keys: map onto the legacy grouping tags
+        out.setdefault("level", out["bias"])
+        out.setdefault("noise", "representation_bias")
+        out.setdefault("axis", "both")
+        out.setdefault("comp", "combined")
     return out
 
 

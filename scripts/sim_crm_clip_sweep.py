@@ -22,45 +22,14 @@ from training.trainer_trials import (
     fit_shared_regression_bundle,
 )
 from training.training_utils import train as train_cf
-from utils.noise_levels import resolve_noise_spec
 from utils.simulation_utils import CustomCFDatasetPS, ensure_exact_env_q_cache, generate_dataset
 
 
-def _build_dataset(emb_dir: Path, *, axis: str, component: str, level: str, seed: int, ctr: float):
+def _build_dataset(emb_dir: Path, *, bias: str, seed: int, ctr: float) -> dict:
+    """ML world at one representation-bias configuration (utils/representation_bias.py)."""
     emb_x = np.load(emb_dir / "ml_user_factors.npy")
     emb_a = np.load(emb_dir / "ml_item_factors.npy")
-    meta_x_p = emb_dir / "ml_user_metadata.npy"
-    meta_a_p = emb_dir / "ml_item_metadata.npy"
-    meta_x = np.load(meta_x_p) if meta_x_p.exists() else None
-    meta_a = np.load(meta_a_p) if meta_a_p.exists() else None
-    spec = resolve_noise_spec(level, axis=axis, component=component)
-    params = {
-        "n_users": int(emb_x.shape[0]),
-        "n_actions": int(emb_a.shape[0]),
-        "emb_dim": int(emb_x.shape[1]),
-        "n_clusters": max(8, min(64, int(np.sqrt(emb_a.shape[0])))),
-        "eps1": float(spec["eps1"]),
-        "eps2": float(spec["eps2"]),
-        "eps_meta": float(spec["eps_meta"]),
-        "sigma1": 1.0,
-        "sigma2": 1.0,
-        "sigma_meta": 1.0,
-        "noise_mode": "kmeans_templates",
-        "noise_apply_user": bool(spec["apply_user"]),
-        "noise_apply_item": bool(spec["apply_item"]),
-        "ctr": float(ctr),
-        "policy_temperature": 1.0,
-        "logging_uniform_mix": 0.0,
-    }
-    return generate_dataset(
-        params,
-        seed=seed,
-        emb_a=emb_a,
-        emb_x=emb_x,
-        metadata_a=meta_a,
-        metadata_x=meta_x,
-        store_original=True,
-    )
+    return generate_dataset({"bias": bias, "ctr": float(ctr)}, seed=seed, emb_a=emb_a, emb_x=emb_x)
 
 
 def _train_once(
@@ -161,22 +130,21 @@ def main() -> None:
     out.mkdir(parents=True, exist_ok=True)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+    # bias applies to users and items; group = the old cluster cells, warp = the old linear cells
     cells = [
-        ("context_cluster_high", "context", "cluster", "high"),
-        ("action_linear_high", "action", "linear", "high"),
+        ("group_high", "none/high/none"),
+        ("warp_high", "high/none/none"),
     ]
     # 1e9 ≈ unclipped (raw IW in CRM variance term)
     clips = [float(c) if float(c) < 1e8 else float("inf") for c in args.clips]
 
     rows = []
-    for cell_name, axis, comp, level in cells:
+    for cell_name, bias in cells:
         for seed in args.seeds:
             print(f"=== {cell_name} seed={seed} ===", flush=True)
             ds = _build_dataset(
                 args.emb_dir,
-                axis=axis,
-                component=comp,
-                level=level,
+                bias=bias,
                 seed=int(seed),
                 ctr=float(args.ctr),
             )

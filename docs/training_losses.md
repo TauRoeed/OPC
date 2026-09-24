@@ -402,19 +402,12 @@ no-propensity: naive, propensity_mode=uniform, use_log_trick fixed False
 These do not change the loss formulas, but they change the logged data that the
 losses see (`run_full_study.py` / `utils/policies.py`):
 
-### 7.1 Noise levels (`--noise-levels`)
+### 7.1 Representation bias (`--bias-configs`)
 
-Combined-axis eps mix `(eps1, eps2, eps_meta)`:
-
-```text
-low:     (0.05, 0.05, 0.00)
-medium:  (0.10, 0.15, 0.05)
-high:    (0.20, 0.25, 0.10)
-extreme: (0.35, 0.40, 0.20)
-brutal:  (0.50, 0.50, 0.30)
-```
-
-Single-axis sweeps use the matching component only.
+Biased user and item vectors for the logger, the reward model and the policy: a global
+warp, a group offset and a per-vector offset, each at `none` / `low` / `medium` / `high`.
+All three at `low` / `medium` / `high` keep 90 / 75 / 50 % of the signal, calibrated per
+dataset. See [representation_bias.md](representation_bias.md).
 
 ### 7.2 Logging–uniform mix (`--logging-uniform-mix α`)
 
@@ -428,10 +421,11 @@ Sampling draws from softmax with probability `1-α`, else uniform; stored
 pscores are always the exact mixture above. `α = 0` is off. Typical hurt values
 are `0.2`–`0.5`.
 
-### 7.3 Policy temperature (`--policy-temperature`)
+### 7.3 Logging spread (`--logging-spread`)
 
-Softmax temperature for logging / evaluation dot-product policies (default
-`1.0`). Larger temperature flattens `pi_b`.
+Sets the softmax temperature `T` of the logging (and learned) dot-product policies. The
+clean logger's effective number of items is `spread × |A|` (default 0.5). Smaller spread
+gives a sharper `pi_b` and heavier importance weights.
 
 ### 7.4 Log trick (`--no-log-trick`)
 

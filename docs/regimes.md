@@ -2,24 +2,25 @@
 
 Paper-facing names for settings already used in tags / scripts.
 
-## Embedding noise severity
+## Representation bias severity
 
-| Name | Code `noise_level` | Combined (ε1, ε2, ε_meta) |
-|------|--------------------|---------------------------|
-| MildNoise | `low` | (0.05, 0.05, 0) |
-| ModerateNoise | `medium` | (0.10, 0.15, 0.05) |
-| StrongNoise | `high` | (0.20, 0.25, 0.10) |
-| ExtremeNoise | `extreme` | (0.35, 0.40, 0.20) |
-| BrutalNoise | `brutal` | (0.50, 0.50, 0.30) |
+| Name | Code `noise_level` / `--bias-configs` | Signal kept (all three types) |
+|------|---------------------------------------|-------------------------------|
+| NoBias | `none` | 1.00 |
+| MildBias | `low` | 0.90 |
+| ModerateBias | `medium` | 0.75 |
+| StrongBias | `high` | 0.50 |
 
-Axes: `CombinedAxis`, `ContextOnly`, `ActionOnly`, `MetadataOnly` ↔ `combined` / `context` / `action` / `metadata`.
+Types: `WarpOnly` / `GroupOnly` / `VectorOnly` ↔ `high/none/none` / `none/high/none` /
+`none/none/high` (any level). Bias always applies to users and items. See
+[representation_bias.md](representation_bias.md).
 
 ## Logging damage
 
 | Name | Settings | Meaning |
 |------|----------|---------|
-| CleanLog | mix=0, temp=1 | Softmax logging from noisy embeddings |
-| HurtLog | mix≈0.3, temp≈2 | Uniform mix + flatter softmax (harder propensities) |
+| CleanLog | mix=0, spread 0.5 | Softmax logging from biased vectors |
+| HurtLog | mix≈0.3, spread≈0.8 | Uniform mix + flatter softmax (harder propensities) |
 
 Script tags: `hurtlog`, `abl_*_hurtlog`, `abl_*_hurtlog_v2`.
 

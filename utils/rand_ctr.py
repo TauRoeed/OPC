@@ -1,4 +1,8 @@
-"""Estimate rand_CTR and calibrate simulator link parameter ctr from scores."""
+"""Monte Carlo estimate of rand_CTR (the uniform random policy's CTR) from the simulator.
+
+The world calibration (utils.representation_bias, ``ctr_reference='uniform'``) sets it;
+``utils.simulation_utils.calc_uniform_reward`` gives the exact value.
+"""
 
 from __future__ import annotations
 
@@ -47,67 +51,4 @@ def estimate_rand_ctr(
         "rand_q_mean": float(q_mean),
         "n_rand_samples": float(n_samples),
         "density_regime": density_regime(rho_hat),
-    }
-
-
-def mean_oracle_q_under_uniform(
-    emb_x: np.ndarray,
-    emb_a: np.ndarray,
-    *,
-    ctr: float,
-    n_samples: int = 50_000,
-    seed: int = 0,
-    temperature: float = 1.0,
-) -> float:
-    """E[q_oracle(x,a)] for uniform (x,a) under the CTR link."""
-    rng = np.random.default_rng(seed)
-    n_u, n_a = emb_x.shape[0], emb_a.shape[0]
-    users = rng.integers(0, n_u, size=n_samples)
-    actions = rng.integers(0, n_a, size=n_samples)
-    pt = max(float(temperature), 1e-8)
-    logits = (emb_x[users] * emb_a[actions]).sum(axis=1) / pt
-    q = 1.0 / ((1.0 / float(ctr)) + np.exp(-logits))
-    return float(np.mean(q))
-
-
-def calibrate_ctr_from_rand(
-    emb_x: np.ndarray,
-    emb_a: np.ndarray,
-    *,
-    target_rand_ctr: float,
-    ctr_grid: np.ndarray | None = None,
-    n_samples: int = 50_000,
-    seed: int = 0,
-    temperature: float = 1.0,
-) -> dict[str, float]:
-    """
-    Pick ctr so E[q_ctr(x,a)] under uniform (x,a) matches target_rand_ctr.
-
-    Grid search over ctr (monotone in ctr for fixed scores).
-    """
-    target = float(target_rand_ctr)
-    if not (0.0 < target < 1.0):
-        raise ValueError(f"target_rand_ctr must be in (0,1), got {target}")
-    if ctr_grid is None:
-        ctr_grid = np.linspace(0.01, 0.95, 48)
-
-    best_ctr = float(ctr_grid[0])
-    best_err = float("inf")
-    for c in ctr_grid:
-        m = mean_oracle_q_under_uniform(
-            emb_x,
-            emb_a,
-            ctr=float(c),
-            n_samples=n_samples,
-            seed=seed,
-            temperature=temperature,
-        )
-        err = abs(m - target)
-        if err < best_err:
-            best_err = err
-            best_ctr = float(c)
-    return {
-        "ctr_calibrated": best_ctr,
-        "calibration_error": float(best_err),
-        "target_rand_ctr": target,
     }
