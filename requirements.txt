@@ -8,3 +8,4 @@ optuna
 h5py
 torch
 plotly
+pytest
