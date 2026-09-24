@@ -14,11 +14,11 @@ def _softmax_rows(logits: np.ndarray) -> np.ndarray:
     return exp / exp.sum(axis=1, keepdims=True)
 
 
-# Action sampling device. OPC_SAMPLER_DEVICE: auto (default: CUDA if available) | cpu
-# (exact streaming Gumbel-max in numpy). Both draw from pi exactly; the GPU path uses a
-# torch generator seeded from the policy's numpy rng, so runs stay reproducible per seed.
+# Action sampling device. OPC_SAMPLER_DEVICE: auto (default: CUDA if available) | cpu.
+# Both run the same inverse-CDF sampler on the same numpy uniforms, so samples do not
+# depend on the device; the GPU is only faster.
 SAMPLER_DEVICE_ENV = "OPC_SAMPLER_DEVICE"
-SAMPLER_GPU_BLOCK_CELLS = 16 * 1024 * 1024
+SAMPLER_BLOCK_CELLS = 8 * 1024 * 1024
 
 
 def _sampler_device():
@@ -141,74 +141,70 @@ class Policy:
         return out
 
     def sample_actions(self, users: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-        """Exact categorical sample via streaming Gumbel-max (no full n_items probs).
+        """Exact categorical sample of one action per row, with its pscore.
 
-        With ``uniform_mix=α``, sample from softmax w.p. ``1-α`` else uniform; pscore
-        is always the exact mixture ``(1-α)·π_soft + α/|A|``.
+        Inverse CDF: one uniform per row from ``self.rng`` (numpy) against the float64
+        cumulative mixture ``(1-α)·softmax + α/|A|``. The random stream and the float64
+        math are the same on CPU and GPU, so a given rng yields the same actions on any
+        machine; the device (``OPC_SAMPLER_DEVICE``) only changes speed.
         """
         users = np.asarray(users, dtype=np.int64)
+        n = users.shape[0]
+        uniforms = self.rng.random(n)
+        actions_out = np.empty(n, dtype=np.int64)
+        p_out = np.empty(n, dtype=np.float64)
+        if n == 0:
+            return actions_out, p_out
+        pt = max(self.temperature, 1e-8)
+        alpha = float(self.uniform_mix)
+        rows = max(1, SAMPLER_BLOCK_CELLS // max(1, self.n_items))
         device = _sampler_device()
-        if device is not None and users.shape[0] > 0:
-            return self._sample_actions_torch(users, device)
-        n = users.shape[0]
-        actions_out = np.empty(n, dtype=np.int64)
-        p_out = np.empty(n, dtype=np.float64)
-        pt = max(self.temperature, 1e-8)
-        ac = self.action_chunk
-        alpha = float(self.uniform_mix)
-
-        for start in range(0, n, self.user_chunk):
-            end = min(start + self.user_chunk, n)
-            ub = users[start:end]
-            for i, uid in enumerate(ub):
-                if alpha > 0.0 and float(self.rng.random()) < alpha:
-                    actions_out[start + i] = int(self.rng.integers(0, self.n_items))
-                    continue
-                u = self.user_emb[int(uid) : int(uid) + 1]
-                best_score = -np.inf
-                best_a = 0
-                for a0 in range(0, self.n_items, ac):
-                    a1 = min(self.n_items, a0 + ac)
-                    logits = (u @ self.item_emb[a0:a1].T).astype(np.float64) / pt
-                    gumbel = -np.log(-np.log(self.rng.random(size=(1, a1 - a0)) + 1e-30) + 1e-30)
-                    scores = logits + gumbel
-                    loc = int(np.argmax(scores))
-                    sc = float(scores[0, loc])
-                    if sc > best_score:
-                        best_score = sc
-                        best_a = a0 + loc
-                actions_out[start + i] = best_a
-            p_out[start:end] = self.prob_actions(ub, actions_out[start:end])
-
-        return actions_out, p_out
-
-    @torch.no_grad()
-    def _sample_actions_torch(self, users: np.ndarray, device) -> tuple[np.ndarray, np.ndarray]:
-        """GPU categorical sample from the exact mixture (1-α)·softmax + α/|A|; returns its pscore."""
-        n = users.shape[0]
-        gen = torch.Generator(device=device)
-        gen.manual_seed(int(self.rng.integers(0, 2**63 - 1)))
-        pt = max(self.temperature, 1e-8)
-        alpha = float(self.uniform_mix)
-        rows = max(1, SAMPLER_GPU_BLOCK_CELLS // max(1, self.n_items))
-        actions_out = np.empty(n, dtype=np.int64)
-        p_out = np.empty(n, dtype=np.float64)
-        prev_precision = torch.get_float32_matmul_precision()
-        torch.set_float32_matmul_precision("highest")
-        try:
-            item_t = torch.as_tensor(self.item_emb, device=device, dtype=torch.float32).T.contiguous()
+        if device is None:
+            item_t = self.item_emb.astype(np.float64).T
             for s in range(0, n, rows):
                 e = min(n, s + rows)
-                u = torch.as_tensor(self.user_emb[users[s:e]], device=device, dtype=torch.float32)
-                probs = torch.softmax((u @ item_t).double().div_(pt), dim=1)
+                probs = self.user_emb[users[s:e]].astype(np.float64) @ item_t
+                probs /= pt
+                probs -= probs.max(axis=1, keepdims=True)
+                np.exp(probs, out=probs)
+                probs /= probs.sum(axis=1, keepdims=True)
+                if alpha > 0.0:
+                    probs *= 1.0 - alpha
+                    probs += alpha / float(self.n_items)
+                cdf = np.cumsum(probs, axis=1)
+                target = uniforms[s:e] * cdf[:, -1]
+                a = np.minimum((cdf <= target[:, None]).sum(axis=1), self.n_items - 1)
+                actions_out[s:e] = a
+                p_out[s:e] = probs[np.arange(e - s), a]
+            return actions_out, p_out
+        return self._sample_actions_torch(users, uniforms, device, rows)
+
+    @torch.no_grad()
+    def _sample_actions_torch(self, users, uniforms, device, rows):
+        """GPU twin of the numpy path in ``sample_actions`` (same float64 math and uniforms)."""
+        n = users.shape[0]
+        pt = max(self.temperature, 1e-8)
+        alpha = float(self.uniform_mix)
+        actions_out = np.empty(n, dtype=np.int64)
+        p_out = np.empty(n, dtype=np.float64)
+        try:
+            item_t = torch.as_tensor(self.item_emb, device=device, dtype=torch.float64).T.contiguous()
+            for s in range(0, n, rows):
+                e = min(n, s + rows)
+                u = torch.as_tensor(self.user_emb[users[s:e]], device=device, dtype=torch.float64)
+                probs = (u @ item_t).div_(pt)
+                probs -= probs.max(dim=1, keepdim=True).values
+                probs.exp_()
+                probs /= probs.sum(dim=1, keepdim=True)
                 if alpha > 0.0:
                     probs.mul_(1.0 - alpha).add_(alpha / float(self.n_items))
-                a = torch.multinomial(probs, 1, generator=gen)
+                cdf = torch.cumsum(probs, dim=1)
+                target = torch.as_tensor(uniforms[s:e], device=device, dtype=torch.float64) * cdf[:, -1]
+                a = torch.searchsorted(cdf, target[:, None], right=True).clamp_(max=self.n_items - 1)
                 actions_out[s:e] = a[:, 0].cpu().numpy()
                 p_out[s:e] = probs.gather(1, a)[:, 0].cpu().numpy()
-                del probs, a, u
+                del probs, cdf, a, u
         finally:
-            torch.set_float32_matmul_precision(prev_precision)
             item_t = None
             torch.cuda.empty_cache()
         return actions_out, p_out

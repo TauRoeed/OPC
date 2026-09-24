@@ -60,6 +60,18 @@ def test_sampler_matches_policy_probabilities(device, uniform_mix, monkeypatch):
     np.testing.assert_allclose(pscore, pol.prob_actions(np.full(n, user), actions), rtol=1e-5)
 
 
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="needs CUDA")
+@pytest.mark.parametrize("uniform_mix", [0.0, 0.3])
+def test_cpu_and_gpu_draw_identical_samples(uniform_mix, monkeypatch):
+    users = np.arange(N_USERS).repeat(400)
+    out = {}
+    for device in ("cpu", "auto"):
+        monkeypatch.setenv(SAMPLER_DEVICE_ENV, device)
+        out[device] = _policy(seed=3, uniform_mix=uniform_mix).sample_actions(users)
+    assert np.array_equal(out["cpu"][0], out["auto"][0])
+    np.testing.assert_allclose(out["cpu"][1], out["auto"][1], rtol=1e-12)
+
+
 @pytest.mark.parametrize("device", _devices)
 def test_sampler_reproducible_per_seed(device, monkeypatch):
     monkeypatch.setenv(SAMPLER_DEVICE_ENV, device)

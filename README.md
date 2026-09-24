@@ -201,6 +201,10 @@ Wall scales roughly with `n_trials × (train_size / batch)` using `batch_schedul
 - `--val-size` or (`--val-frac`, `--val-min`, `--val-max`) / `--val-sizes` — validation sizing.
 - `--policy-reward-mode mc --policy-reward-mc-sim 8` — faster approximate reward eval.
 - `--num-gpus` / `--max-workers` — parallel only; OOM backoff on by default.
+- `--memory-cap` (default) / `--no-memory-cap` — parallel/H1: run only as many workers as
+  fit in free GPU memory (RAM without a GPU), from each condition's estimated peak
+  (≈ 6 × largest Optuna batch × catalog × 4 bytes + dense q̂ + 1.5 GB); conditions are
+  grouped by size. `--max-workers` stays the upper bound; results are unchanged.
 
 ### Reproducibility
 
@@ -214,9 +218,10 @@ independent repeats for robustness.
   slightly different floating-point results, so keep it fixed across runs you compare.
 - `--deterministic` (default) / `--no-deterministic` — deterministic torch/cuDNN kernels.
 - Exact equality also assumes the same GPU model and library versions.
-- Logged-data action sampling runs on the GPU when available (`OPC_SAMPLER_DEVICE=cpu`
-  selects the exact numpy Gumbel-max sampler). Both sample from the same policy; they
-  draw different samples, so compare results within one sampler.
+- Logged data is identical on any machine for the same seed: actions are sampled by
+  inverse CDF from numpy uniforms and float64 policy probabilities, on the GPU when
+  available (`OPC_SAMPLER_DEVICE=cpu` forces CPU; same samples, slower). Training
+  arithmetic still differs slightly between devices/GPU models.
 
 ### Batch schedule (default Optuna neighborhood)
 
