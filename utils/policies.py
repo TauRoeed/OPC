@@ -1,5 +1,8 @@
 from __future__ import annotations
+import os
+
 import numpy as np
+import torch
 from tqdm import tqdm
 
 from utils.chunk_progress import iter_action_blocks
@@ -9,6 +12,24 @@ def _softmax_rows(logits: np.ndarray) -> np.ndarray:
     z = logits - logits.max(axis=1, keepdims=True)
     exp = np.exp(z)
     return exp / exp.sum(axis=1, keepdims=True)
+
+
+# Action sampling device. OPC_SAMPLER_DEVICE: auto (default: CUDA if available) | cpu
+# (exact streaming Gumbel-max in numpy). Both draw from pi exactly; the GPU path uses a
+# torch generator seeded from the policy's numpy rng, so runs stay reproducible per seed.
+SAMPLER_DEVICE_ENV = "OPC_SAMPLER_DEVICE"
+SAMPLER_GPU_BLOCK_CELLS = 16 * 1024 * 1024
+
+
+def _sampler_device():
+    if os.environ.get(SAMPLER_DEVICE_ENV, "auto").strip().lower() == "cpu":
+        return None
+    if not torch.cuda.is_available():
+        return None
+    gpu = int(os.environ.get("OPC_WORKER_GPU", "0"))
+    if gpu < 0 or gpu >= torch.cuda.device_count():
+        gpu = 0
+    return torch.device(f"cuda:{gpu}")
 
 
 def _sample_categorical_rows(probs: np.ndarray, rng: np.random.Generator) -> tuple[np.ndarray, np.ndarray]:
@@ -120,6 +141,9 @@ class Policy:
         is always the exact mixture ``(1-α)·π_soft + α/|A|``.
         """
         users = np.asarray(users, dtype=np.int64)
+        device = _sampler_device()
+        if device is not None and users.shape[0] > 0:
+            return self._sample_actions_torch(users, device)
         n = users.shape[0]
         actions_out = np.empty(n, dtype=np.int64)
         p_out = np.empty(n, dtype=np.float64)
@@ -150,6 +174,37 @@ class Policy:
                 actions_out[start + i] = best_a
             p_out[start:end] = self.prob_actions(ub, actions_out[start:end])
 
+        return actions_out, p_out
+
+    @torch.no_grad()
+    def _sample_actions_torch(self, users: np.ndarray, device) -> tuple[np.ndarray, np.ndarray]:
+        """GPU categorical sample from the exact mixture (1-α)·softmax + α/|A|; returns its pscore."""
+        n = users.shape[0]
+        gen = torch.Generator(device=device)
+        gen.manual_seed(int(self.rng.integers(0, 2**63 - 1)))
+        pt = max(self.temperature, 1e-8)
+        alpha = float(self.uniform_mix)
+        rows = max(1, SAMPLER_GPU_BLOCK_CELLS // max(1, self.n_items))
+        actions_out = np.empty(n, dtype=np.int64)
+        p_out = np.empty(n, dtype=np.float64)
+        prev_precision = torch.get_float32_matmul_precision()
+        torch.set_float32_matmul_precision("highest")
+        try:
+            item_t = torch.as_tensor(self.item_emb, device=device, dtype=torch.float32).T.contiguous()
+            for s in range(0, n, rows):
+                e = min(n, s + rows)
+                u = torch.as_tensor(self.user_emb[users[s:e]], device=device, dtype=torch.float32)
+                probs = torch.softmax((u @ item_t).double().div_(pt), dim=1)
+                if alpha > 0.0:
+                    probs.mul_(1.0 - alpha).add_(alpha / float(self.n_items))
+                a = torch.multinomial(probs, 1, generator=gen)
+                actions_out[s:e] = a[:, 0].cpu().numpy()
+                p_out[s:e] = probs.gather(1, a)[:, 0].cpu().numpy()
+                del probs, a, u
+        finally:
+            torch.set_float32_matmul_precision(prev_precision)
+            item_t = None
+            torch.cuda.empty_cache()
         return actions_out, p_out
 
     def prob_actions(self, users: np.ndarray, actions: np.ndarray) -> np.ndarray:

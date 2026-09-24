@@ -214,6 +214,9 @@ independent repeats for robustness.
   slightly different floating-point results, so keep it fixed across runs you compare.
 - `--deterministic` (default) / `--no-deterministic` — deterministic torch/cuDNN kernels.
 - Exact equality also assumes the same GPU model and library versions.
+- Logged-data action sampling runs on the GPU when available (`OPC_SAMPLER_DEVICE=cpu`
+  selects the exact numpy Gumbel-max sampler). Both sample from the same policy; they
+  draw different samples, so compare results within one sampler.
 
 ### Batch schedule (default Optuna neighborhood)
 
