@@ -117,7 +117,11 @@ class Policy:
         self.item_emb = item_emb
 
     def _probs_block(self, users_block: np.ndarray) -> np.ndarray:
-        """Softmax probs for users_block; built from (user_chunk, action_chunk) logits."""
+        """Softmax probs over ALL items for users_block (rows sum to 1).
+
+        Logits are filled in action chunks, then normalized once over the full row
+        (the same operations as ``_softmax_rows`` when the catalog is a single chunk).
+        """
         u = self.user_emb[users_block]
         n_rows = int(u.shape[0])
         n_items = self.n_items
@@ -130,8 +134,10 @@ class Policy:
             desc="policy probs block",
             n_rows=n_rows,
         ):
-            logits = (u @ self.item_emb[a0:a1].T).astype(np.float64) / pt
-            out[:, a0:a1] = _softmax_rows(logits)
+            out[:, a0:a1] = (u @ self.item_emb[a0:a1].T).astype(np.float64) / pt
+        out -= out.max(axis=1, keepdims=True)
+        np.exp(out, out=out)
+        out /= out.sum(axis=1, keepdims=True)
         return out
 
     def sample_actions(self, users: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
