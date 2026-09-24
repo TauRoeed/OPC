@@ -23,7 +23,7 @@ from training.run_full_study import (
 )
 from training.run_full_study_parallel import (
     _resolve_num_gpus,
-    _run_configs_with_oom_backoff,
+    _run_with_memory_cap,
 )
 from utils.noise_levels import VALID_NOISE_LEVELS
 from utils.rand_ctr import calibrate_ctr_from_rand, estimate_rand_ctr
@@ -313,6 +313,13 @@ def main():
     )
     p.add_argument("--min-workers", type=int, default=1)
     p.add_argument(
+        "--memory-cap",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Cap concurrent workers to fit each cell's estimated peak memory "
+        "(default: on); see run_full_study_parallel --memory-cap.",
+    )
+    p.add_argument(
         "--oom-backoff",
         action=argparse.BooleanOptionalAction,
         default=True,
@@ -357,11 +364,12 @@ def main():
 
     failures: list[dict] = []
     if run_configs:
-        failures = _run_configs_with_oom_backoff(
+        failures = _run_with_memory_cap(
             run_configs,
             max_workers=workers,
             min_workers=max(1, int(args.min_workers)),
             num_gpus=num_gpus,
+            memory_cap=bool(args.memory_cap),
             fail_fast=bool(args.fail_fast),
             oom_backoff=bool(args.oom_backoff),
             execute_fn=_execute_h1_cell,

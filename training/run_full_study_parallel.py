@@ -63,6 +63,7 @@ def _parallel_worker_init(worker_slot, num_gpus: int) -> None:
     )
 
 from utils.seeding import DEFAULT_CPU_THREADS, pin_cpu_threads
+from training.memory_budget import describe_plan, device_capacities, plan_worker_groups
 from training.run_full_study import (
     VALID_NOISE_AXES,
     VALID_NOISE_COMPONENTS,
@@ -323,6 +324,29 @@ def _run_configs_with_oom_backoff(
     return failures
 
 
+def _run_with_memory_cap(run_configs, *, max_workers, min_workers, num_gpus, memory_cap, **kwargs):
+    """Run config groups, each with as many workers as fit in memory (see memory_budget)."""
+    if not memory_cap or not run_configs:
+        return _run_configs_with_oom_backoff(
+            run_configs, max_workers=max_workers, min_workers=min_workers, num_gpus=num_gpus, **kwargs
+        )
+    kind, capacities = device_capacities(num_gpus)
+    plan = plan_worker_groups(
+        run_configs, max_workers=max_workers, capacities=capacities, n_slots=num_gpus
+    )
+    print(describe_plan(plan, kind, capacities, max_workers), flush=True)
+    failures = []
+    for workers, cfgs in plan:
+        failures += _run_configs_with_oom_backoff(
+            cfgs,
+            max_workers=workers,
+            min_workers=min(min_workers, workers),
+            num_gpus=num_gpus,
+            **kwargs,
+        )
+    return failures
+
+
 def _execute_run(config: dict):
     os.environ["OPC_IN_PARALLEL"] = "1"
     run_dir = Path(config["run_dir"])
@@ -551,6 +575,14 @@ def main():
         "(OOM / 'terminated abruptly').",
     )
     parser.add_argument(
+        "--memory-cap",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Cap concurrent workers so each condition's estimated peak memory fits in "
+        "free GPU memory (or RAM without a GPU); conditions are grouped by size "
+        "(default: on). Results are unchanged; --max-workers stays the upper bound.",
+    )
+    parser.add_argument(
         "--oom-backoff",
         action=argparse.BooleanOptionalAction,
         default=True,
@@ -690,11 +722,12 @@ def main():
         f"over {num_gpus} GPU(s)",
         flush=True,
     )
-    failures = _run_configs_with_oom_backoff(
+    failures = _run_with_memory_cap(
         run_configs,
         max_workers=workers,
         min_workers=min_workers,
         num_gpus=num_gpus,
+        memory_cap=bool(args.memory_cap),
         fail_fast=bool(args.fail_fast),
         oom_backoff=bool(args.oom_backoff),
     )
