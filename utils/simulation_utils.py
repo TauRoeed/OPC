@@ -605,13 +605,28 @@ def get_train_data(n_actions, train_size, sim_data, idx, emb_x):
 # ----------------------------
 # Evaluation (kept compatible)
 # ----------------------------
-def eval_policy(model, test_data, original_policy_prob, policy):
+def _estimator_weight_kwargs(weights) -> dict:
+    """lambda_ (clip) or shrink_lambda for the OPE estimators from an importance-weight spec."""
+    from utils.importance_weights import parse_weight_spec
+
+    mode, param = parse_weight_spec("none" if weights is None else weights)
+    if mode == "clip":
+        return {"lambda_": param}
+    if mode == "shrink":
+        return {"shrink_lambda": param}
+    return {}
+
+
+def eval_policy(model, test_data, original_policy_prob, policy, weights=None):
+    """DM, DR, SNIPW and SNDR estimates on ``test_data``; ``weights`` (none, clip:M, shrink:lambda)
+    transforms the importance weights of the three weighted estimators."""
     t0 = time.time()
 
-    dr = DR()
+    wkw = _estimator_weight_kwargs(weights)
+    dr = DR(**wkw)
     dm = DM()
-    ipw = IPW()
-    sndr = SNDR()
+    ipw = IPW(**wkw)
+    sndr = SNDR(**wkw)
 
     scores = np.asarray(model.predict(test_data["x"]), dtype=np.float32)
     policy_in = np.asarray(policy, dtype=np.float32)

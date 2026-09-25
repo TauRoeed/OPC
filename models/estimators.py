@@ -13,6 +13,16 @@ from sklearn.utils import check_scalar
 
 from utils.saito_helpers import check_array, check_ope_inputs, estimate_confidence_interval_by_bootstrap, estimate_bias_in_ope, estimate_high_probability_upper_bound_bias
 
+def _transformed_iw(iw, estimator):
+    """Importance weights after the estimator's shrinkage (``shrink_lambda``) and clip (``lambda_``)."""
+    if isinstance(iw, np.ndarray):
+        lam = float(getattr(estimator, "shrink_lambda", np.inf))
+        if np.isfinite(lam):
+            iw = (lam * iw) / (lam + iw * iw)
+        iw = np.minimum(iw, estimator.lambda_)
+    return iw
+
+
 @dataclass
 class BaseOffPolicyEstimator(metaclass=ABCMeta):
     """Base class for OPE estimators."""
@@ -83,6 +93,7 @@ class InverseProbabilityWeighting(BaseOffPolicyEstimator):
     lambda_: float = np.inf
     use_estimated_pscore: bool = False
     estimator_name: str = "ipw"
+    shrink_lambda: float = np.inf  # Su et al. (2020) shrinkage lam*w/(w^2+lam); inf = off
 
     def __post_init__(self) -> None:
         """Initialize Class."""
@@ -94,6 +105,8 @@ class InverseProbabilityWeighting(BaseOffPolicyEstimator):
         )
         if self.lambda_ != self.lambda_:
             raise ValueError("`lambda_` must not be nan")
+        if not self.shrink_lambda > 0:
+            raise ValueError("`shrink_lambda` must be > 0 (inf = no shrinkage)")
         if not isinstance(self.use_estimated_pscore, bool):
             raise TypeError(
                 f"`use_estimated_pscore` must be a bool, but {type(self.use_estimated_pscore)} is given"
@@ -139,9 +152,7 @@ class InverseProbabilityWeighting(BaseOffPolicyEstimator):
             position = np.zeros(action_dist.shape[0], dtype=int)
 
         iw = action_dist[np.arange(action.shape[0]), action, position] / pscore
-        # weight clipping
-        if isinstance(iw, np.ndarray):
-            iw = np.minimum(iw, self.lambda_)
+        iw = _transformed_iw(iw, self)  # clipping / shrinkage
         return reward * iw
 
     def estimate_policy_value(
@@ -460,6 +471,7 @@ class SelfNormalizedInverseProbabilityWeighting(InverseProbabilityWeighting):
             position = np.zeros(action_dist.shape[0], dtype=int)
 
         iw = action_dist[np.arange(action.shape[0]), action, position] / pscore
+        iw = _transformed_iw(iw, self)  # clipping / shrinkage
         return reward * iw / iw.mean()
 
 
@@ -725,6 +737,7 @@ class DoublyRobust(BaseOffPolicyEstimator):
     lambda_: float = np.inf
     use_estimated_pscore: bool = False
     estimator_name: str = "dr"
+    shrink_lambda: float = np.inf  # Su et al. (2020) shrinkage lam*w/(w^2+lam); inf = off
 
     def __post_init__(self) -> None:
         """Initialize Class."""
@@ -736,6 +749,8 @@ class DoublyRobust(BaseOffPolicyEstimator):
         )
         if self.lambda_ != self.lambda_:
             raise ValueError("`lambda_` must not be nan")
+        if not self.shrink_lambda > 0:
+            raise ValueError("`shrink_lambda` must be > 0 (inf = no shrinkage)")
         if not isinstance(self.use_estimated_pscore, bool):
             raise TypeError(
                 f"`use_estimated_pscore` must be a bool, but {type(self.use_estimated_pscore)} is given"
@@ -786,9 +801,7 @@ class DoublyRobust(BaseOffPolicyEstimator):
 
         n = action.shape[0]
         iw = action_dist[np.arange(n), action, position] / pscore
-        # weight clipping
-        if isinstance(iw, np.ndarray):
-            iw = np.minimum(iw, self.lambda_)
+        iw = _transformed_iw(iw, self)  # clipping / shrinkage
 
         q_hat_at_position = estimated_rewards_by_reg_model[np.arange(n), :, position]
         q_hat_factual = estimated_rewards_by_reg_model[np.arange(n), action, position]
@@ -1149,6 +1162,7 @@ class SelfNormalizedDoublyRobust(DoublyRobust):
         """
         n = action.shape[0]
         iw = action_dist[np.arange(n), action, position] / pscore
+        iw = _transformed_iw(iw, self)  # clipping / shrinkage
         q_hat_at_position = estimated_rewards_by_reg_model[np.arange(n), :, position]
         q_hat_factual = estimated_rewards_by_reg_model[np.arange(n), action, position]
         pi_e_at_position = action_dist[np.arange(n), :, position]

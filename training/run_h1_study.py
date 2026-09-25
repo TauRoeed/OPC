@@ -16,6 +16,8 @@ from pathlib import Path
 import pandas as pd
 
 from BPR.bpr_config import DEFAULT_DATASETS
+from training.trainer_trials import DEFAULT_SELECT_WEIGHTS, DEFAULT_TRAIN_WEIGHTS
+from utils.importance_weights import weight_spec_label
 from utils.seeding import DEFAULT_CPU_THREADS, pin_cpu_threads
 from training.run_full_study import (
     _finalize_summary_df,
@@ -71,6 +73,8 @@ def _execute_h1_cell(config: dict) -> None:
         logging_uniform_mix=log_mix,
         reward_model="oracle",
         q_error=q_err,
+        train_weights=config.get("train_weights"),
+        select_weights=config.get("select_weights"),
         q_bad_value=target,
         world_options={**(config.get("world_options") or {}), "ctr_reference": "uniform"},
         record_uniform_value=True,
@@ -145,6 +149,8 @@ def _iter_h1_configs(args, out_root: Path):
                                     "deterministic": bool(args.deterministic),
                                     "cpu_threads": int(args.cpu_threads),
                                     "policy_loss_types": list(args.policy_losses),
+                                    "train_weights": args.train_weights,
+                                    "select_weights": args.select_weights,
                                     "require_cuda": bool(args.require_cuda),
                                     "qhat_user_chunk": int(args.qhat_user_chunk),
                                     "qhat_action_chunk": int(args.qhat_action_chunk),
@@ -195,6 +201,10 @@ def main():
     p.add_argument("--qhat-action-chunk", type=int, default=10_000)
     p.add_argument("--shared-regression-size", type=int, default=50_000)
     p.add_argument("--policy-losses", nargs="+", default=["sndr"])
+    p.add_argument("--train-weights", type=weight_spec_label, default=DEFAULT_TRAIN_WEIGHTS,
+                   help="Importance-weight transform in the OPC training losses (none, clip:M, shrink:lambda).")
+    p.add_argument("--select-weights", type=weight_spec_label, default=DEFAULT_SELECT_WEIGHTS,
+                   help="Importance-weight transform of the DR selection score and post-hoc estimates.")
     p.add_argument("--slim", action="store_true")
     p.add_argument(
         "--deterministic",

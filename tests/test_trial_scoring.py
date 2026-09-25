@@ -17,13 +17,15 @@ from training.trainer_trials import (
     fit_shared_regression_bundle,
     uses_importance_weighting,
 )
+from utils.importance_weights import transform_weights
 from utils.simulation_utils import generate_dataset
 
 DEVICES = ["cpu"] + (["cuda"] if torch.cuda.is_available() else [])
 N_USERS, N_ITEMS, DIM = 1500, 1200, 12  # the popularity tests' toy: calibrates at the defaults
 
 
-def _reference_dr_vec_and_ess(split_data, trial_x, trial_a, score_lookup, dataset, *, propensity_mode="logged", dr_clip_m=None):
+def _reference_dr_vec_and_ess(split_data, trial_x, trial_a, score_lookup, dataset, *, propensity_mode="logged", dr_clip_m=None,
+                              weights=None):
     """The numpy implementation before the device path (kept here as the reference)."""
     pscore = np.asarray(split_data["pscore"], dtype=np.float32)
     users = np.asarray(split_data["x_idx"], dtype=np.int64)
@@ -34,13 +36,15 @@ def _reference_dr_vec_and_ess(split_data, trial_x, trial_a, score_lookup, datase
                                        action_chunk=score_lookup.action_chunk, policy_temperature=pt)
     if not uses_importance_weighting(propensity_mode):
         v = (reward * pi).astype(np.float32)
-        return v, float(len(v))
+        return v, float(len(v)), float(len(v))
     q_f = np.asarray(score_lookup.regression_model.predict_pairs(score_lookup.user_context[users], actions), dtype=np.float32)
     dm = _dm_reward_rows_chunked(users, trial_x, trial_a, score_lookup, policy_temperature=pt).astype(np.float32)
-    iw = pi / (pscore + 1e-12)
-    if dr_clip_m is not None and np.isfinite(float(dr_clip_m)):
-        iw = np.minimum(iw, float(dr_clip_m))
-    return dm + iw * (reward - q_f), float((iw.sum() ** 2) / ((iw**2).sum() + 1e-12))
+    raw = pi / (pscore + 1e-12)
+    if weights is None:
+        weights = ("clip", dr_clip_m) if dr_clip_m is not None and np.isfinite(float(dr_clip_m)) else "none"
+    iw = transform_weights(raw, weights)
+    ess = lambda w: float((w.sum() ** 2) / ((w**2).sum() + 1e-12))
+    return dm + iw * (reward - q_f), ess(iw), ess(raw)
 
 
 def _world(pop=False):
@@ -132,11 +136,14 @@ def test_split_scores_match_the_numpy_reference(setup, device, monkeypatch):
     ds, split, trial_x, trial_a = setup
     for name, lk in _lookups(ds, split, device):
         for data in (split["train_data"], split["val_data"]):
-            for mode, clip in (("logged", 1.0), ("logged", None), ("uniform", None)):
-                got_v, got_ess = _split_dr_vec_and_ess(data, trial_x, trial_a, lk, ds, propensity_mode=mode, dr_clip_m=clip)
-                ref_v, ref_ess = _reference_dr_vec_and_ess(data, trial_x, trial_a, lk, ds, propensity_mode=mode, dr_clip_m=clip)
-                np.testing.assert_allclose(got_v, ref_v, rtol=1e-4, atol=1e-6, err_msg=f"{name} {mode} {clip}")
-                assert got_ess == pytest.approx(ref_ess, rel=1e-4)
+            for mode, clip, weights in (("logged", 1.0, None), ("logged", None, None), ("uniform", None, None),
+                                        ("logged", None, "clip:5"), ("logged", None, "shrink:25")):
+                got_v, got_ess, got_raw = _split_dr_vec_and_ess(data, trial_x, trial_a, lk, ds, propensity_mode=mode,
+                                                                dr_clip_m=clip, weights=weights)
+                ref_v, ref_ess, ref_raw = _reference_dr_vec_and_ess(data, trial_x, trial_a, lk, ds, propensity_mode=mode,
+                                                                    dr_clip_m=clip, weights=weights)
+                np.testing.assert_allclose(got_v, ref_v, rtol=1e-4, atol=1e-6, err_msg=f"{name} {mode} {clip} {weights}")
+                assert got_ess == pytest.approx(ref_ess, rel=1e-4) and got_raw == pytest.approx(ref_raw, rel=1e-4)
                 assert float(got_v.mean()) == pytest.approx(float(ref_v.mean()), rel=1e-5, abs=1e-8)
 
 

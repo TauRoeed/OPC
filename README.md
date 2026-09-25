@@ -18,7 +18,7 @@ Main flow:
 | OPC train loss (`--policy-losses`) | `sndr` (pure SNDR; no KL/CRM) |
 | No-propensity train | always `naive` (no IW, no DM/DR, no clip) |
 | Optuna objective | `ci_low` = DR/naive mean − t·SE |
-| OPC DR score IW clip | fixed `M=1` (`DEFAULT_DR_SCORE_CLIP_M`); **not** Optuna-searched |
+| Importance weights | `--train-weights` (sndr / ipw / kl losses) and `--select-weights` (selection + post-hoc): `none`, `clip:M` or `shrink:λ`; defaults in `training/trainer_trials.py`; **not** Optuna-searched |
 | Reward model `q̂` | `regression` on interaction features `[x, a, x⊙a]` (`--reward-features`; bias script often uses `logging_score`) |
 | Datasets (`--datasets`) | `ml myket kuairec kuairand anime msd`; lastfm is opt-in (a condition costs ~75× ml's; see Runtime estimate) |
 | Representation bias (`--bias-configs`) | `low medium high` (all three types at that level) |
@@ -245,7 +245,10 @@ runs ~5× slower per epoch than 4096.
 
 ### Useful Flags
 
-- `--policy-losses sndr` (default) — OPC train; DR selection still clips IW at M=1.
+- `--policy-losses sndr` (default) — OPC train loss.
+- `--train-weights`, `--select-weights` — importance-weight transform (`none`, `clip:M`, `shrink:λ`) in the OPC
+  training losses and in selection + post-hoc estimates; `--log-select-weights` logs other selection transforms
+  per trial (tuning). `--train-weights none --select-weights clip:1` reproduces older runs.
 - `--bias-configs` — levels per condition: `medium` (all three types) or `warp/group/vector`, e.g. `high/none/low`.
 - `--pop-strength` (default 0: clicks follow taste only), `--logger-pop-strength` (default: the same) — weight of BPR's item bias in the true score and in the logger's; needs `{dataset}_item_bias.npy`.
 - `--bias-groups {cluster,metadata}`, `--env-centering` (default 0 = off), `--logging-spread`, `--best-ctr`, `--ctr-reference {logger,uniform}` — world calibration (see the simulator doc).
@@ -307,7 +310,7 @@ Common files:
 - `summary_metrics.csv` — per-method summary (also the skip-completed marker).
 - `opc_trials_long.csv` / `no_prop_trials_long.csv` — Optuna trial logs.
 - `opc_runs_long.csv` / `no_prop_runs_long.csv` — per-run logs.
-- `run_meta.json` — exact parameters (includes `dr_score_clip_m`, policy losses) and the calibrated `world`.
+- `run_meta.json` — exact parameters (includes `train_weights`, `select_weights`, policy losses) and the calibrated `world`.
 
 At run root:
 

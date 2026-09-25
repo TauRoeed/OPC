@@ -98,6 +98,7 @@ from models.estimators import (
 
 from utils.chunk_progress import iter_action_blocks, iter_user_action_blocks
 from utils.seeding import derive_seed, deterministic_enabled, optuna_sampler, seed_everything
+from utils.importance_weights import effective_sample_size, parse_weight_spec, transform_weights, weight_spec_label
 from utils.simulation_utils import (
     eval_policy,
     generate_dataset,
@@ -143,11 +144,11 @@ from training.metrics_utils import (
 )
 
 VALID_POLICY_LOSSES = ("kl_crm", "kl", "ipw", "sndr", "crm", "naive")
-# Fixed IW clip for OPC DR trial scoring (logged only). Offline grid with
-# logging_score q̂ (no fit): ``scripts/sim_dr_score_clip_logging_score.py`` →
-# artifacts/oom_smoke/dr_score_clip_logging_score. M=1 max mean bootstrap
-# Spearman(ci_low, true V). ``inf`` = unclipped. No-propensity never clips.
-DEFAULT_DR_SCORE_CLIP_M: float = 1.0
+# Importance-weight transforms (utils.importance_weights specs) for the OPC training losses
+# (sndr, ipw, kl; crm / kl_crm keep their own searched clip) and for trial selection plus the
+# post-hoc estimates. ``--train-weights none --select-weights clip:1`` reproduces the older runs.
+DEFAULT_TRAIN_WEIGHTS = "clip:100"
+DEFAULT_SELECT_WEIGHTS = "clip:100"
 VALID_OPTUNA_SELECTION = ("ci_low", "r_hat", "actual_reward")
 VALID_REWARD_MODELS = ("regression", "logging_score", "oracle")
 
@@ -324,11 +325,13 @@ def _kl_policy_loss(
     gamma: float,
     use_log_trick: bool = True,
     propensity_mode: str = "logged",
+    weights="none",
 ) -> KLPolicyLoss:
     return KLPolicyLoss(
         gamma=float(gamma),
         use_log_trick=use_log_trick,
         propensity_mode=propensity_mode,
+        weights=weights,
     )
 
 
@@ -380,7 +383,9 @@ def _policy_loss_from_name(
     propensity_mode: str = "logged",
     iw_mode: str = "clip",
     shrink_lambda: float = 10.0,
+    train_weights="none",
 ):
+    """``train_weights``: weight spec for sndr / ipw / kl; crm and kl_crm use ``clip_m`` / ``iw_mode``."""
     name = str(loss_name).lower()
     if name == "kl_crm":
         return _kl_crm_policy_loss(
@@ -397,11 +402,13 @@ def _policy_loss_from_name(
             kl_gamma,
             use_log_trick=use_log_trick,
             propensity_mode=propensity_mode,
+            weights=train_weights,
         )
     if name == "ipw":
         return IPWPolicyLoss(
             use_log_trick=use_log_trick,
             propensity_mode=propensity_mode,
+            weights=train_weights,
         )
     if name == "naive":
         return NaiveRewardPolicyLoss(
@@ -412,6 +419,7 @@ def _policy_loss_from_name(
         return SNDRPolicyLoss(
             use_log_trick=use_log_trick,
             propensity_mode=propensity_mode,
+            weights=train_weights,
         )
     if name == "crm":
         return _crm_policy_loss(
@@ -1067,6 +1075,7 @@ def _study_trials_long(
                 "q_error": float(attrs.get("q_error", float("nan"))),
                 "ess": float(attrs.get("ess", float("nan"))),
                 "ess_train": float(attrs.get("ess_train", float("nan"))),
+                "ess_raw": float(attrs.get("ess_raw", float("nan"))),
                 "actual_reward": float(
                     np.asarray(attrs.get("actual_reward", float("nan"))).reshape(-1)[0]
                 )
@@ -1097,6 +1106,9 @@ def _study_trials_long(
         )
         if "pop_weight" in attrs:  # learned popularity weight (worlds with a popularity column)
             rows[-1]["pop_weight"] = float(attrs["pop_weight"])
+        for k, v in attrs.items():  # selection scores under other weight specs (tuning runs)
+            if k.startswith(("sel_r_hat[", "sel_ci_low[")):
+                rows[-1][k] = float(v)
         act = rows[-1]["actual_reward"]
         val = rows[-1]["value"]
         if np.isfinite(ir_v):
@@ -1987,7 +1999,7 @@ def _policy_row_values(
     return pi, dm_rows
 
 
-def _split_dr_vec_and_ess(
+def _split_dr_components(
     split_data: dict,
     trial_x: np.ndarray,
     trial_a: np.ndarray,
@@ -1995,15 +2007,10 @@ def _split_dr_vec_and_ess(
     dataset: dict,
     *,
     propensity_mode: str = "logged",
-    dr_clip_m: float | None = None,
-) -> tuple[np.ndarray, float]:
-    """Per-row value vector and ESS on a logged split (train or val), on the training device.
-
-    Off-policy (``logged``): DR_i = DM_i + ŵ_i * (r - q) with
-    ŵ = min(π_e/π_b, M) when ``dr_clip_m`` is finite, else raw IW.
-    No-propensity (``uniform``): pure naive R_i = r_i * pi_e(a_i|x_i)
-    (no DM, no SNDR correction, no propensity weights, no clip).
-    """
+) -> dict:
+    """The per-row pieces of a trial's value estimate on a logged split, on the training device:
+    pi_e at the logged actions, rewards, propensities and (off-policy) the DM term and q_hat at the
+    logged actions."""
     pscore = np.asarray(split_data["pscore"], dtype=np.float32)
     users = np.asarray(split_data["x_idx"], dtype=np.int64)
     reward = np.asarray(split_data["r"], dtype=np.float32)
@@ -2020,23 +2027,63 @@ def _split_dr_vec_and_ess(
         qhat_fn=score_lookup.qhat_block_fn(device) if off_policy else None,
         action_chunk=score_lookup.action_chunk,
     )
-    if not off_policy:
-        value_vec = (reward * pi_e_at_position).astype(np.float32)
-        ess = float(len(value_vec))
-        return value_vec, ess
+    parts = {"off_policy": off_policy, "pi": pi_e_at_position, "reward": reward, "pscore": pscore}
+    if off_policy:
+        ctx = score_lookup.user_context[users]
+        parts["q_factual"] = np.asarray(score_lookup.regression_model.predict_pairs(ctx, actions), dtype=np.float32)
+        parts["dm"] = dm_reward.astype(np.float32)
+    return parts
 
-    ctx = score_lookup.user_context[users]
-    q_hat_factual = np.asarray(
-        score_lookup.regression_model.predict_pairs(ctx, actions),
-        dtype=np.float32,
-    )
-    dm_reward = dm_reward.astype(np.float32)
-    iw = pi_e_at_position / (pscore + 1e-12)
-    if dr_clip_m is not None and np.isfinite(float(dr_clip_m)):
-        iw = np.minimum(iw, float(dr_clip_m))
-    dr_vec = dm_reward + iw * (reward - q_hat_factual)
-    ess = float((iw.sum() ** 2) / ((iw**2).sum() + 1e-12))
-    return dr_vec, ess
+
+def _dr_values(parts: dict, weights) -> tuple[np.ndarray, float, float]:
+    """(value per row, ESS of the weights used, ESS of the raw weights) from ``_split_dr_components``."""
+    if not parts["off_policy"]:
+        value_vec = (parts["reward"] * parts["pi"]).astype(np.float32)
+        ess = float(len(value_vec))
+        return value_vec, ess, ess
+    raw = parts["pi"] / (parts["pscore"] + 1e-12)
+    iw = transform_weights(raw, weights)
+    dr_vec = parts["dm"] + iw * (parts["reward"] - parts["q_factual"])
+    return dr_vec, effective_sample_size(iw), effective_sample_size(raw)
+
+
+def _split_dr_vec_and_ess(
+    split_data: dict,
+    trial_x: np.ndarray,
+    trial_a: np.ndarray,
+    score_lookup,
+    dataset: dict,
+    *,
+    propensity_mode: str = "logged",
+    dr_clip_m: float | None = None,
+    weights=None,
+) -> tuple[np.ndarray, float, float]:
+    """Per-row value vector, ESS of the weights used and ESS of the raw weights on a logged split
+    (train or val), on the training device.
+
+    Off-policy (``logged``): DR_i = DM_i + ŵ_i * (r - q) with ŵ the ``weights`` spec
+    (utils.importance_weights: none, clip:M, shrink:lambda) of w = π_e/π_b; without ``weights``,
+    ŵ = min(w, ``dr_clip_m``) when that is finite, else raw w.
+    No-propensity (``uniform``): pure naive R_i = r_i * pi_e(a_i|x_i)
+    (no DM, no SNDR correction, no propensity weights, no clip).
+    """
+    parts = _split_dr_components(split_data, trial_x, trial_a, score_lookup, dataset, propensity_mode=propensity_mode)
+    if weights is None:
+        weights = ("clip", float(dr_clip_m)) if dr_clip_m is not None and np.isfinite(float(dr_clip_m)) else "none"
+    return _dr_values(parts, weights)
+
+
+def _selection_score_variants(split_data, trial_x, trial_a, score_lookup, dataset, specs) -> dict:
+    """{label: (r_hat, ci_low)} of the DR selection score under other weight specs, for tuning the
+    selection transform against the true values; the per-row pieces are computed once."""
+    parts = _split_dr_components(split_data, trial_x, trial_a, score_lookup, dataset)
+    out = {}
+    for spec in specs:
+        v, _, _ = _dr_values(parts, spec)
+        n = max(len(v), 2)
+        r_hat, se = float(v.mean()), float(v.std(ddof=1) / np.sqrt(n))
+        out[weight_spec_label(spec)] = (r_hat, r_hat - float(student_t.ppf(0.975, n - 1)) * se)
+    return out
 
 
 def _policy_reward_from_embeddings(
@@ -2168,8 +2215,12 @@ def get_trial_results(
     user_chunk: int = DEFAULT_QHAT_USER_CHUNK,
     action_chunk: int = DEFAULT_QHAT_ACTION_CHUNK,
     reward_context: np.ndarray | None = None,
+    select_weights=None,
 ):
     """Post-hoc metrics for a policy given by (our_x, our_a).
+
+    ``select_weights``: importance-weight spec of the DR / SNIPW / SNDR estimates (the same
+    transform as trial selection).
 
     ``our_x``/``our_a`` are the policy's embeddings (learned ones for a trial).
     ``reward_context`` is the reward model's own user vectors (``bundle["user_context"]``);
@@ -2205,7 +2256,7 @@ def get_trial_results(
     print(f"Policy reward time: {time.time() - t0} seconds")
     # eval_policy feeds val_data["x"] to the reward model: give it the model's own vectors.
     val_for_qhat = val_data if reward_context is None else {**val_data, "x": reward_context[uids]}
-    eval_metrics = eval_policy(neighberhoodmodel, val_for_qhat, original_policy_prob, policy_val)
+    eval_metrics = eval_policy(neighberhoodmodel, val_for_qhat, original_policy_prob, policy_val, weights=select_weights)
 
     action_diff_to_real = np.sqrt(np.mean((emb_a - our_a) ** 2))
     action_delta = np.sqrt(np.mean((original_a - our_a) ** 2))
@@ -2724,6 +2775,9 @@ def regression_trainer_trial(
     reward_model: str = "regression",
     dr_score_clip_m: float | None = None,
     seed: int = 0,
+    train_weights=None,
+    select_weights=None,
+    log_select_weights=(),
 ):
     """
     OPC / no-propensity trainer with Optuna over CF hyperparameters.
@@ -2738,8 +2792,12 @@ def regression_trainer_trial(
     also ``kl_crm``, ``kl``, ``ipw``, ``crm``, ``naive``). If more than one, Optuna
     picks per trial.
 
-    ``dr_score_clip_m``: fixed IW clip for OPC DR trial scoring (default
-    ``DEFAULT_DR_SCORE_CLIP_M`` from offline sweep). Ignored for no-prop (pure naive).
+    ``train_weights`` / ``select_weights``: importance-weight specs (``none``, ``clip:M``,
+    ``shrink:lambda``; defaults ``DEFAULT_TRAIN_WEIGHTS`` / ``DEFAULT_SELECT_WEIGHTS``) for the
+    sndr / ipw / kl training losses and for the DR selection score and post-hoc estimates.
+    ``dr_score_clip_m`` (older callers) sets the selection transform to clip:M. Both are ignored
+    for no-prop (pure naive). ``log_select_weights``: more specs whose selection scores are logged
+    per OPC trial (``sel_r_hat[spec]``, ``sel_ci_low[spec]``) for tuning; they do not steer Optuna.
 
     ``search_use_log_trick``: if False, always use direct-prob surrogate (no log trick)
     for applicable losses and do not tune ``use_log_trick`` in Optuna.
@@ -2767,12 +2825,13 @@ def regression_trainer_trial(
     for name in policy_loss_types:
         if name not in VALID_POLICY_LOSSES:
             raise ValueError(f"Unknown policy loss '{name}'")
-    fixed_dr_score_clip_m = (
-        float(DEFAULT_DR_SCORE_CLIP_M)
-        if dr_score_clip_m is None
-        else float(dr_score_clip_m)
+    # OPC only: weight transforms for training and for the DR selection score (dr_score_clip_m,
+    # when given, is a selection clip:M). No-prop stays pure (no IW).
+    train_spec = parse_weight_spec(DEFAULT_TRAIN_WEIGHTS if train_weights is None else train_weights)
+    select_spec = parse_weight_spec(
+        ("clip", float(dr_score_clip_m)) if dr_score_clip_m is not None
+        else (DEFAULT_SELECT_WEIGHTS if select_weights is None else select_weights)
     )
-    # OPC only: clip DR selection IW. No-prop stays pure (no IW).
     apply_dr_score_clip = uses_importance_weighting(propensity_mode)
 
     device = _training_device(require_cuda=require_cuda)
@@ -2909,6 +2968,7 @@ def regression_trainer_trial(
             policy_reward_mode=policy_reward_mode,
             policy_reward_mc_sim=policy_reward_mc_sim,
             reward_context=shared_regression_bundle["user_context"],
+            select_weights=select_spec,
         )
     results[0]["val_size"] = float(v_baseline)
     if cf_popularity:
@@ -3005,10 +3065,9 @@ def regression_trainer_trial(
                 crm_M = 100.0
                 crm_lambda = 1.0
             crm_iw_mode = "clip"
-            # Fixed offline clip for OPC DR scoring (not an Optuna param).
-            dr_score_clip_m = (
-                float(fixed_dr_score_clip_m) if apply_dr_score_clip else float("inf")
-            )
+            # Fixed weight transform for OPC DR scoring (not an Optuna param).
+            score_weights = select_spec if apply_dr_score_clip else ("none", math.inf)
+            dr_score_clip_m = score_weights[1] if score_weights[0] == "clip" else math.inf
             trial_use_log_trick = _resolve_trial_use_log_trick(
                 trial, search_use_log_trick, use_log_trick_fixed
             )
@@ -3053,6 +3112,7 @@ def regression_trainer_trial(
                 propensity_mode=propensity_mode,
                 iw_mode=crm_iw_mode,
                 shrink_lambda=crm_M,
+                train_weights=train_spec,
             )
             train(
                 trial_model,
@@ -3080,23 +3140,23 @@ def regression_trainer_trial(
             print(
                 f"actual reward: {r}"
             )
-            dr_vec, ess_val = _split_dr_vec_and_ess(
+            dr_vec, ess_val, ess_raw = _split_dr_vec_and_ess(
                 val_data,
                 trial_x,
                 trial_a,
                 trial_scores_all,
                 dataset,
                 propensity_mode=propensity_mode,
-                dr_clip_m=dr_score_clip_m,
+                weights=score_weights,
             )
-            dr_vec_tr, ess_train = _split_dr_vec_and_ess(
+            dr_vec_tr, ess_train, _ = _split_dr_vec_and_ess(
                 train_data,
                 trial_x,
                 trial_a,
                 trial_scores_all,
                 dataset,
                 propensity_mode=propensity_mode,
-                dr_clip_m=dr_score_clip_m,
+                weights=score_weights,
             )
             n = max(len(dr_vec), 2)
             r_hat = float(dr_vec.mean())
@@ -3129,6 +3189,13 @@ def regression_trainer_trial(
             trial.set_user_attr("actual_reward", r)
             trial.set_user_attr("ess", ess_val)
             trial.set_user_attr("ess_train", ess_train)
+            trial.set_user_attr("ess_raw", ess_raw)
+            if apply_dr_score_clip and log_select_weights:
+                for label, (v_hat, v_low) in _selection_score_variants(
+                    val_data, trial_x, trial_a, trial_scores_all, dataset, log_select_weights
+                ).items():
+                    trial.set_user_attr(f"sel_r_hat[{label}]", v_hat)
+                    trial.set_user_attr(f"sel_ci_low[{label}]", v_low)
             trial.set_user_attr("optuna_selection", str(optuna_selection))
             trial.set_user_attr("dr_score_clip_m", float(dr_score_clip_m))
 
@@ -3223,6 +3290,7 @@ def regression_trainer_trial(
                 policy_reward_mode=policy_reward_mode,
                 policy_reward_mc_sim=policy_reward_mc_sim,
                 reward_context=shared_regression_bundle["user_context"],
+                select_weights=select_spec,
             )
         trial_res = {
             **trial_res,
@@ -3348,6 +3416,7 @@ def no_propensity_trainer_trial(
     optuna_selection: str = "ci_low",
     reward_model: str = "regression",
     seed: int = 0,
+    select_weights=None,
 ):
     """
     Explicit no-propensity baseline with parity to regression trainer:
@@ -3385,6 +3454,7 @@ def no_propensity_trainer_trial(
         optuna_selection=optuna_selection,
         reward_model=reward_model,
         seed=seed,
+        select_weights=select_weights,  # post-hoc estimates only; no-prop has no weights
     )
 
 

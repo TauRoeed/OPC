@@ -95,10 +95,20 @@ In `run_full_study.py`, OPC sets `use_log_trick_fixed=True` (not tuned by
 Optuna). Other ablations: `--policy-losses ipw`, hurt-logging knobs,
 `--optuna-selection r_hat`, etc.
 
-**DR trial scoring (selection only):** importance weights are clipped at fixed
-`DEFAULT_DR_SCORE_CLIP_M = 1` (`ŵ = min(π_e/π_b, M)`). Chosen offline
-(`scripts/sim_dr_score_clip_logging_score.py`); not searched by Optuna.
-Training SNDR uses unclipped IW unless a CRM-style loss sets `crm_M`.
+**Importance-weight transforms.** Wherever inverse propensities are used, the weight
+w = π_e/π_b goes through one transform (`utils/importance_weights.py`): `none`, `clip:M`
+(`min(w, M)`) or `shrink:λ` (Su et al. 2020, `λw / (w² + λ)`: at most √λ/2, falling back toward
+0 past w = √λ). Two settings, not searched by Optuna:
+
+- `--train-weights` (default `DEFAULT_TRAIN_WEIGHTS`): the `sndr`, `ipw` and `kl` training losses.
+  `crm` / `kl_crm` keep their own clip `crm_M`, which Optuna searches.
+- `--select-weights` (default `DEFAULT_SELECT_WEIGHTS`): the DR selection score and the post-hoc
+  DR / SNIPW / SNDR estimates.
+
+`--train-weights none --select-weights clip:1` reproduces the older runs (unclipped training,
+selection clipped at 1). Trials also log the ESS of the raw weights (`ess_raw`) next to the
+transformed one, and `--log-select-weights SPEC ...` logs each trial's selection score under
+other transforms, for tuning.
 
 ### No-propensity arm
 
@@ -315,8 +325,7 @@ Larger is better. Recent hurt-logging ablations often use `r_hat` together with
 ### 5.1 OPC validation row value
 
 OPC keeps the doubly robust validation estimator (not self-normalized). For
-Optuna / `ci_low` scoring, IW is clipped at fixed `M = DEFAULT_DR_SCORE_CLIP_M`
-(default 1):
+Optuna / `ci_low` scoring, IW goes through `--select-weights` (shown for `clip:M`):
 
 ```text
 DM_i = sum over actions a [q(x_i, a) * pi_theta(a | x_i)]
@@ -327,7 +336,7 @@ OPC row_value_i = DM_i + w_i * (r_i - q_i)
 
 This evaluation formula uses the actual probabilities, not the detached
 log-trick surrogate used to create training gradients. No-propensity never
-applies this clip (pure naive `r_i * pi_i`).
+applies this transform (pure naive `r_i * pi_i`).
 
 ### 5.2 No-propensity validation row value
 
@@ -393,7 +402,7 @@ Full-study defaults:
 
 ```text
 OPC:           sndr, propensity_mode=logged, use_log_trick fixed True,
-               DR score clip M=1 (selection only)
+               --train-weights / --select-weights (DEFAULT_TRAIN_WEIGHTS / DEFAULT_SELECT_WEIGHTS)
 no-propensity: naive, propensity_mode=uniform, use_log_trick fixed False
 ```
 

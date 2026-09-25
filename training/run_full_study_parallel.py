@@ -64,6 +64,7 @@ def _parallel_worker_init(worker_slot, num_gpus: int) -> None:
 
 from BPR.bpr_config import DEFAULT_DATASETS
 from models.models import REWARD_FEATURES
+from utils.importance_weights import weight_spec_label
 from utils.seeding import DEFAULT_CPU_THREADS, pin_cpu_threads
 from training.memory_budget import describe_plan, device_capacities, plan_worker_groups
 from training.run_full_study import (
@@ -77,6 +78,8 @@ from training.run_full_study import (
     _run_condition,
 )
 from training.trainer_trials import (
+    DEFAULT_SELECT_WEIGHTS,
+    DEFAULT_TRAIN_WEIGHTS,
     DEFAULT_QHAT_ACTION_CHUNK,
     DEFAULT_QHAT_USER_CHUNK,
     VALID_OPTUNA_SELECTION,
@@ -374,6 +377,9 @@ def _execute_run(config: dict):
         optuna_selection=str(config.get("optuna_selection", "ci_low")),
         reward_model=str(config.get("reward_model", "regression")),
         reward_features=str(config.get("reward_features", "interaction")),
+        train_weights=config.get("train_weights"),
+        select_weights=config.get("select_weights"),
+        log_select_weights=config.get("log_select_weights") or (),
         world_options=config.get("world_options"),
     )
 
@@ -417,6 +423,27 @@ def main():
         choices=list(VALID_REWARD_MODELS),
         default="regression",
         help="Shared q_hat: regression (default), logging_score, or oracle (sim-only).",
+    )
+    parser.add_argument(
+        "--train-weights",
+        type=weight_spec_label,
+        default=DEFAULT_TRAIN_WEIGHTS,
+        help="Importance-weight transform in the OPC training losses sndr / ipw / kl: none, clip:M "
+        "or shrink:lambda (default %(default)s; crm / kl_crm keep their own searched clip).",
+    )
+    parser.add_argument(
+        "--select-weights",
+        type=weight_spec_label,
+        default=DEFAULT_SELECT_WEIGHTS,
+        help="Importance-weight transform of the DR selection score and the post-hoc estimates "
+        "(default %(default)s; clip:1 = the older selection).",
+    )
+    parser.add_argument(
+        "--log-select-weights",
+        nargs="*",
+        type=weight_spec_label,
+        default=[],
+        help="Also log each OPC trial's selection score under these weight specs (for tuning).",
     )
     parser.add_argument(
         "--reward-features",
@@ -665,6 +692,9 @@ def main():
             "optuna_selection": str(args.optuna_selection),
             "reward_model": str(args.reward_model),
             "reward_features": str(args.reward_features),
+            "train_weights": args.train_weights,
+            "select_weights": args.select_weights,
+            "log_select_weights": list(args.log_select_weights),
         }
         run_configs.append(cfg)
 
@@ -726,6 +756,8 @@ def main():
                     "optuna_selection": str(args.optuna_selection),
                     "reward_model": str(args.reward_model),
                     "reward_features": str(args.reward_features),
+                    "train_weights": args.train_weights,
+                    "select_weights": args.select_weights,
                     "val_min": args.val_min,
                     "val_max": args.val_max,
                     "policy_reward_mode": args.policy_reward_mode,

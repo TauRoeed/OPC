@@ -11,6 +11,8 @@ print(f"Using device: {device}")
 
 import torch.nn as nn
 
+from utils.importance_weights import parse_weight_spec
+
 PROPENSITY_MODES = ("logged", "uniform")
 
 
@@ -173,8 +175,12 @@ def dr_sndr_surrogate(
     use_iw: bool,
     use_log_trick: bool,
     log_eps: float = 1e-10,
+    iw_mode: str = "none",
+    iw_param: float = float("inf"),
 ):
     """SNDR policy surrogate: correction + DM, each scaled by log pi when requested.
+
+    ``iw_mode`` / ``iw_param``: weight transform (none, clip at M, Su shrinkage with lambda).
 
     Log trick:
       - detach pi in IW and DM coefficients
@@ -188,14 +194,15 @@ def dr_sndr_surrogate(
     pi_a = policy_prob[idx, actions].squeeze()
     log_p = torch.log(policy_prob.clamp(min=log_eps))
 
+    wkw = dict(use_iw=use_iw, iw_mode=iw_mode, clip_m=iw_param, shrink_lambda=iw_param, log_eps=log_eps)
     if use_log_trick:
         pi_coef = policy_prob.detach()
-        iw = importance_weights(pi_a.detach(), pscore, use_iw, log_eps).detach()
+        iw = transform_importance_weights(pi_a.detach(), pscore, **wkw).detach()
         correction = dr_correction(iw, rewards, q_factual)
         corr_term = correction * log_p[idx, actions]
         dm_term = (scores * pi_coef * log_p).sum(dim=1)
     else:
-        iw = importance_weights(pi_a, pscore, use_iw, log_eps)
+        iw = transform_importance_weights(pi_a, pscore, **wkw)
         corr_term = dr_correction(iw, rewards, q_factual)
         dm_term = dm_reward(scores, policy_prob)
 
@@ -212,6 +219,8 @@ def dr_sndr_loss(
     use_iw: bool,
     use_log_trick: bool,
     log_eps: float = 1e-10,
+    iw_mode: str = "none",
+    iw_param: float = float("inf"),
 ):
     """Minimize negative SNDR surrogate (ascend policy value)."""
     return -dr_sndr_surrogate(
@@ -223,16 +232,20 @@ def dr_sndr_loss(
         use_iw=use_iw,
         use_log_trick=use_log_trick,
         log_eps=log_eps,
+        iw_mode=iw_mode,
+        iw_param=iw_param,
     ).mean()
 
 
 class _BanditPolicyLossBase(nn.Module):
     needs_qhat = True
 
-    def __init__(self, log_eps=1e-10, use_log_trick=True, propensity_mode="logged"):
+    def __init__(self, log_eps=1e-10, use_log_trick=True, propensity_mode="logged", weights="none"):
         super().__init__()
         self.log_eps = log_eps
         self.use_log_trick = bool(use_log_trick)
+        # importance-weight transform for the IW / SNDR terms (utils.importance_weights spec)
+        self.iw_mode, self.iw_param = parse_weight_spec(weights)
         self.propensity_mode = str(propensity_mode).lower()
         if self.propensity_mode not in PROPENSITY_MODES:
             raise ValueError(
@@ -243,8 +256,9 @@ class _BanditPolicyLossBase(nn.Module):
         return uses_importance_weighting(self.propensity_mode)
 
     def _prepare_iw(self, pi_e_at_position, pscore):
-        iw = importance_weights(
-            pi_e_at_position, pscore, self._use_iw(), self.log_eps
+        iw = transform_importance_weights(
+            pi_e_at_position, pscore, use_iw=self._use_iw(), iw_mode=self.iw_mode,
+            clip_m=self.iw_param, shrink_lambda=self.iw_param, log_eps=self.log_eps,
         )
         iw_val = iw.detach()
         iw_grad = grad_importance_weights(iw, self.use_log_trick)
@@ -265,6 +279,8 @@ class _BanditPolicyLossBase(nn.Module):
             use_iw=self._use_iw(),
             use_log_trick=self.use_log_trick,
             log_eps=self.log_eps,
+            iw_mode=self.iw_mode,
+            iw_param=self.iw_param,
         )
 
 
@@ -316,11 +332,12 @@ class SNDRPolicyLoss(_BanditPolicyLossBase):
 class KLPolicyLoss(_BanditPolicyLossBase):
     """SNDR PG + batch MC KL toward logging policy (logged actions only)."""
 
-    def __init__(self, gamma=0.05, log_eps=1e-10, use_log_trick=True, propensity_mode="logged"):
+    def __init__(self, gamma=0.05, log_eps=1e-10, use_log_trick=True, propensity_mode="logged", weights="none"):
         super().__init__(
             log_eps=log_eps,
             use_log_trick=use_log_trick,
             propensity_mode=propensity_mode,
+            weights=weights,
         )
         self.gamma = gamma
 

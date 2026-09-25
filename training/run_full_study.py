@@ -11,7 +11,8 @@ from training.trainer_trials import (
     VALID_OPTUNA_SELECTION,
     VALID_POLICY_LOSSES,
     VALID_REWARD_MODELS,
-    DEFAULT_DR_SCORE_CLIP_M,
+    DEFAULT_SELECT_WEIGHTS,
+    DEFAULT_TRAIN_WEIGHTS,
     LazyRegressionSplitCache,
     DEFAULT_QHAT_ACTION_CHUNK,
     DEFAULT_QHAT_USER_CHUNK,
@@ -91,6 +92,7 @@ def _load_cached_method_trials(run_dir: Path, method: str) -> pd.DataFrame:
 
 from BPR.bpr_config import DEFAULT_DATASETS, bpr_artifact_status
 from models.models import REWARD_FEATURES
+from utils.importance_weights import parse_weight_spec, weight_spec_label
 from utils.noise_snr import dataset_snr_report
 from utils.representation_bias import (
     BIAS_TYPES,
@@ -220,6 +222,9 @@ def _run_condition(
     world_options: dict | None = None,
     record_uniform_value: bool = False,
     dr_score_clip_m: float | None = None,
+    train_weights: str | None = None,
+    select_weights: str | None = None,
+    log_select_weights=(),
     deterministic: bool = True,
     cpu_threads: int = DEFAULT_CPU_THREADS,
 ):
@@ -250,6 +255,11 @@ def _run_condition(
     levels = parse_bias(bias)
     label = bias_label(levels)
     world_options = dict(world_options or {})
+    train_label = weight_spec_label(DEFAULT_TRAIN_WEIGHTS if train_weights is None else train_weights)
+    select_label = weight_spec_label(
+        ("clip", dr_score_clip_m) if dr_score_clip_m is not None
+        else (DEFAULT_SELECT_WEIGHTS if select_weights is None else select_weights)
+    )
     user_path, item_path, user_meta_path, item_meta_path = _dataset_paths(
         emb_dir, dataset_name
     )
@@ -354,6 +364,9 @@ def _run_condition(
             reward_model=str(reward_model),
             dr_score_clip_m=dr_score_clip_m,
             seed=int(seed),
+            train_weights=train_weights,
+            select_weights=select_weights,
+            log_select_weights=tuple(log_select_weights or ()),
         )
     else:
         try:
@@ -393,6 +406,7 @@ def _run_condition(
             optuna_selection=optuna_selection,
             reward_model=str(reward_model),
             seed=int(seed),
+            select_weights=select_weights,
         )
     else:
         try:
@@ -455,9 +469,10 @@ def _run_condition(
         "study_methods": list(methods),
         "opc_policy_loss_types": list(policy_loss_types),
         "no_prop_policy_loss_types": list(noprop_policy_loss_types),
-        "dr_score_clip_m": float(
-            DEFAULT_DR_SCORE_CLIP_M if dr_score_clip_m is None else dr_score_clip_m
-        ),
+        "train_weights": train_label,
+        "select_weights": select_label,
+        "log_select_weights": [weight_spec_label(w) for w in (log_select_weights or ())],
+        "dr_score_clip_m": parse_weight_spec(select_label)[1] if select_label.startswith("clip") else None,
         "shared_regression_size": int(
             shared_regression_bundle.get("sample_size", reg_size)
         ),
@@ -509,6 +524,8 @@ def _finalize_summary_df(opc_df, noprop_df, meta: dict, **tags) -> pd.DataFrame:
         summary_df["pop_strength"] = float(world.get("pop_strength", 0.0))
         summary_df["logger_pop_strength"] = float(world.get("logger_pop_strength", 0.0))
     summary_df["reward_features"] = meta.get("reward_features")  # None unless reward_model=regression
+    for k in ("train_weights", "select_weights"):
+        summary_df[k] = meta.get(k)
     if "val_size" in summary_df.columns:
         summary_df["val_size_config"] = summary_df["val_size"]
     if {"opc", "no_propensity"}.issubset(set(summary_df.get("method", pd.Series(dtype=str)))):
@@ -542,6 +559,28 @@ def main():
         default="regression",
         help="Shared q_hat for DM/DR: regression (default LR fit on biased vectors), "
         "logging_score (env click model on our_x/our_a), oracle (clean env; sim-only).",
+    )
+    parser.add_argument(
+        "--train-weights",
+        type=weight_spec_label,
+        default=DEFAULT_TRAIN_WEIGHTS,
+        help="Importance-weight transform in the OPC training losses sndr / ipw / kl: none, clip:M "
+        "or shrink:lambda (default %(default)s; crm / kl_crm keep their own searched clip).",
+    )
+    parser.add_argument(
+        "--select-weights",
+        type=weight_spec_label,
+        default=DEFAULT_SELECT_WEIGHTS,
+        help="Importance-weight transform of the DR selection score and the post-hoc DR / SNIPW / "
+        "SNDR estimates (default %(default)s; clip:1 = the older selection).",
+    )
+    parser.add_argument(
+        "--log-select-weights",
+        nargs="*",
+        type=weight_spec_label,
+        default=[],
+        help="Also log each OPC trial's selection score under these weight specs (trials_long "
+        "columns sel_r_hat[spec], sel_ci_low[spec]; for tuning --select-weights).",
     )
     parser.add_argument(
         "--reward-features",
@@ -658,7 +697,7 @@ def main():
         default=["sndr"],
         choices=list(VALID_POLICY_LOSSES),
         help="OPC policy-gradient loss (default sndr = pure SNDR train). "
-        "DR selection uses fixed IW clip (DEFAULT_DR_SCORE_CLIP_M). "
+        "DR selection uses a fixed weight transform (--select-weights). "
         "Multiple values = Optuna categorical over losses. "
         "No-propensity stays naive (no IW/clip).",
     )
@@ -728,7 +767,7 @@ def main():
     print(f"Methods: {methods}")
     if "no_propensity" in methods:
         print(f"No-prop losses: {_no_prop_policy_loss_types(policy_loss_types)}")
-    print(f"DR score clip M (OPC fixed): {DEFAULT_DR_SCORE_CLIP_M}")
+    print(f"Importance weights: training {args.train_weights}, selection and post-hoc {args.select_weights}")
     print(f"Search use_log_trick: {search_use_log_trick}")
 
     all_summary_rows = []
@@ -811,6 +850,9 @@ def main():
                                 optuna_selection=str(args.optuna_selection),
                                 reward_model=str(args.reward_model),
                                 reward_features=str(args.reward_features),
+                                train_weights=args.train_weights,
+                                select_weights=args.select_weights,
+                                log_select_weights=args.log_select_weights,
                                 world_options=world_options,
                             )
                         except Exception as e:
@@ -877,6 +919,8 @@ def main():
                     "optuna_selection": str(args.optuna_selection),
                     "reward_model": str(args.reward_model),
                     "reward_features": str(args.reward_features),
+                    "train_weights": args.train_weights,
+                    "select_weights": args.select_weights,
                 },
                 f,
                 indent=2,
