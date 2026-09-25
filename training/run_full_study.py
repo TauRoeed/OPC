@@ -91,7 +91,7 @@ def _load_cached_method_trials(run_dir: Path, method: str) -> pd.DataFrame:
 
 
 from BPR.bpr_config import DEFAULT_DATASETS, bpr_artifact_status
-from models.models import REWARD_FEATURES
+from models.models import POLICY_TRANSFORMS, REWARD_FEATURES
 from utils.importance_weights import parse_weight_spec, weight_spec_label
 from utils.noise_snr import dataset_snr_report
 from utils.representation_bias import (
@@ -225,6 +225,7 @@ def _run_condition(
     train_weights: str | None = None,
     select_weights: str | None = None,
     log_select_weights=(),
+    policy_transform: str = "linear",
     deterministic: bool = True,
     cpu_threads: int = DEFAULT_CPU_THREADS,
 ):
@@ -367,6 +368,7 @@ def _run_condition(
             train_weights=train_weights,
             select_weights=select_weights,
             log_select_weights=tuple(log_select_weights or ()),
+            policy_transform=policy_transform,
         )
     else:
         try:
@@ -407,6 +409,7 @@ def _run_condition(
             reward_model=str(reward_model),
             seed=int(seed),
             select_weights=select_weights,
+            policy_transform=policy_transform,
         )
     else:
         try:
@@ -472,6 +475,7 @@ def _run_condition(
         "train_weights": train_label,
         "select_weights": select_label,
         "log_select_weights": [weight_spec_label(w) for w in (log_select_weights or ())],
+        "policy_transform": str(policy_transform),
         "dr_score_clip_m": parse_weight_spec(select_label)[1] if select_label.startswith("clip") else None,
         "shared_regression_size": int(
             shared_regression_bundle.get("sample_size", reg_size)
@@ -524,7 +528,7 @@ def _finalize_summary_df(opc_df, noprop_df, meta: dict, **tags) -> pd.DataFrame:
         summary_df["pop_strength"] = float(world.get("pop_strength", 0.0))
         summary_df["logger_pop_strength"] = float(world.get("logger_pop_strength", 0.0))
     summary_df["reward_features"] = meta.get("reward_features")  # None unless reward_model=regression
-    for k in ("train_weights", "select_weights"):
+    for k in ("train_weights", "select_weights", "policy_transform"):
         summary_df[k] = meta.get(k)
     if "val_size" in summary_df.columns:
         summary_df["val_size_config"] = summary_df["val_size"]
@@ -573,6 +577,13 @@ def main():
         default=DEFAULT_SELECT_WEIGHTS,
         help="Importance-weight transform of the DR selection score and the post-hoc DR / SNIPW / "
         "SNDR estimates (default %(default)s; clip:1 = the older selection).",
+    )
+    parser.add_argument(
+        "--policy-transform",
+        choices=list(POLICY_TRANSFORMS),
+        default="linear",
+        help="How the learned policy corrects the biased vectors: linear = (I + D) x + b per side, "
+        "starting at the logger (default); mlp = x + MLP(LN(x)) (the older transform); linear+mlp = both.",
     )
     parser.add_argument(
         "--log-select-weights",
@@ -853,6 +864,7 @@ def main():
                                 train_weights=args.train_weights,
                                 select_weights=args.select_weights,
                                 log_select_weights=args.log_select_weights,
+                                policy_transform=args.policy_transform,
                                 world_options=world_options,
                             )
                         except Exception as e:
@@ -921,6 +933,7 @@ def main():
                     "reward_features": str(args.reward_features),
                     "train_weights": args.train_weights,
                     "select_weights": args.select_weights,
+                    "policy_transform": args.policy_transform,
                 },
                 f,
                 indent=2,

@@ -63,7 +63,7 @@ def _parallel_worker_init(worker_slot, num_gpus: int) -> None:
     )
 
 from BPR.bpr_config import DEFAULT_DATASETS
-from models.models import REWARD_FEATURES
+from models.models import POLICY_TRANSFORMS, REWARD_FEATURES
 from utils.importance_weights import weight_spec_label
 from utils.seeding import DEFAULT_CPU_THREADS, pin_cpu_threads
 from training.memory_budget import describe_plan, device_capacities, plan_worker_groups
@@ -380,6 +380,7 @@ def _execute_run(config: dict):
         train_weights=config.get("train_weights"),
         select_weights=config.get("select_weights"),
         log_select_weights=config.get("log_select_weights") or (),
+        policy_transform=str(config.get("policy_transform", "linear")),
         world_options=config.get("world_options"),
     )
 
@@ -437,6 +438,13 @@ def main():
         default=DEFAULT_SELECT_WEIGHTS,
         help="Importance-weight transform of the DR selection score and the post-hoc estimates "
         "(default %(default)s; clip:1 = the older selection).",
+    )
+    parser.add_argument(
+        "--policy-transform",
+        choices=list(POLICY_TRANSFORMS),
+        default="linear",
+        help="How the learned policy corrects the biased vectors: linear = (I + D) x + b per side, "
+        "starting at the logger (default); mlp = x + MLP(LN(x)) (the older transform); linear+mlp = both.",
     )
     parser.add_argument(
         "--log-select-weights",
@@ -695,6 +703,7 @@ def main():
             "train_weights": args.train_weights,
             "select_weights": args.select_weights,
             "log_select_weights": list(args.log_select_weights),
+            "policy_transform": args.policy_transform,
         }
         run_configs.append(cfg)
 
@@ -758,6 +767,7 @@ def main():
                     "reward_features": str(args.reward_features),
                     "train_weights": args.train_weights,
                     "select_weights": args.select_weights,
+                    "policy_transform": args.policy_transform,
                     "val_min": args.val_min,
                     "val_max": args.val_max,
                     "policy_reward_mode": args.policy_reward_mode,

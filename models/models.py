@@ -217,6 +217,55 @@ class SingleMLPTransform(nn.Module):
         return x + self.mlp(self.ln(x))
 
 
+class GlobalLinearCorrection(nn.Module):
+    """y = x + D x + b = (I + D) x + b: one linear map shared by every user (or every item).
+
+    D and b start at 0, so the corrected vectors, and the policy, start exactly at the logger's
+    (x + 0 is exact even under TF32, unlike I @ x).
+    """
+
+    def __init__(self, embedding_dim: int):
+        super().__init__()
+        self.delta = nn.Parameter(torch.zeros(embedding_dim, embedding_dim))
+        self.bias = nn.Parameter(torch.zeros(embedding_dim))
+
+    def forward(self, x: torch.Tensor, idx=None):
+        return x + F.linear(x, self.delta, self.bias)
+
+
+class LinearPlusMLPCorrection(nn.Module):
+    """``GlobalLinearCorrection`` plus the MLP term of ``SingleMLPTransform`` with its last layer at
+    zero: y = (I + D) x + b + MLP(LN(x)), exactly x at the start."""
+
+    def __init__(self, embedding_dim: int, hidden: int = 64, dropout: float = 0.1):
+        super().__init__()
+        self.linear = GlobalLinearCorrection(embedding_dim)
+        self.nonlinear = SingleMLPTransform(embedding_dim, hidden=hidden, dropout=dropout)
+        last = self.nonlinear.mlp[3]
+        nn.init.zeros_(last.weight)
+        nn.init.zeros_(last.bias)
+
+    def forward(self, x: torch.Tensor, idx=None):
+        return self.linear(x) + self.nonlinear.mlp(self.nonlinear.ln(x))
+
+
+# --policy-transform: how the learned policy corrects the biased vectors (one module for users,
+# one for items). linear = GlobalLinearCorrection (default), mlp = SingleMLPTransform (x + MLP(LN(x)),
+# random init), linear+mlp = both, starting at the identity.
+POLICY_TRANSFORMS = ("linear", "linear+mlp", "mlp")
+
+
+def make_policy_transform(kind: str, embedding_dim: int) -> nn.Module:
+    kind = str(kind).lower()
+    if kind == "linear":
+        return GlobalLinearCorrection(embedding_dim)
+    if kind == "linear+mlp":
+        return LinearPlusMLPCorrection(embedding_dim)
+    if kind == "mlp":
+        return SingleMLPTransform(embedding_dim)
+    raise ValueError(f"policy transform must be one of {POLICY_TRANSFORMS}, got {kind!r}")
+
+
 class LinearTransform(nn.Module):
     def __init__(self, embedding_size, embedding_dim):
         super().__init__()

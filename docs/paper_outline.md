@@ -140,10 +140,13 @@ The code uses two main variants:
 - `CFModel`: trainable user/item embeddings with optional transforms.
 - `LinearCFModel`: linear delta transforms over frozen initial embeddings.
 
-The regression trainer primarily uses `CFModel` with nonlinear residual transforms:
+The regression trainer uses `CFModel` with one correction for all users and one for all items
+(`--policy-transform`, `make_policy_transform`):
 
-- `SingleMLPTransform` for user embeddings.
-- `SingleMLPTransform` for item embeddings.
+- `linear` (default): `GlobalLinearCorrection`, (I + D) x + b, starting at the identity, so the
+  policy starts exactly at the logger.
+- `mlp`: `SingleMLPTransform`, x + MLP(LayerNorm(x)) with random initialization (the older one).
+- `linear+mlp`: both, with the MLP's last layer starting at zero.
 
 Relevant code:
 

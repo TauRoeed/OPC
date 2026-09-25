@@ -120,9 +120,11 @@ from models.models import (
     LinearCFModel,
     CFModel,
     MLPRewardModel,
+    POLICY_TRANSFORMS,
     SingleMLPTransform,
     NeighborhoodModel,
     RegressionModel,
+    make_policy_transform,
 )
 
 from training.training_utils import (
@@ -2778,6 +2780,7 @@ def regression_trainer_trial(
     train_weights=None,
     select_weights=None,
     log_select_weights=(),
+    policy_transform: str = "linear",
 ):
     """
     OPC / no-propensity trainer with Optuna over CF hyperparameters.
@@ -2799,6 +2802,10 @@ def regression_trainer_trial(
     for no-prop (pure naive). ``log_select_weights``: more specs whose selection scores are logged
     per OPC trial (``sel_r_hat[spec]``, ``sel_ci_low[spec]``) for tuning; they do not steer Optuna.
 
+    ``policy_transform``: how the policy corrects the biased vectors (``models.models.POLICY_TRANSFORMS``):
+    ``linear`` (default; (I + D) x + b per side, starting at the identity), ``mlp`` (x + MLP(LN(x)),
+    the older transform) or ``linear+mlp``.
+
     ``search_use_log_trick``: if False, always use direct-prob surrogate (no log trick)
     for applicable losses and do not tune ``use_log_trick`` in Optuna.
 
@@ -2811,6 +2818,8 @@ def regression_trainer_trial(
     ``reward_model``: shared q_hat source — ``regression`` (default fit),
     ``logging_score`` (env click model on biased vectors), or ``oracle`` (clean env).
     """
+    if str(policy_transform).lower() not in POLICY_TRANSFORMS:
+        raise ValueError(f"policy_transform must be one of {POLICY_TRANSFORMS}, got {policy_transform!r}")
     optuna_selection = str(optuna_selection).lower()
     if optuna_selection not in VALID_OPTUNA_SELECTION:
         raise ValueError(
@@ -3087,8 +3096,8 @@ def regression_trainer_trial(
                 emb_dim,
                 initial_user_embeddings=T(cf_x_orig),
                 initial_actions_embeddings=T(cf_a_orig),
-                user_transform=SingleMLPTransform(emb_dim),
-                action_transform=SingleMLPTransform(emb_dim),
+                user_transform=make_policy_transform(policy_transform, emb_dim),
+                action_transform=make_policy_transform(policy_transform, emb_dim),
                 temperature=_policy_temperature(dataset),
                 **cf_popularity,
             ).to(device)
@@ -3417,6 +3426,7 @@ def no_propensity_trainer_trial(
     reward_model: str = "regression",
     seed: int = 0,
     select_weights=None,
+    policy_transform: str = "linear",
 ):
     """
     Explicit no-propensity baseline with parity to regression trainer:
@@ -3455,6 +3465,7 @@ def no_propensity_trainer_trial(
         reward_model=reward_model,
         seed=seed,
         select_weights=select_weights,  # post-hoc estimates only; no-prop has no weights
+        policy_transform=policy_transform,
     )
 
 

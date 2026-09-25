@@ -95,9 +95,9 @@ The learned target policy is also a softmax collaborative-filtering model. Given
 pi_theta(a | x) = softmax(u_theta(x)^T v_theta(a) / tau).
 ```
 
-The implementation uses a collaborative-filtering model initialized from the noisy BPR embeddings. In the main regression-based trainer, the model applies residual MLP transforms to the initial user and item embeddings. This allows the policy to fine-tune the representation while staying anchored to the recommender structure learned from BPR.
+The implementation uses a collaborative-filtering model initialized from the noisy BPR embeddings. In the main regression-based trainer, the model corrects the initial user and item embeddings with one learned transform per side: by default a linear map (I + D) x + b that starts at the identity, so the learned policy starts exactly at the logging policy (`--policy-transform`; `mlp` gives a residual MLP, `linear+mlp` both). This allows the policy to fine-tune the representation while staying anchored to the recommender structure learned from BPR.
 
-The core policy classes are implemented in `models/models.py`. The main training path uses `CFModel` together with `SingleMLPTransform`.
+The core policy classes are implemented in `models/models.py`. The main training path uses `CFModel` with `make_policy_transform`.
 
 ### Reward Model
 

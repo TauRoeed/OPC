@@ -16,6 +16,7 @@ from pathlib import Path
 import pandas as pd
 
 from BPR.bpr_config import DEFAULT_DATASETS
+from models.models import POLICY_TRANSFORMS
 from training.trainer_trials import DEFAULT_SELECT_WEIGHTS, DEFAULT_TRAIN_WEIGHTS
 from utils.importance_weights import weight_spec_label
 from utils.seeding import DEFAULT_CPU_THREADS, pin_cpu_threads
@@ -75,6 +76,7 @@ def _execute_h1_cell(config: dict) -> None:
         q_error=q_err,
         train_weights=config.get("train_weights"),
         select_weights=config.get("select_weights"),
+        policy_transform=str(config.get("policy_transform", "linear")),
         q_bad_value=target,
         world_options={**(config.get("world_options") or {}), "ctr_reference": "uniform"},
         record_uniform_value=True,
@@ -151,6 +153,7 @@ def _iter_h1_configs(args, out_root: Path):
                                     "policy_loss_types": list(args.policy_losses),
                                     "train_weights": args.train_weights,
                                     "select_weights": args.select_weights,
+                                    "policy_transform": args.policy_transform,
                                     "require_cuda": bool(args.require_cuda),
                                     "qhat_user_chunk": int(args.qhat_user_chunk),
                                     "qhat_action_chunk": int(args.qhat_action_chunk),
@@ -205,6 +208,8 @@ def main():
                    help="Importance-weight transform in the OPC training losses (none, clip:M, shrink:lambda).")
     p.add_argument("--select-weights", type=weight_spec_label, default=DEFAULT_SELECT_WEIGHTS,
                    help="Importance-weight transform of the DR selection score and post-hoc estimates.")
+    p.add_argument("--policy-transform", choices=list(POLICY_TRANSFORMS), default="linear",
+                   help="How the learned policy corrects the biased vectors (linear, linear+mlp, mlp).")
     p.add_argument("--slim", action="store_true")
     p.add_argument(
         "--deterministic",
