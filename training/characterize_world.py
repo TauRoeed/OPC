@@ -70,7 +70,7 @@ def characterize(dataset_name: str, emb_dir: Path, seed: int, ctr: float, option
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    parser.add_argument("--datasets", nargs="+", default=["ml", "myket", "anime", "kuairec", "kuairand"])
+    parser.add_argument("--datasets", nargs="+", default=["ml", "myket", "kuairec", "kuairand"])
     parser.add_argument("--seeds", nargs="+", type=int, default=[0])
     parser.add_argument("--ctr", type=float, default=0.05, help="Target CTR of the reference policy.")
     parser.add_argument("--emb-dir", type=Path, default=Path("BPR/embeddings"))

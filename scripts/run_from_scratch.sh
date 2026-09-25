@@ -14,7 +14,7 @@
 #   SKIP_STUDY=1            skip parallel study
 #   RUN_TAG=my_run          study output tag (default: timestamp)
 #   MAX_WORKERS=4           parallel workers
-#   STUDY_DATASETS="ml anime"   datasets for parallel study
+#   STUDY_DATASETS="ml myket kuairec kuairand"   datasets for parallel study
 #   REQUIRE_CUDA=1          pass --require-cuda to study runner
 #   SLIM=1                  pass --slim to study runner
 #   SMOKE=1                 tiny fast end-to-end smoke (ml only, 1 trial)
@@ -31,7 +31,7 @@ EMB_DIR="${EMB_DIR:-BPR/embeddings}"
 OUT_DIR="${OUT_DIR:-artifacts/full_study}"
 RUN_TAG="${RUN_TAG:-$(date +%Y%m%d_%H%M%S)}"
 MAX_WORKERS="${MAX_WORKERS:-4}"
-STUDY_DATASETS="${STUDY_DATASETS:-ml anime}"
+STUDY_DATASETS="${STUDY_DATASETS:-ml myket kuairec kuairand}"
 
 log() { echo "[run_from_scratch] $*"; }
 
@@ -80,6 +80,8 @@ if [[ "${SKIP_BPR:-0}" != "1" ]]; then
     run_bpr ml      datasets/ml-1m
     run_bpr anime   datasets/anime
     run_bpr myket   datasets/myket
+    run_bpr kuairec datasets/kuairec
+    run_bpr kuairand datasets/kuairand-pure
     run_bpr lastfm  datasets/lastfm/lastfm_360k.hdf5
     run_bpr msd     datasets/msd/msd_taste_profile.hdf5
   fi

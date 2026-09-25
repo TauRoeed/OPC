@@ -396,7 +396,7 @@ def main():
     parser = argparse.ArgumentParser(
         description="Run full OPC vs no-propensity sweeps in parallel."
     )
-    parser.add_argument("--datasets", nargs="+", default=["ml", "anime"])
+    parser.add_argument("--datasets", nargs="+", default=["ml", "myket", "kuairec", "kuairand"], help="Default: the four datasets with personalized clean worlds (see docs/representation_bias.md).")
     add_world_arguments(parser)
     parser.add_argument(
         "--logging-uniform-mix",

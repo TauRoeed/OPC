@@ -138,8 +138,9 @@ between two random users' top-20 items:
 | lastfm | 1.00 → 1.00 | 0.97 → 0.65 | 67% |
 | msd | 1.00 → 1.00 | 0.84 → 0.47 | 17% |
 
-On ml, myket, kuairec and kuairand, centering makes rankings personal. On anime, lastfm and
-msd, BPR put almost all item variance on one popularity-like direction (98% of it).
+On ml, myket, kuairec and kuairand, centering makes rankings personal; these four are the
+study's main datasets (the runners' default). On anime, lastfm and msd, BPR put almost all item
+variance on one popularity-like direction (98% of it).
 
 - Most users (84–89%) rank items along that axis in the same order, and the rest in
   reverse, so these worlds stay mostly non-personalized.

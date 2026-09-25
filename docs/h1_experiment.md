@@ -5,7 +5,7 @@
 **One-liner (full ablation).** Sweeps datasets, representation bias, train size, rand_CTR, q-error, logging mix, val size, and 15 seeds. Then analyzes.
 
 ```bash
-python -m training.run_h1_study --datasets ml anime myket kuairec --run-tag h1_full --train-sizes 5000 25000 100000 250000 400000 --target-rand-ctrs 0.02 0.08 0.18 --q-errors 0.0 0.25 0.5 0.75 1.0 --logging-mixes 0.0 0.3 --bias-configs low medium high --val-sizes 50000 100000 200000 --seeds 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 --n-trials 15 --policy-losses sndr --qhat-user-chunk 10000 --qhat-action-chunk 10000 --num-gpus 2 --workers-per-gpu 16 --require-cuda --slim && python -m training.analyze_h1_study --root artifacts/h1_study/run_h1_full
+python -m training.run_h1_study --datasets ml myket kuairec kuairand --run-tag h1_full --train-sizes 5000 25000 100000 250000 400000 --target-rand-ctrs 0.02 0.08 0.18 --q-errors 0.0 0.25 0.5 0.75 1.0 --logging-mixes 0.0 0.3 --bias-configs low medium high --val-sizes 50000 100000 200000 --seeds 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 --n-trials 15 --policy-losses sndr --qhat-user-chunk 10000 --qhat-action-chunk 10000 --num-gpus 2 --workers-per-gpu 16 --require-cuda --slim && python -m training.analyze_h1_study --root artifacts/h1_study/run_h1_full
 ```
 
 Uses **2 GPUs** and **16 workers per GPU** (32 processes). User–item scoring chunks are **10k**. OOM backoff drops workers if VRAM dies.
@@ -22,7 +22,7 @@ SMOKE=1 ./scripts/run_h1_study.sh
 
 | Axis | Values | Meaning |
 |------|--------|---------|
-| dataset | `ml`, `anime`, `myket`, `kuairec` | BPR embedding catalogs |
+| dataset | `ml`, `myket`, `kuairec`, `kuairand` | BPR embedding catalogs (the four with personalized clean worlds) |
 | `noise_level` (bias) | low, medium, high | representation bias of all three types; keeps 90 / 75 / 50 % of the signal |
 | `train_size` `n` | 5k, 25k, 100k, 250k, 400k | logged trajectories used to learn `pi` |
 | `val_size` | 50k, 100k, 200k | validation logged trajectories |

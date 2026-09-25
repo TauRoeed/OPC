@@ -20,6 +20,7 @@ Main flow:
 | Optuna objective | `ci_low` = DR/naive mean − t·SE |
 | OPC DR score IW clip | fixed `M=1` (`DEFAULT_DR_SCORE_CLIP_M`); **not** Optuna-searched |
 | Reward model `q̂` | `regression` (bias script often uses `logging_score`) |
+| Datasets (`--datasets`) | `ml myket kuairec kuairand` (personalized clean worlds; anime/lastfm/msd are popularity-dominated) |
 | Representation bias (`--bias-configs`) | `low medium high` (all three types at that level) |
 | Reference CTR (`--ctr-levels`) | 5% for the logger at medium bias; best item 30% |
 | Logging temperature | calibrated: clean logger over 50% of the catalog (`--logging-spread`) |
@@ -161,7 +162,7 @@ Batch comes from `batch_schedule` (omit `--batch-size` / `--optuna-batch-sizes` 
 
 ```bash
 python -m training.run_full_study_parallel \
-  --datasets ml anime \
+  --datasets ml kuairec \
   --bias-configs low high high/none/none none/none/high \
   --ctr-levels 0.05 \
   --seeds 0 1 2 \
