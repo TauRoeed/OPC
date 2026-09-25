@@ -75,6 +75,9 @@ Image entrypoint is `python`; pass `-m training...` as args, or override with `-
 ## 1) BPR Fitting / Artifact Generation
 
 Use `BPR/generate_artifacts.py`. Datasets auto-download on first load (`--download` default).
+BPR v2 trains mini-batches with an item bias and stops early on held-out recall@20, then refits on
+all interactions; settings live in `BPR/bpr_dataset_config.json` and are explained in
+[`BPR/README.md`](BPR/README.md).
 
 ### Example: MovieLens 1M
 
@@ -111,6 +114,8 @@ For each dataset `<name>`:
 
 - `BPR/embeddings/<name>_user_factors.npy`
 - `BPR/embeddings/<name>_item_factors.npy`
+- `BPR/embeddings/<name>_item_bias.npy` (BPR v2 with the item bias)
+- `BPR/embeddings/<name>_bpr_meta.json` (settings, validation curve, git commit; runs warn when it is missing or stale)
 - `BPR/embeddings/<name>_item_metadata.npy`
 - `BPR/embeddings/<name>_user_metadata.npy` (if available)
 - `BPR/embeddings/<name>_user_interaction_counts.npy`

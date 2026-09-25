@@ -11,6 +11,7 @@ requirmnents.txt
 
 # Generated data artifacts
 BPR/embeddings/*.npy
+BPR/embeddings/*_bpr_meta.json
 datasets/**/*.hdf5
 datasets/**/*.dat
 datasets/**/*.csv

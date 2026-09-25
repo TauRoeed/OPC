@@ -1,9 +1,11 @@
 import argparse
+import json
 from pathlib import Path
 from typing import Any
 
-from BPR.bpr import BayesianPersonalizedRanking
-from BPR.bpr_config import load_bpr_dataset_config, resolve_bpr_params
+from BPR.bpr_config import build_bpr_meta, bpr_meta_path, load_bpr_dataset_config, resolve_bpr_params
+from BPR.bpr_minibatch import NEGATIVES, SAMPLING, BPRConfig, MiniBatchBPR
+from utils.seeding import DEFAULT_CPU_THREADS, pin_cpu_threads
 from BPR.dataload import (
     build_and_save_metadata_artifacts,
     build_csr_from_interactions,
@@ -113,7 +115,7 @@ def _dataset_bundle(
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Generate BPR embeddings and metadata artifacts."
+        description="Generate BPR embeddings (BPR v2: mini-batch, item bias, early stopping) and metadata artifacts."
     )
     parser.add_argument(
         "--dataset",
@@ -131,32 +133,61 @@ def main():
         default=None,
         help="Path to bpr_dataset_config.json (default: BPR/bpr_dataset_config.json).",
     )
-    parser.add_argument("--factors", type=int, default=None)
-    parser.add_argument("--epochs", type=int, default=None)
-    parser.add_argument("--learning-rate", type=float, default=None)
-    parser.add_argument("--regularization", type=float, default=None)
-    parser.add_argument("--mode", choices=["samples", "per_user"], default=None)
-    parser.add_argument("--samples-per-epoch", type=int, default=None)
-    parser.add_argument("--seed", type=int, default=None, help="Maps to random_state.")
+    g = parser.add_argument_group("BPR settings (override the dataset config)")
+    g.add_argument("--factors", type=int, default=None)
+    g.add_argument("--item-bias", action=argparse.BooleanOptionalAction, default=None,
+                   help="Learn a per-item bias: score = b_i + x_u . a_i.")
+    g.add_argument("--negatives", choices=list(NEGATIVES), default=None,
+                   help="Negative items: uniform, or proportional to popularity ** --negative-gamma.")
+    g.add_argument("--negative-gamma", type=float, default=None)
+    g.add_argument("--sampling", choices=list(SAMPLING), default=None,
+                   help="Liked items drawn per interaction (standard) or per user.")
+    g.add_argument("--learning-rate", type=float, default=None, help="Adagrad step size.")
+    g.add_argument("--regularization", type=float, default=None)
+    g.add_argument("--bias-regularization", type=float, default=None)
+    g.add_argument("--batch-size", type=int, default=None)
+    g.add_argument("--early-stopping", action=argparse.BooleanOptionalAction, default=None,
+                   help="Stop on held-out recall@20 (one liked item per user held out).")
+    g.add_argument("--max-epochs", type=int, default=None)
+    g.add_argument("--patience", type=int, default=None)
+    g.add_argument("--refit", action=argparse.BooleanOptionalAction, default=None,
+                   help="After early stopping, retrain on all interactions for the best number of epochs.")
+    g.add_argument("--epochs", type=int, default=None, help="Fixed epochs when early stopping is off.")
+    g.add_argument("--seed", type=int, default=None, help="Maps to random_state.")
     parser.add_argument(
         "--download",
         action=argparse.BooleanOptionalAction,
         default=True,
         help="Download missing dataset files before loading (default: true).",
     )
+    parser.add_argument(
+        "--cpu-threads",
+        type=int,
+        default=DEFAULT_CPU_THREADS,
+        help="CPU threads for numpy/BLAS (fixed so the same seed gives the same vectors).",
+    )
     args = parser.parse_args()
+    pin_cpu_threads(args.cpu_threads)
 
     ds_cfg = load_bpr_dataset_config(args.dataset, config_path=args.config)
-    bpr_params = resolve_bpr_params(
+    settings = resolve_bpr_params(
         args.dataset,
         config_path=args.config,
         overrides={
             "factors": args.factors,
-            "epochs": args.epochs,
+            "item_bias": args.item_bias,
+            "negatives": args.negatives,
+            "negative_gamma": args.negative_gamma,
+            "sampling": args.sampling,
             "learning_rate": args.learning_rate,
             "regularization": args.regularization,
-            "mode": args.mode,
-            "samples_per_epoch": args.samples_per_epoch,
+            "bias_regularization": args.bias_regularization,
+            "batch_size": args.batch_size,
+            "early_stopping": args.early_stopping,
+            "max_epochs": args.max_epochs,
+            "patience": args.patience,
+            "refit": args.refit,
+            "epochs": args.epochs,
             "random_state": args.seed,
         },
     )
@@ -167,26 +198,27 @@ def main():
         data_cfg=ds_cfg["data"],
         download=args.download,
     )
+    X = interaction_data.X
+    print(f"{args.dataset}: {X.shape[0]:,} users, {X.shape[1]:,} items, {X.nnz:,} interactions")
+    print(f"{args.dataset} BPR settings: {settings}")
 
-    print(f"{args.dataset} BPR params: {bpr_params}")
-
-    model = BayesianPersonalizedRanking(
-        factors=int(bpr_params["factors"]),
-        learning_rate=float(bpr_params["learning_rate"]),
-        regularization=float(bpr_params["regularization"]),
-        epochs=int(bpr_params["epochs"]),
-        random_state=int(bpr_params["random_state"]),
-        mode=str(bpr_params["mode"]),
-        samples_per_epoch=int(bpr_params["samples_per_epoch"]),
-    )
-    model.fit(interaction_data.X)
+    model = MiniBatchBPR(BPRConfig(**settings)).fit(X)
 
     emb_dir = Path(args.emb_dir)
     emb_dir.mkdir(parents=True, exist_ok=True)
-
     user_emb_path = emb_dir / f"{args.dataset}_user_factors.npy"
     item_emb_path = emb_dir / f"{args.dataset}_item_factors.npy"
-    model.save_embeddings(str(user_emb_path), str(item_emb_path))
+    bias_path = emb_dir / f"{args.dataset}_item_bias.npy"
+    model.save_embeddings(str(user_emb_path), str(item_emb_path), str(bias_path))
+    if model.item_bias is None and bias_path.exists():
+        bias_path.unlink()  # never leave a bias from an earlier run next to vectors trained without one
+    meta = build_bpr_meta(args.dataset, model, ds_cfg["data"], X)
+    meta_path = bpr_meta_path(emb_dir, args.dataset)
+    meta_path.write_text(json.dumps(meta, indent=2) + "\n", encoding="utf-8")
+    val = meta["validation"]
+    if val:
+        print(f"{args.dataset}: best epoch {meta['best_epoch']}, held-out recall@{val['k']} {val['recall']:.4f}, "
+              f"NDCG@{val['k']} {val['ndcg']:.4f} ({val['users']:,} users)")
 
     item_meta, user_meta, paths = build_and_save_metadata_artifacts(
         args.dataset,
@@ -207,7 +239,8 @@ def main():
         user_col="user_id",
     )
 
-    print(f"Saved embeddings: {user_emb_path}, {item_emb_path}")
+    saved = [user_emb_path, item_emb_path] + ([bias_path] if model.item_bias is not None else []) + [meta_path]
+    print(f"Saved: {', '.join(str(p) for p in saved)}")
     print(f"Saved metadata: {', '.join(str(p) for p in paths.values())}")
 
 

@@ -89,6 +89,7 @@ def _load_cached_method_trials(run_dir: Path, method: str) -> pd.DataFrame:
     return pd.DataFrame()
 
 
+from BPR.bpr_config import bpr_artifact_status
 from utils.noise_snr import dataset_snr_report
 from utils.representation_bias import (
     BIAS_TYPES,
@@ -223,6 +224,9 @@ def _run_condition(
 
     emb_x = np.load(user_path)
     emb_a = np.load(item_path)
+    bpr_status = bpr_artifact_status(emb_dir, dataset_name)
+    if bpr_status["status"] != "ok":
+        print(f"WARNING {dataset_name}: {bpr_status['message']}", flush=True)
     metadata_x = metadata_a = None
     if world_options.get("group_source") == "metadata":
         metadata_x = _load_optional_array(user_meta_path)
@@ -396,6 +400,7 @@ def _run_condition(
         "params": params,
         "ctr": float(params["ctr"]),
         "world": world,
+        "bpr": bpr_status,
         "snr": snr_report,
         "train_sizes": [int(x) for x in train_sizes],
         "n_trials": int(n_trials),

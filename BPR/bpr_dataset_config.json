@@ -2,11 +2,17 @@
   "ml": {
     "bpr": {
       "factors": 32,
-      "learning_rate": 0.05,
-      "regularization": 1e-4,
-      "epochs": 30,
-      "mode": "samples",
-      "samples_per_epoch": 100000,
+      "item_bias": true,
+      "negatives": "uniform",
+      "sampling": "user",
+      "learning_rate": 0.1,
+      "regularization": 0.0001,
+      "bias_regularization": 0.0001,
+      "batch_size": 8192,
+      "early_stopping": true,
+      "max_epochs": 100,
+      "patience": 5,
+      "refit": true,
       "random_state": 0
     },
     "data": {
@@ -16,11 +22,17 @@
   "myket": {
     "bpr": {
       "factors": 32,
-      "learning_rate": 0.05,
-      "regularization": 1e-4,
-      "epochs": 30,
-      "mode": "samples",
-      "samples_per_epoch": 150000,
+      "item_bias": true,
+      "negatives": "uniform",
+      "sampling": "interaction",
+      "learning_rate": 0.1,
+      "regularization": 0.0001,
+      "bias_regularization": 0.0001,
+      "batch_size": 8192,
+      "early_stopping": true,
+      "max_epochs": 100,
+      "patience": 5,
+      "refit": true,
       "random_state": 0
     },
     "data": {
@@ -30,11 +42,17 @@
   "lastfm": {
     "bpr": {
       "factors": 32,
+      "item_bias": true,
+      "negatives": "uniform",
+      "sampling": "interaction",
       "learning_rate": 0.1,
-      "regularization": 1e-5,
-      "epochs": 30,
-      "mode": "samples",
-      "samples_per_epoch": 250000,
+      "regularization": 0.0001,
+      "bias_regularization": 0.0001,
+      "batch_size": 8192,
+      "early_stopping": true,
+      "max_epochs": 100,
+      "patience": 5,
+      "refit": true,
       "random_state": 0
     },
     "data": {
@@ -44,11 +62,17 @@
   "msd": {
     "bpr": {
       "factors": 32,
+      "item_bias": true,
+      "negatives": "uniform",
+      "sampling": "user",
       "learning_rate": 0.1,
-      "regularization": 1e-5,
-      "epochs": 50,
-      "mode": "samples",
-      "samples_per_epoch": 350000,
+      "regularization": 0.0001,
+      "bias_regularization": 0.0001,
+      "batch_size": 8192,
+      "early_stopping": true,
+      "max_epochs": 100,
+      "patience": 5,
+      "refit": true,
       "random_state": 0
     },
     "data": {
@@ -58,11 +82,17 @@
   "anime": {
     "bpr": {
       "factors": 32,
+      "item_bias": true,
+      "negatives": "uniform",
+      "sampling": "user",
       "learning_rate": 0.1,
-      "regularization": 1e-5,
-      "epochs": 15,
-      "mode": "samples",
-      "samples_per_epoch": 250000,
+      "regularization": 0.0001,
+      "bias_regularization": 0.0001,
+      "batch_size": 8192,
+      "early_stopping": true,
+      "max_epochs": 100,
+      "patience": 5,
+      "refit": true,
       "random_state": 0
     },
     "data": {
@@ -72,11 +102,17 @@
   "kuairec": {
     "bpr": {
       "factors": 32,
-      "learning_rate": 0.05,
-      "regularization": 1e-4,
-      "epochs": 30,
-      "mode": "samples",
-      "samples_per_epoch": 300000,
+      "item_bias": true,
+      "negatives": "uniform",
+      "sampling": "user",
+      "learning_rate": 0.1,
+      "regularization": 0.0001,
+      "bias_regularization": 0.0001,
+      "batch_size": 8192,
+      "early_stopping": true,
+      "max_epochs": 100,
+      "patience": 5,
+      "refit": true,
       "random_state": 0
     },
     "data": {
@@ -87,11 +123,17 @@
   "kuairand": {
     "bpr": {
       "factors": 32,
-      "learning_rate": 0.05,
-      "regularization": 1e-4,
-      "epochs": 30,
-      "mode": "samples",
-      "samples_per_epoch": 250000,
+      "item_bias": true,
+      "negatives": "uniform",
+      "sampling": "interaction",
+      "learning_rate": 0.1,
+      "regularization": 0.0001,
+      "bias_regularization": 0.0001,
+      "batch_size": 8192,
+      "early_stopping": true,
+      "max_epochs": 100,
+      "patience": 5,
+      "refit": true,
       "random_state": 0
     },
     "data": {

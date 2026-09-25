@@ -27,7 +27,7 @@ def _toy_embeddings(tmp_path):
 def _run(tmp_path, seed, tag):
     run_dir = tmp_path / tag
     run_dir.mkdir()
-    opc_df, noprop_df, opc_trials, noprop_trials, _ = _run_condition(
+    opc_df, noprop_df, opc_trials, noprop_trials, meta = _run_condition(
         dataset_name="toy",
         emb_dir=tmp_path,
         bias="low",
@@ -46,6 +46,7 @@ def _run(tmp_path, seed, tag):
         slim=True,
         shared_regression_size=2000,
     )
+    assert meta["bpr"]["status"] == "missing"  # toy embeddings have no BPR meta file
     drop = [c for c in opc_trials.columns if "time" in c.lower() or c.startswith("datetime")]
     return (
         pd.concat([opc_df, noprop_df], ignore_index=True).drop(columns=["_learned_user_emb", "_learned_item_emb"], errors="ignore"),
