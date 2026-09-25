@@ -443,13 +443,15 @@ _LEGACY_NOISE_KEYS = {
 
 
 def generate_dataset(params, seed=12345, emb_a=None, emb_x=None, metadata_a=None, metadata_x=None,
-                     store_original: bool = True, dtype=np.float32):
+                     store_original: bool = True, dtype=np.float32, item_bias=None):
     """Simulated world for one condition (see ``utils.representation_bias.build_world``).
 
     ``params``: ``bias`` (a level, or 'warp/group/vector' levels; default 'medium'), ``ctr``
     (target CTR of the reference policy), ``best_ctr``, ``centering``, ``logging_spread``,
     ``ctr_reference`` ('logger' | 'uniform'), ``reference_bias``, ``group_source``
-    ('cluster' | 'metadata'), ``logging_uniform_mix``, ``strict``. ``n_users``, ``n_actions``,
+    ('cluster' | 'metadata'), ``logging_uniform_mix``, ``strict``, ``pop_strength`` (weight of
+    ``item_bias``, BPR's b, in the true score; default 0) and ``logger_pop_strength`` (the logger's
+    weight; default: the same). ``n_users``, ``n_actions``,
     ``emb_dim`` are only needed when ``emb_x`` / ``emb_a`` are not given (Gaussian vectors).
     ``store_original`` is kept for callers; the biased snapshot is always stored.
     """
@@ -473,8 +475,11 @@ def generate_dataset(params, seed=12345, emb_a=None, emb_x=None, metadata_a=None
         emb_x = random_.normal(size=(params["n_users"], params["emb_dim"])).astype(dtype)
 
     defaults = WorldConfig()
+    if isinstance(item_bias, str):
+        item_bias = np.load(item_bias)
     config = WorldConfig(
         centering=float(params.get("centering", defaults.centering)),
+        pop_strength=float(params.get("pop_strength", defaults.pop_strength)),
         logging_spread=float(params.get("logging_spread", defaults.logging_spread)),
         target_ctr=float(params.get("ctr", defaults.target_ctr)),
         ctr_reference=str(params.get("ctr_reference", defaults.ctr_reference)),
@@ -483,10 +488,12 @@ def generate_dataset(params, seed=12345, emb_a=None, emb_x=None, metadata_a=None
         group_source=str(params.get("group_source", defaults.group_source)),
         strict=bool(params.get("strict", defaults.strict)),
     )
+    logger_pop = params.get("logger_pop_strength")
     return build_world(
         emb_x, emb_a, params.get("bias", "medium"), seed=int(seed), config=config,
         metadata_x=metadata_x, metadata_a=metadata_a,
         logging_uniform_mix=float(params.get("logging_uniform_mix", 0.0)),
+        item_bias=item_bias, logger_pop_strength=None if logger_pop is None else float(logger_pop),
     )
 
 

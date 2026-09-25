@@ -98,6 +98,21 @@ changes the representation bias. See [regimes.md](regimes.md).
 
 ---
 
+## Popularity bias (separate knobs)
+
+**Code:** `--pop-strength` (β_true, how much the true clicks follow BPR's item bias b; default 0)
+and `--logger-pop-strength` (β_log, how much the logger follows it; default β_true).
+
+**Real world.** Popular items get clicked more for reasons unrelated to one user's taste
+(social proof, quality), and rankers push them further. With β_log > β_true the logger
+over-exposes popular items: the logged data then over-represents them, and a learner has to
+see past that. With β_log < β_true it under-exposes them. The learned policy has its own
+popularity weight (reported as `pop_weight`), so it can weaken or strengthen the logger's
+popularity term. Its value is not an estimate of β_true: a softmax policy at a fixed
+temperature also gains by sharpening, which scales every term up.
+
+---
+
 ## Temporal distribution shift
 
 **Not a dedicated generator yet.** It could be approximated with time-split logs (future)

@@ -99,6 +99,7 @@ from utils.representation_bias import (
     parse_bias,
     resolve_bias_configs,
     world_options_from_args,
+    world_run_key_suffix,
 )
 from utils.seeding import (
     DEFAULT_CPU_THREADS,
@@ -135,6 +136,35 @@ def _load_optional_array(path: Path):
     if path.exists():
         return np.load(path)
     return None
+
+
+def _condition_run_key(dataset_name: str, bias: str, ctr: float, seed: int, world_options: dict | None,
+                       val_label: str = "frac") -> str:
+    """Folder name of one condition: dataset, bias, CTR, seed, the world options that differ from
+    the defaults (``world_run_key_suffix``) and the validation size when fixed."""
+    key = f"dataset={dataset_name}__bias={bias}__ctr={ctr:g}__seed={seed}" + world_run_key_suffix(world_options)
+    if val_label != "frac":
+        key = f"{key}__val={val_label}"
+    return key
+
+
+def _wants_popularity(world_options: dict) -> bool:
+    """True when the world weighs BPR's item bias (truth or logger)."""
+    logger = world_options.get("logger_pop_strength")
+    return float(world_options.get("pop_strength", 0.0)) > 0.0 or (logger is not None and float(logger) > 0.0)
+
+
+def _load_item_bias(emb_dir: Path, dataset_name: str, world_options: dict):
+    """BPR's item bias b when the world uses it (None otherwise)."""
+    if not _wants_popularity(world_options):
+        return None
+    path = emb_dir / f"{dataset_name}_item_bias.npy"
+    if not path.exists():
+        raise FileNotFoundError(
+            f"--pop-strength / --logger-pop-strength need BPR's item bias {path}; "
+            f"regenerate the embeddings: python -m BPR.generate_artifacts --dataset {dataset_name}"
+        )
+    return np.load(path)
 
 
 def _collect_existing_summaries(base_dir: Path):
@@ -224,6 +254,7 @@ def _run_condition(
 
     emb_x = np.load(user_path)
     emb_a = np.load(item_path)
+    item_bias = _load_item_bias(emb_dir, dataset_name, world_options)
     bpr_status = bpr_artifact_status(emb_dir, dataset_name)
     if bpr_status["status"] != "ok":
         print(f"WARNING {dataset_name}: {bpr_status['message']}", flush=True)
@@ -246,6 +277,7 @@ def _run_condition(
         emb_x=emb_x,
         metadata_a=metadata_a,
         metadata_x=metadata_x,
+        item_bias=item_bias,
     )
     world = dataset["world"]
     if record_uniform_value:
@@ -470,6 +502,8 @@ def _finalize_summary_df(opc_df, noprop_df, meta: dict, **tags) -> pd.DataFrame:
             summary_df[f"bias_{k}"] = world["bias"][k]
         summary_df["signal_kept"] = float(world["signal_kept"])
         summary_df["logging_temperature"] = float(world["logging_temperature"])
+        summary_df["pop_strength"] = float(world.get("pop_strength", 0.0))
+        summary_df["logger_pop_strength"] = float(world.get("logger_pop_strength", 0.0))
     if "val_size" in summary_df.columns:
         summary_df["val_size_config"] = summary_df["val_size"]
     if {"opc", "no_propensity"}.issubset(set(summary_df.get("method", pd.Series(dtype=str)))):
@@ -705,9 +739,7 @@ def main():
                     val_root.mkdir(parents=True, exist_ok=True)
 
                     for bias in bias_configs:
-                        run_key = f"dataset={dataset_name}__bias={bias}__ctr={ctr:g}__seed={seed}"
-                        if val_label != "frac":
-                            run_key = f"{run_key}__val={val_label}"
+                        run_key = _condition_run_key(dataset_name, bias, ctr, seed, world_options, val_label)
 
                         print(f"\n=== Running {run_key} ===")
                         run_dir = val_root / run_key

@@ -44,10 +44,12 @@ def dataset_snr_report(dataset: dict[str, Any]) -> dict[str, Any]:
     """Vector-level distance between the clean (emb_*) and biased (our_*) vectors.
 
     The score-level measure the bias levels are calibrated on is
-    ``dataset['world']['signal_kept']`` (see utils.representation_bias).
+    ``dataset['world']['signal_kept']`` (see utils.representation_bias). Taste parts only: the
+    popularity column (if any) is not part of the representation bias.
     """
-    action = embedding_noise_metrics(dataset["emb_a"], dataset["our_a"])
-    context = embedding_noise_metrics(dataset["emb_x"], dataset["our_x"])
+    d = int(dataset["emb_dim"]) if dataset.get("pop_column") else None
+    action = embedding_noise_metrics(dataset["emb_a"][:, :d], dataset["our_a"][:, :d])
+    context = embedding_noise_metrics(dataset["emb_x"][:, :d], dataset["our_x"][:, :d])
     return {
         "action": action,
         "context": context,

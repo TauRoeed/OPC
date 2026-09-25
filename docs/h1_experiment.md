@@ -45,12 +45,13 @@ delta  =  V(OPC)  -  V(naive)
 
 ## One simulation, start to finish
 
-BPR embeddings already exist: clean user factors `e_x` and item factors `e_a`.
+BPR embeddings already exist: clean user factors `x`, item factors `a` and item biases `b_i`.
 
 ### 1. Clean world
 
-Center the vectors: `x = e_x − 0.8·mean(e_x)`, `a = e_a − 0.8·mean(e_a)` (removes most of the
-shared popularity direction). Details: [representation_bias.md](representation_bias.md).
+The clean score is `x_u · a_i + β·b_i` with β = `--pop-strength` (default 0: personal taste
+only; `--logger-pop-strength` sets the logger's own weight). Details:
+[representation_bias.md](representation_bias.md).
 
 User traffic:
 
@@ -60,7 +61,7 @@ P(u)  proportional to  Exp(1)    then normalize
 
 ### 2. Calibrate density and the true clicks
 
-With `z(u,a)` the clean score `x_u · a_a` standardized over all pairs, true clicks are
+With `z(u,a)` the clean score standardized over all pairs, true clicks are
 
 ```text
 q*(u,a)  =  sigmoid( alpha * z(u,a) + b )

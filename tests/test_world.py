@@ -174,10 +174,12 @@ def test_truth_is_fixed_across_bias_configs(worlds):
             assert not np.array_equal(ds["our_a"], ref["our_a"])
 
 
-def test_centering_removes_share_of_mean(emb, worlds):
-    X, _ = emb
-    ds = worlds["none"]
-    np.testing.assert_allclose(ds["emb_x"].mean(axis=0), 0.2 * X.astype(np.float64).mean(axis=0), atol=1e-5)
+def test_centering_is_off_by_default_and_removes_share_of_mean(emb, worlds):
+    X, A = emb
+    mean = X.astype(np.float64).mean(axis=0)
+    np.testing.assert_allclose(worlds["none"]["emb_x"].mean(axis=0), mean, atol=1e-5)
+    on = generate_dataset({"bias": "none", "ctr": 0.05, "centering": 0.8}, seed=0, emb_x=X, emb_a=A)
+    np.testing.assert_allclose(on["emb_x"].mean(axis=0), 0.2 * mean, atol=1e-5)
 
 
 def test_same_seed_same_world_other_seed_differs(emb):

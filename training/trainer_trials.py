@@ -757,7 +757,8 @@ def fit_shared_regression_bundle(
     """Build one shared q_hat source; values are computed on demand (not materialized).
 
     ``reward_model``:
-      - ``regression``: fit LogisticRegression on concat(our_x, our_a) from reg slice
+      - ``regression``: fit LogisticRegression on concat(our_x, our_a) from reg slice (with a
+        popularity column, the item side carries BPR's raw b; see ``_reward_action_context``)
       - ``logging_score``: the env's click model on the biased logging vectors (no fit)
       - ``oracle``: the env's click model on the clean vectors = true q (sim diagnosis only)
 
@@ -782,7 +783,7 @@ def fit_shared_regression_bundle(
         n = int(len(reg_data["r"]))
         model = RegressionModel(
             n_actions=n_actions,
-            action_context=our_a,
+            action_context=_reward_action_context(dataset, our_a),
             base_model=LogisticRegression(random_state=12345),
         )
         t0 = time.time()
@@ -1088,6 +1089,8 @@ def _study_trials_long(
                 ),
             }
         )
+        if "pop_weight" in attrs:  # learned popularity weight (worlds with a popularity column)
+            rows[-1]["pop_weight"] = float(attrs["pop_weight"])
         act = rows[-1]["actual_reward"]
         val = rows[-1]["value"]
         if np.isfinite(ir_v):
@@ -1273,6 +1276,53 @@ def _build_cf_dataset(train_data, original_policy_prob, propensity_mode="logged"
 def _policy_temperature(dataset: dict) -> float:
     """Softmax temperature for Policy logits (dot-product policies). Default 1.0."""
     return float(dataset.get("policy_temperature", 1.0))
+
+
+def _cf_model_inputs(dataset: dict, our_x, our_a):
+    """(user vectors, item vectors, popularity kwargs) for CFModel / LinearCFModel.
+
+    With a popularity column (users [x, 1], items [a, w·b]; see ``build_world``) the model gets
+    the taste parts plus b, and learns w starting from the value in ``our_a``. Otherwise the
+    vectors pass through unchanged.
+    """
+    if not dataset.get("pop_column"):
+        return our_x, our_a, {}
+    d = int(dataset["emb_dim"])
+    x = np.asarray(our_x, dtype=np.float32)
+    a = np.asarray(our_a, dtype=np.float32)
+    if x.shape[1] != d + 1 or a.shape[1] != d + 1 or not np.all(x[:, d] == 1.0):
+        raise ValueError(
+            f"expected vectors with a popularity column (users [x, 1], items [a, w*b], d={d}); "
+            f"got shapes {x.shape}, {a.shape}"
+        )
+    b = np.asarray(dataset["item_popularity"], dtype=np.float32).reshape(-1)
+    return x[:, :d], a[:, :d], {"item_popularity": b, "pop_weight": _policy_pop_weight(dataset, a)}
+
+
+def _taste_vectors(dataset: dict, vectors):
+    """The taste part of user or item vectors (drops the popularity column, if any)."""
+    if not dataset.get("pop_column"):
+        return vectors
+    return np.asarray(vectors)[:, : int(dataset["emb_dim"])]
+
+
+def _reward_action_context(dataset: dict, our_a) -> np.ndarray:
+    """Item features for fitted reward models: the logger's item vectors, with the popularity
+    column (if any) holding BPR's raw b instead of the logger's w·b (w may be 0)."""
+    if not dataset.get("pop_column"):
+        return our_a
+    out = np.array(our_a, dtype=np.float32, copy=True)
+    out[:, int(dataset["emb_dim"])] = np.asarray(dataset["item_popularity"], dtype=np.float32)
+    return out
+
+
+def _policy_pop_weight(dataset: dict, item_emb) -> float | None:
+    """A policy's popularity weight w, read off its item vectors [a, w·b] (None without one)."""
+    if not dataset.get("pop_column"):
+        return None
+    b = np.asarray(dataset["item_popularity"], dtype=np.float64).reshape(-1)
+    col = np.asarray(item_emb, dtype=np.float64)[:, int(dataset["emb_dim"])]
+    return float(col @ b / max(float(b @ b), 1e-300))
 
 
 def _logging_uniform_mix(dataset: dict) -> float:
@@ -2085,6 +2135,10 @@ def neighberhoodmodel_trainer_trial(
     n_users = dataset["n_users"]
     n_actions = dataset["n_actions"]
     emb_dim = dataset["emb_dim"]
+    cf_x_orig, cf_a_orig, cf_popularity = _cf_model_inputs(dataset, our_x_orig, our_a_orig)
+    # neighborhood similarities and the fitted reward model see taste / raw popularity features
+    sim_x_orig, sim_a_orig = _taste_vectors(dataset, our_x_orig), _taste_vectors(dataset, our_a_orig)
+    reward_a_orig = _reward_action_context(dataset, our_a_orig)
 
     _log_constants = _dataset_log_constants(dataset, our_x_orig, our_a_orig)
 
@@ -2118,7 +2172,7 @@ def neighberhoodmodel_trainer_trial(
     t0 = time.time()
     regression_model = RegressionModel(
         n_actions=n_actions,
-        action_context=our_a_orig,  # IMPORTANT: action embeddings, not user embeddings
+        action_context=reward_a_orig,  # IMPORTANT: action embeddings, not user embeddings
         base_model=LogisticRegression(random_state=12345),
     )
     regression_model.fit(train_data["x"], train_data["a"], train_data["r"])
@@ -2128,8 +2182,8 @@ def neighberhoodmodel_trainer_trial(
     neighberhoodmodel = NeighborhoodModel(
         train_data["x_idx"],
         train_data["a"],
-        our_a_orig,
-        our_x_orig,
+        sim_a_orig,
+        sim_x_orig,
         train_data["r"],
         num_neighbors=num_neighbors,
     )
@@ -2228,8 +2282,8 @@ def neighberhoodmodel_trainer_trial(
             trial_neigh_model = NeighborhoodModel(
                 train_data["x_idx"],
                 train_data["a"],
-                our_a_orig,
-                our_x_orig,
+                sim_a_orig,
+                sim_x_orig,
                 train_data["r"],
                 num_neighbors=trial_num_neighbors,
             )
@@ -2244,9 +2298,10 @@ def neighberhoodmodel_trainer_trial(
                 n_users,
                 n_actions,
                 emb_dim,
-                initial_user_embeddings=T(our_x_orig),
-                initial_actions_embeddings=T(our_a_orig),
+                initial_user_embeddings=T(cf_x_orig),
+                initial_actions_embeddings=T(cf_a_orig),
                 temperature=_policy_temperature(dataset),
+                **cf_popularity,
             ).to(device)
 
             assert (not torch.cuda.is_available()) or next(
@@ -2374,7 +2429,7 @@ def neighberhoodmodel_trainer_trial(
         else:
             regression_model = RegressionModel(
                 n_actions=n_actions,
-                action_context=our_a_orig,
+                action_context=reward_a_orig,
                 base_model=LogisticRegression(random_state=12345),
             )
             regression_model.fit(
@@ -2386,8 +2441,8 @@ def neighberhoodmodel_trainer_trial(
             neighberhoodmodel = NeighborhoodModel(
                 train_data["x_idx"],
                 train_data["a"],
-                our_a_orig,
-                our_x_orig,
+                sim_a_orig,
+                sim_x_orig,
                 train_data["r"],
                 num_neighbors=best_params["num_neighbors"],
             )
@@ -2593,6 +2648,7 @@ def regression_trainer_trial(
     n_users = dataset["n_users"]
     n_actions = dataset["n_actions"]
     emb_dim = dataset["emb_dim"]
+    cf_x_orig, cf_a_orig, cf_popularity = _cf_model_inputs(dataset, our_x_orig, our_a_orig)
 
     _log_constants = _dataset_log_constants(
         dataset, our_x_orig, our_a_orig
@@ -2699,6 +2755,8 @@ def regression_trainer_trial(
             reward_context=shared_regression_bundle["user_context"],
         )
     results[0]["val_size"] = float(v_baseline)
+    if cf_popularity:
+        results[0]["pop_weight"] = float(cf_popularity["pop_weight"])
     results[0].update(_log_constants)
     results[0].update(
         enrich_summary_pct_fields({**results[0], **_log_constants})
@@ -2812,11 +2870,12 @@ def regression_trainer_trial(
                 n_users,
                 n_actions,
                 emb_dim,
-                initial_user_embeddings=T(our_x_orig),
-                initial_actions_embeddings=T(our_a_orig),
+                initial_user_embeddings=T(cf_x_orig),
+                initial_actions_embeddings=T(cf_a_orig),
                 user_transform=SingleMLPTransform(emb_dim),
                 action_transform=SingleMLPTransform(emb_dim),
                 temperature=_policy_temperature(dataset),
+                **cf_popularity,
             ).to(device)
 
             final_train_loader = DataLoader(
@@ -2858,6 +2917,9 @@ def regression_trainer_trial(
                 trial_a.detach().cpu().numpy(),
             )
             trial_embeddings[int(trial.number)] = (trial_x, trial_a)
+            pop_w = _policy_pop_weight(dataset, trial_a)
+            if pop_w is not None:
+                trial.set_user_attr("pop_weight", pop_w)
             r = _policy_reward_from_embeddings(dataset, trial_x, trial_a)
             print(
                 f"actual reward: {r}"
@@ -3015,6 +3077,8 @@ def regression_trainer_trial(
             ),
             **_log_constants,
         }
+        if cf_popularity:
+            trial_res["pop_weight"] = _policy_pop_weight(dataset, learned_a)
         trial_res.update(enrich_summary_pct_fields(trial_res))
 
         trial_dicts_this_size.append(trial_res)
@@ -3298,7 +3362,7 @@ def random_policy_trainer_trial(
     t0 = time.time()
     regression_model = RegressionModel(
         n_actions=n_actions,
-        action_context=our_a,
+        action_context=_reward_action_context(dataset, our_a),
         base_model=LogisticRegression(random_state=seed),
     )
     regression_model.fit(train_data["x"], train_data["a"], train_data["r"])
@@ -3447,6 +3511,7 @@ def mlp_trial_reward_fit_once(
     n_users = int(dataset["n_users"])
     n_actions = int(dataset["n_actions"])
     emb_dim = int(dataset["emb_dim"])
+    cf_x, cf_a, cf_popularity = _cf_model_inputs(dataset, our_x, our_a)
 
     device = _training_device()
     torch.backends.cudnn.benchmark = torch.cuda.is_available() and not deterministic_enabled()
@@ -3501,7 +3566,7 @@ def mlp_trial_reward_fit_once(
     t0 = time.time()
     reward_model = MLPRewardModel(
         n_actions=n_actions,
-        action_context=our_a,
+        action_context=_reward_action_context(dataset, our_a),
         device=str(device),
     )
 
@@ -3557,11 +3622,12 @@ def mlp_trial_reward_fit_once(
             n_users,
             n_actions,
             emb_dim,
-            initial_user_embeddings=torch.as_tensor(our_x, device=device, dtype=torch.float32),
-            initial_actions_embeddings=torch.as_tensor(our_a, device=device, dtype=torch.float32),
+            initial_user_embeddings=torch.as_tensor(cf_x, device=device, dtype=torch.float32),
+            initial_actions_embeddings=torch.as_tensor(cf_a, device=device, dtype=torch.float32),
             user_transform=SingleMLPTransform(emb_dim, hidden=hidden, dropout=dropout),
             action_transform=SingleMLPTransform(emb_dim, hidden=hidden, dropout=dropout),
             temperature=_policy_temperature(dataset),
+            **cf_popularity,
         ).to(device)
 
         loader = DataLoader(

@@ -63,9 +63,9 @@ python -m BPR.generate_artifacts --dataset ml --root datasets/ml-1m
 python -m BPR.generate_artifacts --dataset ml --root datasets/ml-1m --negatives popularity --emb-dir BPR/embeddings/popneg
 ```
 
-The item bias is written for the simulator's popularity term, which the study code does not use
-yet: until it does, generate v2 embeddings into a separate `--emb-dir` rather than over the ones a
-study uses.
+The item bias feeds the simulator's popularity term (`--pop-strength`, `--logger-pop-strength`;
+[docs/representation_bias.md](../docs/representation_bias.md)). Runs with both weights at 0, the
+default, ignore it.
 
 ### Data prep per dataset
 

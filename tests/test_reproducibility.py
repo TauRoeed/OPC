@@ -24,7 +24,7 @@ def _toy_embeddings(tmp_path):
     np.save(tmp_path / "toy_item_factors.npy", rng.standard_normal((N_ITEMS, DIM)).astype(np.float32))
 
 
-def _run(tmp_path, seed, tag):
+def _run(tmp_path, seed, tag, world_options=None, with_meta=False):
     run_dir = tmp_path / tag
     run_dir.mkdir()
     opc_df, noprop_df, opc_trials, noprop_trials, meta = _run_condition(
@@ -45,13 +45,16 @@ def _run(tmp_path, seed, tag):
         run_dir=run_dir,
         slim=True,
         shared_regression_size=2000,
+        world_options=world_options,
     )
     assert meta["bpr"]["status"] == "missing"  # toy embeddings have no BPR meta file
     drop = [c for c in opc_trials.columns if "time" in c.lower() or c.startswith("datetime")]
-    return (
-        pd.concat([opc_df, noprop_df], ignore_index=True).drop(columns=["_learned_user_emb", "_learned_item_emb"], errors="ignore"),
+    frames = (
+        pd.concat([opc_df.reset_index(), noprop_df.reset_index()], ignore_index=True)
+        .drop(columns=["_learned_user_emb", "_learned_item_emb"], errors="ignore"),
         pd.concat([opc_trials, noprop_trials], ignore_index=True).drop(columns=drop, errors="ignore"),
     )
+    return (*frames, meta) if with_meta else frames
 
 
 def test_same_seed_reproduces_condition(tmp_path):
@@ -62,3 +65,25 @@ def test_same_seed_reproduces_condition(tmp_path):
     pd.testing.assert_frame_equal(summary_a, summary_b)
     pd.testing.assert_frame_equal(trials_a, trials_b)
     assert not summary_a["policy_rewards"].equals(summary_c["policy_rewards"])
+
+
+def test_popularity_world_reproduces_and_learns_its_weight(tmp_path):
+    _toy_embeddings(tmp_path)
+    b = 1.5 * np.random.default_rng(1).standard_normal(N_ITEMS)
+    np.save(tmp_path / "toy_item_bias.npy", b.astype(np.float32))
+    world = {"pop_strength": 1.0, "logger_pop_strength": 2.0}  # the logger over-weighs popularity
+    summary_a, trials_a, meta = _run(tmp_path, seed=0, tag="a", world_options=world, with_meta=True)
+    summary_b, trials_b = _run(tmp_path, seed=0, tag="b", world_options=world)
+    pd.testing.assert_frame_equal(summary_a, summary_b)
+    pd.testing.assert_frame_equal(trials_a, trials_b)
+    assert (meta["world"]["pop_strength"], meta["world"]["logger_pop_strength"]) == (1.0, 2.0)
+    assert meta["world"]["popularity"]["item_bias"]
+    # baseline rows carry the logger's weight; trained policies moved away from it
+    base = summary_a[summary_a["index"] == 0]["pop_weight"]
+    np.testing.assert_allclose(base, 2.0, rtol=1e-6)
+    learned = summary_a[summary_a["index"] > 0]["pop_weight"]
+    assert len(learned) == 2 and np.all(np.abs(learned - 2.0) > 1e-4), learned
+    assert trials_a["pop_weight"].notna().all() and np.all(np.abs(trials_a["pop_weight"] - 2.0) > 1e-4)
+    # the default world ignores the item bias file and has no popularity columns
+    summary_c, trials_c = _run(tmp_path, seed=0, tag="c")
+    assert "pop_weight" not in summary_c.columns and "pop_weight" not in trials_c.columns

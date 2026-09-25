@@ -20,7 +20,7 @@ Main flow:
 | Optuna objective | `ci_low` = DR/naive mean − t·SE |
 | OPC DR score IW clip | fixed `M=1` (`DEFAULT_DR_SCORE_CLIP_M`); **not** Optuna-searched |
 | Reward model `q̂` | `regression` (bias script often uses `logging_score`) |
-| Datasets (`--datasets`) | `ml myket kuairec kuairand` (personalized clean worlds; anime/lastfm/msd are popularity-dominated) |
+| Datasets (`--datasets`) | `ml myket kuairec kuairand` (main datasets; anime, lastfm and msd also available) |
 | Representation bias (`--bias-configs`) | `low medium high` (all three types at that level) |
 | Reference CTR (`--ctr-levels`) | 5% for the logger at medium bias; best item 30% |
 | Logging temperature | calibrated: clean logger over 50% of the catalog (`--logging-spread`) |
@@ -132,15 +132,17 @@ OPC trains with `sndr` by default. Trial selection uses DR with IW clipped at `M
 Each condition builds a world from the dataset's BPR vectors
 ([`docs/representation_bias.md`](docs/representation_bias.md)):
 
-- **Truth.** The clean vectors are centered (80% of the mean removed, so scores are not just
-  popularity). Clicks follow `sigmoid(α·z + b)` on the standardized clean score `z`: α puts
-  each user's best item at 30% on average, and b puts the logger at medium bias at 5% CTR.
+- **Truth.** The clean score is BPR's taste score `x·a`, plus `β·b_i` with its item bias when
+  `--pop-strength β` is set (default 0: personal taste only). Clicks follow `sigmoid(α·z + b)`
+  on the standardized clean score `z`: α puts each user's best item at 30% on average, and b
+  puts the logger at medium bias at 5% CTR.
 - **What the learner sees.** Biased copies of users and items, with three types applied in
   order: a global warp, a group offset (k-means clusters, or metadata groups) and a
   per-vector offset. Each type is `none` / `low` / `medium` / `high`. All three at
   low / medium / high keep 90 / 75 / 50 % of the signal (calibrated per dataset).
 - **Logger.** `softmax(biased scores / T)`, with T set so the clean logger spreads over half
-  the catalog.
+  the catalog. `--logger-pop-strength` gives the logger its own weight on the item bias
+  (default: the truth's).
 
 The truth is identical across bias configurations for a dataset and seed. Every
 calibrated value is written to `run_meta.json → world`. Inspect a dataset with
@@ -220,7 +222,8 @@ Wall scales roughly with `n_trials × (train_size / batch)` using `batch_schedul
 
 - `--policy-losses sndr` (default) — OPC train; DR selection still clips IW at M=1.
 - `--bias-configs` — levels per condition: `medium` (all three types) or `warp/group/vector`, e.g. `high/none/low`.
-- `--bias-groups {cluster,metadata}`, `--env-centering`, `--logging-spread`, `--best-ctr`, `--ctr-reference {logger,uniform}` — world calibration (see the simulator doc).
+- `--pop-strength` (default 0: clicks follow taste only), `--logger-pop-strength` (default: the same) — weight of BPR's item bias in the true score and in the logger's; needs `{dataset}_item_bias.npy`.
+- `--bias-groups {cluster,metadata}`, `--env-centering` (default 0 = off), `--logging-spread`, `--best-ctr`, `--ctr-reference {logger,uniform}` — world calibration (see the simulator doc).
 - `--reward-model {regression,logging_score,oracle}` — shared `q̂` for DM/DR/SNDR.
 - `--optuna-selection {ci_low,r_hat,actual_reward}` — what Optuna maximizes.
 - `--methods opc no_propensity` — or one arm only (e.g. finish no-prop after OPC).

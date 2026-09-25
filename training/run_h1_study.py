@@ -25,7 +25,12 @@ from training.run_full_study_parallel import (
     _run_with_memory_cap,
 )
 from utils.rand_ctr_sample_size import density_regime
-from utils.representation_bias import add_world_arguments, resolve_bias_configs, world_options_from_args
+from utils.representation_bias import (
+    add_world_arguments,
+    resolve_bias_configs,
+    world_options_from_args,
+    world_run_key_suffix,
+)
 
 
 def _execute_h1_cell(config: dict) -> None:
@@ -106,6 +111,7 @@ def _iter_h1_configs(args, out_root: Path):
     val_sizes = list(args.val_sizes) if args.val_sizes else [int(args.val_size)]
     bias_configs = resolve_bias_configs(args.bias_configs)
     world_options = world_options_from_args(args)
+    world_suffix = world_run_key_suffix(world_options)  # before the forced uniform CTR reference
     for dataset_name in args.datasets:
         for seed in args.seeds:
             for bias in bias_configs:
@@ -117,7 +123,7 @@ def _iter_h1_configs(args, out_root: Path):
                                     f"dataset={dataset_name}__bias={bias}"
                                     f"__target_rho={target:g}__qerr={q_err:g}"
                                     f"__logmix={log_mix:g}__val={int(val_size)}"
-                                    f"__seed={seed}"
+                                    f"__seed={seed}{world_suffix}"
                                 )
                                 yield {
                                     "run_key": run_key,

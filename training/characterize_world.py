@@ -40,10 +40,14 @@ def characterize(dataset_name: str, emb_dir: Path, seed: int, ctr: float, option
     if options.get("group_source") == "metadata":
         meta_x = _load_optional(emb_dir / f"{dataset_name}_user_metadata.npy")
         meta_a = _load_optional(emb_dir / f"{dataset_name}_item_metadata.npy")
+    options = dict(options)
+    logger_pop = options.pop("logger_pop_strength", None)
+    item_bias = _load_optional(emb_dir / f"{dataset_name}_item_bias.npy")
     config = WorldConfig(target_ctr=float(ctr), **options)
     rows, calibration = [], None
     for bias in bias_configs:
-        ds = build_world(emb_x, emb_a, bias, seed=seed, config=config, metadata_x=meta_x, metadata_a=meta_a)
+        ds = build_world(emb_x, emb_a, bias, seed=seed, config=config, metadata_x=meta_x, metadata_a=meta_a,
+                         item_bias=item_bias, logger_pop_strength=logger_pop)
         w = ds["world"]
         snr = dataset_snr_report(ds)
         if calibration is None:
@@ -64,6 +68,8 @@ def characterize(dataset_name: str, emb_dir: Path, seed: int, ctr: float, option
             "cosine_items": w["cosine_to_clean"]["items"],
             "snr_db_users": snr["context"]["snr_db"],
             "snr_db_items": snr["action"]["snr_db"],
+            "pop_strength": w["pop_strength"],
+            "logger_pop_strength": w["logger_pop_strength"],
         })
     return rows, calibration
 
@@ -99,6 +105,13 @@ def main():
                 f"reference CTR {cal['reference_ctr']:.2%}, uniform {cal['uniform_ctr']:.2%}, "
                 f"best item {cal['best_item_ctr']:.1%}"
             )
+            pop = cal["popularity"]
+            if pop["item_bias"]:
+                print(f"   popularity: truth {cal['pop_strength']:g}, logger {cal['logger_pop_strength']:g}; "
+                      f"b sd {pop['item_bias_sd']:.3f}, truth's popularity term carries "
+                      f"{pop['share_of_score_variation']:.0%} of a user's score variance")
+            else:
+                print("   popularity: off")
             for k in BIAS_TYPES:
                 print(f"   eps {k:6s} " + "  ".join(f"{lvl} {cal['eps_table'][k][lvl]:.3f}" for lvl in BIAS_LEVELS[1:]))
             for row in r:

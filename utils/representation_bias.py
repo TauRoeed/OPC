@@ -1,17 +1,21 @@
-"""Simulated world: centered clean vectors, representation bias, logging temperature and a
-logistic click model, all calibrated per dataset (and per seed).
+"""Simulated world: clean vectors (BPR taste, optionally a popularity term), representation
+bias, logging temperature and a logistic click model, all calibrated per dataset (and per seed).
 
 Build order for one condition (``build_world``):
-  1. Center the clean BPR vectors: ``x' = x - lambda * mean(x)`` (users and items). The
-     centered vectors are the clean world; they define the true click model.
-  2. Draw three representation-bias types per side (users, items) from the seed, applied in
-     this order, each scale-matched to the clean vectors:
+  1. Clean vectors: BPR's user / item factors, optionally centered (``x - lambda * mean(x)``,
+     ``WorldConfig.centering``, off by default). With BPR's item bias b_i and a popularity weight
+     beta_true (``pop_strength``, default 0 = taste only) the clean score is x·a + beta_true·b_i,
+     carried as one extra column: users [x, 1], items [a, beta_true·b_i]. The clean vectors define
+     the true click model.
+  2. Draw three representation-bias types per side (users, items) from the seed, applied to the
+     taste part in this order, each scale-matched to the clean vectors:
        - warp:   one shared random linear map for the whole side (``x -> x @ W``)
        - group:  one Gaussian offset per group (k-means cluster, or metadata group)
        - vector: one Gaussian offset per user / item
      A type at level L mixes ``(1 - eps) * current + eps * bias`` with eps calibrated so that
-     ALL THREE types at level L together keep ``LEVEL_SIGNAL_KEPT[L]`` of the signal
-     (per-user correlation between biased and clean scores across items).
+     ALL THREE types at level L together keep ``LEVEL_SIGNAL_KEPT[L]`` of the taste signal
+     (per-user correlation between biased and clean scores across items). The logger adds its
+     own popularity term beta_log·b_i (``logger_pop_strength``, default beta_true).
   3. Logging temperature T: the clean softmax logger spreads over ``logging_spread`` of the
      catalog (effective number of items = exp(entropy)).
   4. True click model ``q(u, a) = sigmoid(alpha * z(u, a) + b)``, z = standardized clean score:
@@ -49,7 +53,8 @@ class WorldCalibrationError(RuntimeError):
 
 @dataclass(frozen=True)
 class WorldConfig:
-    centering: float = 0.8            # lambda: share of the mean vector removed (0 = raw BPR)
+    centering: float = 0.0            # lambda: share of the mean vector removed (0 = off)
+    pop_strength: float = 0.0         # beta_true: weight of the BPR item bias in the true score (0 = taste only)
     logging_spread: float = 0.5       # clean logger's effective items / catalog size
     target_ctr: float = 0.05          # CTR of the reference policy
     ctr_reference: str = "logger"     # "logger" (at reference_bias) or "uniform" (random policy)
@@ -65,6 +70,8 @@ class WorldConfig:
     def validate(self) -> None:
         if not 0.0 <= self.centering <= 1.0:
             raise ValueError(f"centering must be in [0, 1], got {self.centering}")
+        if not (np.isfinite(self.pop_strength) and self.pop_strength >= 0.0):
+            raise ValueError(f"pop_strength must be >= 0, got {self.pop_strength}")
         if not 0.0 < self.logging_spread <= 1.0:
             raise ValueError(f"logging_spread must be in (0, 1], got {self.logging_spread}")
         if not 0.0 < self.target_ctr < self.best_ctr < 1.0:
@@ -226,6 +233,17 @@ class SignalKept:
         return float(np.mean(cov / np.maximum(den, 1e-300)))
 
 
+def with_popularity(X: np.ndarray, A: np.ndarray, item_bias, weight: float):
+    """Append the popularity column: [x, 1] · [a, weight · b] = x · a + weight · b.
+
+    Without an item bias the vectors are returned unchanged."""
+    if item_bias is None:
+        return X, A
+    b = np.asarray(item_bias, dtype=np.float64).reshape(-1, 1)
+    return (np.hstack([X, np.ones((X.shape[0], 1), dtype=X.dtype)]),
+            np.hstack([A, (float(weight) * b).astype(A.dtype)]))
+
+
 # --------------------------------------------------------------------------- calibration
 BLOCK_CELLS = 4_000_000  # float64 cells per (users x items) block; changes results only by rounding
 
@@ -318,10 +336,15 @@ def _digest(*arrays) -> str:
 _CALIBRATION_CACHE: dict = {}
 
 
-def calibrate_world(emb_x, emb_a, *, seed: int, config: WorldConfig, metadata_x=None, metadata_a=None) -> dict:
-    """Everything that depends on (dataset, seed, config) but not on the run's bias levels."""
+def calibrate_world(emb_x, emb_a, *, seed: int, config: WorldConfig, metadata_x=None, metadata_a=None,
+                    item_bias=None) -> dict:
+    """Everything that depends on (dataset, seed, config) but not on the run's bias levels.
+
+    With ``item_bias`` (BPR's b), the clean score is x·a + pop_strength·b, carried as one extra
+    column of the clean vectors. Representation bias and signal kept act on the taste part x·a.
+    """
     config.validate()
-    key = (_digest(emb_x, emb_a, metadata_x, metadata_a), int(seed), tuple(sorted(asdict(config).items())))
+    key = (_digest(emb_x, emb_a, metadata_x, metadata_a, item_bias), int(seed), tuple(sorted(asdict(config).items())))
     if key in _CALIBRATION_CACHE:
         return _CALIBRATION_CACHE[key]
 
@@ -330,6 +353,12 @@ def calibrate_world(emb_x, emb_a, *, seed: int, config: WorldConfig, metadata_x=
     X = EX - config.centering * EX.mean(axis=0)
     A = EA - config.centering * EA.mean(axis=0)
     nU, nA = X.shape[0], A.shape[0]
+    item_b = None
+    if item_bias is not None:
+        item_b = np.asarray(item_bias, dtype=np.float64).reshape(-1)
+        if item_b.shape[0] != nA:
+            raise ValueError(f"item_bias has {item_b.shape[0]} entries for {nA} items")
+    Xp, Ap = with_popularity(X, A, item_b, config.pop_strength)  # clean vectors of the truth
     user_prior = check_random_state(seed).exponential(scale=1.0, size=(nU,)).astype(np.float32)
     user_prior = user_prior / user_prior.sum()
 
@@ -379,7 +408,7 @@ def calibrate_world(emb_x, emb_a, *, seed: int, config: WorldConfig, metadata_x=
 
     # logging temperature from the clean logger's spread
     tu = pop_u[: min(config.temp_users, len(pop_u))]
-    clean_scores = (X[tu] @ A.T).astype(np.float32)
+    clean_scores = (Xp[tu] @ Ap.T).astype(np.float32)
     target_eff = config.logging_spread * nA
     if config.logging_spread >= 1.0:
         T = 1e6  # effectively uniform
@@ -396,23 +425,23 @@ def calibrate_world(emb_x, emb_a, *, seed: int, config: WorldConfig, metadata_x=
     eff_clean = _effective_items(clean_scores, T)
 
     # click model: alpha (best item), b (reference policy CTR); users drawn from the prior
-    s_mean, s_sd = _score_stats(X, A)
+    s_mean, s_sd = _score_stats(Xp, Ap)
     crng = np.random.default_rng(derive_seed(seed, "world", "ctr"))
     p64 = user_prior.astype(np.float64)
     cu = crng.choice(nU, size=min(config.ctr_users, nU), replace=True, p=p64 / p64.sum())
     zmax = np.empty(len(cu))
     step = _block_rows(nA)
     for s in range(0, len(cu), step):
-        zmax[s : s + step] = ((X[cu[s : s + step]] @ A.T).max(axis=1) - s_mean) / s_sd
+        zmax[s : s + step] = ((Xp[cu[s : s + step]] @ Ap.T).max(axis=1) - s_mean) / s_sd
     ref_eps = {k: eps_table[k][lvl] for k, lvl in parse_bias(config.reference_bias).items()}
     K = int(config.ctr_samples_per_user)
     if config.ctr_reference == "logger":
-        rbx = sides["users"].biased(ref_eps)
-        rba = sides["items"].biased(ref_eps)
+        # the reference logger weighs popularity like the truth does
+        rbx, rba = with_popularity(sides["users"].biased(ref_eps), sides["items"].biased(ref_eps), item_b, config.pop_strength)
         items = _sample_policy_items(rbx, rba, cu, T, K, crng)
     else:
         items = crng.integers(0, nA, size=(len(cu), K))
-    zs = (_pair_scores(X, A, cu, items) - s_mean) / s_sd
+    zs = (_pair_scores(Xp, Ap, cu, items) - s_mean) / s_sd
     target = float(config.target_ctr)
     warm = {"b": None}  # b from the previous alpha: Newton then needs a few steps
 
@@ -442,14 +471,25 @@ def calibrate_world(emb_x, emb_a, *, seed: int, config: WorldConfig, metadata_x=
     if config.ctr_reference == "uniform":
         uniform_ctr = ref_ctr
     else:
-        uz = (_pair_scores(X, A, cu, crng.integers(0, nA, size=(len(cu), K))) - s_mean) / s_sd
+        uz = (_pair_scores(Xp, Ap, cu, crng.integers(0, nA, size=(len(cu), K))) - s_mean) / s_sd
         uniform_ctr = float(expit(alpha * uz + b).mean())
 
+    popularity = {"item_bias": item_b is not None, "pop_strength": float(config.pop_strength)}
+    if item_b is not None:
+        pop_scores = config.pop_strength * item_b
+        popularity.update(
+            item_bias_sd=float(np.std(item_b)),
+            # share of a user's clean-score variation (across items) that the popularity term carries
+            share_of_score_variation=float(np.var(pop_scores) / np.mean(np.var(clean_scores.astype(np.float64), axis=1))),
+        )
     result = {
         "config": asdict(config) | {"reference_bias": list(config.reference_bias)},
         "sides": sides,
-        "clean_x": X.astype(np.float32),
-        "clean_a": A.astype(np.float32),
+        "clean_x": Xp.astype(np.float32),
+        "clean_a": Ap.astype(np.float32),
+        "item_bias": None if item_b is None else item_b.astype(np.float32),
+        "taste_dim": int(X.shape[1]),
+        "popularity": popularity,
         "user_prior": user_prior,
         "eps_table": eps_table,
         "per_type_signal_kept": kappas,
@@ -476,17 +516,43 @@ def calibrate_world(emb_x, emb_a, *, seed: int, config: WorldConfig, metadata_x=
 
 
 def build_world(emb_x, emb_a, bias, *, seed: int, config: WorldConfig | None = None,
-                metadata_x=None, metadata_a=None, logging_uniform_mix: float = 0.0) -> dict:
-    """Dataset dict for one condition (same keys the trainers use) plus a JSON-able ``world`` record."""
+                metadata_x=None, metadata_a=None, logging_uniform_mix: float = 0.0,
+                item_bias=None, logger_pop_strength: float | None = None) -> dict:
+    """Dataset dict for one condition (same keys the trainers use) plus a JSON-able ``world`` record.
+
+    When either popularity weight is positive (``config.pop_strength`` for the truth,
+    ``logger_pop_strength`` for the logger, default: the same), ``item_bias`` is required and every
+    vector carries a popularity column: users [x, 1], items [a, w·b], w being the truth's weight
+    for the clean vectors and the logger's for the biased ones. With both weights 0 the item bias
+    is ignored and the world is the taste-only one. ``emb_dim`` stays the taste dimension;
+    ``item_popularity`` holds b for the models that learn their own popularity weight.
+    """
     from utils.simulation_utils import SyntheticBanditEnv
 
     config = config or WorldConfig()
-    cal = calibrate_world(emb_x, emb_a, seed=seed, config=config, metadata_x=metadata_x, metadata_a=metadata_a)
+    config.validate()
+    beta_true = float(config.pop_strength)
+    beta_log = beta_true if logger_pop_strength is None else float(logger_pop_strength)
+    if not (np.isfinite(beta_log) and beta_log >= 0.0):
+        raise ValueError(f"logger_pop_strength must be >= 0, got {beta_log}")
+    if beta_true == 0.0 and beta_log == 0.0:
+        item_bias = None  # popularity off: the taste-only world, no popularity column
+    elif item_bias is None:
+        raise ValueError(
+            f"popularity weights (truth {beta_true:g}, logger {beta_log:g}) need BPR's item bias: "
+            "{dataset}_item_bias.npy, written by BPR/generate_artifacts.py"
+        )
+    cal = calibrate_world(emb_x, emb_a, seed=seed, config=config, metadata_x=metadata_x, metadata_a=metadata_a,
+                          item_bias=item_bias)
     levels = parse_bias(bias)
     eps = {k: cal["eps_table"][k][levels[k]] for k in BIAS_TYPES}
-    our_x = cal["sides"]["users"].biased(eps).astype(np.float32)
-    our_a = cal["sides"]["items"].biased(eps).astype(np.float32)
+    b = cal["item_bias"]
+    taste_x = cal["sides"]["users"].biased(eps)
+    taste_a = cal["sides"]["items"].biased(eps)
+    our_x, our_a = with_popularity(taste_x, taste_a, b, beta_log)
+    our_x, our_a = our_x.astype(np.float32), our_a.astype(np.float32)
     X, A = cal["clean_x"].copy(), cal["clean_a"].copy()  # own copies: the calibration is cached
+    d = cal["taste_dim"]
     env = SyntheticBanditEnv(emb_x=X, emb_a=A, scale=cal["scale"], offset=cal["offset"], ctr=float(config.target_ctr))
 
     # diagnostics for this bias configuration
@@ -496,16 +562,20 @@ def build_world(emb_x, emb_a, bias, *, seed: int, config: WorldConfig | None = N
     items = _sample_policy_items(our_x.astype(np.float64), our_a.astype(np.float64), cu, cal["logging_temperature"],
                                  int(config.ctr_samples_per_user), crng)
     logging_ctr_softmax = float(env.reward_prob(np.repeat(cu, items.shape[1]), items.reshape(-1)).mean())
-    world = copy.deepcopy({k: v for k, v in cal.items() if k not in ("sides", "clean_x", "clean_a", "user_prior") and not k.startswith("_")})
+    world = copy.deepcopy({k: v for k, v in cal.items()
+                           if k not in ("sides", "clean_x", "clean_a", "user_prior", "item_bias") and not k.startswith("_")})
+    Xt, At = X[:, :d], A[:, :d]  # taste parts
     world.update(
         bias=levels,
         bias_label=bias_label(levels),
         eps=eps,
         signal_kept=float(cal["_kept_fn"](eps)),
+        pop_strength=beta_true,
+        logger_pop_strength=beta_log,
         logging_ctr=(1.0 - mix) * logging_ctr_softmax + mix * cal["uniform_ctr"],
         logging_uniform_mix=mix,
-        vector_rms={"users": {"clean": _rms(X), "biased": _rms(our_x)}, "items": {"clean": _rms(A), "biased": _rms(our_a)}},
-        cosine_to_clean={"users": _mean_cosine(X, our_x), "items": _mean_cosine(A, our_a)},
+        vector_rms={"users": {"clean": _rms(Xt), "biased": _rms(taste_x)}, "items": {"clean": _rms(At), "biased": _rms(taste_a)}},
+        cosine_to_clean={"users": _mean_cosine(Xt, taste_x), "items": _mean_cosine(At, taste_a)},
     )
     return {
         "emb_x": X,
@@ -516,7 +586,11 @@ def build_world(emb_x, emb_a, bias, *, seed: int, config: WorldConfig | None = N
         "original_a": our_a.copy(),
         "n_users": int(X.shape[0]),
         "n_actions": int(A.shape[0]),
-        "emb_dim": int(X.shape[1]),
+        "emb_dim": int(d),
+        "pop_column": b is not None,
+        "item_popularity": None if b is None else b.copy(),
+        "pop_strength": beta_true,
+        "logger_pop_strength": beta_log,
         "env": env,
         "user_prior": cal["user_prior"].copy(),
         "policy_temperature": float(cal["logging_temperature"]),
@@ -539,7 +613,9 @@ def describe_world(world: dict) -> str:
         f"(signal kept {world['signal_kept']:.2f}) | logger T={world['logging_temperature']:.4g} "
         f"CTR {world['logging_ctr']:.2%} | reference CTR {world['reference_ctr']:.2%} "
         f"({world['config']['ctr_reference']}), uniform {world['uniform_ctr']:.2%}, "
-        f"best item {world['best_item_ctr']:.1%}"
+        f"best item {world['best_item_ctr']:.1%} | popularity: "
+        + (f"truth {world['pop_strength']:g}, logger {world['logger_pop_strength']:g}"
+           if world.get("popularity", {}).get("item_bias") else "off")
     )
 
 
@@ -567,8 +643,22 @@ def add_world_arguments(parser, *, bias_default=("low", "medium", "high"), ctr_r
         "--env-centering",
         type=float,
         default=d.centering,
-        help="Share of the mean vector removed from the clean BPR vectors (default %(default)s; "
-        "0 = raw vectors, dominated by item popularity).",
+        help="Share of the mean vector removed from the clean BPR vectors (default %(default)s = off; "
+        "kept for experiments that also remove the popularity-like direction all users share).",
+    )
+    g.add_argument(
+        "--pop-strength",
+        type=float,
+        default=d.pop_strength,
+        help="Weight of BPR's item bias in the true score, x.a + w.b (default %(default)s: clicks follow "
+        "personal taste only; 1 = popularity as BPR learned it). Needs {dataset}_item_bias.npy.",
+    )
+    g.add_argument(
+        "--logger-pop-strength",
+        type=float,
+        default=None,
+        help="The logger's weight on the item bias (default: same as --pop-strength). Above "
+        "--pop-strength, the logger over-exposes popular items.",
     )
     g.add_argument(
         "--logging-spread",
@@ -600,10 +690,34 @@ def world_options_from_args(args) -> dict:
         "logging_spread": float(args.logging_spread),
         "best_ctr": float(args.best_ctr),
         "group_source": str(args.bias_groups),
+        "pop_strength": float(args.pop_strength),
     }
     if getattr(args, "ctr_reference", None) is not None:
         opts["ctr_reference"] = str(args.ctr_reference)
+    if getattr(args, "logger_pop_strength", None) is not None:
+        opts["logger_pop_strength"] = float(args.logger_pop_strength)
     return opts
+
+
+WORLD_RUN_KEY_TAGS = (  # world option -> run-key tag, added only when the option is not the default
+    ("pop_strength", "pop"), ("logger_pop_strength", "logpop"), ("centering", "center"),
+    ("logging_spread", "spread"), ("best_ctr", "best"), ("group_source", "groups"), ("ctr_reference", "ref"),
+)
+
+
+def world_run_key_suffix(world_options: dict, defaults: dict | None = None) -> str:
+    """'__pop=0.5__logpop=1' style suffix for the world options that differ from the defaults, so
+    runs of different worlds never share (and skip) each other's condition folders."""
+    base = asdict(WorldConfig()) | {"logger_pop_strength": None} | dict(defaults or {})
+    opts = dict(world_options or {})
+    if opts.get("logger_pop_strength") is not None and opts["logger_pop_strength"] == opts.get("pop_strength", base["pop_strength"]):
+        opts.pop("logger_pop_strength")  # same as the truth: the default
+    parts = []
+    for key, tag in WORLD_RUN_KEY_TAGS:
+        if key in opts and opts[key] is not None and opts[key] != base.get(key):
+            val = opts[key]
+            parts.append(f"__{tag}={val:g}" if isinstance(val, float) else f"__{tag}={val}")
+    return "".join(parts)
 
 
 def resolve_bias_configs(specs) -> list[str]:

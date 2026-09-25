@@ -24,6 +24,17 @@ Types: `WarpOnly` / `GroupOnly` / `VectorOnly` ↔ `high/none/none` / `none/high
 
 Script tags: `hurtlog`, `abl_*_hurtlog`, `abl_*_hurtlog_v2`.
 
+## Popularity
+
+| Name | Settings | Meaning |
+|------|----------|---------|
+| TasteOnly | `--pop-strength 0` (default) | Clicks follow personal taste; no popularity column |
+| PopTruth | `--pop-strength 1` | Clicks follow BPR's full score (taste + item bias); logger weighs it the same |
+| OverExpose | `--pop-strength β --logger-pop-strength β' > β` | Logger over-exposes popular items |
+| UnderExpose | `--logger-pop-strength β' < β` | Logger under-exposes popular items (β' = 0: it ignores popularity) |
+
+Folder tags `__pop=`, `__logpop=`. See [bias_examples.md](bias_examples.md).
+
 ## Reward-model regimes
 
 | Name | `--reward-model` |

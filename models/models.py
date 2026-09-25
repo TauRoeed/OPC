@@ -232,6 +232,13 @@ class LinearTransform(nn.Module):
 
 
 class CFModel(nn.Module):
+    """softmax((u·a + w·b) / temperature) over all items.
+
+    ``item_popularity`` (optional): BPR's item bias b, fixed; ``pop_weight`` is the starting value
+    of its learnable weight w. ``get_params`` then returns the vectors with the popularity column
+    (users [u, 1], items [a, w·b]) that ``Policy`` and the simulator score by dot product.
+    """
+
     def __init__(
         self,
         num_users,
@@ -243,6 +250,8 @@ class CFModel(nn.Module):
         action_transform=None,
         temperature=1.0,
         eps_greedy=0.0,
+        item_popularity=None,
+        pop_weight=0.0,
     ):
         super().__init__()
 
@@ -275,8 +284,22 @@ class CFModel(nn.Module):
             for param in self.actions_embeddings.parameters():
                 param.requires_grad = False
 
+        if item_popularity is None:
+            self.register_buffer("item_popularity", None, persistent=False)
+            self.register_parameter("pop_weight", None)
+        else:
+            if isinstance(item_popularity, torch.Tensor):
+                b = item_popularity.detach().to(torch.float32).reshape(-1).clone()
+            else:
+                b = torch.as_tensor(np.asarray(item_popularity, dtype=np.float32).reshape(-1))
+            if b.shape[0] != num_actions:
+                raise ValueError(f"item_popularity has {b.shape[0]} entries for {num_actions} actions")
+            self.register_buffer("item_popularity", b, persistent=False)
+            self.pop_weight = nn.Parameter(torch.tensor(float(pop_weight), dtype=torch.float32, device=b.device))
+
     def get_params(self):
-        """Transformed embeddings with dropout/BN disabled (eval mode)."""
+        """Transformed embeddings with dropout/BN disabled (eval mode); with a popularity term,
+        users [u, 1] and items [a, w·b]."""
         was_training = self.training
         self.eval()
         try:
@@ -288,6 +311,9 @@ class CFModel(nn.Module):
                 emb_a = self.actions_embeddings.weight
             else:
                 emb_a = self.action_transform(self.actions_embeddings.weight)
+            if self.pop_weight is not None:
+                emb_x = torch.cat([emb_x, emb_x.new_ones(emb_x.shape[0], 1)], dim=1)
+                emb_a = torch.cat([emb_a, (self.pop_weight * self.item_popularity).unsqueeze(1)], dim=1)
             return emb_x, emb_a
         finally:
             self.train(was_training)
@@ -301,8 +327,11 @@ class CFModel(nn.Module):
         if self.action_transform is not None:
             actions_embedding = self.action_transform(actions_embedding, self.actions)
 
-        # Match eval Policy: softmax((u·a) / temperature); optional eps-greedy floor.
-        logits = (user_embedding @ actions_embedding.T) / max(self.temperature, 1e-8)
+        # Match eval Policy: softmax((u·a + w·b) / temperature); optional eps-greedy floor.
+        logits = user_embedding @ actions_embedding.T
+        if self.pop_weight is not None:
+            logits = logits + self.pop_weight * self.item_popularity
+        logits = logits / max(self.temperature, 1e-8)
         prob = F.softmax(logits, dim=1)
         if self.eps_greedy > 0.0:
             prob = (1.0 - self.eps_greedy) * prob + (self.eps_greedy / prob.shape[1])
@@ -327,7 +356,13 @@ class CFModel(nn.Module):
             action_transform=self.action_transform,
             temperature=self.temperature,
             eps_greedy=self.eps_greedy,
+            **self._popularity_kwargs(),
         )
+
+    def _popularity_kwargs(self) -> dict:
+        if self.pop_weight is None:
+            return {}
+        return {"item_popularity": self.item_popularity, "pop_weight": float(self.pop_weight.detach())}
 
 
 class LinearCFModel(nn.Module):
@@ -342,6 +377,8 @@ class LinearCFModel(nn.Module):
         action_transform=None,
         temperature=1.0,
         eps_greedy=0.0,
+        item_popularity=None,
+        pop_weight=0.0,
     ):
         super().__init__()
 
@@ -365,6 +402,8 @@ class LinearCFModel(nn.Module):
             action_transform=self.action_transform,
             temperature=temperature,
             eps_greedy=eps_greedy,
+            item_popularity=item_popularity,
+            pop_weight=pop_weight,
         )
 
         for param in self.cfmodel.user_embeddings.parameters():
@@ -402,6 +441,7 @@ class LinearCFModel(nn.Module):
             action_transform=self.action_transform,
             temperature=self.cfmodel.temperature,
             eps_greedy=self.cfmodel.eps_greedy,
+            **self.cfmodel._popularity_kwargs(),
         )
 
 

@@ -67,6 +67,7 @@ from training.memory_budget import describe_plan, device_capacities, plan_worker
 from training.run_full_study import (
     VALID_STUDY_METHODS,
     _collect_existing_summaries,
+    _condition_run_key,
     _finalize_summary_df,
     _normalize_study_methods,
     _no_prop_policy_loss_types,
@@ -90,21 +91,19 @@ def _iter_run_configs(args, out_dir: Path, val_size_configs: list):
     """
     multi_val = len(val_size_configs) > 1
     bias_configs = resolve_bias_configs(args.bias_configs)
+    world_options = world_options_from_args(args)
     for seed in args.seeds:
         for dataset_name in args.datasets:
             for ctr in args.ctr_levels:
                 for val_size_cfg, val_label in val_size_configs:
-                    use_val = val_label != "frac"
                     val_root = (
                         out_dir / f"val_{val_label}"
                         if multi_val
                         else out_dir
                     )
                     for bias in bias_configs:
-                        run_key = f"dataset={dataset_name}__bias={bias}__ctr={ctr:g}__seed={seed}"
                         # Tag folder with val only for real fixed/swept vals.
-                        if use_val:
-                            run_key = f"{run_key}__val={val_label}"
+                        run_key = _condition_run_key(dataset_name, bias, ctr, seed, world_options, val_label)
                         yield {
                             "dataset_name": dataset_name,
                             "bias": bias,

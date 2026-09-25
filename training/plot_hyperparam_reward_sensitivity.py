@@ -17,6 +17,9 @@ import numpy as np
 import pandas as pd
 
 from training.analyze_full_study import _parse_condition_dirname
+from utils.representation_bias import WORLD_RUN_KEY_TAGS
+
+WORLD_TAGS = tuple(tag for _, tag in WORLD_RUN_KEY_TAGS)
 
 
 def _setup_key_without_seed(condition_dirname: str) -> str:
@@ -33,6 +36,9 @@ def _setup_key_without_seed(condition_dirname: str) -> str:
         parts.append(f"level={t['level']}")
     if "ctr" in t:
         parts.append(f"ctr={t['ctr']}")
+    for tag in WORLD_TAGS:  # non-default world options (utils.representation_bias.world_run_key_suffix)
+        if tag in t:
+            parts.append(f"{tag}={t[tag]}")
     return "__".join(parts) if parts else condition_dirname.replace("/", "_")
 
 
