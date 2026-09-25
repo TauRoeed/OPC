@@ -87,3 +87,31 @@ def test_popularity_world_reproduces_and_learns_its_weight(tmp_path):
     # the default world ignores the item bias file and has no popularity columns
     summary_c, trials_c = _run(tmp_path, seed=0, tag="c")
     assert "pop_weight" not in summary_c.columns and "pop_weight" not in trials_c.columns
+
+
+def test_reward_features_reach_the_reward_model(tmp_path, monkeypatch):
+    import training.run_full_study as rfs
+
+    _toy_embeddings(tmp_path)
+    seen = []
+    fit = rfs.fit_shared_regression_bundle
+
+    def spy(*args, **kwargs):
+        bundle = fit(*args, **kwargs)
+        seen.append(bundle["regression_model"].features)
+        return bundle
+
+    monkeypatch.setattr(rfs, "fit_shared_regression_bundle", spy)
+    runs = {}
+    for features in ("concat", "interaction"):
+        run_dir = tmp_path / features
+        run_dir.mkdir()
+        *_, meta = _run_condition(dataset_name="toy", emb_dir=tmp_path, bias="low", ctr=0.05, seed=0, train_sizes=[1000],
+                                  n_trials=2, batch_size=None, val_size=1000, val_frac=0.15, val_min=1000, val_max=None,
+                                  policy_reward_mode="exact", policy_reward_mc_sim=8, run_dir=run_dir, slim=True,
+                                  shared_regression_size=2000, reward_features=features)
+        assert meta["reward_features"] == features
+        runs[features] = pd.read_csv(run_dir / "trials_long.csv")
+    assert seen == ["concat", "interaction"]
+    assert not runs["concat"]["r_hat"].equals(runs["interaction"]["r_hat"])
+    assert rfs._finalize_summary_df(pd.DataFrame({"x": [1.0]}, index=[0]), None, {"ctr": 0.05, "reward_features": "concat"})["reward_features"].iloc[0] == "concat"

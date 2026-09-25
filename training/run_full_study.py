@@ -90,6 +90,7 @@ def _load_cached_method_trials(run_dir: Path, method: str) -> pd.DataFrame:
 
 
 from BPR.bpr_config import DEFAULT_DATASETS, bpr_artifact_status
+from models.models import REWARD_FEATURES
 from utils.noise_snr import dataset_snr_report
 from utils.representation_bias import (
     BIAS_TYPES,
@@ -212,6 +213,7 @@ def _run_condition(
     logging_uniform_mix: float = 0.0,
     optuna_selection: str = "ci_low",
     reward_model: str = "regression",
+    reward_features: str = "interaction",
     q_error: float = 0.0,
     q_bad_value: float | None = None,
     rand_ctr_meta: dict | None = None,
@@ -304,6 +306,7 @@ def _run_condition(
         dataset,
         first_split["reg_data"],
         reward_model=str(reward_model),
+        reward_features=str(reward_features),
         user_chunk=int(qhat_user_chunk),
         action_chunk=int(qhat_action_chunk),
         q_error=float(q_error),
@@ -469,6 +472,7 @@ def _run_condition(
         "reward_model": str(
             shared_regression_bundle.get("reward_model", reward_model)
         ),
+        "reward_features": shared_regression_bundle.get("reward_features"),
         "q_error": float(shared_regression_bundle.get("q_error", q_error)),
         "q_bad_value": shared_regression_bundle.get("q_bad_value", q_bad_value),
         "rand_ctr": rand_ctr_meta or {},
@@ -504,6 +508,7 @@ def _finalize_summary_df(opc_df, noprop_df, meta: dict, **tags) -> pd.DataFrame:
         summary_df["logging_temperature"] = float(world["logging_temperature"])
         summary_df["pop_strength"] = float(world.get("pop_strength", 0.0))
         summary_df["logger_pop_strength"] = float(world.get("logger_pop_strength", 0.0))
+    summary_df["reward_features"] = meta.get("reward_features")  # None unless reward_model=regression
     if "val_size" in summary_df.columns:
         summary_df["val_size_config"] = summary_df["val_size"]
     if {"opc", "no_propensity"}.issubset(set(summary_df.get("method", pd.Series(dtype=str)))):
@@ -537,6 +542,14 @@ def main():
         default="regression",
         help="Shared q_hat for DM/DR: regression (default LR fit on biased vectors), "
         "logging_score (env click model on our_x/our_a), oracle (clean env; sim-only).",
+    )
+    parser.add_argument(
+        "--reward-features",
+        choices=list(REWARD_FEATURES),
+        default="interaction",
+        help="Features of the regression reward model: interaction = [x, a, x*a] (default; item "
+        "rankings can differ between users) or concat = [x, a] (the previous model: the same item "
+        "ranking for every user).",
     )
     parser.add_argument(
         "--ctr-levels",
@@ -797,6 +810,7 @@ def main():
                                 logging_uniform_mix=float(args.logging_uniform_mix),
                                 optuna_selection=str(args.optuna_selection),
                                 reward_model=str(args.reward_model),
+                                reward_features=str(args.reward_features),
                                 world_options=world_options,
                             )
                         except Exception as e:
@@ -862,6 +876,7 @@ def main():
                     "logging_uniform_mix": float(args.logging_uniform_mix),
                     "optuna_selection": str(args.optuna_selection),
                     "reward_model": str(args.reward_model),
+                    "reward_features": str(args.reward_features),
                 },
                 f,
                 indent=2,

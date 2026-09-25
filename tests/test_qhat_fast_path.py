@@ -17,7 +17,7 @@ from training.trainer_trials import RegressionScoresLookup
 N_USERS, N_ACTIONS, DIM = 120, 300, 8
 
 
-def _fitted_model(rewards=None, seed=0):
+def _fitted_model(rewards=None, seed=0, features="concat"):
     rng = np.random.default_rng(seed)
     user_x = rng.standard_normal((N_USERS, DIM)).astype(np.float32)
     action_x = rng.standard_normal((N_ACTIONS, DIM)).astype(np.float32)
@@ -32,6 +32,7 @@ def _fitted_model(rewards=None, seed=0):
         len_list=1,
         action_context=action_x,
         base_model=LogisticRegression(random_state=0),
+        features=features,
     )
     model.fit(user_x[users], actions, np.broadcast_to(rewards, (n,)).astype(float))
     return model, user_x
@@ -46,8 +47,9 @@ def _per_pair_reference(model, context, a0, a1):
     )
 
 
-def test_block_matches_sklearn_per_pair():
-    model, user_x = _fitted_model()
+@pytest.mark.parametrize("features", ["concat", "interaction"])
+def test_block_matches_sklearn_per_pair(features):
+    model, user_x = _fitted_model(features=features)
     assert model.linear_qhat_parts(0) is not None, "fast path should apply to LogisticRegression"
     for a0, a1 in [(0, N_ACTIONS), (17, 133)]:
         fast = model.predict_user_action_block(user_x, a0, a1)[:, :, 0]
@@ -66,10 +68,20 @@ def test_single_label_fallback_predicts_probability(label):
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="needs CUDA")
-def test_gpu_batch_rows_match_cpu():
-    model, user_x = _fitted_model()
+@pytest.mark.parametrize("features", ["concat", "interaction"])
+def test_gpu_batch_rows_match_cpu(features):
+    model, user_x = _fitted_model(features=features)
     lookup = RegressionScoresLookup(model, user_x, torch.device("cuda:0"))
     assert lookup._linear_gpu is not None
     idx = np.array([3, 7, 7, 0, 119, 42])
     gpu_rows = lookup[torch.as_tensor(idx, device="cuda:0")].cpu().numpy()
     np.testing.assert_allclose(gpu_rows, lookup.qhat_rows_numpy(idx), rtol=1e-6, atol=1e-12)
+
+
+def test_interaction_features_personalize():
+    """Interaction features let item rankings differ between users; concat cannot."""
+    for features, expect_personalized in [("concat", False), ("interaction", True)]:
+        model, user_x = _fitted_model(features=features)
+        q = model.predict_user_action_block(user_x[:20], 0, N_ACTIONS)[:, :, 0]
+        rankings = {tuple(np.argsort(-row)) for row in q}
+        assert (len(rankings) > 1) == expect_personalized, features

@@ -28,6 +28,10 @@ from sklearn.utils import check_scalar
 
 from utils.saito_helpers import check_bandit_feedback_inputs
 
+# RegressionModel feature maps: ``concat`` = [x, a]; ``interaction`` = [x, a, x * a]
+# (x * a lets a linear model express user-specific item preferences).
+REWARD_FEATURES = ("concat", "interaction")
+
 
 class _ConstantBinaryProbaClassifier(ClassifierMixin, BaseEstimator):
     """When training labels are a single class, ``LogisticRegression`` cannot fit; this mirrors ``predict_proba[:, 1]``."""
@@ -638,6 +642,7 @@ class RegressionModel(BaseEstimator):
     len_list: int = 1
     action_context: Optional[np.ndarray] = None
     fitting_method: str = "normal"
+    features: str = "concat"
 
     def __post_init__(self) -> None:
         """Initialize Class."""
@@ -650,6 +655,8 @@ class RegressionModel(BaseEstimator):
             raise ValueError(
                 f"`fitting_method` must be one of 'normal', 'iw', or 'mrdr', but {self.fitting_method} is given"
             )
+        if self.features not in REWARD_FEATURES:
+            raise ValueError(f"`features` must be one of {REWARD_FEATURES}, but {self.features} is given")
         if not isinstance(self.base_model, BaseEstimator):
             raise ValueError(
                 "`base_model` must be BaseEstimator or a child class of BaseEstimator"
@@ -915,12 +922,16 @@ class RegressionModel(BaseEstimator):
         return q_hat
 
     def linear_qhat_parts(self, pos: int = 0):
-        """(w_context, action_scores, kind) when q_hat(x, a) = link(x @ w_context + action_scores[a]).
+        """(w_context, action_scores, kind, w_interaction) for a vectorized q_hat.
 
-        Holds for the default concat features ``[x, action_context[a]]`` with a binary
-        ``LogisticRegression`` (link = expit; action_scores includes the intercept) or the
-        single-class constant model (kind "constant", action_scores = p). Returns None
-        otherwise, e.g. a subclass that overrides ``_pre_process_for_reg_model``.
+        With a binary ``LogisticRegression`` (link = expit; action_scores includes the
+        intercept):
+          concat:       q_hat(x, a) = expit(x @ w_context + action_scores[a])
+          interaction:  q_hat(x, a) = expit(x @ w_context + action_scores[a]
+                                            + (x * w_interaction) @ action_context[a])
+        ``w_interaction`` is None for concat. The single-class constant model gives kind
+        "constant" (action_scores = its prediction). Returns None otherwise, e.g. a
+        subclass that overrides ``_pre_process_for_reg_model``.
         """
         if type(self)._pre_process_for_reg_model is not RegressionModel._pre_process_for_reg_model:
             return None
@@ -932,7 +943,7 @@ class RegressionModel(BaseEstimator):
             value = (
                 model.predict_proba(x0)[0, 1] if is_classifier(model) else model.predict(x0)[0]
             )
-            return None, np.full(n_actions, float(value), dtype=np.float64), "constant"
+            return None, np.full(n_actions, float(value), dtype=np.float64), "constant", None
         if (
             isinstance(model, LogisticRegression)
             and getattr(model, "coef_", None) is not None
@@ -941,9 +952,14 @@ class RegressionModel(BaseEstimator):
         ):
             coef = np.asarray(model.coef_[0], dtype=np.float64)
             action_context = np.asarray(self.action_context)
-            d_x = coef.shape[0] - action_context.shape[1]
+            d_a = action_context.shape[1]
+            w_interaction = None
+            if self.features == "interaction":
+                w_interaction = coef[-d_a:]
+                coef = coef[:-d_a]
+            d_x = coef.shape[0] - d_a
             action_scores = action_context @ coef[d_x:] + float(model.intercept_[0])
-            return coef[:d_x], np.asarray(action_scores, dtype=np.float64), "logistic"
+            return coef[:d_x], np.asarray(action_scores, dtype=np.float64), "logistic", w_interaction
         return None
 
     def predict_user_action_block(
@@ -966,11 +982,13 @@ class RegressionModel(BaseEstimator):
                         context, np.full(n, action_, dtype=int), pos=pos_
                     )
                 continue
-            w_context, action_scores, kind = parts
+            w_context, action_scores, kind, w_interaction = parts
             if kind == "constant":
                 out[:, :, pos_] = action_scores[a0:a1][None, :]
             else:
                 logits = (context @ w_context)[:, None] + action_scores[None, a0:a1]
+                if w_interaction is not None:
+                    logits += (context * w_interaction) @ np.asarray(self.action_context)[a0:a1].T
                 out[:, :, pos_] = expit(logits)
         return out
 
@@ -1024,4 +1042,7 @@ class RegressionModel(BaseEstimator):
             Context vectors characterizing actions (i.e., a vector representation or an embedding of each action).
 
         """
-        return np.c_[context, action_context[action]]
+        action_x = action_context[action]
+        if self.features == "interaction":
+            return np.c_[context, action_x, context * action_x]
+        return np.c_[context, action_x]

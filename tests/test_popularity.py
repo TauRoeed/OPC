@@ -372,8 +372,13 @@ def test_regression_reward_model_sees_raw_popularity(worlds):
     ds = worlds["pop1_log0"]  # the truth rewards popular items, the logger ignores b (zero column)
     split = _build_regression_logged_split(ds, ds["our_x"], ds["our_a"], 1000, 1000, 0, split_seed=1,
                                            regression_size=40_000)
-    model = fit_shared_regression_bundle(ds, split["reg_data"], reward_model="regression")["regression_model"]
-    np.testing.assert_array_equal(model.action_context[:, DIM], ds["item_popularity"])
-    coef = model.base_model_list[0].coef_.reshape(-1)
-    assert coef.shape[0] == 2 * (DIM + 1)
-    assert coef[2 * DIM + 1] > 0.1, coef  # the b feature: clicks rise with popularity
+    for features in ("concat", "interaction"):
+        model = fit_shared_regression_bundle(ds, split["reg_data"], reward_model="regression",
+                                             reward_features=features)["regression_model"]
+        np.testing.assert_array_equal(model.action_context[:, DIM], ds["item_popularity"])
+        coef = model.base_model_list[0].coef_.reshape(-1)
+        # features [x, 1 | a, b (| x*a, 1*b)]: b is item feature 2d+1, and with interaction also the
+        # last one (the user's constant column times b), so the two share its weight
+        assert coef.shape[0] == (2 if features == "concat" else 3) * (DIM + 1)
+        b_weight = coef[2 * DIM + 1] + (coef[-1] if features == "interaction" else 0.0)
+        assert b_weight > 0.1, (features, coef)  # clicks rise with popularity

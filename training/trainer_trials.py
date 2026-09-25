@@ -754,12 +754,15 @@ def fit_shared_regression_bundle(
     q_error: float = 0.0,
     q_bad_value: float | None = None,
     materialize_qhat: str = "auto",
+    reward_features: str = "interaction",
 ):
     """Build one shared q_hat source; values are computed on demand (not materialized).
 
     ``reward_model``:
-      - ``regression``: fit LogisticRegression on concat(our_x, our_a) from reg slice (with a
-        popularity column, the item side carries BPR's raw b; see ``_reward_action_context``)
+      - ``regression``: fit LogisticRegression from the reg slice on ``reward_features``:
+        ``interaction`` = [x, a, x * a] (default; item rankings can differ between users) or
+        ``concat`` = [x, a] (the same ranking for every user). With a popularity column, the
+        item side carries BPR's raw b; see ``_reward_action_context``
       - ``logging_score``: the env's click model on the biased logging vectors (no fit)
       - ``oracle``: the env's click model on the clean vectors = true q (sim diagnosis only)
 
@@ -786,11 +789,12 @@ def fit_shared_regression_bundle(
             n_actions=n_actions,
             action_context=_reward_action_context(dataset, our_a),
             base_model=LogisticRegression(random_state=12345),
+            features=str(reward_features),
         )
         t0 = time.time()
         model.fit(reg_data["x"], reg_data["a"], reg_data["r"])
         print(
-            f"[RewardModel=regression] shared fit n={n} time={time.time() - t0:.2f}s "
+            f"[RewardModel=regression features={reward_features}] shared fit n={n} time={time.time() - t0:.2f}s "
             f"(lazy q_hat user_chunk={user_chunk} action_chunk={action_chunk})",
             flush=True,
         )
@@ -844,6 +848,7 @@ def fit_shared_regression_bundle(
         "catalog_n_actions": int(n_actions),
         "sample_size": int(sample_size),
         "reward_model": kind,
+        "reward_features": str(reward_features) if kind.startswith("regression") else None,
         "q_error": eps,
         "q_bad_value": float(q_bad_value) if q_bad_value is not None else None,
     }
@@ -1507,12 +1512,23 @@ def _device_qhat_block_fn(model, user_context, device):
              if hasattr(model, "linear_qhat_parts") and int(getattr(model, "len_list", 1)) == 1 else None)
     if parts is None:
         return None
-    w_context, action_scores, kind = parts
+    w_context, action_scores, kind, w_interaction = parts
     t = torch.as_tensor(np.asarray(action_scores, dtype=np.float64), device=device)
     if kind == "constant":
         return lambda u, a0, a1: t[a0:a1].float().expand(len(u), -1)
-    s_user = torch.as_tensor(np.asarray(user_context, dtype=np.float32) @ w_context, dtype=torch.float64, device=device)
-    return lambda u, a0, a1: torch.sigmoid(s_user[_index_tensor(u, device)][:, None] + t[None, a0:a1]).float()
+    ctx = np.asarray(user_context, dtype=np.float32)
+    s_user = torch.as_tensor(ctx @ w_context, dtype=torch.float64, device=device)
+    if w_interaction is None:
+        return lambda u, a0, a1: torch.sigmoid(s_user[_index_tensor(u, device)][:, None] + t[None, a0:a1]).float()
+    # interaction features: + (x * w_int) @ a, in fp64 like the numpy block path
+    xw = torch.as_tensor(ctx * w_interaction, dtype=torch.float64, device=device)
+    a64 = torch.as_tensor(np.asarray(model.action_context), dtype=torch.float64, device=device)
+
+    def fn(u, a0, a1):
+        idx = _index_tensor(u, device)
+        return torch.sigmoid(s_user[idx][:, None] + t[None, a0:a1] + xw[idx] @ a64[a0:a1].T).float()
+
+    return fn
 
 
 class RegressionScoresLookup:
@@ -1561,16 +1577,22 @@ class RegressionScoresLookup:
             else None
         )
         if parts is not None:
-            w_context, action_scores, kind = parts
-            user_scores = (
-                np.asarray(self.user_context, dtype=np.float32) @ w_context
-                if kind == "logistic"
-                else np.zeros(self.user_context.shape[0])
-            )
+            w_context, action_scores, kind, w_interaction = parts
+            ctx = np.asarray(self.user_context, dtype=np.float32)
+            user_scores = ctx @ w_context if kind == "logistic" else np.zeros(ctx.shape[0])
+            interaction = None
+            if w_interaction is not None:  # + (x * w_int) @ a for interaction features
+                interaction = (
+                    torch.as_tensor(ctx * w_interaction, device=device, dtype=torch.float64),
+                    torch.as_tensor(
+                        np.asarray(regression_model.action_context), device=device, dtype=torch.float64
+                    ).T.contiguous(),
+                )
             self._linear_gpu = (
                 kind,
                 torch.as_tensor(user_scores, device=device, dtype=torch.float64),
                 torch.as_tensor(action_scores, device=device, dtype=torch.float64),
+                interaction,
             )
 
     def qhat_rows_numpy(self, user_idx: np.ndarray) -> np.ndarray:
@@ -1624,7 +1646,7 @@ class RegressionScoresLookup:
 
     def __getitem__(self, user_idx):
         if self._linear_gpu is not None:
-            kind, user_scores, action_scores = self._linear_gpu
+            kind, user_scores, action_scores, interaction = self._linear_gpu
             idx = torch.as_tensor(user_idx, device=user_scores.device).long().reshape(-1)
             if kind == "constant":
                 return action_scores.float().expand(idx.shape[0], -1).clone()
@@ -1632,9 +1654,13 @@ class RegressionScoresLookup:
             s = user_scores[idx][:, None]
             out = torch.empty((idx.shape[0], self.n_actions), device=s.device, dtype=torch.float32)
             step = max(1, (8 * 1024 * 1024) // max(1, idx.shape[0]))
+            scaled_users = None if interaction is None else interaction[0][idx]
             for a0 in range(0, self.n_actions, step):
                 a1 = min(self.n_actions, a0 + step)
-                out[:, a0:a1] = torch.sigmoid(s + action_scores[None, a0:a1])
+                logits = s + action_scores[None, a0:a1]
+                if scaled_users is not None:
+                    logits = logits + scaled_users @ interaction[1][:, a0:a1]
+                out[:, a0:a1] = torch.sigmoid(logits)
             return out
         if self._q_hat_gpu is not None:
             if isinstance(user_idx, torch.Tensor):

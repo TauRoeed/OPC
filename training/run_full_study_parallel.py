@@ -63,6 +63,7 @@ def _parallel_worker_init(worker_slot, num_gpus: int) -> None:
     )
 
 from BPR.bpr_config import DEFAULT_DATASETS
+from models.models import REWARD_FEATURES
 from utils.seeding import DEFAULT_CPU_THREADS, pin_cpu_threads
 from training.memory_budget import describe_plan, device_capacities, plan_worker_groups
 from training.run_full_study import (
@@ -372,6 +373,7 @@ def _execute_run(config: dict):
         logging_uniform_mix=float(config.get("logging_uniform_mix", 0.0)),
         optuna_selection=str(config.get("optuna_selection", "ci_low")),
         reward_model=str(config.get("reward_model", "regression")),
+        reward_features=str(config.get("reward_features", "interaction")),
         world_options=config.get("world_options"),
     )
 
@@ -415,6 +417,14 @@ def main():
         choices=list(VALID_REWARD_MODELS),
         default="regression",
         help="Shared q_hat: regression (default), logging_score, or oracle (sim-only).",
+    )
+    parser.add_argument(
+        "--reward-features",
+        choices=list(REWARD_FEATURES),
+        default="interaction",
+        help="Features of the regression reward model: interaction = [x, a, x*a] (default; item "
+        "rankings can differ between users) or concat = [x, a] (the previous model: the same item "
+        "ranking for every user).",
     )
     parser.add_argument(
         "--ctr-levels",
@@ -654,6 +664,7 @@ def main():
             "logging_uniform_mix": float(args.logging_uniform_mix),
             "optuna_selection": str(args.optuna_selection),
             "reward_model": str(args.reward_model),
+            "reward_features": str(args.reward_features),
         }
         run_configs.append(cfg)
 
@@ -714,6 +725,7 @@ def main():
                     "logging_uniform_mix": float(args.logging_uniform_mix),
                     "optuna_selection": str(args.optuna_selection),
                     "reward_model": str(args.reward_model),
+                    "reward_features": str(args.reward_features),
                     "val_min": args.val_min,
                     "val_max": args.val_max,
                     "policy_reward_mode": args.policy_reward_mode,

@@ -74,7 +74,12 @@ def _lookups(ds, split, device):
     out = []
     # no dense cache: the toy catalog is small enough to materialize q_hat, the large ones are not,
     # and those take the reward models' closed forms on the device
-    for kind in ("regression", "logging_score", "oracle"):
+    for features in ("interaction", "concat"):
+        b = fit_shared_regression_bundle(ds, split["reg_data"], reward_model="regression", reward_features=features,
+                                         materialize_qhat="never")
+        assert b["regression_model"].features == features
+        out.append((f"regression-{features}", tt._scores_lookup_from_bundle(b, device)))
+    for kind in ("logging_score", "oracle"):
         b = fit_shared_regression_bundle(ds, split["reg_data"], reward_model=kind, materialize_qhat="never")
         out.append((kind, tt._scores_lookup_from_bundle(b, device)))
     b = fit_shared_regression_bundle(ds, {}, reward_model="oracle", q_error=0.3, q_bad_value=0.08, materialize_qhat="never")
@@ -107,7 +112,7 @@ def test_row_values_match_numpy_and_do_not_depend_on_blocks(setup, device):
     ds, split, trial_x, trial_a = setup
     data = split["train_data"]
     users, actions = data["x_idx"], data["a"]
-    lk = dict(_lookups(ds, split, "cpu"))["regression"]
+    lk = dict(_lookups(ds, split, "cpu"))["regression-interaction"]
     pt = ds["policy_temperature"]
     ref_pi = _batched_pi_at_logged_actions(trial_x, trial_a, users, actions, action_chunk=512, policy_temperature=pt)
     ref_dm = _dm_reward_rows_chunked(users, trial_x, trial_a, lk, policy_temperature=pt)

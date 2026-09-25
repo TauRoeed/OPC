@@ -19,7 +19,7 @@ Main flow:
 | No-propensity train | always `naive` (no IW, no DM/DR, no clip) |
 | Optuna objective | `ci_low` = DR/naive mean − t·SE |
 | OPC DR score IW clip | fixed `M=1` (`DEFAULT_DR_SCORE_CLIP_M`); **not** Optuna-searched |
-| Reward model `q̂` | `regression` (bias script often uses `logging_score`) |
+| Reward model `q̂` | `regression` on interaction features `[x, a, x⊙a]` (`--reward-features`; bias script often uses `logging_score`) |
 | Datasets (`--datasets`) | `ml myket kuairec kuairand anime msd`; lastfm is opt-in (a condition costs ~75× ml's; see Runtime estimate) |
 | Representation bias (`--bias-configs`) | `low medium high` (all three types at that level) |
 | Reference CTR (`--ctr-levels`) | 5% for the logger at medium bias; best item 30% |
@@ -250,6 +250,8 @@ runs ~5× slower per epoch than 4096.
 - `--pop-strength` (default 0: clicks follow taste only), `--logger-pop-strength` (default: the same) — weight of BPR's item bias in the true score and in the logger's; needs `{dataset}_item_bias.npy`.
 - `--bias-groups {cluster,metadata}`, `--env-centering` (default 0 = off), `--logging-spread`, `--best-ctr`, `--ctr-reference {logger,uniform}` — world calibration (see the simulator doc).
 - `--reward-model {regression,logging_score,oracle}` — shared `q̂` for DM/DR/SNDR.
+- `--reward-features {interaction,concat}` — the regression reward model's features: `[x, a, x⊙a]` (default; item
+  rankings can differ between users) or `[x, a]` (the previous model: one item ranking for every user).
 - `--optuna-selection {ci_low,r_hat,actual_reward}` — what Optuna maximizes.
 - `--methods opc no_propensity` — or one arm only (e.g. finish no-prop after OPC).
 - `--slim` — log trial hyperparams; skip heavy post-hoc catalog eval.
