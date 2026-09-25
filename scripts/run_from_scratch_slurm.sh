@@ -14,7 +14,7 @@
 # 2 GPUs on Slurm; 8 workers round-robin (4 per GPU via --num-gpus 2).
 #
 # Full sweep (defaults below):
-#   datasets: ml, myket, kuairec, kuairand, anime (BPR artifacts for all seven)
+#   datasets: ml, myket, kuairec, kuairand, anime, msd (BPR artifacts for all seven)
 #   representation bias: low, medium, high (all three types at that level)
 #   CTR levels (reference logger at medium bias): 0.05, 0.1, 0.2
 #   train sizes: 5000, 25000, 50000, 100000
@@ -57,7 +57,7 @@ PYTHON="${VENV}/bin/python"
 
 EMB_DIR="${EMB_DIR:-BPR/embeddings}"
 OUT_DIR="${OUT_DIR:-artifacts/full_study}"
-RUN_TAG="${RUN_TAG:-full_ml_myket_kuai_anime_30w_s5_slim}"
+RUN_TAG="${RUN_TAG:-full_ml_myket_kuai_anime_msd_30w_s5_slim}"
 MAX_WORKERS="${MAX_WORKERS:-30}"
 NUM_GPUS="${NUM_GPUS:-3}"
 
@@ -124,7 +124,7 @@ fi
 if [[ "${SKIP_STUDY:-0}" != "1" ]]; then
   log "Step 3/3: parallel study (${MAX_WORKERS} workers / ${NUM_GPUS} GPUs, slim, require-cuda)"
   "$PYTHON" -m training.run_full_study_parallel \
-    --datasets ml myket kuairec kuairand anime \
+    --datasets ml myket kuairec kuairand anime msd \
     --bias-configs low medium high \
     --ctr-levels 0.05 0.1 0.2 \
     --train-sizes 5000 25000 50000 100000 \

@@ -17,7 +17,7 @@ LAUNCH_SCRIPTS = ("run_from_scratch.sh", "run_clone_branch_install_run.sh", "run
 
 def test_defaults_are_known_datasets():
     assert ALL_DATASETS == {"ml", "myket", "kuairec", "kuairand", "anime", "lastfm", "msd"}
-    assert DEFAULT_DATASETS == ("ml", "myket", "kuairec", "kuairand", "anime")
+    assert DEFAULT_DATASETS == ("ml", "myket", "kuairec", "kuairand", "anime", "msd")
     assert set(DEFAULT_DATASETS) <= ALL_DATASETS
 
 

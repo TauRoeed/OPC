@@ -4,6 +4,7 @@ from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
 
+import math
 import os
 import numpy as np
 import pandas as pd
@@ -1477,6 +1478,43 @@ def predict_regression_qhat_users(
     return out
 
 
+def _index_tensor(idx, device) -> torch.Tensor:
+    return torch.as_tensor(np.asarray(idx, dtype=np.int64).reshape(-1), device=device)
+
+
+def _device_qhat_block_fn(model, user_context, device):
+    """``(users, a0, a1) -> fp32 q_hat`` on ``device`` for reward models with a closed form (the
+    same fp64 link as their numpy block path), or None."""
+    from utils.bounded_q_model import BoundedErrorRewardModel, ConstantRewardModel
+
+    if isinstance(model, ConstantRewardModel):
+        value = float(model.value)
+        return lambda u, a0, a1: torch.full((len(u), a1 - a0), value, dtype=torch.float32, device=device)
+    if isinstance(model, BoundedErrorRewardModel):
+        good = _device_qhat_block_fn(model.q_good, user_context, device)
+        bad = _device_qhat_block_fn(model.q_bad, user_context, device)
+        if good is None or bad is None:
+            return None
+        eps = float(model.eps)
+        return lambda u, a0, a1: torch.clamp((1.0 - eps) * good(u, a0, a1) + eps * bad(u, a0, a1), 0.0, 1.0)
+    if isinstance(model, AnalyticRewardModel):
+        X = torch.tensor(np.asarray(user_context, dtype=np.float32), device=device)  # a copy: inputs may be read-only
+        A = torch.tensor(np.asarray(model.action_context, dtype=np.float32), device=device)
+        scale, offset = float(model.scale), float(model.offset)
+        return lambda u, a0, a1: torch.sigmoid(
+            scale * (X[_index_tensor(u, device)] @ A[a0:a1].T).double() + offset).float()
+    parts = (model.linear_qhat_parts(0)
+             if hasattr(model, "linear_qhat_parts") and int(getattr(model, "len_list", 1)) == 1 else None)
+    if parts is None:
+        return None
+    w_context, action_scores, kind = parts
+    t = torch.as_tensor(np.asarray(action_scores, dtype=np.float64), device=device)
+    if kind == "constant":
+        return lambda u, a0, a1: t[a0:a1].float().expand(len(u), -1)
+    s_user = torch.as_tensor(np.asarray(user_context, dtype=np.float32) @ w_context, dtype=torch.float64, device=device)
+    return lambda u, a0, a1: torch.sigmoid(s_user[_index_tensor(u, device)][:, None] + t[None, a0:a1]).float()
+
+
 class RegressionScoresLookup:
     """q_hat rows for training batches; optional dense ``q_hat_all`` cache on CPU/GPU."""
 
@@ -1509,6 +1547,7 @@ class RegressionScoresLookup:
                 self._q_hat_gpu = torch.as_tensor(
                     arr, device=device, dtype=torch.float32
                 )
+        self._block_fns: dict = {}
         # Linear reward model without a dense cache: q_hat(u, a) = link(s_u + t_a), so
         # batch rows come from per-user/per-action scores on the device (same fp64 math
         # as the numpy block path, rounded to fp32).
@@ -1563,6 +1602,25 @@ class RegressionScoresLookup:
         if q.ndim == 3:
             q = q[:, :, 0]
         return q[inverse]
+
+    def qhat_block_fn(self, device):
+        """``(user_idx, a0, a1) -> (n_rows, a1 - a0)`` fp32 q_hat on ``device``, with the numpy
+        block path's math (dense cache slice, or the reward model's closed form); models without
+        one fall back to the numpy block, moved to the device."""
+        device = torch.device(device)
+        key = str(device)
+        if key not in self._block_fns:
+            fn = None
+            if self.q_hat_all is not None:
+                dense = (self._q_hat_gpu if self._q_hat_gpu is not None and device.type == "cuda"
+                         else torch.as_tensor(self.q_hat_all, device=device))
+                fn = lambda u, a0, a1: dense[_index_tensor(u, dense.device), a0:a1]
+            else:
+                fn = _device_qhat_block_fn(self.regression_model, self.user_context, device)
+            if fn is None:
+                fn = lambda u, a0, a1: torch.as_tensor(self.qhat_block_numpy(u, a0, a1), device=device)
+            self._block_fns[key] = fn
+        return self._block_fns[key]
 
     def __getitem__(self, user_idx):
         if self._linear_gpu is not None:
@@ -1831,6 +1889,78 @@ def _cv_score_model_dense(
     return r_hat - tcrit * se
 
 
+# Trial scoring (the DR / naive value of a trained policy on the logged train and validation
+# rows) runs on the training device. OPC_SCORING_DEVICE: auto (default) | cpu.
+SCORING_DEVICE_ENV = "OPC_SCORING_DEVICE"
+SCORING_BLOCK_CELLS = 32 * 1024 * 1024  # distinct users x actions per block (256 MB of fp64)
+
+
+def _scoring_device(score_lookup) -> torch.device:
+    device = torch.device(getattr(score_lookup, "device", None) or "cpu")
+    if os.environ.get(SCORING_DEVICE_ENV, "auto").strip().lower() == "cpu" or not torch.cuda.is_available():
+        return torch.device("cpu")
+    return device
+
+
+def _policy_row_values(
+    user_emb,
+    item_emb,
+    users,
+    actions,
+    *,
+    policy_temperature: float,
+    device,
+    qhat_fn=None,
+    action_chunk: int = DEFAULT_QHAT_ACTION_CHUNK,
+    block_cells: int = SCORING_BLOCK_CELLS,
+):
+    """Per logged row: pi(a_i | x_i) and, with ``qhat_fn``, the DM term sum_a q_hat(x_i, a) pi(a | x_i).
+
+    Each distinct user is scored once, in one pass over the catalog: (users x action_chunk)
+    blocks of fp32 logits on ``device``, an online softmax with fp64 sums.
+    """
+    users = np.asarray(users, dtype=np.int64).reshape(-1)
+    actions = np.asarray(actions, dtype=np.int64).reshape(-1)
+    uniq, inv = np.unique(users, return_inverse=True)
+    pt = max(float(policy_temperature), 1e-8)
+    X = torch.as_tensor(np.asarray(user_emb, dtype=np.float32)[uniq], device=device)
+    A = torch.tensor(np.asarray(item_emb, dtype=np.float32), device=device)  # a copy: inputs may be read-only
+    n_u, n_a = int(X.shape[0]), int(A.shape[0])
+    ac = max(1, min(int(action_chunk), n_a))
+    rows = max(1, int(block_cells) // ac)
+    log_z = torch.empty(n_u, dtype=torch.float64, device=device)
+    dm = None if qhat_fn is None else torch.empty(n_u, dtype=torch.float64, device=device)
+    prev = torch.get_float32_matmul_precision()
+    torch.set_float32_matmul_precision("highest")  # no TF32 on the policy logits
+    try:
+        for u0 in range(0, n_u, rows):
+            u1 = min(n_u, u0 + rows)
+            xb = X[u0:u1]
+            m = torch.full((u1 - u0,), -math.inf, dtype=torch.float64, device=device)
+            z = torch.zeros_like(m)
+            q = None if dm is None else torch.zeros_like(m)
+            for a0 in range(0, n_a, ac):
+                a1 = min(n_a, a0 + ac)
+                logits = (xb @ A[a0:a1].T).double() / pt
+                m_new = torch.maximum(m, logits.max(dim=1).values)
+                shrink = torch.exp(m - m_new)
+                e = torch.exp(logits - m_new[:, None])
+                z = z * shrink + e.sum(dim=1)
+                if q is not None:
+                    q = q * shrink + (qhat_fn(uniq[u0:u1], a0, a1).double() * e).sum(dim=1)
+                m = m_new
+            log_z[u0:u1] = m + torch.log(z)
+            if dm is not None:
+                dm[u0:u1] = q / z
+        inv_t = torch.as_tensor(inv, device=device)
+        logit_at = (X[inv_t].double() * A[torch.as_tensor(actions, device=device)].double()).sum(dim=1) / pt
+        pi = torch.exp(logit_at - log_z[inv_t]).float().cpu().numpy()
+        dm_rows = None if dm is None else dm[inv_t].cpu().numpy()
+    finally:
+        torch.set_float32_matmul_precision(prev)
+    return pi, dm_rows
+
+
 def _split_dr_vec_and_ess(
     split_data: dict,
     trial_x: np.ndarray,
@@ -1841,7 +1971,7 @@ def _split_dr_vec_and_ess(
     propensity_mode: str = "logged",
     dr_clip_m: float | None = None,
 ) -> tuple[np.ndarray, float]:
-    """Per-row value vector and ESS on a logged split (train or val), chunked.
+    """Per-row value vector and ESS on a logged split (train or val), on the training device.
 
     Off-policy (``logged``): DR_i = DM_i + ŵ_i * (r - q) with
     ŵ = min(π_e/π_b, M) when ``dr_clip_m`` is finite, else raw IW.
@@ -1852,17 +1982,19 @@ def _split_dr_vec_and_ess(
     users = np.asarray(split_data["x_idx"], dtype=np.int64)
     reward = np.asarray(split_data["r"], dtype=np.float32)
     actions = np.asarray(split_data["a"], dtype=np.int64)
-    pt = _policy_temperature(dataset)
-    pi_e_at_position = _batched_pi_at_logged_actions(
+    off_policy = uses_importance_weighting(propensity_mode)
+    device = _scoring_device(score_lookup)
+    pi_e_at_position, dm_reward = _policy_row_values(
         trial_x,
         trial_a,
         users,
         actions,
-        chunk_size=score_lookup.user_chunk,
+        policy_temperature=_policy_temperature(dataset),
+        device=device,
+        qhat_fn=score_lookup.qhat_block_fn(device) if off_policy else None,
         action_chunk=score_lookup.action_chunk,
-        policy_temperature=pt,
     )
-    if not uses_importance_weighting(propensity_mode):
+    if not off_policy:
         value_vec = (reward * pi_e_at_position).astype(np.float32)
         ess = float(len(value_vec))
         return value_vec, ess
@@ -1872,9 +2004,7 @@ def _split_dr_vec_and_ess(
         score_lookup.regression_model.predict_pairs(ctx, actions),
         dtype=np.float32,
     )
-    dm_reward = _dm_reward_rows_chunked(
-        users, trial_x, trial_a, score_lookup, policy_temperature=pt
-    ).astype(np.float32)
+    dm_reward = dm_reward.astype(np.float32)
     iw = pi_e_at_position / (pscore + 1e-12)
     if dr_clip_m is not None and np.isfinite(float(dr_clip_m)):
         iw = np.minimum(iw, float(dr_clip_m))

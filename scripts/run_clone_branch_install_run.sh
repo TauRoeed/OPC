@@ -42,7 +42,7 @@ PYTHON="${VENV_DIR}/bin/python"
 
 EMB_DIR="${EMB_DIR:-BPR/embeddings}"
 OUT_DIR="${OUT_DIR:-artifacts/full_study}"
-RUN_TAG="${RUN_TAG:-full_ml_myket_kuai_anime_8w_s5_slim}"
+RUN_TAG="${RUN_TAG:-full_ml_myket_kuai_anime_msd_8w_s5_slim}"
 MAX_WORKERS="${MAX_WORKERS:-30}"
 NUM_GPUS="${NUM_GPUS:-3}"
 OPTUNA_BATCH_SIZES="${OPTUNA_BATCH_SIZES:-256 512 1024 2048 4096}"
@@ -183,7 +183,7 @@ if [[ "${SKIP_STUDY:-0}" != "1" ]]; then
     )
   else
     STUDY_ARGS+=(
-      --datasets ml myket kuairec kuairand anime
+      --datasets ml myket kuairec kuairand anime msd
       --bias-configs low medium high
       --ctr-levels 0.05 0.1 0.2
       --train-sizes 5000 25000 50000 100000

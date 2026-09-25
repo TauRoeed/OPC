@@ -15,9 +15,9 @@ from BPR.bpr_minibatch import BPRConfig, data_fingerprint
 
 DEFAULT_CONFIG_PATH = Path(__file__).resolve().parent / "bpr_dataset_config.json"
 META_SUFFIX = "_bpr_meta.json"
-# Default --datasets of the study runners and launch scripts. msd and lastfm (also in
-# bpr_dataset_config.json) are opt-in: a study condition costs ~12x and ~115x ml's (README).
-DEFAULT_DATASETS = ("ml", "myket", "kuairec", "kuairand", "anime")
+# Default --datasets of the study runners and launch scripts. lastfm (also in
+# bpr_dataset_config.json) is opt-in: its 292k-item catalog makes a condition far costlier (README).
+DEFAULT_DATASETS = ("ml", "myket", "kuairec", "kuairand", "anime", "msd")
 
 
 def load_bpr_dataset_config(

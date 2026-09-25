@@ -20,7 +20,7 @@ Main flow:
 | Optuna objective | `ci_low` = DR/naive mean − t·SE |
 | OPC DR score IW clip | fixed `M=1` (`DEFAULT_DR_SCORE_CLIP_M`); **not** Optuna-searched |
 | Reward model `q̂` | `regression` (bias script often uses `logging_score`) |
-| Datasets (`--datasets`) | `ml myket kuairec kuairand anime`; msd and lastfm are opt-in (a condition costs ~12× and ~115× ml's; see Runtime estimate) |
+| Datasets (`--datasets`) | `ml myket kuairec kuairand anime msd`; lastfm is opt-in (a condition costs ~75× ml's; see Runtime estimate) |
 | Representation bias (`--bias-configs`) | `low medium high` (all three types at that level) |
 | Reference CTR (`--ctr-levels`) | 5% for the logger at medium bias; best item 30% |
 | Logging temperature | calibrated: clean logger over 50% of the catalog (`--logging-spread`) |
@@ -222,21 +222,25 @@ python -m scripts.estimate_study_runtime --train-size 1000000 --n-trials 20 --me
 ```
 
 Wall scales roughly with `n_trials × (train_size / batch)` using `batch_schedule`. Order-of-magnitude only (±2×).
-The estimate ignores catalog size, so it is far too low on msd and lastfm. Measured on one RTX 6000
-Ada (48 GB), default study settings (train sizes 5k–100k, 20 trials, both methods), one worker:
+The estimate counts logged samples, batch size and trials but not the catalog, so it is far too
+low on msd and lastfm. Measured on one RTX 6000 Ada (48 GB), default study settings (train sizes
+5k–100k, 20 trials per train size, both methods), one worker:
 
 | Dataset | Per condition | Default study (3 bias levels × 10 seeds) | GPU per worker |
 |---|---|---|---|
-| ml | 14 min | 7 h | 2 GB |
-| myket | 25 min | 13 h | 3 GB |
-| kuairand | 25 min | 12 h | 3 GB |
-| kuairec | 33 min | 16 h | 3 GB |
-| anime | 35 min | 17 h | 6 GB |
-| msd | 2.7 h | 81 h | 9 GB |
-| lastfm | ~26 h | ~790 h | 15–47 GB (batch 2048–8192) |
+| ml | 5.5 min | 2.8 h | 2 GB |
+| myket | 8.3 min | 4.1 h | 3 GB |
+| kuairand | 8.0 min | 4.0 h | 4 GB |
+| kuairec | 8.7 min | 4.4 h | 4 GB |
+| anime | 8.3 min | 4.2 h | 7 GB |
+| msd | 32 min | 16 h | 10 GB |
+| lastfm (opt-in) | ~6.8 h | ~200 h | 15–46 GB |
 
-Parallel workers divide the wall time. On large catalogs 70–90% of a trial is scoring the
-trained policy on the train and validation splits (numpy, CPU).
+Parallel workers divide the wall time. A trial trains the policy (SGD on mini-batches of logged
+samples; each step takes a softmax over the whole catalog for every user in the batch, so memory
+grows with batch × catalog), computes its exact value, and scores it on the logged train and
+validation rows; the scoring runs on the GPU. On lastfm a batch of 8192 fills the 48 GB GPU and
+runs ~5× slower per epoch than 4096.
 
 ### Useful Flags
 
@@ -273,6 +277,9 @@ independent repeats for robustness.
   inverse CDF from numpy uniforms and float64 policy probabilities, on the GPU when
   available (`OPC_SAMPLER_DEVICE=cpu` forces CPU; same samples, slower). Training
   arithmetic still differs slightly between devices/GPU models.
+- Trial scoring (each trained policy's DR / naive value on the logged train and validation rows)
+  and exact policy values run on the GPU when available (`OPC_SCORING_DEVICE=cpu`,
+  `OPC_EXACT_REWARD_DEVICE=cpu` force the CPU). CPU and GPU scores agree to ~1e-5 (relative).
 
 ### Batch schedule (default Optuna neighborhood)
 

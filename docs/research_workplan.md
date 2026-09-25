@@ -6,8 +6,8 @@ Master tracker for continuing OPC research. Code lives under `utils/`, `training
 
 1. **Representation-bias world** — calibrated bias types and levels, link to correction magnitude.
 2. **Datasets.** With the BPR v2 embeddings all seven clean worlds are personalized
-   ([representation_bias.md](representation_bias.md)). Defaults: ml, myket, kuairec, kuairand, anime.
-   msd and lastfm are opt-in for cost (a condition takes ~12× and ~115× ml's; README runtime table).
+   ([representation_bias.md](representation_bias.md)). Defaults: ml, myket, kuairec, kuairand, anime, msd.
+   lastfm is opt-in for cost (README runtime table).
 3. Regimes, bias examples, paper contributions, reflection (docs scaffolding).
 
 ## Tracks
