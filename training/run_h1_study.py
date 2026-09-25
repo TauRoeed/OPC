@@ -15,6 +15,7 @@ from pathlib import Path
 
 import pandas as pd
 
+from BPR.bpr_config import DEFAULT_DATASETS
 from utils.seeding import DEFAULT_CPU_THREADS, pin_cpu_threads
 from training.run_full_study import (
     _finalize_summary_df,
@@ -152,7 +153,7 @@ def _iter_h1_configs(args, out_root: Path):
 
 def main():
     p = argparse.ArgumentParser(description="Run H1 OPC vs naive experiment grid.")
-    p.add_argument("--datasets", nargs="+", default=["ml", "myket", "kuairec", "kuairand"], help="Default: the four datasets with personalized clean worlds (see docs/representation_bias.md).")
+    p.add_argument("--datasets", nargs="+", default=list(DEFAULT_DATASETS), help="Default: " + " ".join(DEFAULT_DATASETS) + ".")
     p.add_argument("--emb-dir", type=Path, default=Path("BPR/embeddings"))
     p.add_argument("--out-dir", type=Path, default=Path("artifacts/h1_study"))
     p.add_argument("--run-tag", default="h1_v1")

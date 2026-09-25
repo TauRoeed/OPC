@@ -89,7 +89,7 @@ def _load_cached_method_trials(run_dir: Path, method: str) -> pd.DataFrame:
     return pd.DataFrame()
 
 
-from BPR.bpr_config import bpr_artifact_status
+from BPR.bpr_config import DEFAULT_DATASETS, bpr_artifact_status
 from utils.noise_snr import dataset_snr_report
 from utils.representation_bias import (
     BIAS_TYPES,
@@ -515,7 +515,7 @@ def main():
     parser = argparse.ArgumentParser(
         description="Run full OPC vs no-propensity sweeps and export structured outputs."
     )
-    parser.add_argument("--datasets", nargs="+", default=["ml", "myket", "kuairec", "kuairand"], help="Default: the four datasets with personalized clean worlds (see docs/representation_bias.md).")
+    parser.add_argument("--datasets", nargs="+", default=list(DEFAULT_DATASETS), help="Default: " + " ".join(DEFAULT_DATASETS) + ".")
     add_world_arguments(parser)
     parser.add_argument(
         "--logging-uniform-mix",

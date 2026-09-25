@@ -5,7 +5,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 TAG="${TAG:-h1_v1}"
-DATASETS="${DATASETS:-ml myket kuairec kuairand}"
+DATASETS="${DATASETS:-ml myket kuairec kuairand anime}"
 
 # Smoke (fast):
 #   SMOKE=1 ./scripts/run_h1_study.sh

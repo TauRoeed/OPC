@@ -62,6 +62,7 @@ def _parallel_worker_init(worker_slot, num_gpus: int) -> None:
         flush=True,
     )
 
+from BPR.bpr_config import DEFAULT_DATASETS
 from utils.seeding import DEFAULT_CPU_THREADS, pin_cpu_threads
 from training.memory_budget import describe_plan, device_capacities, plan_worker_groups
 from training.run_full_study import (
@@ -395,7 +396,7 @@ def main():
     parser = argparse.ArgumentParser(
         description="Run full OPC vs no-propensity sweeps in parallel."
     )
-    parser.add_argument("--datasets", nargs="+", default=["ml", "myket", "kuairec", "kuairand"], help="Default: the four datasets with personalized clean worlds (see docs/representation_bias.md).")
+    parser.add_argument("--datasets", nargs="+", default=list(DEFAULT_DATASETS), help="Default: " + " ".join(DEFAULT_DATASETS) + ".")
     add_world_arguments(parser)
     parser.add_argument(
         "--logging-uniform-mix",
