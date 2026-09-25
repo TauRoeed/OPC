@@ -105,7 +105,8 @@ python -m BPR.generate_artifacts --dataset msd --root datasets/msd/msd_taste_pro
 lastfm / msd also fetch side metadata (user profiles, artist genres and tags; ~1.2GB); see `BPR/README.md`.
 
 Disable auto-download: add `--no-download`.  
-Smoke test: `python -m BPR.smoke_test_loaders --include-large`.
+Smoke test: `python -m BPR.smoke_test_loaders --include-large`.  
+Test-set quality of the recipes (Recall@5/@20, NDCG, MPR): `python -m BPR.evaluate`; results in `BPR/README.md`.
 
 ### Important Arguments
 

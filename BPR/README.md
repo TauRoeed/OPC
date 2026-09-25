@@ -63,6 +63,36 @@ python -m BPR.generate_artifacts --dataset ml --root datasets/ml-1m
 python -m BPR.generate_artifacts --dataset ml --root datasets/ml-1m --negatives popularity --emb-dir BPR/embeddings/popneg
 ```
 
+### Test-set quality
+
+`python -m BPR.evaluate` holds out one liked item per user (users with at least 4 likes; seeded,
+separate from the early-stopping item), trains each recipe exactly as above (early stopping, then
+a refit) on the rest, and ranks each test item among the items its user did not interact with.
+With r the 0-based rank: Recall@k = [r < k], NDCG@k = [r < k] / log2(r + 2), and MPR is the mean
+of r / (candidates − 1): 0% when the test item always comes first, 50% at random. "Popularity"
+ranks items by their number of likes. The embeddings in `BPR/embeddings` are refit on all
+interactions, so these numbers describe the recipes (seed 0, all test users):
+
+| dataset | test users | Recall@5 | Recall@20 | NDCG@5 | NDCG@20 | MPR | popularity: Recall@20, MPR |
+|---------|-----------:|---------:|----------:|-------:|--------:|----:|---------------------------:|
+| ml | 6,035 | 0.133 | 0.295 | 0.088 | 0.134 | 5.9% | 0.142, 12.1% |
+| myket | 9,988 | 0.076 | 0.166 | 0.051 | 0.076 | 9.6% | 0.129, 16.9% |
+| kuairec | 7,167 | 0.049 | 0.117 | 0.033 | 0.052 | 8.2% | 0.070, 13.0% |
+| kuairand | 25,736 | 0.053 | 0.133 | 0.034 | 0.057 | 15.1% | 0.085, 20.1% |
+| anime | 67,790 | 0.168 | 0.336 | 0.117 | 0.164 | 1.9% | 0.157, 5.0% |
+| msd | 1,000,983 | 0.066 | 0.146 | 0.044 | 0.067 | 4.8% | 0.081, 6.2% |
+| lastfm | 358,725 | 0.077 | 0.177 | 0.051 | 0.079 | 1.4% | 0.056, 3.6% |
+
+```bash
+python -m BPR.evaluate --dataset ml --root datasets/ml-1m                  # train + evaluate
+python -m BPR.evaluate --dataset ml --skip-train --backends numpy cuda     # evaluate the saved model
+```
+
+Training costs what `generate_artifacts` does (the table above). Scoring every test user takes
+under 1.5 s on the five smaller catalogs, CPU or GPU; on msd 73 s on the CPU and 3 s on the GPU,
+on lastfm 179 s and 7 s (numpy with 24 threads is no faster than with 4). All backends give the
+same ranks (tests/test_bpr_evaluate.py). Outputs go to `BPR/embeddings/test_split/` (git-ignored).
+
 The item bias feeds the simulator's popularity term (`--pop-strength`, `--logger-pop-strength`;
 [docs/representation_bias.md](../docs/representation_bias.md)). Runs with both weights at 0, the
 default, ignore it.
