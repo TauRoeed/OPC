@@ -76,6 +76,8 @@ def transform_importance_weights(
 ):
     """Apply raw / clip / Su-shrink transform to IPS weights."""
     mode = str(iw_mode).lower()
+    if mode == "dm":
+        raise ValueError("weights 'dm' (all zero) are for DM-only selection; train DM-only with the 'dm' loss")
     if mode in ("raw", "none"):
         return importance_weights(pi_e_at_action, pscore, use_iw, log_eps)
     if mode == "shrink":
@@ -327,6 +329,26 @@ class SNDRPolicyLoss(_BanditPolicyLossBase):
         return self._dr_sndr_loss(
             pscore, scores, policy_prob, original_policy_rewards, original_policy_actions
         )
+
+
+def dm_surrogate(scores, policy_prob, *, use_log_trick: bool, log_eps: float = 1e-10):
+    """Direct-method surrogate per row: sum_a pi(a|x) q_hat(x, a) (the SNDR surrogate's DM term).
+
+    Exact over all actions, so the log-trick form (pi detached, times log pi) has the same
+    gradient as the pathwise one."""
+    if use_log_trick:
+        return (scores * policy_prob.detach() * torch.log(policy_prob.clamp(min=log_eps))).sum(dim=1)
+    return dm_reward(scores, policy_prob)
+
+
+class DMPolicyLoss(_BanditPolicyLossBase):
+    """Direct method (the no-propensity baseline with a reward model): maximize the policy's value
+    under q_hat on the logged contexts. Logged actions, rewards and propensities are not used."""
+
+    def forward(self, pscore, scores, policy_prob, original_policy_rewards, original_policy_actions):
+        _ = pscore, original_policy_rewards, original_policy_actions
+        scores, policy_prob = _align_policy_scores(scores, policy_prob)
+        return -dm_surrogate(scores, policy_prob, use_log_trick=self.use_log_trick, log_eps=self.log_eps).mean()
 
 
 class KLPolicyLoss(_BanditPolicyLossBase):

@@ -612,6 +612,8 @@ def _estimator_weight_kwargs(weights) -> dict:
     from utils.importance_weights import parse_weight_spec
 
     mode, param = parse_weight_spec("none" if weights is None else weights)
+    if mode == "dm":
+        raise ValueError("weights 'dm' are for DM-only trial selection, not for the post-hoc estimators")
     if mode == "clip":
         return {"lambda_": param}
     if mode == "shrink":

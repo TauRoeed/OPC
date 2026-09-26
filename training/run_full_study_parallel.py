@@ -68,11 +68,13 @@ from utils.importance_weights import weight_spec_label
 from utils.seeding import DEFAULT_CPU_THREADS, pin_cpu_threads
 from training.memory_budget import describe_plan, device_capacities, plan_worker_groups
 from training.run_full_study import (
+    ALL_STUDY_METHODS,
     VALID_STUDY_METHODS,
     _collect_existing_summaries,
     _condition_run_key,
     _finalize_summary_df,
     _normalize_study_methods,
+    _summary_has_methods,
     _no_prop_policy_loss_types,
     _resolve_val_size_configs,
     _run_condition,
@@ -344,7 +346,7 @@ def _execute_run(config: dict):
     os.environ["OPC_IN_PARALLEL"] = "1"
     run_dir = Path(config["run_dir"])
     run_dir.mkdir(parents=True, exist_ok=True)
-    opc_df, noprop_df, opc_trials, noprop_trials, meta = _run_condition(
+    opc_df, noprop_df, opc_trials, noprop_trials, meta, extra = _run_condition(
         dataset_name=config["dataset_name"],
         emb_dir=Path(config["emb_dir"]),
         bias=config["bias"],
@@ -382,12 +384,15 @@ def _execute_run(config: dict):
         log_select_weights=config.get("log_select_weights") or (),
         policy_transform=str(config.get("policy_transform", "linear")),
         world_options=config.get("world_options"),
+        learn_logit_scale=bool(config.get("learn_logit_scale", False)),
+        return_extra=True,
     )
 
     summary_df = _finalize_summary_df(
         opc_df,
         noprop_df,
         meta,
+        extra=extra,
         dataset=config["dataset_name"],
         seed=config["seed"],
     )
@@ -395,6 +400,8 @@ def _execute_run(config: dict):
     summary_df.to_csv(run_dir / "summary_metrics.csv", index=False)
     opc_trials.to_csv(run_dir / "opc_trials.csv", index=False)
     noprop_trials.to_csv(run_dir / "no_prop_trials.csv", index=False)
+    for label, (_, trials) in extra.items():
+        trials.to_csv(run_dir / f"{label}_trials.csv", index=False)
     with open(run_dir / "run_meta.json", "w", encoding="utf-8") as f:
         json.dump(meta, f, indent=2)
 
@@ -617,8 +624,17 @@ def main():
         "--methods",
         nargs="+",
         default=list(VALID_STUDY_METHODS),
-        choices=list(VALID_STUDY_METHODS),
-        help="Which arms to run. Use no_propensity alone to rerun baseline after OPC finished.",
+        choices=list(ALL_STUDY_METHODS),
+        help="Which arms to run (default: opc no_propensity). Opt-in baselines: dm (policy trained "
+        "and selected on q_hat alone) and tempered_logger (the logger's logits x s, s chosen by "
+        "the DR selection score). One arm alone reruns it next to the cached others.",
+    )
+    parser.add_argument(
+        "--learn-logit-scale",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Trained policies (OPC, no-prop, DM) also learn a logit scale s, softmax(s·u·a/T), "
+        "starting at 1: sharpen or flatten without re-ranking (default: off).",
     )
     parser.add_argument(
         "--skip-completed",
@@ -663,17 +679,9 @@ def main():
     )
     for base_cfg in _iter_run_configs(args, out_dir, val_size_configs):
         summary_path = Path(base_cfg["run_dir"]) / "summary_metrics.csv"
-        if args.skip_completed and summary_path.exists():
-            if methods == VALID_STUDY_METHODS:
-                print(f"Skipping completed: {base_cfg['run_key']}")
-                continue
-            if methods == ("no_propensity",):
-                summary = pd.read_csv(summary_path)
-                if "method" in summary.columns and (
-                    summary["method"] == "no_propensity"
-                ).any():
-                    print(f"Skipping completed no-prop: {base_cfg['run_key']}")
-                    continue
+        if args.skip_completed and summary_path.exists() and _summary_has_methods(summary_path, methods):
+            print(f"Skipping completed: {base_cfg['run_key']} ({', '.join(methods)})")
+            continue
         cfg = {
             **base_cfg,
             "emb_dir": str(emb_dir),
@@ -705,6 +713,7 @@ def main():
             "select_weights": args.select_weights,
             "log_select_weights": list(args.log_select_weights),
             "policy_transform": args.policy_transform,
+            "learn_logit_scale": bool(args.learn_logit_scale),
         }
         run_configs.append(cfg)
 
@@ -769,6 +778,7 @@ def main():
                     "train_weights": args.train_weights,
                     "select_weights": args.select_weights,
                     "policy_transform": args.policy_transform,
+                    "learn_logit_scale": bool(args.learn_logit_scale),
                     "val_min": args.val_min,
                     "val_max": args.val_max,
                     "policy_reward_mode": args.policy_reward_mode,

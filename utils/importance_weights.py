@@ -2,7 +2,8 @@
 
 A spec is ``none`` (raw weights w = pi_e / pi_b), ``clip:M`` (``min(w, M)``) or ``shrink:lam``
 (Su et al. 2020: ``lam * w / (w**2 + lam)``, at most sqrt(lam) / 2, and falling back toward 0
-past w = sqrt(lam)).
+past w = sqrt(lam)). ``dm`` sets every weight to 0: the DR estimate becomes the direct method
+(DM-only trial selection; not a training transform).
 """
 
 from __future__ import annotations
@@ -11,18 +12,24 @@ import math
 
 import numpy as np
 
-WEIGHT_MODES = ("none", "clip", "shrink")
+WEIGHT_MODES = ("none", "clip", "shrink", "dm")
 
 
 def parse_weight_spec(spec) -> tuple[str, float]:
-    """``'none' | 'clip:M' | 'shrink:lam'`` (or a (mode, param) pair) -> (mode, param)."""
+    """``'none' | 'clip:M' | 'shrink:lam' | 'dm'`` (or a (mode, param) pair) -> (mode, param)."""
     if isinstance(spec, (tuple, list)):
         mode, param = str(spec[0]).lower(), float(spec[1])
+        if mode == "dm":
+            return "dm", 0.0
     else:
         text = str(spec).strip().lower()
         mode, _, value = text.partition(":")
         if mode in ("none", "raw"):
             return "none", math.inf
+        if mode == "dm":
+            if value:
+                raise ValueError(f"weight spec {spec!r}: 'dm' takes no parameter")
+            return "dm", 0.0
         if not value:
             raise ValueError(f"weight spec {spec!r}: use none, clip:M or shrink:lambda")
         param = float(value)
@@ -42,7 +49,7 @@ def parse_weight_spec(spec) -> tuple[str, float]:
 def weight_spec_label(spec) -> str:
     """Canonical text of a spec: 'none', 'clip:100', 'shrink:10000'."""
     mode, param = parse_weight_spec(spec)
-    return "none" if mode == "none" else f"{mode}:{param:g}"
+    return mode if mode in ("none", "dm") else f"{mode}:{param:g}"
 
 
 def transform_weights(iw, spec) -> np.ndarray:
@@ -53,6 +60,8 @@ def transform_weights(iw, spec) -> np.ndarray:
         return np.minimum(iw, param)
     if mode == "shrink":
         return (param * iw) / (param + iw * iw)
+    if mode == "dm":
+        return np.zeros_like(iw)
     return iw
 
 

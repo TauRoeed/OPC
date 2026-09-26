@@ -133,6 +133,7 @@ from training.training_utils import (
 
 from models.custom_losses import (
     CRMPolicyLoss,
+    DMPolicyLoss,
     IPWPolicyLoss,
     KLCRMPolicyLoss,
     KLPolicyLoss,
@@ -145,7 +146,8 @@ from training.metrics_utils import (
     enrich_trial_pct_fields,
 )
 
-VALID_POLICY_LOSSES = ("kl_crm", "kl", "ipw", "sndr", "crm", "naive")
+VALID_POLICY_LOSSES = ("kl_crm", "kl", "ipw", "sndr", "crm", "naive", "dm")
+TEMPER_SCALE_RANGE = (0.5, 64.0)  # logit scales the tempered-logger baseline searches (log-uniform)
 # Importance-weight transforms (utils.importance_weights specs) for the OPC training losses
 # (sndr, ipw, kl; crm / kl_crm keep their own searched clip) and for trial selection plus the
 # post-hoc estimates. ``--train-weights none --select-weights clip:1`` reproduces the older runs.
@@ -422,6 +424,8 @@ def _policy_loss_from_name(
             use_log_trick=use_log_trick,
             propensity_mode=propensity_mode,
         )
+    if name == "dm":
+        return DMPolicyLoss(use_log_trick=use_log_trick, propensity_mode=propensity_mode)
     if name == "sndr":
         return SNDRPolicyLoss(
             use_log_trick=use_log_trick,
@@ -1113,6 +1117,10 @@ def _study_trials_long(
         )
         if "pop_weight" in attrs:  # learned popularity weight (worlds with a popularity column)
             rows[-1]["pop_weight"] = float(attrs["pop_weight"])
+        if "logit_scale" in attrs:  # learned or searched logit scale (1 = the logger's sharpness)
+            rows[-1]["logit_scale"] = float(attrs["logit_scale"])
+        if "logit_scale" in params:
+            rows[-1]["param_logit_scale"] = float(params["logit_scale"])
         for k, v in attrs.items():  # selection scores under other weight specs (tuning runs), diagnostics
             if k.startswith(("sel_r_hat[", "sel_ci_low[", "diag_")):
                 rows[-1][k] = float(v)
@@ -2806,6 +2814,9 @@ def regression_trainer_trial(
     select_weights=None,
     log_select_weights=(),
     policy_transform: str = "linear",
+    select_estimator: str = "dr",
+    learn_logit_scale: bool = False,
+    temper_only: bool = False,
 ):
     """
     OPC / no-propensity trainer with Optuna over CF hyperparameters.
@@ -2830,6 +2841,13 @@ def regression_trainer_trial(
     ``policy_transform``: how the policy corrects the biased vectors (``models.models.POLICY_TRANSFORMS``):
     ``linear`` (default; (I + D) x + b per side, starting at the identity), ``mlp`` (x + MLP(LN(x)),
     the older transform) or ``linear+mlp``.
+
+    ``select_estimator``: ``dr`` (default: the DR score with ``select_weights``) or ``dm`` (the
+    reward model's value alone, all weights 0: the DM-only baseline's selection; needs
+    ``propensity_mode='logged'`` for the DM term, propensities are multiplied by 0).
+    ``learn_logit_scale``: the policy also learns a logit scale s (softmax(s · u·a / T), starting
+    at 1: sharpen or flatten without re-ranking). ``temper_only``: the tempered-logger baseline, no
+    training: each trial is the logger with logits x s, s searched in ``TEMPER_SCALE_RANGE``.
 
     ``search_use_log_trick``: if False, always use direct-prob surrogate (no log trick)
     for applicable losses and do not tune ``use_log_trick`` in Optuna.
@@ -2859,6 +2877,11 @@ def regression_trainer_trial(
     for name in policy_loss_types:
         if name not in VALID_POLICY_LOSSES:
             raise ValueError(f"Unknown policy loss '{name}'")
+    select_estimator = str(select_estimator).lower()
+    if select_estimator not in ("dr", "dm"):
+        raise ValueError(f"select_estimator must be 'dr' or 'dm', got {select_estimator!r}")
+    if select_estimator == "dm" and not uses_importance_weighting(propensity_mode):
+        raise ValueError("select_estimator='dm' needs propensity_mode='logged' (the DM term is off-policy scoring)")
     # OPC only: weight transforms for training and for the DR selection score (dr_score_clip_m,
     # when given, is a selection clip:M). No-prop stays pure (no IW).
     train_spec = parse_weight_spec(DEFAULT_TRAIN_WEIGHTS if train_weights is None else train_weights)
@@ -3080,17 +3103,22 @@ def regression_trainer_trial(
         def objective(trial):
             seed_everything(derive_seed(seed, method_label, train_size, "trial", trial.number))
             print(f"\n[Regression] Optuna Trial {trial.number}")
-            lr = trial.suggest_float("lr", 1e-4, 1e-3, log=True)
-            epochs = trial.suggest_int("num_epochs", 5, 25)
-            trial_batch_size = trial.suggest_categorical(
-                "batch_size", trial_batch_choices
-            )
-            lr_decay = trial.suggest_float("lr_decay", 0.8, 1.0)
-            if _policy_loss_needs_kl(policy_loss_types):
+            if temper_only:  # tempered logger: no training, only the logit scale
+                logit_scale = trial.suggest_float("logit_scale", *TEMPER_SCALE_RANGE, log=True)
+                lr, epochs, trial_batch_size, lr_decay = 0.0, 0, int(trial_batch_choices[0]), 1.0
+            else:
+                logit_scale = 1.0
+                lr = trial.suggest_float("lr", 1e-4, 1e-3, log=True)
+                epochs = trial.suggest_int("num_epochs", 5, 25)
+                trial_batch_size = trial.suggest_categorical(
+                    "batch_size", trial_batch_choices
+                )
+                lr_decay = trial.suggest_float("lr_decay", 0.8, 1.0)
+            if _policy_loss_needs_kl(policy_loss_types) and not temper_only:
                 kl_gamma = trial.suggest_float("kl_gamma", 1e-4, 0.5, log=True)
             else:
                 kl_gamma = 0.05
-            if _policy_loss_needs_crm(policy_loss_types):
+            if _policy_loss_needs_crm(policy_loss_types) and not temper_only:
                 # Controlled clip sweep (artifacts/oom_smoke/crm_clip_sweep): lift
                 # rises with crm_M; unclipped best. Search high end, default 100.
                 crm_M = trial.suggest_float("crm_M", 10.0, 1000.0, log=True)
@@ -3099,13 +3127,15 @@ def regression_trainer_trial(
                 crm_M = 100.0
                 crm_lambda = 1.0
             crm_iw_mode = "clip"
-            # Fixed weight transform for OPC DR scoring (not an Optuna param).
+            # Fixed weight transform for OPC DR scoring (not an Optuna param); DM-only scores q_hat alone.
             score_weights = select_spec if apply_dr_score_clip else ("none", math.inf)
+            if select_estimator == "dm":
+                score_weights = ("dm", 0.0)
             dr_score_clip_m = score_weights[1] if score_weights[0] == "clip" else math.inf
-            trial_use_log_trick = _resolve_trial_use_log_trick(
+            trial_use_log_trick = False if temper_only else _resolve_trial_use_log_trick(
                 trial, search_use_log_trick, use_log_trick_fixed
             )
-            if len(policy_loss_types) > 1:
+            if len(policy_loss_types) > 1 and not temper_only:
                 trial_policy_loss = trial.suggest_categorical(
                     "policy_loss", list(policy_loss_types)
                 )
@@ -3121,9 +3151,11 @@ def regression_trainer_trial(
                 emb_dim,
                 initial_user_embeddings=T(cf_x_orig),
                 initial_actions_embeddings=T(cf_a_orig),
-                user_transform=make_policy_transform(policy_transform, emb_dim),
-                action_transform=make_policy_transform(policy_transform, emb_dim),
+                user_transform=None if temper_only else make_policy_transform(policy_transform, emb_dim),
+                action_transform=None if temper_only else make_policy_transform(policy_transform, emb_dim),
                 temperature=_policy_temperature(dataset),
+                logit_scale=logit_scale,
+                learn_logit_scale=bool(learn_logit_scale) and not temper_only,
                 **cf_popularity,
             ).to(device)
 
@@ -3148,19 +3180,21 @@ def regression_trainer_trial(
                 shrink_lambda=crm_M,
                 train_weights=train_spec,
             )
-            train(
-                trial_model,
-                final_train_loader,
-                trial_scores_all,
-                criterion=criterion,
-                num_epochs=epochs,
-                lr=lr,
-                lr_decay=lr_decay,
-                device=str(device),
-            )
+            if not temper_only:
+                train(
+                    trial_model,
+                    final_train_loader,
+                    trial_scores_all,
+                    criterion=criterion,
+                    num_epochs=epochs,
+                    lr=lr,
+                    lr_decay=lr_decay,
+                    device=str(device),
+                )
 
             # Evaluate validation score
             trial_model.eval()
+            trial.set_user_attr("logit_scale", float(trial_model.logit_scale))
             trial_x, trial_a = trial_model.get_params()
             trial_x, trial_a = (
                 trial_x.detach().cpu().numpy(),
@@ -3341,6 +3375,7 @@ def regression_trainer_trial(
         }
         if cf_popularity:
             trial_res["pop_weight"] = _policy_pop_weight(dataset, learned_a)
+        trial_res["logit_scale"] = float(study.best_trial.user_attrs.get("logit_scale", 1.0))
         trial_res.update(enrich_summary_pct_fields(trial_res))
 
         trial_dicts_this_size.append(trial_res)
@@ -3456,6 +3491,7 @@ def no_propensity_trainer_trial(
     seed: int = 0,
     select_weights=None,
     policy_transform: str = "linear",
+    learn_logit_scale: bool = False,
 ):
     """
     Explicit no-propensity baseline with parity to regression trainer:
@@ -3495,6 +3531,7 @@ def no_propensity_trainer_trial(
         seed=seed,
         select_weights=select_weights,  # post-hoc estimates only; no-prop has no weights
         policy_transform=policy_transform,
+        learn_logit_scale=learn_logit_scale,
     )
 
 

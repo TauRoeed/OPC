@@ -23,7 +23,11 @@ from training.trainer_trials import (
     regression_trainer_trial,
 )
 
-VALID_STUDY_METHODS = ("opc", "no_propensity")
+VALID_STUDY_METHODS = ("opc", "no_propensity")  # the default arms
+# Opt-in baselines (--methods): dm = policy trained and selected on q_hat alone (no propensities);
+# tempered_logger = no training, the logger's logits x s with s chosen by the DR selection score.
+BASELINE_METHODS = ("dm", "tempered_logger")
+ALL_STUDY_METHODS = VALID_STUDY_METHODS + BASELINE_METHODS
 
 
 def _normalize_study_methods(methods: list[str] | tuple[str, ...] | None) -> tuple[str, ...]:
@@ -32,8 +36,8 @@ def _normalize_study_methods(methods: list[str] | tuple[str, ...] | None) -> tup
     out = []
     for name in methods:
         key = str(name).lower()
-        if key not in VALID_STUDY_METHODS:
-            raise ValueError(f"Unknown method {name!r}; expected one of {VALID_STUDY_METHODS}")
+        if key not in ALL_STUDY_METHODS:
+            raise ValueError(f"Unknown method {name!r}; expected one of {ALL_STUDY_METHODS}")
         if key not in out:
             out.append(key)
     if not out:
@@ -45,6 +49,15 @@ def _no_prop_policy_loss_types(policy_loss_types: tuple[str, ...] | None = None)
     """No-propensity baseline: pure naive reward (no DM/SNDR/IW/KL/CRM)."""
     _ = policy_loss_types
     return ("naive",)
+
+
+def _summary_has_methods(summary_path: Path, methods) -> bool:
+    """True when ``summary_metrics.csv`` already holds every requested method (skip-completed)."""
+    try:
+        summary = pd.read_csv(summary_path)
+    except Exception:
+        return False
+    return "method" in summary.columns and set(methods) <= set(summary["method"].astype(str))
 
 
 def _load_cached_method_df(run_dir: Path, method: str) -> pd.DataFrame:
@@ -228,12 +241,18 @@ def _run_condition(
     policy_transform: str = "linear",
     deterministic: bool = True,
     cpu_threads: int = DEFAULT_CPU_THREADS,
+    learn_logit_scale: bool = False,
+    return_extra: bool = False,
 ):
+    """One condition. ``methods`` may add the opt-in baselines (``BASELINE_METHODS``); their
+    summaries and trials come back as a 6th item ``{method: (summary_df, trials_df)}`` when
+    ``return_extra`` (the 5-item return is unchanged otherwise). ``learn_logit_scale``: every
+    trained policy (OPC, no-prop, DM) also learns a logit scale."""
     methods = _normalize_study_methods(methods)
     run_opc = "opc" in methods
     run_no_prop = "no_propensity" in methods
     noprop_policy_loss_types = _no_prop_policy_loss_types(policy_loss_types)
-    n_methods = int(run_opc) + int(run_no_prop)
+    n_methods = int(run_opc) + int(run_no_prop) + int("dm" in methods)
     for ts in train_sizes:
         est = estimate_condition_runtime_s(
             int(ts),
@@ -369,6 +388,7 @@ def _run_condition(
             select_weights=select_weights,
             log_select_weights=tuple(log_select_weights or ()),
             policy_transform=policy_transform,
+            learn_logit_scale=bool(learn_logit_scale),
         )
     else:
         try:
@@ -410,6 +430,7 @@ def _run_condition(
             seed=int(seed),
             select_weights=select_weights,
             policy_transform=policy_transform,
+            learn_logit_scale=bool(learn_logit_scale),
         )
     else:
         try:
@@ -419,13 +440,57 @@ def _run_condition(
             noprop_df = pd.DataFrame()
             noprop_trials = pd.DataFrame()
 
+    # Opt-in baselines: the same splits, reward model, selection weights and search budget.
+    extra = {}
+    extra_log_paths = {}
+    for label in (m for m in BASELINE_METHODS if m in methods):
+        extra_log_paths[label] = {"trials": run_dir / f"{label}_trials_long.csv", "runs": run_dir / f"{label}_runs_long.csv"}
+        arm = {"dm": dict(policy_loss_types=("dm",), select_estimator="dm", learn_logit_scale=bool(learn_logit_scale)),
+               "tempered_logger": dict(policy_loss_types=("sndr",), temper_only=True)}[label]
+        extra[label] = regression_trainer_trial(
+            train_sizes=train_sizes,
+            dataset=dataset,
+            batch_size=batch_size,
+            val_size=val_size,
+            val_frac=val_frac,
+            val_min=val_min,
+            val_max=val_max,
+            n_trials=n_trials,
+            prev_best_params=None,
+            propensity_mode="logged",
+            log_paths=extra_log_paths[label],
+            slim=slim,
+            method_label=label,
+            policy_reward_mode=policy_reward_mode,
+            policy_reward_mc_sim=policy_reward_mc_sim,
+            split_cache=split_cache,
+            dataset_name=dataset_name,
+            search_use_log_trick=False,
+            use_log_trick_fixed=False,
+            shared_regression_bundle=shared_regression_bundle,
+            shared_regression_size=shared_regression_size,
+            qhat_user_chunk=qhat_user_chunk,
+            qhat_action_chunk=qhat_action_chunk,
+            require_cuda=require_cuda,
+            optuna_batch_sizes=optuna_batch_sizes,
+            optuna_selection=optuna_selection,
+            reward_model=str(reward_model),
+            dr_score_clip_m=dr_score_clip_m,
+            seed=int(seed),
+            train_weights=train_weights,
+            select_weights=select_weights,
+            log_select_weights=tuple(log_select_weights or ()),
+            policy_transform=policy_transform,
+            **arm,
+        )
+
     # Unified long logs for post-hoc analysis.
     trials_frames = []
     runs_frames = []
-    for p in (opc_log_paths["trials"], noprop_log_paths["trials"]):
+    for p in (opc_log_paths["trials"], noprop_log_paths["trials"], *(v["trials"] for v in extra_log_paths.values())):
         if p.exists():
             trials_frames.append(pd.read_csv(p))
-    for p in (opc_log_paths["runs"], noprop_log_paths["runs"]):
+    for p in (opc_log_paths["runs"], noprop_log_paths["runs"], *(v["runs"] for v in extra_log_paths.values())):
         if p.exists():
             runs_frames.append(pd.read_csv(p))
     if trials_frames:
@@ -476,6 +541,7 @@ def _run_condition(
         "select_weights": select_label,
         "log_select_weights": [weight_spec_label(w) for w in (log_select_weights or ())],
         "policy_transform": str(policy_transform),
+        "learn_logit_scale": bool(learn_logit_scale),
         "dr_score_clip_m": parse_weight_spec(select_label)[1] if select_label.startswith("clip") else None,
         "shared_regression_size": int(
             shared_regression_bundle.get("sample_size", reg_size)
@@ -496,19 +562,20 @@ def _run_condition(
         "q_bad_value": shared_regression_bundle.get("q_bad_value", q_bad_value),
         "rand_ctr": rand_ctr_meta or {},
     }
+    if return_extra:
+        return opc_df, noprop_df, opc_trials, noprop_trials, meta, extra
     return opc_df, noprop_df, opc_trials, noprop_trials, meta
 
 
-def _finalize_summary_df(opc_df, noprop_df, meta: dict, **tags) -> pd.DataFrame:
+def _finalize_summary_df(opc_df, noprop_df, meta: dict, *, extra: dict | None = None, **tags) -> pd.DataFrame:
+    """One row per (method, train size); ``extra``: ``{method: (summary_df, trials_df)}`` baselines."""
     frames = []
-    if opc_df is not None and not getattr(opc_df, "empty", True):
-        part = opc_df.reset_index().rename(columns={"index": "train_size"})
-        part["method"] = "opc"
-        frames.append(part)
-    if noprop_df is not None and not getattr(noprop_df, "empty", True):
-        part = noprop_df.reset_index().rename(columns={"index": "train_size"})
-        part["method"] = "no_propensity"
-        frames.append(part)
+    arms = [("opc", opc_df), ("no_propensity", noprop_df)] + [(k, v[0]) for k, v in (extra or {}).items()]
+    for label, df in arms:
+        if df is not None and not getattr(df, "empty", True):
+            part = df.reset_index().rename(columns={"index": "train_size"})
+            part["method"] = label
+            frames.append(part)
     if not frames:
         return pd.DataFrame()
     summary_df = pd.concat(frames, ignore_index=True)
@@ -531,7 +598,7 @@ def _finalize_summary_df(opc_df, noprop_df, meta: dict, **tags) -> pd.DataFrame:
         summary_df["logger_sharpness"] = float(world.get("logger_sharpness", 1.0))
         summary_df["logger_greedy_ctr"] = world.get("logger_greedy_ctr")
     summary_df["reward_features"] = meta.get("reward_features")  # None unless reward_model=regression
-    for k in ("train_weights", "select_weights", "policy_transform"):
+    for k in ("train_weights", "select_weights", "policy_transform", "learn_logit_scale"):
         summary_df[k] = meta.get(k)
     if "val_size" in summary_df.columns:
         summary_df["val_size_config"] = summary_df["val_size"]
@@ -750,8 +817,17 @@ def main():
         "--methods",
         nargs="+",
         default=list(VALID_STUDY_METHODS),
-        choices=list(VALID_STUDY_METHODS),
-        help="Which arms to run. Use no_propensity alone to rerun baseline after OPC finished.",
+        choices=list(ALL_STUDY_METHODS),
+        help="Which arms to run (default: opc no_propensity). Opt-in baselines: dm (policy trained "
+        "and selected on q_hat alone) and tempered_logger (the logger's logits x s, s chosen by "
+        "the DR selection score). One arm alone reruns it next to the cached others.",
+    )
+    parser.add_argument(
+        "--learn-logit-scale",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Trained policies (OPC, no-prop, DM) also learn a logit scale s, softmax(s·u·a/T), "
+        "starting at 1: sharpen or flatten without re-ranking (default: off).",
     )
     parser.add_argument(
         "--skip-completed",
@@ -812,29 +888,16 @@ def main():
                         run_dir = val_root / run_key
                         run_dir.mkdir(parents=True, exist_ok=True)
                         summary_path = run_dir / "summary_metrics.csv"
-                        if args.skip_completed and summary_path.exists():
-                            if methods == VALID_STUDY_METHODS:
-                                print(f"Skipping completed: {run_key}")
-                                try:
-                                    all_summary_rows.append(pd.read_csv(summary_path))
-                                except Exception:
-                                    pass
-                                continue
-                            if methods == ("no_propensity",):
-                                summary = pd.read_csv(summary_path)
-                                if (
-                                    "method" in summary.columns
-                                    and (summary["method"] == "no_propensity").any()
-                                ):
-                                    print(f"Skipping completed no-prop: {run_key}")
-                                    try:
-                                        all_summary_rows.append(summary)
-                                    except Exception:
-                                        pass
-                                    continue
+                        if args.skip_completed and summary_path.exists() and _summary_has_methods(summary_path, methods):
+                            print(f"Skipping completed: {run_key} ({', '.join(methods)})")
+                            try:
+                                all_summary_rows.append(pd.read_csv(summary_path))
+                            except Exception:
+                                pass
+                            continue
 
                         try:
-                            opc_df, noprop_df, opc_trials, noprop_trials, meta = _run_condition(
+                            opc_df, noprop_df, opc_trials, noprop_trials, meta, extra = _run_condition(
                                 dataset_name=dataset_name,
                                 emb_dir=emb_dir,
                                 bias=bias,
@@ -870,6 +933,8 @@ def main():
                                 log_select_weights=args.log_select_weights,
                                 policy_transform=args.policy_transform,
                                 world_options=world_options,
+                                learn_logit_scale=bool(args.learn_logit_scale),
+                                return_extra=True,
                             )
                         except Exception as e:
                             failures.append({"run_key": run_key, "error": repr(e)})
@@ -882,6 +947,7 @@ def main():
                             opc_df,
                             noprop_df,
                             meta,
+                            extra=extra,
                             dataset=dataset_name,
                             seed=seed,
                         )
@@ -889,6 +955,8 @@ def main():
                         summary_df.to_csv(run_dir / "summary_metrics.csv", index=False)
                         opc_trials.to_csv(run_dir / "opc_trials.csv", index=False)
                         noprop_trials.to_csv(run_dir / "no_prop_trials.csv", index=False)
+                        for label, (_, trials) in extra.items():
+                            trials.to_csv(run_dir / f"{label}_trials.csv", index=False)
 
                         with open(run_dir / "run_meta.json", "w", encoding="utf-8") as f:
                             json.dump(meta, f, indent=2)
@@ -938,6 +1006,7 @@ def main():
                     "train_weights": args.train_weights,
                     "select_weights": args.select_weights,
                     "policy_transform": args.policy_transform,
+                    "learn_logit_scale": bool(args.learn_logit_scale),
                 },
                 f,
                 indent=2,

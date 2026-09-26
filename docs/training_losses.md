@@ -116,6 +116,10 @@ shrink:10 to shrink:1000) picks trials worth at least 99.7% of the best trial's 
 logger, `clip:100` gets 93.5% and raw weights 77%. The training transform moves the true value by
 at most about 0.2 points. These will be re-tuned on the sharpened logger, whose weights are heavier.
 
+A fourth spec, `dm`, sets every weight to 0 so the DR score becomes the direct method: the DM-only
+baseline's trial selection (`select_estimator="dm"`). It is not a training transform and not a
+post-hoc setting.
+
 ### No-propensity arm
 
 The no-propensity baseline always uses pure naive reward, regardless of the
@@ -139,6 +143,23 @@ naive loss = -(1 / n) * sum_i [r_i * pi_i]
 Minimizing this loss increases the learned probability of logged actions that
 received larger rewards. Zero-reward observations contribute zero directly to
 the loss.
+
+### Opt-in baselines (`--methods ... dm tempered_logger`)
+
+Two more arms share the splits, the reward model, the selection weights and the search budget:
+
+- `dm` (direct method): the policy is trained on the reward model alone and its trials are
+  selected by the reward model alone. Loss `dm`, `-(1/n) sum_i sum_a pi(a | x_i) q_hat(x_i, a)`
+  (the SNDR surrogate's DM term); selection `select_estimator="dm"`, i.e. the DR score with every
+  weight 0. It uses no propensities and no logged rewards beyond those that fit `q_hat`.
+- `tempered_logger`: no training. Each trial is the logger with its logits multiplied by a scale
+  s searched in `TEMPER_SCALE_RANGE` (0.5 to 64, log-uniform), chosen by the same DR selection score
+  as OPC. It measures how much a policy gains from sharpening (or flattening) the logger alone.
+
+`--learn-logit-scale` gives every trained policy (OPC, no-prop, DM) a learnable logit scale,
+softmax(s · u·a / T) with s starting at 1 (`CFModel(learn_logit_scale=True)`). log s moves
+`LOGIT_SCALE_SPEED` (30) times faster than the vector corrections under the same Adam steps, so
+the searched lr × steps can reach a several-fold sharpening.
 
 ## 3. OPC training loss in detail (`kl_crm` ablation)
 

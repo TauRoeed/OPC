@@ -292,12 +292,23 @@ class LinearTransform(nn.Module):
         return self
 
 
+LOGIT_SCALE_SPEED = 30.0  # log s = LOGIT_SCALE_SPEED * theta: Adam moves theta by ~lr per step
+
+
 class CFModel(nn.Module):
-    """softmax((u·a + w·b) / temperature) over all items.
+    """softmax(s · (u·a + w·b) / temperature) over all items.
 
     ``item_popularity`` (optional): BPR's item bias b, fixed; ``pop_weight`` is the starting value
     of its learnable weight w. ``get_params`` then returns the vectors with the popularity column
     (users [u, 1], items [a, w·b]) that ``Policy`` and the simulator score by dot product.
+
+    ``logit_scale`` s (default 1: no scaling, the older model exactly) sharpens (s > 1) or flattens
+    the policy without changing its ranking; ``learn_logit_scale`` learns it as
+    log s = ``LOGIT_SCALE_SPEED`` · theta (theta starts at log ``logit_scale`` / speed). Adam moves
+    every parameter by about lr per step, so one scalar can move this much faster than the vector
+    transforms and still reach a several-fold sharpening within the searched lr × steps.
+    ``get_params`` folds s into the user vectors (popularity column included), so the exported
+    vectors score s · (u·a + w·b).
     """
 
     def __init__(
@@ -313,6 +324,8 @@ class CFModel(nn.Module):
         eps_greedy=0.0,
         item_popularity=None,
         pop_weight=0.0,
+        logit_scale=1.0,
+        learn_logit_scale=False,
     ):
         super().__init__()
 
@@ -320,6 +333,14 @@ class CFModel(nn.Module):
         self.action_transform = action_transform
         self.temperature = float(temperature)
         self.eps_greedy = float(eps_greedy)
+        if not (np.isfinite(float(logit_scale)) and float(logit_scale) > 0.0):
+            raise ValueError(f"logit_scale must be > 0, got {logit_scale}")
+        self.logit_scale_fixed = float(logit_scale)
+        if learn_logit_scale:
+            theta = float(np.log(self.logit_scale_fixed)) / LOGIT_SCALE_SPEED
+            self.log_logit_scale = nn.Parameter(torch.tensor(theta, dtype=torch.float32))
+        else:
+            self.register_parameter("log_logit_scale", None)
 
         self.register_buffer("actions", torch.arange(num_actions), persistent=False)
         self.register_buffer("users", torch.arange(num_users), persistent=False)
@@ -375,9 +396,23 @@ class CFModel(nn.Module):
             if self.pop_weight is not None:
                 emb_x = torch.cat([emb_x, emb_x.new_ones(emb_x.shape[0], 1)], dim=1)
                 emb_a = torch.cat([emb_a, (self.pop_weight * self.item_popularity).unsqueeze(1)], dim=1)
+            scale = self._scale()
+            if scale is not None:
+                emb_x = emb_x * scale
             return emb_x, emb_a
         finally:
             self.train(was_training)
+
+    def _scale(self):
+        """The logit scale as a tensor or float, or None when it is exactly 1 and fixed."""
+        if self.log_logit_scale is not None:
+            return torch.exp(LOGIT_SCALE_SPEED * self.log_logit_scale)
+        return None if self.logit_scale_fixed == 1.0 else self.logit_scale_fixed
+
+    @property
+    def logit_scale(self) -> float:
+        s = self._scale()
+        return 1.0 if s is None else float(s.detach() if isinstance(s, torch.Tensor) else s)
 
     def forward(self, user_ids):
         user_embedding = self.user_embeddings(user_ids)
@@ -392,6 +427,9 @@ class CFModel(nn.Module):
         logits = user_embedding @ actions_embedding.T
         if self.pop_weight is not None:
             logits = logits + self.pop_weight * self.item_popularity
+        scale = self._scale()
+        if scale is not None:
+            logits = logits * scale
         logits = logits / max(self.temperature, 1e-8)
         prob = F.softmax(logits, dim=1)
         if self.eps_greedy > 0.0:
@@ -417,6 +455,8 @@ class CFModel(nn.Module):
             action_transform=self.action_transform,
             temperature=self.temperature,
             eps_greedy=self.eps_greedy,
+            logit_scale=self.logit_scale,
+            learn_logit_scale=self.log_logit_scale is not None,
             **self._popularity_kwargs(),
         )
 

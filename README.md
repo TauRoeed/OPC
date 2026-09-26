@@ -20,6 +20,8 @@ Main flow:
 | No-propensity train | always `naive` (no IW, no DM/DR, no clip) |
 | Optuna objective | `ci_low` = DR/naive mean − t·SE |
 | Importance weights | `--train-weights` (sndr / ipw / kl losses; default `shrink:100`) and `--select-weights` (selection + post-hoc; default `clip:10`): `none`, `clip:M` or `shrink:λ`; interim values from the 2026-09-26 tuning, see `training/trainer_trials.py`; **not** Optuna-searched |
+| Study arms (`--methods`) | `opc no_propensity`; opt-in baselines `dm` (policy trained and selected on `q̂` alone) and `tempered_logger` (the logger's logits × s, s chosen by the DR score) |
+| Logit scale (`--learn-logit-scale`) | off; on, every trained policy also learns s in softmax(s·u·a/T), starting at 1 |
 | Reward model `q̂` | `regression` on interaction features `[x, a, x⊙a]` (`--reward-features`; bias script often uses `logging_score`) |
 | Datasets (`--datasets`) | `ml myket kuairec kuairand anime msd`; lastfm is opt-in (a condition costs ~75× ml's; see Runtime estimate) |
 | Representation bias (`--bias-configs`) | `low medium high` (all three types at that level) |
@@ -253,6 +255,8 @@ runs ~5× slower per epoch than 4096.
 - `--train-weights`, `--select-weights` — importance-weight transform (`none`, `clip:M`, `shrink:λ`) in the OPC
   training losses and in selection + post-hoc estimates; `--log-select-weights` logs other selection transforms
   per trial (tuning). `--train-weights none --select-weights clip:1` reproduces older runs.
+- `--methods opc no_propensity dm tempered_logger` — adds the DM-only and tempered-logger baselines (same
+  splits, reward model and selection weights); `--learn-logit-scale` lets every trained policy learn a logit scale.
 - `--logger-greedy-share` (default 0.9; `off` = the older spread logger) — logger sharpness: the logger earns this
   share of its own greedy CTR. Sharper loggers leave less room the logs can evaluate (see the simulator doc).
 - `--bias-configs` — levels per condition: `medium` (all three types) or `warp/group/vector`, e.g. `high/none/low`.
