@@ -45,11 +45,10 @@ The world has two copies of every user and item vector:
    Signal kept is the mean over users of the correlation, across items, between biased
    and clean taste scores. Each type then keeps a share κ_L on its own (about 0.97 / 0.94 / 0.88).
    Mixed configurations such as `high/none/low` land in between.
-4. **Logging temperature T.** The clean softmax logger spreads over `--logging-spread`
+4. **Spread temperature T.** The clean softmax logger spreads over `--logging-spread`
    of the catalog (default 0.5). Spread is the effective number of items, `exp(entropy)`,
-   averaged over users, of `softmax(s(u, ·) / T)`. The logger in every run is
-   `softmax(our_x · our_a / T)`, optionally mixed with uniform (`--logging-uniform-mix`).
-   The learned policy uses the same T, so at initialization it equals the logger.
+   averaged over users, of `softmax(s(u, ·) / T)`. This spread logger calibrates the click
+   model (step 5); the logger that collects the data is sharpened from it (step 6).
 5. **Click model.** `q(u, a) = sigmoid(α·z(u, a) + b)`, where z is the clean score s
    standardized over all user-item pairs:
    - α is set so the best item of each user averages `--best-ctr` (default 30%);
@@ -59,10 +58,26 @@ The world has two copies of every user and item vector:
      (`--ctr-reference uniform`; H1 uses this).
 
    In code this is `SyntheticBanditEnv(scale=α/sd, offset=b − α·mean/sd)`.
+6. **Logger sharpness** (per condition, `--logger-greedy-share`, default 0.9). The biased logger
+   `softmax(our_x · our_a / T_log)` gets the temperature `T_log = T / f` at which it earns that
+   share of its own greedy CTR on the calibration users (`sharpen_logger`: step up from f = 1,
+   then brentq). It mostly exploits its ranking and explores near the top of it. It is optionally
+   mixed with uniform (`--logging-uniform-mix`, on top of the sharpened softmax). The learned
+   policy uses the same `T_log`, so at initialization it equals the logger. `off` keeps `T_log = T`
+   (the logger before 2026-09-26, which spreads over half the catalog and earns only about 25–35%
+   of its own greedy CTR). The click model does not change.
+
+   Why 0.9 by default, and what the other values cost (ml / kuairand / anime, seed 100): at 0.9 the
+   logger's temperature drops 4.7–6.4 times and it spreads over about 20–100 items. How much room
+   the logs can still evaluate, measured as the best value a linear policy reaches when trained
+   on the truth while keeping its ESS under the logger near 10%, is about +5 to +7.6 points over
+   the logger at 0.8, +3 to +5.3 at 0.9 and +1.6 to +2.3 at 0.95. Today's spread logger evaluates
+   the least at every ESS level, because its exploration covers the whole catalog.
 
 All draws depend only on the seed. The levels are therefore nested (the same bias
 directions at growing ε), and the truth (clean vectors, α, b, T, user prior) is identical
-across bias configurations and logger popularity weights for a given dataset and seed.
+across bias configurations and logger popularity weights for a given dataset and seed. The
+sharpened logger's `T_log` is each configuration's own.
 Calibration runs in float64 numpy, so it gives the same result with or without a GPU. It
 uses samples:
 - 50k users and items for signal kept (all of them on smaller catalogs);
@@ -95,7 +110,8 @@ Only when a popularity weight is positive (otherwise the runs are the taste-only
 | `--pop-strength` | 0 | β_true, weight of BPR's item bias in the true score (needs `{dataset}_item_bias.npy`) |
 | `--logger-pop-strength` | = `--pop-strength` | β_log, the logger's weight on the item bias |
 | `--env-centering` | 0 | λ, share of the mean vector removed (0 = off) |
-| `--logging-spread` | 0.5 | clean logger's effective items / catalog |
+| `--logging-spread` | 0.5 | spread temperature T: clean logger's effective items / catalog (calibrates the click model) |
+| `--logger-greedy-share` | 0.9 | the logger earns this share of its own greedy CTR (`off` = the spread logger) |
 | `--best-ctr` | 0.30 | best item per user, averaged over users |
 | `--ctr-levels` | 0.05 | target CTR of the reference policy |
 | `--ctr-reference` | `logger` | `logger` (at medium bias) or `uniform` (not on H1, which always uses uniform) |
@@ -104,15 +120,18 @@ Run folders are named `dataset=<ds>__bias=<label>__ctr=<ctr>__seed=<seed>[<world
 The label is the level when all three types share it (`medium`); otherwise it is
 `w-high.g-none.v-low`. `<world>` lists the world options that differ from the defaults, e.g.
 `__pop=1__logpop=2` or `__center=0.8__groups=metadata` (tags `pop`, `logpop`, `center`,
-`spread`, `best`, `groups`, `ref`), so runs of different worlds never share a folder; runs
-with default options keep the plain names. Summary CSVs keep the analysis columns:
-`noise_mode=representation_bias`, `noise_axis=both`, `noise_level=<label>`, plus `bias_warp`,
-`bias_group`, `bias_vector`, `signal_kept`, `logging_temperature`, `pop_strength` and
-`logger_pop_strength`.
+`spread`, `best`, `groups`, `ref`, `lgs`; the spread logger is `__lgs=0`), so runs of different
+worlds never share a folder; runs with default options keep the plain names. Summary CSVs keep
+the analysis columns: `noise_mode=representation_bias`, `noise_axis=both`, `noise_level=<label>`,
+plus `bias_warp`, `bias_group`, `bias_vector`, `signal_kept`, `logging_temperature` (the logger's
+T_log), `pop_strength`, `logger_pop_strength`, `logger_greedy_share`, `logger_sharpness` (f) and
+`logger_greedy_ctr`.
 
 `run_meta.json → world` records everything calibrated:
 - ε per type and level, κ per level, and the signal kept per level and for this run;
-- T and the clean logger's effective items;
+- T and the clean logger's effective items; the logger's `T_log` (`logging_temperature`),
+  `spread_temperature`, `logger_sharpness`, its greedy and softmax CTR on the calibration users,
+  the share achieved, its effective items, and the spread logger's CTR (`spread_logger_ctr`);
 - α, b, scale and offset;
 - the reference, uniform, best-item and logging CTRs;
 - the popularity weights (`pop_strength`, `logger_pop_strength`) and `popularity`: whether the

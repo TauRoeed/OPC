@@ -1,5 +1,10 @@
 """Trial scoring on the training device (``_split_dr_vec_and_ess``): the same values as the
-numpy reference it replaced, on the CPU and on the GPU, for every reward-model kind."""
+numpy reference it replaced, on the CPU and on the GPU, for every reward-model kind.
+
+The strict checks use the spread logger (``logger_greedy_share='off'``), whose temperature keeps
+the logits small, so float32 device scoring agrees with numpy to ~1e-6. The sharpened default
+logger has logits several times larger, so float32 rounding is proportionally larger; its own
+test checks agreement at tolerances sized for that."""
 
 import numpy as np
 import pytest
@@ -51,11 +56,11 @@ def _reference_dr_vec_and_ess(split_data, trial_x, trial_a, score_lookup, datase
     return dm + iw * (reward - q_f), ess(iw), ess(raw)
 
 
-def _world(pop=False):
+def _world(pop=False, logger_greedy_share="off"):
     rng = np.random.default_rng(0)
     X = (rng.normal(size=DIM) + 0.6 * rng.normal(size=(N_USERS, DIM))).astype(np.float32)
     A = (rng.normal(size=DIM) + rng.gamma(2.0, 0.4, size=(N_ITEMS, 1)) * rng.normal(size=(N_ITEMS, DIM))).astype(np.float32)
-    params = {"bias": "medium", "ctr": 0.05}
+    params = {"bias": "medium", "ctr": 0.05, "logger_greedy_share": logger_greedy_share}
     if pop:
         params.update(pop_strength=1.0, logger_pop_strength=2.0)
     return generate_dataset(params, seed=0, emb_x=X, emb_a=A, item_bias=2.5 * rng.normal(size=N_ITEMS).astype(np.float32))
@@ -212,3 +217,30 @@ def test_trainer_selection_matches_the_numpy_reference(tmp_path, monkeypatch):
         np.testing.assert_allclose(new_trials[col], ref_trials[col], rtol=1e-4, atol=1e-7, err_msg=col)
     np.testing.assert_array_equal(new_trials["is_best_in_run"], ref_trials["is_best_in_run"])
     np.testing.assert_allclose(new_summary["policy_rewards"], ref_summary["policy_rewards"], rtol=1e-6)
+
+
+@pytest.mark.parametrize("pop", [False, True], ids=["taste", "popularity"])
+def test_sharpened_logger_scores_agree(pop):
+    """The default (sharpened) logger: device and numpy scoring agree up to float32 rounding of
+    larger logits, on the CPU and the GPU, and the trial values that drive selection agree tightly."""
+    ds = _world(pop=pop, logger_greedy_share=0.9)
+    assert ds["world"]["logger_sharpness"] > 2.0  # much sharper than the spread logger
+    split = _build_regression_logged_split(ds, ds["our_x"], ds["our_a"], 3000, 1500, 0, split_seed=1, regression_size=20_000)
+    rng = np.random.default_rng(5)
+    trial_x = ds["our_x"] + 0.3 * rng.normal(size=ds["our_x"].shape).astype(np.float32)
+    trial_a = ds["our_a"] + 0.3 * rng.normal(size=ds["our_a"].shape).astype(np.float32)
+    b = fit_shared_regression_bundle(ds, split["reg_data"], reward_model="regression", materialize_qhat="never")
+    values = {}
+    for device in DEVICES:
+        lk = tt._scores_lookup_from_bundle(b, device)
+        for weights in ("none", "clip:10", "shrink:100"):
+            got = _split_dr_vec_and_ess(split["val_data"], trial_x, trial_a, lk, ds, weights=weights)
+            ref = _reference_dr_vec_and_ess(split["val_data"], trial_x, trial_a, lk, ds, weights=weights)
+            np.testing.assert_allclose(got[0], ref[0], rtol=1e-4, atol=2e-5, err_msg=f"{device} {weights}")
+            assert float(got[0].mean()) == pytest.approx(float(ref[0].mean()), rel=1e-5)
+            assert got[1] == pytest.approx(ref[1], rel=1e-4) and got[2] == pytest.approx(ref[2], rel=1e-4)
+            values[(device, weights)] = got[0]
+    if "cuda" in DEVICES:
+        for weights in ("none", "clip:10", "shrink:100"):
+            np.testing.assert_allclose(values[("cuda", weights)], values[("cpu", weights)], rtol=1e-4, atol=2e-5)
+            assert float(values[("cuda", weights)].mean()) == pytest.approx(float(values[("cpu", weights)].mean()), rel=1e-5)

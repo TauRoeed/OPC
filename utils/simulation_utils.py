@@ -450,12 +450,13 @@ def generate_dataset(params, seed=12345, emb_a=None, emb_x=None, metadata_a=None
     (target CTR of the reference policy), ``best_ctr``, ``centering``, ``logging_spread``,
     ``ctr_reference`` ('logger' | 'uniform'), ``reference_bias``, ``group_source``
     ('cluster' | 'metadata'), ``logging_uniform_mix``, ``strict``, ``pop_strength`` (weight of
-    ``item_bias``, BPR's b, in the true score; default 0) and ``logger_pop_strength`` (the logger's
-    weight; default: the same). ``n_users``, ``n_actions``,
+    ``item_bias``, BPR's b, in the true score; default 0), ``logger_pop_strength`` (the logger's
+    weight; default: the same) and ``logger_greedy_share`` (the logger earns this share of its own
+    greedy CTR; default 0.9, 0 / 'off' = the spread temperature). ``n_users``, ``n_actions``,
     ``emb_dim`` are only needed when ``emb_x`` / ``emb_a`` are not given (Gaussian vectors).
     ``store_original`` is kept for callers; the biased snapshot is always stored.
     """
-    from utils.representation_bias import WorldConfig, build_world, parse_bias
+    from utils.representation_bias import DEFAULT_LOGGER_GREEDY_SHARE, WorldConfig, build_world, parse_bias
 
     legacy = sorted(_LEGACY_NOISE_KEYS & set(params))
     if legacy:
@@ -494,6 +495,7 @@ def generate_dataset(params, seed=12345, emb_a=None, emb_x=None, metadata_a=None
         metadata_x=metadata_x, metadata_a=metadata_a,
         logging_uniform_mix=float(params.get("logging_uniform_mix", 0.0)),
         item_bias=item_bias, logger_pop_strength=None if logger_pop is None else float(logger_pop),
+        logger_greedy_share=params.get("logger_greedy_share", DEFAULT_LOGGER_GREEDY_SHARE),
     )
 
 

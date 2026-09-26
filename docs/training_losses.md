@@ -430,11 +430,14 @@ Sampling draws from softmax with probability `1-α`, else uniform; stored
 pscores are always the exact mixture above. `α = 0` is off. Typical hurt values
 are `0.2`–`0.5`.
 
-### 7.3 Logging spread (`--logging-spread`)
+### 7.3 Logging spread (`--logging-spread`) and logger sharpness (`--logger-greedy-share`)
 
-Sets the softmax temperature `T` of the logging (and learned) dot-product policies. The
-clean logger's effective number of items is `spread × |A|` (default 0.5). Smaller spread
-gives a sharper `pi_b` and heavier importance weights.
+The spread sets the temperature `T` at which the clean logger's effective number of items is
+`spread × |A|` (default 0.5); that spread logger calibrates the click model. The actual logger is
+then sharpened per condition: its temperature is lowered until it earns `--logger-greedy-share`
+(default 0.9) of its own greedy CTR. The learned policies start at the logger's temperature.
+`--logger-greedy-share off` keeps `T` (the logger before 2026-09-26). A sharper logger gives
+heavier importance weights; see [representation_bias.md](representation_bias.md).
 
 ### 7.4 Log trick (`--no-log-trick`)
 

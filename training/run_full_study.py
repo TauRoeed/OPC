@@ -527,6 +527,9 @@ def _finalize_summary_df(opc_df, noprop_df, meta: dict, **tags) -> pd.DataFrame:
         summary_df["logging_temperature"] = float(world["logging_temperature"])
         summary_df["pop_strength"] = float(world.get("pop_strength", 0.0))
         summary_df["logger_pop_strength"] = float(world.get("logger_pop_strength", 0.0))
+        summary_df["logger_greedy_share"] = float(world.get("logger_greedy_share", 0.0))
+        summary_df["logger_sharpness"] = float(world.get("logger_sharpness", 1.0))
+        summary_df["logger_greedy_ctr"] = world.get("logger_greedy_ctr")
     summary_df["reward_features"] = meta.get("reward_features")  # None unless reward_model=regression
     for k in ("train_weights", "select_weights", "policy_transform"):
         summary_df[k] = meta.get(k)

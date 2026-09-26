@@ -66,10 +66,11 @@ def worlds(toy):
     return out
 
 
-def _logger(ds):
+def _logger(ds, temperature=None):
     return Policy(
         n_users=ds["n_users"], n_items=ds["n_actions"], user_emb=ds["our_x"], item_emb=ds["our_a"],
-        emb_dim=ds["emb_dim"], temperature=ds["policy_temperature"], rng=np.random.default_rng(0),
+        emb_dim=ds["emb_dim"], temperature=ds["policy_temperature"] if temperature is None else temperature,
+        rng=np.random.default_rng(0),
     )
 
 
@@ -113,17 +114,20 @@ def test_truth_targets_hold_with_popularity(worlds):
     w = ds["world"]
     assert w["best_item_ctr"] == pytest.approx(0.30, abs=1e-9)  # calibration sample, exact
     assert w["reference_ctr"] == pytest.approx(0.05, abs=1e-9)
-    # the reference policy is this world's medium logger, popularity weight included: on the
-    # calibration users their CTRs differ only by item-sampling noise (~2e-4)
-    assert w["logging_ctr"] == pytest.approx(w["reference_ctr"], abs=1e-3)
+    # the reference policy is this world's medium spread logger, popularity weight included: on
+    # the calibration users their CTRs differ only by item-sampling noise (~2e-4)
+    assert w["spread_logger_ctr"] == pytest.approx(w["reference_ctr"], abs=1e-3)
     # full population: the calibration sees 1,000 prior-weighted users, so on this 1,500-user toy
     # the values differ by sampling noise (as much as in the taste-only world)
     q = ds["env"].reward_prob_block(np.arange(ds["n_users"]), 0, ds["n_actions"])
     prior = ds["user_prior"].astype(np.float64) / ds["user_prior"].sum()
     assert float(prior @ q.max(axis=1)) == pytest.approx(0.30, abs=0.02)  # best item per user
-    assert calc_reward(ds, _logger(ds)) == pytest.approx(0.05, abs=0.003)  # medium logger, beta_log = beta_true
+    spread = _logger(ds, w["spread_temperature"])
+    assert calc_reward(ds, spread) == pytest.approx(0.05, abs=0.003)  # medium spread logger, beta_log = beta_true
     scores = ds["emb_x"].astype(np.float64) @ ds["emb_a"].astype(np.float64).T
-    assert rb._effective_items(scores, ds["policy_temperature"]) / ds["n_actions"] == pytest.approx(0.5, abs=0.02)
+    assert rb._effective_items(scores, w["spread_temperature"]) / ds["n_actions"] == pytest.approx(0.5, abs=0.02)
+    # the sharpened logger (default) earns 90% of its greedy CTR, popularity column included
+    assert w["logger_share_achieved"] == pytest.approx(0.9, abs=1e-9)
     # the clean score is taste + popularity
     X, A = ds["emb_x"][:, :DIM].astype(np.float64), ds["emb_a"][:, :DIM].astype(np.float64)
     np.testing.assert_allclose(scores, X @ A.T + ds["item_popularity"].astype(np.float64), atol=1e-4)
@@ -139,7 +143,7 @@ def test_logger_weight_moves_only_the_logger(worlds):
             np.testing.assert_array_equal(ds[k], ref[k])
         np.testing.assert_array_equal(ds["our_a"][:, :DIM], ref["our_a"][:, :DIM])
         assert (ds["env"].scale, ds["env"].offset) == (ref["env"].scale, ref["env"].offset)
-        assert ds["policy_temperature"] == ref["policy_temperature"]
+        assert ds["world"]["spread_temperature"] == ref["world"]["spread_temperature"]
         for k in ("alpha", "b", "reference_ctr", "uniform_ctr", "eps_table"):
             assert ds["world"][k] == ref["world"][k]
     # a heavier logger weight over-exposes popular items
@@ -156,7 +160,7 @@ def test_truth_without_popularity_logger_with_it(worlds):
     taste, ds = worlds["taste"], worlds["pop0_log2"]
     assert ds["pop_column"]
     np.testing.assert_array_equal(ds["emb_a"][:, DIM], 0.0)
-    for k in ("alpha", "b", "logging_temperature", "reference_ctr", "uniform_ctr", "best_item_ctr"):
+    for k in ("alpha", "b", "spread_temperature", "reference_ctr", "uniform_ctr", "best_item_ctr"):
         assert ds["world"][k] == pytest.approx(taste["world"][k], rel=1e-9)
     users = np.arange(200)
     np.testing.assert_allclose(ds["env"].reward_prob_block(users, 0, N_ITEMS),

@@ -63,10 +63,13 @@ def _brute_signal_kept(bx, ba, X, A):
     return float(np.mean((S * R).sum(axis=1) / (np.linalg.norm(S, axis=1) * np.linalg.norm(R, axis=1))))
 
 
-def _logger(ds):
+def _logger(ds, temperature=None):
+    """The world's logger; ``temperature=ds['world']['spread_temperature']`` gives the spread
+    logger that calibrates the click model (the reference policy at the reference bias)."""
     return Policy(
         n_users=ds["n_users"], n_items=ds["n_actions"], user_emb=ds["our_x"], item_emb=ds["our_a"],
-        emb_dim=ds["emb_dim"], temperature=ds["policy_temperature"], rng=np.random.default_rng(0),
+        emb_dim=ds["emb_dim"], temperature=ds["policy_temperature"] if temperature is None else temperature,
+        rng=np.random.default_rng(0),
     )
 
 
@@ -135,7 +138,7 @@ def test_levels_are_nested(worlds):
 def test_logging_spread_on_all_users(worlds):
     ds = worlds["none"]
     scores = ds["emb_x"].astype(np.float64) @ ds["emb_a"].astype(np.float64).T
-    eff = rb._effective_items(scores, ds["policy_temperature"])
+    eff = rb._effective_items(scores, ds["world"]["spread_temperature"])
     assert eff / ds["n_actions"] == pytest.approx(0.5, abs=0.02)
 
 
@@ -145,7 +148,8 @@ def test_click_model_targets_on_full_population(worlds):
     q = env.reward_prob_block(np.arange(ds["n_users"]), 0, ds["n_actions"])
     prior = ds["user_prior"].astype(np.float64) / ds["user_prior"].sum()
     assert float(prior @ q.max(axis=1)) == pytest.approx(0.30, abs=0.01)  # best item per user
-    assert calc_reward(ds, _logger(ds)) == pytest.approx(0.05, abs=0.002)  # reference logger
+    assert calc_reward(ds, _logger(ds, w["spread_temperature"])) == pytest.approx(0.05, abs=0.002)  # reference logger
+    assert w["spread_logger_ctr"] == pytest.approx(w["reference_ctr"], abs=1e-3)  # same users, exact vs sampled items
     assert calc_uniform_reward(ds) == pytest.approx(w["uniform_ctr"], abs=0.002)
     assert w["reference_ctr"] == pytest.approx(0.05, abs=1e-9)  # calibration sample, exact
     assert w["best_item_ctr"] == pytest.approx(0.30, abs=1e-9)
@@ -168,7 +172,9 @@ def test_truth_is_fixed_across_bias_configs(worlds):
         for k in ("emb_x", "emb_a", "user_prior"):
             np.testing.assert_array_equal(ds[k], ref[k])
         assert (ds["env"].scale, ds["env"].offset) == (ref["env"].scale, ref["env"].offset)
-        assert ds["policy_temperature"] == ref["policy_temperature"]
+        assert ds["world"]["spread_temperature"] == ref["world"]["spread_temperature"]
+        # the sharpened logger's temperature is this configuration's own: T / f
+        assert ds["policy_temperature"] == pytest.approx(ref["world"]["spread_temperature"] / ds["world"]["logger_sharpness"], rel=1e-12)
         if b != "none":
             assert not np.array_equal(ds["our_x"], ref["our_x"])
             assert not np.array_equal(ds["our_a"], ref["our_a"])
@@ -214,7 +220,9 @@ def test_world_record_is_json(worlds):
     w = json.loads(json.dumps(worlds["medium"]["world"]))
     for key in ("eps_table", "per_type_signal_kept", "logging_temperature", "alpha", "b", "scale",
                 "offset", "reference_ctr", "best_item_ctr", "uniform_ctr", "signal_kept", "logging_ctr",
-                "groups", "config"):
+                "groups", "config", "spread_temperature", "logger_greedy_share", "logger_sharpness",
+                "logger_greedy_ctr", "spread_logger_ctr", "logger_softmax_ctr", "logger_share_achieved",
+                "logger_effective_items"):
         assert key in w
     assert w["config"]["reference_bias"] == ["medium", "medium", "medium"]
 

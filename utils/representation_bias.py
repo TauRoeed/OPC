@@ -20,10 +20,16 @@ Build order for one condition (``build_world``):
      catalog (effective number of items = exp(entropy)).
   4. True click model ``q(u, a) = sigmoid(alpha * z(u, a) + b)``, z = standardized clean score:
      alpha so the best item per user averages ``best_ctr``; b so the reference policy (the
-     logger at ``reference_bias`` levels, or the uniform policy) has ``target_ctr``.
+     spread-temperature logger at ``reference_bias`` levels, or the uniform policy) has
+     ``target_ctr``.
+  5. Logger sharpness (per condition): the biased logger's temperature is lowered from T until
+     its CTR is ``logger_greedy_share`` (default 0.9) of its own greedy CTR, so it mostly
+     exploits its ranking and explores near the top. ``off`` keeps T (the logger before
+     2026-09-26, spread over half the catalog). The click model of step 4 does not change.
 Draws depend only on the seed, so bias levels are nested and the truth (alpha, b, T) is
-identical across bias configurations for a given dataset and seed. Calibration runs in
-float64 numpy (same result with or without a GPU) on user / item samples.
+identical across bias configurations for a given dataset and seed; the sharpened logger's
+temperature depends on the bias configuration. Calibration runs in float64 numpy (same result
+with or without a GPU) on user / item samples.
 """
 
 from __future__ import annotations
@@ -45,6 +51,22 @@ BIAS_LEVELS = ("none", "low", "medium", "high")
 LEVEL_SIGNAL_KEPT = {"none": 1.0, "low": 0.90, "medium": 0.75, "high": 0.50}
 GROUP_SOURCES = ("cluster", "metadata")
 CTR_REFERENCES = ("logger", "uniform")
+DEFAULT_LOGGER_GREEDY_SHARE = 0.9  # the logger earns this share of its own greedy CTR (0 = off)
+
+
+def parse_logger_greedy_share(value) -> float:
+    """``off`` / ``none`` / 0 / None -> 0.0 (the spread-temperature logger); else a share in (0, 1)."""
+    if value is None:
+        return 0.0
+    text = str(value).strip().lower()
+    if text in ("off", "none"):
+        return 0.0
+    share = float(text)
+    if share == 0.0:
+        return 0.0
+    if not 0.0 < share < 1.0:
+        raise ValueError(f"logger greedy share must be in (0, 1) or off, got {value!r}")
+    return share
 
 
 class WorldCalibrationError(RuntimeError):
@@ -252,18 +274,93 @@ def _block_rows(n_cols: int, cap: int = 256) -> int:
     return int(max(1, min(cap, BLOCK_CELLS // max(int(n_cols), 1))))
 
 
+def _effective_items_rows(scores: np.ndarray, T: float) -> np.ndarray:
+    """exp(entropy) of softmax(scores / T), per row."""
+    lg = scores.astype(np.float64) / T
+    m = lg.max(axis=1, keepdims=True)
+    e = np.exp(lg - m)
+    Z = e.sum(axis=1, keepdims=True)
+    p = e / Z
+    return np.exp(np.log(Z[:, 0]) + m[:, 0] - (p * lg).sum(axis=1))
+
+
 def _effective_items(scores: np.ndarray, T: float) -> float:
     vals = []
     chunk = _block_rows(scores.shape[1])
     for s in range(0, scores.shape[0], chunk):
-        lg = scores[s : s + chunk].astype(np.float64) / T
-        m = lg.max(axis=1, keepdims=True)
-        e = np.exp(lg - m)
-        Z = e.sum(axis=1, keepdims=True)
-        p = e / Z
-        H = np.log(Z[:, 0]) + m[:, 0] - (p * lg).sum(axis=1)
-        vals.append(np.exp(H))
+        vals.append(_effective_items_rows(scores[s : s + chunk], T))
     return float(np.mean(np.concatenate(vals)))
+
+
+SHARPEN_ROWS = 128  # users per block in sharpen_logger (fixed: rows are independent, results exact)
+
+
+def sharpen_logger(bx: np.ndarray, ba: np.ndarray, users: np.ndarray, T: float, env, share: float) -> dict:
+    """Logit factor f (logger temperature T / f) at which the softmax logger on (bx, ba) earns
+    ``share`` of its own greedy CTR on ``users``, exact over the catalog (scores and sums in float64,
+    click probabilities kept in float32 to halve the memory of large catalogs).
+
+    The logger's CTR at factor f runs from the uniform policy's (f -> 0) to the greedy logger's
+    (f -> inf). From f = 1 the search steps by sqrt(2) until the share is crossed, then brentq
+    refines f inside that bracket. ``share = 0`` keeps f = 1 and only reports the logger.
+    """
+    users = np.asarray(users, dtype=np.int64)
+    n_items = int(ba.shape[0])
+    ba64 = ba.astype(np.float64)
+    blocks = []
+    for s in range(0, len(users), SHARPEN_ROWS):
+        u = users[s : s + SHARPEN_ROWS]
+        scores = (bx[u].astype(np.float64) @ ba64.T) / float(T)
+        blocks.append((scores, env.reward_prob_block(u, 0, n_items).astype(np.float32)))
+    greedy_rows = np.concatenate([q[np.arange(len(sc)), sc.argmax(axis=1)] for sc, q in blocks])
+    greedy = float(greedy_rows.mean())
+    if not greedy > 0.0:
+        raise WorldCalibrationError(f"the greedy logger has CTR {greedy}: nothing to sharpen toward")
+
+    def ctr(f: float) -> float:
+        rows = []
+        for scores, q in blocks:
+            lg = scores * f
+            lg -= lg.max(axis=1, keepdims=True)
+            e = np.exp(lg)
+            rows.append((e * q).sum(axis=1) / e.sum(axis=1))
+        return float(np.concatenate(rows).mean())
+
+    f = 1.0
+    spread_ctr = ctr(1.0)
+    if share > 0.0:
+        gap = lambda log_f: (ctr(float(np.exp(log_f))) if log_f != 0.0 else spread_ctr) / greedy - share
+        step, lo, hi = 0.5 * np.log(2.0), 0.0, 0.0
+        g0 = gap(0.0)
+        if g0 < 0.0:  # sharpen: raise f until the share is reached
+            while gap(hi) < 0.0:
+                lo, hi = hi, hi + step
+                if hi > np.log(1e6):
+                    raise WorldCalibrationError(
+                        f"logger greedy share {share} unreachable: even logits x1e6 earn "
+                        f"{ctr(1e6) / greedy:.4f} of the greedy CTR {greedy:.4f}")
+        elif g0 > 0.0:  # the spread logger already earns more: flatten it
+            while gap(lo) > 0.0:
+                hi, lo = lo, lo - step
+                if lo < np.log(1e-6):
+                    raise WorldCalibrationError(
+                        f"logger greedy share {share} unreachable: even logits x1e-6 earn "
+                        f"{ctr(1e-6) / greedy:.4f} of the greedy CTR {greedy:.4f}")
+        if g0 != 0.0:
+            f = float(np.exp(brentq(gap, lo, hi, xtol=1e-13)))
+    softmax_ctr = ctr(f)
+    eff = np.concatenate([_effective_items_rows(sc, 1.0 / f) for sc, _ in blocks])
+    return {
+        "share": float(share),
+        "factor": f,
+        "temperature": float(T) / f,
+        "greedy_ctr": greedy,
+        "spread_ctr": spread_ctr,
+        "softmax_ctr": softmax_ctr,
+        "share_achieved": softmax_ctr / greedy,
+        "effective_items": float(eff.mean()),
+        "n_users": int(len(users)),
+    }
 
 
 def _solve_b(zs: np.ndarray, alpha: float, target: float, b0: float | None = None) -> float:
@@ -517,8 +614,15 @@ def calibrate_world(emb_x, emb_a, *, seed: int, config: WorldConfig, metadata_x=
 
 def build_world(emb_x, emb_a, bias, *, seed: int, config: WorldConfig | None = None,
                 metadata_x=None, metadata_a=None, logging_uniform_mix: float = 0.0,
-                item_bias=None, logger_pop_strength: float | None = None) -> dict:
+                item_bias=None, logger_pop_strength: float | None = None,
+                logger_greedy_share=DEFAULT_LOGGER_GREEDY_SHARE) -> dict:
     """Dataset dict for one condition (same keys the trainers use) plus a JSON-able ``world`` record.
+
+    ``logger_greedy_share`` (default 0.9; 0 / 'off' = the spread temperature T): the logger's
+    temperature becomes T / f, f chosen so its CTR on the calibration users is that share of its
+    own greedy CTR (``sharpen_logger``). ``policy_temperature`` and ``world['logging_temperature']``
+    are the logger's temperature; ``world['spread_temperature']`` is T. A uniform mix
+    (``logging_uniform_mix``) is applied on top of the sharpened softmax.
 
     When either popularity weight is positive (``config.pop_strength`` for the truth,
     ``logger_pop_strength`` for the logger, default: the same), ``item_bias`` is required and every
@@ -531,6 +635,7 @@ def build_world(emb_x, emb_a, bias, *, seed: int, config: WorldConfig | None = N
 
     config = config or WorldConfig()
     config.validate()
+    share = parse_logger_greedy_share(logger_greedy_share)
     beta_true = float(config.pop_strength)
     beta_log = beta_true if logger_pop_strength is None else float(logger_pop_strength)
     if not (np.isfinite(beta_log) and beta_log >= 0.0):
@@ -555,11 +660,13 @@ def build_world(emb_x, emb_a, bias, *, seed: int, config: WorldConfig | None = N
     d = cal["taste_dim"]
     env = SyntheticBanditEnv(emb_x=X, emb_a=A, scale=cal["scale"], offset=cal["offset"], ctr=float(config.target_ctr))
 
-    # diagnostics for this bias configuration
+    # the logger of this bias configuration: sharpened toward its own greedy ranking
     mix = float(np.clip(logging_uniform_mix, 0.0, 1.0))
     cu = cal["_ctr_users"]
+    sharp = sharpen_logger(our_x, our_a, cu, cal["logging_temperature"], env, share)
+    T_log = sharp["temperature"] if share > 0.0 else float(cal["logging_temperature"])
     crng = np.random.default_rng(derive_seed(seed, "world", "logging_ctr"))
-    items = _sample_policy_items(our_x.astype(np.float64), our_a.astype(np.float64), cu, cal["logging_temperature"],
+    items = _sample_policy_items(our_x.astype(np.float64), our_a.astype(np.float64), cu, T_log,
                                  int(config.ctr_samples_per_user), crng)
     logging_ctr_softmax = float(env.reward_prob(np.repeat(cu, items.shape[1]), items.reshape(-1)).mean())
     world = copy.deepcopy({k: v for k, v in cal.items()
@@ -574,6 +681,15 @@ def build_world(emb_x, emb_a, bias, *, seed: int, config: WorldConfig | None = N
         logger_pop_strength=beta_log,
         logging_ctr=(1.0 - mix) * logging_ctr_softmax + mix * cal["uniform_ctr"],
         logging_uniform_mix=mix,
+        logging_temperature=T_log,
+        spread_temperature=float(cal["logging_temperature"]),
+        logger_greedy_share=share,
+        logger_sharpness=float(cal["logging_temperature"]) / T_log,
+        logger_greedy_ctr=sharp["greedy_ctr"],
+        spread_logger_ctr=sharp["spread_ctr"],
+        logger_softmax_ctr=sharp["softmax_ctr"],
+        logger_share_achieved=sharp["share_achieved"],
+        logger_effective_items=sharp["effective_items"],
         vector_rms={"users": {"clean": _rms(Xt), "biased": _rms(taste_x)}, "items": {"clean": _rms(At), "biased": _rms(taste_a)}},
         cosine_to_clean={"users": _mean_cosine(Xt, taste_x), "items": _mean_cosine(At, taste_a)},
     )
@@ -593,7 +709,7 @@ def build_world(emb_x, emb_a, bias, *, seed: int, config: WorldConfig | None = N
         "logger_pop_strength": beta_log,
         "env": env,
         "user_prior": cal["user_prior"].copy(),
-        "policy_temperature": float(cal["logging_temperature"]),
+        "policy_temperature": float(T_log),
         "logging_uniform_mix": mix,
         "world": world,
     }
@@ -608,9 +724,14 @@ def _mean_cosine(C: np.ndarray, B: np.ndarray) -> float:
 def describe_world(world: dict) -> str:
     """One-line summary of a built world (for logs)."""
     b = world["bias"]
+    share = world.get("logger_greedy_share", 0.0)
+    sharp = (f"x{world['logger_sharpness']:.3g}, {world['logger_share_achieved']:.0%} of its greedy CTR "
+             f"{world['logger_greedy_ctr']:.1%}, {world['logger_effective_items']:.3g} effective items"
+             if share else "spread temperature, sharpening off")
     return (
         f"[world] bias warp={b['warp']} group={b['group']} vector={b['vector']} "
         f"(signal kept {world['signal_kept']:.2f}) | logger T={world['logging_temperature']:.4g} "
+        f"({sharp}) "
         f"CTR {world['logging_ctr']:.2%} | reference CTR {world['reference_ctr']:.2%} "
         f"({world['config']['ctr_reference']}), uniform {world['uniform_ctr']:.2%}, "
         f"best item {world['best_item_ctr']:.1%} | popularity: "
@@ -664,8 +785,17 @@ def add_world_arguments(parser, *, bias_default=("low", "medium", "high"), ctr_r
         "--logging-spread",
         type=float,
         default=d.logging_spread,
-        help="Logging temperature: the clean logger's effective number of items as a share of "
-        "the catalog (default %(default)s).",
+        help="Spread temperature T: the clean logger's effective number of items as a share of "
+        "the catalog (default %(default)s). It calibrates the click model (the reference logger); "
+        "the actual logger is then sharpened, see --logger-greedy-share.",
+    )
+    g.add_argument(
+        "--logger-greedy-share",
+        type=parse_logger_greedy_share,
+        default=DEFAULT_LOGGER_GREEDY_SHARE,
+        help="Logger sharpness: per condition, the logger's temperature is lowered from T until it "
+        "earns this share of its own greedy CTR (default %(default)s: it mostly exploits its ranking). "
+        "'off' keeps T (the logger before 2026-09-26, spread over half the catalog).",
     )
     g.add_argument(
         "--best-ctr",
@@ -691,6 +821,7 @@ def world_options_from_args(args) -> dict:
         "best_ctr": float(args.best_ctr),
         "group_source": str(args.bias_groups),
         "pop_strength": float(args.pop_strength),
+        "logger_greedy_share": parse_logger_greedy_share(getattr(args, "logger_greedy_share", DEFAULT_LOGGER_GREEDY_SHARE)),
     }
     if getattr(args, "ctr_reference", None) is not None:
         opts["ctr_reference"] = str(args.ctr_reference)
@@ -702,13 +833,15 @@ def world_options_from_args(args) -> dict:
 WORLD_RUN_KEY_TAGS = (  # world option -> run-key tag, added only when the option is not the default
     ("pop_strength", "pop"), ("logger_pop_strength", "logpop"), ("centering", "center"),
     ("logging_spread", "spread"), ("best_ctr", "best"), ("group_source", "groups"), ("ctr_reference", "ref"),
+    ("logger_greedy_share", "lgs"),
 )
 
 
 def world_run_key_suffix(world_options: dict, defaults: dict | None = None) -> str:
     """'__pop=0.5__logpop=1' style suffix for the world options that differ from the defaults, so
     runs of different worlds never share (and skip) each other's condition folders."""
-    base = asdict(WorldConfig()) | {"logger_pop_strength": None} | dict(defaults or {})
+    base = (asdict(WorldConfig()) | {"logger_pop_strength": None, "logger_greedy_share": DEFAULT_LOGGER_GREEDY_SHARE}
+            | dict(defaults or {}))
     opts = dict(world_options or {})
     if opts.get("logger_pop_strength") is not None and opts["logger_pop_strength"] == opts.get("pop_strength", base["pop_strength"]):
         opts.pop("logger_pop_strength")  # same as the truth: the default

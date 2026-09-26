@@ -31,7 +31,7 @@ SMOKE=1 ./scripts/run_h1_study.sh
 | `logging_mix` `alpha` | 0, 0.3 | CleanLog vs HurtLog (`alpha=0.3` uniform mix) |
 | seeds | 0–14 | repeats |
 
-Fixed: bias on users and items, logging spread 0.5, best item 30%, OPC loss `sndr` (no KL/CRM), naive loss `naive`, qhat chunks 10k, 16 workers/GPU.
+Fixed: bias on users and items, logging spread 0.5 (click-model calibration), logger sharpened to 90% of its greedy CTR (`--logger-greedy-share 0.9`; `off` reproduces the H1 runs before 2026-09-26), best item 30%, OPC loss `sndr` (no KL/CRM), naive loss `naive`, qhat chunks 10k, 16 workers/GPU.
 
 Outcome:
 
@@ -93,8 +93,9 @@ Rewards stay `q*` on the clean vectors. Logging and the CF model start from `our
 
 ### 4. Logging policy
 
-Softmax on **biased** dots at the calibrated temperature `T` (the clean logger spreads over
-half the catalog, `--logging-spread 0.5`):
+Softmax on **biased** dots at the logger's temperature `T` (by default sharpened until the logger
+earns 90% of its own greedy CTR, `--logger-greedy-share`; with `off`, the spread temperature at
+which the clean logger spreads over half the catalog, `--logging-spread 0.5`):
 
 ```text
 pi_soft(a|u)  =  softmax_a( our_x[u] · our_a[a] / T )
