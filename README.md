@@ -19,7 +19,7 @@ Main flow:
 | Policy transform (`--policy-transform`) | `linear`: (I + D) x + b per side, starting exactly at the logger |
 | No-propensity train | always `naive` (no IW, no DM/DR, no clip) |
 | Optuna objective | `ci_low` = DR/naive mean − t·SE |
-| Importance weights | `--train-weights` (sndr / ipw / kl losses) and `--select-weights` (selection + post-hoc): `none`, `clip:M` or `shrink:λ`; defaults in `training/trainer_trials.py`; **not** Optuna-searched |
+| Importance weights | `--train-weights` (sndr / ipw / kl losses; default `shrink:100`) and `--select-weights` (selection + post-hoc; default `clip:10`): `none`, `clip:M` or `shrink:λ`; interim values from the 2026-09-26 tuning, see `training/trainer_trials.py`; **not** Optuna-searched |
 | Reward model `q̂` | `regression` on interaction features `[x, a, x⊙a]` (`--reward-features`; bias script often uses `logging_score`) |
 | Datasets (`--datasets`) | `ml myket kuairec kuairand anime msd`; lastfm is opt-in (a condition costs ~75× ml's; see Runtime estimate) |
 | Representation bias (`--bias-configs`) | `low medium high` (all three types at that level) |

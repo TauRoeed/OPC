@@ -110,6 +110,12 @@ selection clipped at 1). Trials also log the ESS of the raw weights (`ess_raw`) 
 transformed one, and `--log-select-weights SPEC ...` logs each trial's selection score under
 other transforms, for tuning.
 
+Defaults (interim, tuned on the true values with the spread logger on 2026-09-26): training
+`shrink:100`, selection `clip:10`. For selection, every tight transform (clip:1 to clip:10,
+shrink:10 to shrink:1000) picks trials worth at least 99.7% of the best trial's gain over the
+logger, `clip:100` gets 93.5% and raw weights 77%. The training transform moves the true value by
+at most about 0.2 points. These will be re-tuned on the sharpened logger, whose weights are heavier.
+
 ### No-propensity arm
 
 The no-propensity baseline always uses pure naive reward, regardless of the

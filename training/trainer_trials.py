@@ -149,8 +149,13 @@ VALID_POLICY_LOSSES = ("kl_crm", "kl", "ipw", "sndr", "crm", "naive")
 # Importance-weight transforms (utils.importance_weights specs) for the OPC training losses
 # (sndr, ipw, kl; crm / kl_crm keep their own searched clip) and for trial selection plus the
 # post-hoc estimates. ``--train-weights none --select-weights clip:1`` reproduces the older runs.
-DEFAULT_TRAIN_WEIGHTS = "clip:100"
-DEFAULT_SELECT_WEIGHTS = "clip:100"
+# Interim values from the 2026-09-26 tuning (spread logger; true values; ml, kuairand, anime x
+# none / medium / high x 2 seeds x 5k-100k): every tight selection transform (clip:1 to clip:10,
+# shrink:10 to shrink:1000) picks trials worth >= 99.7% of the best trial's gain, while clip:100
+# gets 93.5% and raw weights 77%; the training transform moves the true value by at most ~0.2
+# points (shrink:100 best, clip:100 significantly worse). To be re-tuned on the sharpened logger.
+DEFAULT_TRAIN_WEIGHTS = "shrink:100"
+DEFAULT_SELECT_WEIGHTS = "clip:10"
 VALID_OPTUNA_SELECTION = ("ci_low", "r_hat", "actual_reward")
 VALID_REWARD_MODELS = ("regression", "logging_score", "oracle")
 
