@@ -176,6 +176,11 @@ Two more arms share the splits, the reward model, the selection weights and the 
   s searched in `TEMPER_SCALE_RANGE` (0.5 to 64, log-uniform), chosen by the same DR selection score
   as OPC. It measures how much a policy gains from sharpening (or flattening) the logger alone.
 
+`--post-temper` chooses every trained policy's sharpness after training instead: its logits are
+scaled by the factor in `POST_TEMPER_GRID` (0.25 to 16, 1 included) with the arm's best selection
+score on validation, and the trial is that tempered policy from then on (`post_scale`). The ranking
+never changes, only the sharpness; it avoids learning the scale through the noisy SNDR gradient.
+
 `--learn-logit-scale` gives every trained policy (OPC, no-prop, DM) a learnable logit scale,
 softmax(s · u·a / T) with s starting at 1 (`CFModel(learn_logit_scale=True)`). log s moves
 `LOGIT_SCALE_SPEED` (30) times faster than the vector corrections under the same Adam steps, so

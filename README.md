@@ -258,7 +258,8 @@ runs ~5× slower per epoch than 4096.
   training losses and in selection + post-hoc estimates; `--log-select-weights` logs other selection transforms
   per trial (tuning). `--train-weights none --select-weights clip:1` reproduces older runs.
 - `--methods opc no_propensity dm tempered_logger` — adds the DM-only and tempered-logger baselines (same
-  splits, reward model and selection weights); `--learn-logit-scale` lets every trained policy learn a logit scale.
+  splits, reward model and selection weights); `--learn-logit-scale` lets every trained policy learn a logit scale;
+  `--post-temper` instead chooses each trained policy's sharpness after training (logits × s, s on validation).
 - `--logger-greedy-share` (default 0.8; `off` = the older spread logger) — logger sharpness: the logger earns this
   share of its own greedy CTR. Sharper loggers leave less room the logs can evaluate (see the simulator doc).
 - `--bias-configs` — levels per condition: `medium` (all three types) or `warp/group/vector`, e.g. `high/none/low`.

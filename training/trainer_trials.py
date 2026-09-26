@@ -149,6 +149,8 @@ from training.metrics_utils import (
 
 VALID_POLICY_LOSSES = ("kl_crm", "kl", "ipw", "sndr", "crm", "naive", "dm")
 TEMPER_SCALE_RANGE = (0.5, 64.0)  # logit scales the tempered-logger baseline searches (log-uniform)
+# --post-temper: logit factors tried on every trained policy after training (1 = the trained policy)
+POST_TEMPER_GRID = (0.25, 0.5, 0.71, 1.0, 1.41, 2.0, 2.83, 4.0, 5.66, 8.0, 16.0)
 # Importance-weight transforms (utils.importance_weights specs) for the OPC training losses
 # (sndr, ipw, kl; crm / kl_crm keep their own searched clip) and for trial selection plus the
 # post-hoc estimates. ``--train-weights none --select-weights clip:1`` reproduces the older runs.
@@ -1123,6 +1125,8 @@ def _study_trials_long(
             rows[-1]["logit_scale"] = float(attrs["logit_scale"])
         if "logit_scale" in params:
             rows[-1]["param_logit_scale"] = float(params["logit_scale"])
+        if "post_scale" in attrs:  # --post-temper: the factor chosen after training
+            rows[-1]["post_scale"] = float(attrs["post_scale"])
         for k, v in attrs.items():  # selection scores under other weight specs (tuning runs), diagnostics
             if k.startswith(("sel_r_hat[", "sel_ci_low[", "diag_")):
                 rows[-1][k] = float(v)
@@ -2229,6 +2233,23 @@ def _selection_score_variants(split_data, trial_x, trial_a, score_lookup, datase
     return out
 
 
+def _post_temper(split_data, trial_x, trial_a, score_lookup, dataset, *, propensity_mode, weights, selection="ci_low"):
+    """(trial_x scaled, s): the trained policy's logits x s for the s in ``POST_TEMPER_GRID`` with the
+    best selection score on ``split_data``, the arm's own score (DR with ``weights``, DM, or naive for
+    no-prop) and rule (``ci_low`` or ``r_hat``). Scaling the user vectors (popularity column
+    included) scales every logit; the ranking never changes, only the sharpness."""
+    best_value, best_s = -np.inf, 1.0
+    for s in POST_TEMPER_GRID:
+        vec, _, _ = _split_dr_vec_and_ess(split_data, trial_x * np.float32(s), trial_a, score_lookup, dataset,
+                                          propensity_mode=propensity_mode, weights=weights)
+        n = max(len(vec), 2)
+        r_hat, se = float(vec.mean()), float(vec.std(ddof=1) / np.sqrt(n))
+        value = r_hat if str(selection).lower() == "r_hat" else r_hat - float(student_t.ppf(0.975, n - 1)) * se
+        if value > best_value:
+            best_value, best_s = value, float(s)
+    return (trial_x if best_s == 1.0 else trial_x * np.float32(best_s)), best_s
+
+
 def _policy_reward_from_embeddings(
     dataset,
     user_emb,
@@ -2933,6 +2954,7 @@ def regression_trainer_trial(
     temper_only: bool = False,
     size_regression_bundles: dict | None = None,
     size_crossfit: dict | None = None,
+    post_temper: bool = False,
 ):
     """
     OPC / no-propensity trainer with Optuna over CF hyperparameters.
@@ -2971,6 +2993,9 @@ def regression_trainer_trial(
     ``size_crossfit``: ``{train_size: (fold_bundles, user_fold)}`` (``--crossfit-folds``): the
     training loss takes each user's q_hat from the fold model fit without that user's fold
     (``CrossFitScoresLookup``); validation scoring, selection and ``r_hat_train`` keep the full model.
+    ``post_temper``: after training, each trial's logits are scaled by the factor in
+    ``POST_TEMPER_GRID`` with the best selection score on validation (``_post_temper``); the trial is
+    that tempered policy from then on (true value, selection, logs; ``post_scale``).
 
     ``search_use_log_trick``: if False, always use direct-prob surrogate (no log trick)
     for applicable losses and do not tune ``use_log_trick`` in Optuna.
@@ -3334,6 +3359,11 @@ def regression_trainer_trial(
                 trial_x.detach().cpu().numpy(),
                 trial_a.detach().cpu().numpy(),
             )
+            if post_temper and not temper_only:  # choose the sharpness on validation, after training
+                trial_x, post_scale = _post_temper(val_data, trial_x, trial_a, trial_scores_all, dataset,
+                                                   propensity_mode=propensity_mode, weights=score_weights,
+                                                   selection="r_hat" if optuna_selection == "r_hat" else "ci_low")
+                trial.set_user_attr("post_scale", post_scale)
             trial_embeddings[int(trial.number)] = (trial_x, trial_a)
             pop_w = _policy_pop_weight(dataset, trial_a)
             if pop_w is not None:
@@ -3513,6 +3543,8 @@ def regression_trainer_trial(
             trial_res["pop_weight"] = _policy_pop_weight(dataset, learned_a)
         trial_res["logit_scale"] = float(study.best_trial.user_attrs.get("logit_scale", 1.0))
         trial_res["policy_rewards_greedy"] = float(study.best_trial.user_attrs.get("actual_reward_greedy", float("nan")))
+        if post_temper and not temper_only:
+            trial_res["post_scale"] = float(study.best_trial.user_attrs.get("post_scale", 1.0))
         trial_res.update(enrich_summary_pct_fields(trial_res))
 
         trial_dicts_this_size.append(trial_res)
@@ -3632,6 +3664,7 @@ def no_propensity_trainer_trial(
     size_regression_bundles: dict | None = None,
     log_select_weights=(),
     size_crossfit: dict | None = None,
+    post_temper: bool = False,
 ):
     """
     Explicit no-propensity baseline with parity to regression trainer:
@@ -3675,6 +3708,7 @@ def no_propensity_trainer_trial(
         size_regression_bundles=size_regression_bundles,
         log_select_weights=log_select_weights,  # DR re-selection scores, logged only (the 2 x 2 design)
         size_crossfit=size_crossfit,
+        post_temper=post_temper,
     )
 
 

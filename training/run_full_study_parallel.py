@@ -395,6 +395,7 @@ def _execute_run(config: dict):
         return_extra=True,
         reward_data=str(config.get("reward_data", "external")),
         crossfit_folds=int(config.get("crossfit_folds", 0) or 0),
+        post_temper=bool(config.get("post_temper", False)),
     )
 
     summary_df = _finalize_summary_df(
@@ -668,6 +669,13 @@ def main():
         "off with external; 0 = off; folders get __cf=K).",
     )
     parser.add_argument(
+        "--post-temper",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="After training, scale each trained policy's logits by the factor (0.25-16) with the best "
+        "selection score on validation: sharpness chosen after training (default: off).",
+    )
+    parser.add_argument(
         "--skip-completed",
         action=argparse.BooleanOptionalAction,
         default=True,
@@ -748,6 +756,7 @@ def main():
             "learn_logit_scale": bool(args.learn_logit_scale),
             "reward_data": args.reward_data,
             "crossfit_folds": int(args.crossfit_folds),
+            "post_temper": bool(args.post_temper),
         }
         run_configs.append(cfg)
 
@@ -815,6 +824,7 @@ def main():
                     "learn_logit_scale": bool(args.learn_logit_scale),
                     "reward_data": args.reward_data,
                     "crossfit_folds": int(args.crossfit_folds),
+                    "post_temper": bool(args.post_temper),
                     "val_min": args.val_min,
                     "val_max": args.val_max,
                     "policy_reward_mode": args.policy_reward_mode,

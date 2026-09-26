@@ -293,6 +293,7 @@ def _run_condition(
     return_extra: bool = False,
     reward_data: str = "external",
     crossfit_folds: int = 0,
+    post_temper: bool = False,
 ):
     """One condition. ``methods`` may add the opt-in baselines (``BASELINE_METHODS``); their
     summaries and trials come back as a 6th item ``{method: (summary_df, trials_df)}`` when
@@ -301,7 +302,8 @@ def _run_condition(
     (default: q_hat from the separate reg slice) or ``train`` (q_hat fit per train size on that
     size's training rows, shared by every arm; the splits are the same in both modes).
     ``crossfit_folds`` K >= 2 (train mode only): users are split into K folds; the training losses
-    take each user's q_hat from the model fit on the other folds' rows."""
+    take each user's q_hat from the model fit on the other folds' rows. ``post_temper``: every
+    trained policy (OPC, no-prop, DM) gets its sharpness chosen after training on validation."""
     reward_data = str(reward_data).lower()
     if reward_data not in REWARD_DATA_MODES:
         raise ValueError(f"reward_data must be one of {REWARD_DATA_MODES}, got {reward_data!r}")
@@ -480,6 +482,7 @@ def _run_condition(
             learn_logit_scale=bool(learn_logit_scale),
             size_regression_bundles=size_bundles,
             size_crossfit=size_crossfit,
+            post_temper=bool(post_temper),
         )
     else:
         try:
@@ -525,6 +528,7 @@ def _run_condition(
             size_regression_bundles=size_bundles,
             log_select_weights=tuple(log_select_weights or ()),
             size_crossfit=size_crossfit,
+            post_temper=bool(post_temper),
         )
     else:
         try:
@@ -539,7 +543,8 @@ def _run_condition(
     extra_log_paths = {}
     for label in (m for m in BASELINE_METHODS if m in methods):
         extra_log_paths[label] = {"trials": run_dir / f"{label}_trials_long.csv", "runs": run_dir / f"{label}_runs_long.csv"}
-        arm = {"dm": dict(policy_loss_types=("dm",), select_estimator="dm", learn_logit_scale=bool(learn_logit_scale)),
+        arm = {"dm": dict(policy_loss_types=("dm",), select_estimator="dm", learn_logit_scale=bool(learn_logit_scale),
+                          post_temper=bool(post_temper)),
                "tempered_logger": dict(policy_loss_types=("sndr",), temper_only=True)}[label]
         extra[label] = regression_trainer_trial(
             train_sizes=train_sizes,
@@ -640,6 +645,7 @@ def _run_condition(
         "learn_logit_scale": bool(learn_logit_scale),
         "reward_data": reward_data,
         "crossfit_folds": crossfit_folds,
+        "post_temper": bool(post_temper),
         "dr_score_clip_m": parse_weight_spec(select_label)[1] if select_label.startswith("clip") else None,
         "shared_regression_size": int(
             shared_regression_bundle.get("sample_size", reg_size)
@@ -700,6 +706,7 @@ def _finalize_summary_df(opc_df, noprop_df, meta: dict, *, extra: dict | None = 
         summary_df[k] = meta.get(k)
     summary_df["reward_data"] = meta.get("reward_data", "external")
     summary_df["crossfit_folds"] = int(meta.get("crossfit_folds", 0) or 0)
+    summary_df["post_temper"] = bool(meta.get("post_temper", False))
     if "val_size" in summary_df.columns:
         summary_df["val_size_config"] = summary_df["val_size"]
     if {"opc", "no_propensity"}.issubset(set(summary_df.get("method", pd.Series(dtype=str)))):
@@ -946,6 +953,13 @@ def main():
         "off with external; 0 = off; folders get __cf=K).",
     )
     parser.add_argument(
+        "--post-temper",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="After training, scale each trained policy's logits by the factor (0.25-16) with the best "
+        "selection score on validation: sharpness chosen after training (default: off).",
+    )
+    parser.add_argument(
         "--skip-completed",
         action=argparse.BooleanOptionalAction,
         default=True,
@@ -1056,6 +1070,7 @@ def main():
                                 return_extra=True,
                                 reward_data=args.reward_data,
                                 crossfit_folds=int(args.crossfit_folds),
+                                post_temper=bool(args.post_temper),
                             )
                         except Exception as e:
                             failures.append({"run_key": run_key, "error": repr(e)})
@@ -1130,6 +1145,7 @@ def main():
                     "learn_logit_scale": bool(args.learn_logit_scale),
                     "reward_data": args.reward_data,
                     "crossfit_folds": int(args.crossfit_folds),
+                    "post_temper": bool(args.post_temper),
                 },
                 f,
                 indent=2,
