@@ -3502,6 +3502,7 @@ def no_propensity_trainer_trial(
     policy_transform: str = "linear",
     learn_logit_scale: bool = False,
     size_regression_bundles: dict | None = None,
+    log_select_weights=(),
 ):
     """
     Explicit no-propensity baseline with parity to regression trainer:
@@ -3543,6 +3544,7 @@ def no_propensity_trainer_trial(
         policy_transform=policy_transform,
         learn_logit_scale=learn_logit_scale,
         size_regression_bundles=size_regression_bundles,
+        log_select_weights=log_select_weights,  # DR re-selection scores, logged only (the 2 x 2 design)
     )
 
 

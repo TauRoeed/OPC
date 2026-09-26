@@ -464,6 +464,7 @@ def _run_condition(
             policy_transform=policy_transform,
             learn_logit_scale=bool(learn_logit_scale),
             size_regression_bundles=size_bundles,
+            log_select_weights=tuple(log_select_weights or ()),
         )
     else:
         try:

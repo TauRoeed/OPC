@@ -247,8 +247,11 @@ def test_logged_selection_variants(tmp_path):
     assert meta["log_select_weights"] == specs
     trials = pd.read_csv(run_dir / "trials_long.csv")
     opc, nop = trials[trials["method"] == "opc"], trials[trials["method"] == "no_propensity"]
-    for spec in specs:
-        assert opc[f"sel_r_hat[{spec}]"].notna().all() and nop[f"sel_r_hat[{spec}]"].isna().all()
+    for spec in specs:  # every arm logs them (no-prop with the logged propensities, for re-selection only)
+        assert opc[f"sel_r_hat[{spec}]"].notna().all() and nop[f"sel_r_hat[{spec}]"].notna().all()
+    # no-prop still selects by its naive score, not by the logged DR variants
+    assert not np.allclose(nop["value"], nop["sel_ci_low[clip:7]"])
+    assert (nop["ess"] == nop["ess"].iloc[0]).all()  # no weights in its own score
     # the run's own selection spec reproduces its selection score and objective (ci_low)
     np.testing.assert_allclose(opc["sel_r_hat[clip:7]"], opc["r_hat"], rtol=1e-6)
     np.testing.assert_allclose(opc["sel_ci_low[clip:7]"], opc["value"], rtol=1e-6)
