@@ -97,7 +97,7 @@ from models.estimators import (
 )
 
 from utils.chunk_progress import iter_action_blocks, iter_user_action_blocks
-from utils.seeding import derive_seed, deterministic_enabled, optuna_sampler, seed_everything
+from utils.seeding import OPTUNA_SAMPLERS, derive_seed, deterministic_enabled, optuna_sampler, seed_everything
 from utils.importance_weights import effective_sample_size, parse_weight_spec, transform_weights, weight_spec_label
 from utils.simulation_utils import (
     eval_policy,
@@ -2971,6 +2971,7 @@ def regression_trainer_trial(
     size_crossfit: dict | None = None,
     post_temper: bool = False,
     sn_scope: str = "batch",
+    sampler: str = "tpe",
 ):
     """
     OPC / no-propensity trainer with Optuna over CF hyperparameters.
@@ -3015,6 +3016,10 @@ def regression_trainer_trial(
     ``post_temper``: after training, each trial's logits are scaled by the factor in
     ``POST_TEMPER_GRID`` with the best selection score on validation (``_post_temper``); the trial is
     that tempered policy from then on (true value, selection, logs; ``post_scale``).
+    ``sampler``: ``tpe`` (default; each size's first trial is the previous size's best, a warm start)
+    or ``random`` (seeded random search, no warm start): trial k then has the same configuration and
+    the same trial seed in every run with the same seed, grid and search space, whatever the
+    objective, which is the paired (replayed) comparison of objectives (``utils.seeding.optuna_sampler``).
 
     ``search_use_log_trick``: if False, always use direct-prob surrogate (no log trick)
     for applicable losses and do not tune ``use_log_trick`` in Optuna.
@@ -3030,6 +3035,9 @@ def regression_trainer_trial(
     """
     if str(policy_transform).lower() not in POLICY_TRANSFORMS:
         raise ValueError(f"policy_transform must be one of {POLICY_TRANSFORMS}, got {policy_transform!r}")
+    sampler = str(sampler).lower()
+    if sampler not in OPTUNA_SAMPLERS:
+        raise ValueError(f"sampler must be one of {OPTUNA_SAMPLERS}, got {sampler!r}")
     optuna_selection = str(optuna_selection).lower()
     if optuna_selection not in VALID_OPTUNA_SELECTION:
         raise ValueError(
@@ -3461,9 +3469,9 @@ def regression_trainer_trial(
 
         # --- Run Optuna search ---
         study = optuna.create_study(
-            direction="maximize", sampler=optuna_sampler(seed, method_label, train_size)
+            direction="maximize", sampler=optuna_sampler(seed, method_label, train_size, kind=sampler)
         )
-        if last_best_params is not None:
+        if last_best_params is not None and sampler == "tpe":  # random search replays: no warm start
             study.enqueue_trial(
                 _enqueue_with_kl_gamma(
                     last_best_params,
@@ -3685,6 +3693,7 @@ def no_propensity_trainer_trial(
     log_select_weights=(),
     size_crossfit: dict | None = None,
     post_temper: bool = False,
+    sampler: str = "tpe",
 ):
     """
     Explicit no-propensity baseline with parity to regression trainer:
@@ -3729,6 +3738,7 @@ def no_propensity_trainer_trial(
         log_select_weights=log_select_weights,  # DR re-selection scores, logged only (the 2 x 2 design)
         size_crossfit=size_crossfit,
         post_temper=post_temper,
+        sampler=sampler,
     )
 
 

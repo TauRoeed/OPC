@@ -30,6 +30,8 @@ Main flow:
 | Reference CTR (`--ctr-levels`) | 5% for the spread logger at medium bias; best item 30% |
 | Logging temperature | the spread logger (clean logger over 50% of the catalog, `--logging-spread`) calibrates the click model; the actual logger is sharpened per condition to earn 80% of its own greedy CTR (`--logger-greedy-share 0.8`; `off` = the spread logger, as before 2026-09-26) |
 | Batch sizes | `batch_schedule(train_size)` unless you pass `--optuna-batch-sizes`. The last minibatch of an epoch is usually short; for per-example additive losses (`dr`, `--sn-scope global`, `dm`, `naive`) it counts in proportion to its rows, so every row weighs the same (legacy SNDR keeps one mean per batch) |
+| Optuna sampler (`--sampler`) | `tpe`; `random` = seeded random search without warm starts: the same trial configurations and seeds in every run of the grid, so runs that differ only in the objective are a paired (replayed) comparison |
+| Run stage (`--stage`) | `development`, recorded in `run_meta.json`, the summaries and the manifest; `confirmatory` for the frozen method on fresh seeds and conditions |
 | Skip finished cells | `--skip-completed` on (checks `summary_metrics.csv` only) |
 
 Offline clip pick: `scripts/sim_dr_score_clip_logging_score.py` → `artifacts/oom_smoke/dr_score_clip_logging_score`.
@@ -260,6 +262,10 @@ runs ~5× slower per epoch than 4096.
 - `--methods opc no_propensity dm tempered_logger` — adds the DM-only and tempered-logger baselines (same
   splits, reward model and selection weights); `--learn-logit-scale` lets every trained policy learn a logit scale;
   `--post-temper` instead chooses each trained policy's sharpness after training (logits × s, s on validation).
+- `--sampler random` — replay mode: seeded random search with no warm start between train sizes, so trial k has
+  the same configuration and the same trial seed in every run with the same grid and seeds. Run one objective per
+  run tag (e.g. `--policy-losses dr`, `--policy-losses sndr --sn-scope global`) and compare trial by trial.
+- `--stage {development,confirmatory}` (default `development`) — what the results are for, recorded with them.
 - `--logger-greedy-share` (default 0.8; `off` = the older spread logger) — logger sharpness: the logger earns this
   share of its own greedy CTR. Sharper loggers leave less room the logs can evaluate (see the simulator doc).
 - `--bias-configs` — levels per condition: `medium` (all three types) or `warp/group/vector`, e.g. `high/none/low`.

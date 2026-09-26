@@ -34,6 +34,9 @@ ALL_STUDY_METHODS = VALID_STUDY_METHODS + BASELINE_METHODS
 # (--shared-regression-size, the same at every train size); 'train' = each train size's own
 # training rows, so every arm uses only the n logged rows it is given.
 REWARD_DATA_MODES = ("external", "train")
+# What the results are for: development runs design the method (objective, weights, defaults);
+# confirmatory runs evaluate the frozen method on fresh seeds and conditions.
+RUN_STAGES = ("development", "confirmatory")
 # Study defaults (2026-09-26): the reward model shares the policy's budget (fit on each train size's
 # own training rows, cross-fitted by user in 5 folds), and the validation split is fixed at 20,000
 # logged rows (DR standard error ~0.5-0.6 CTR points for OPC's selected policy, vs ~1.1 at 5,000).
@@ -161,6 +164,7 @@ from utils.representation_bias import (
 )
 from utils.seeding import (
     DEFAULT_CPU_THREADS,
+    OPTUNA_SAMPLERS,
     derive_seed,
     enable_determinism,
     pin_cpu_threads,
@@ -296,6 +300,8 @@ def _run_condition(
     crossfit_folds: int = 0,
     post_temper: bool = False,
     sn_scope: str = "batch",
+    sampler: str = "tpe",
+    stage: str = "development",
 ):
     """One condition. ``methods`` may add the opt-in baselines (``BASELINE_METHODS``); their
     summaries and trials come back as a 6th item ``{method: (summary_df, trials_df)}`` when
@@ -306,7 +312,12 @@ def _run_condition(
     ``crossfit_folds`` K >= 2 (train mode only): users are split into K folds; the training losses
     take each user's q_hat from the model fit on the other folds' rows. ``post_temper``: every
     trained policy (OPC, no-prop, DM) gets its sharpness chosen after training on validation.
-    ``sn_scope``: normalizer of the sndr / kl training correction (per minibatch or full-data)."""
+    ``sn_scope``: normalizer of the sndr / kl training correction (per minibatch or full-data).
+    ``sampler``: Optuna's ``tpe`` (default) or ``random`` (seeded random search without warm starts:
+    the same trial configurations and seeds in every run of the grid, the paired comparison of
+    objectives). ``stage``: ``development`` (default) or ``confirmatory``, recorded with the results."""
+    if str(stage) not in RUN_STAGES:
+        raise ValueError(f"stage must be one of {RUN_STAGES}, got {stage!r}")
     reward_data = str(reward_data).lower()
     if reward_data not in REWARD_DATA_MODES:
         raise ValueError(f"reward_data must be one of {REWARD_DATA_MODES}, got {reward_data!r}")
@@ -487,6 +498,7 @@ def _run_condition(
             size_crossfit=size_crossfit,
             post_temper=bool(post_temper),
             sn_scope=str(sn_scope),
+            sampler=str(sampler),
         )
     else:
         try:
@@ -533,6 +545,7 @@ def _run_condition(
             log_select_weights=tuple(log_select_weights or ()),
             size_crossfit=size_crossfit,
             post_temper=bool(post_temper),
+            sampler=str(sampler),
         )
     else:
         try:
@@ -586,6 +599,7 @@ def _run_condition(
             policy_transform=policy_transform,
             size_regression_bundles=size_bundles,
             size_crossfit=size_crossfit,
+            sampler=str(sampler),
             **arm,
         )
 
@@ -651,6 +665,8 @@ def _run_condition(
         "crossfit_folds": crossfit_folds,
         "post_temper": bool(post_temper),
         "sn_scope": str(sn_scope),
+        "sampler": str(sampler),
+        "stage": str(stage),
         "dr_score_clip_m": parse_weight_spec(select_label)[1] if select_label.startswith("clip") else None,
         "shared_regression_size": int(
             shared_regression_bundle.get("sample_size", reg_size)
@@ -714,6 +730,8 @@ def _finalize_summary_df(opc_df, noprop_df, meta: dict, *, extra: dict | None = 
     summary_df["post_temper"] = bool(meta.get("post_temper", False))
     summary_df["policy_loss_types"] = "+".join(meta.get("policy_loss_types", []) or [])
     summary_df["sn_scope"] = meta.get("sn_scope", "batch")
+    summary_df["sampler"] = meta.get("sampler", "tpe")
+    summary_df["stage"] = meta.get("stage", "development")
     if "val_size" in summary_df.columns:
         summary_df["val_size_config"] = summary_df["val_size"]
     if {"opc", "no_propensity"}.issubset(set(summary_df.get("method", pd.Series(dtype=str)))):
@@ -909,6 +927,23 @@ def main():
         "epoch's first step; a stop-gradient SNDR surrogate, not exact SNDR, docs/training_losses.md 3.4).",
     )
     parser.add_argument(
+        "--sampler",
+        choices=list(OPTUNA_SAMPLERS),
+        default="tpe",
+        help="Optuna sampler: tpe (default; each train size starts from the previous size's best) or "
+        "random (seeded random search, no warm start). With random, trial k has the same configuration "
+        "and the same trial seed in every run with the same grid and seeds, whatever the objective: runs "
+        "that differ only in --policy-losses / --sn-scope / --train-weights are then a paired (replayed) "
+        "comparison of the objectives.",
+    )
+    parser.add_argument(
+        "--stage",
+        choices=list(RUN_STAGES),
+        default="development",
+        help="Recorded with the results (run_meta.json, summaries, manifest): development (default; runs "
+        "used to design the method) or confirmatory (the frozen method on fresh seeds and conditions).",
+    )
+    parser.add_argument(
         "--no-log-trick",
         action="store_true",
         help="Disable log-trick policy surrogate (direct probs). "
@@ -1090,6 +1125,8 @@ def main():
                                 crossfit_folds=int(args.crossfit_folds),
                                 post_temper=bool(args.post_temper),
                                 sn_scope=str(args.sn_scope),
+                                sampler=str(args.sampler),
+                                stage=str(args.stage),
                             )
                         except Exception as e:
                             failures.append({"run_key": run_key, "error": repr(e)})
@@ -1166,6 +1203,8 @@ def main():
                     "crossfit_folds": int(args.crossfit_folds),
                     "post_temper": bool(args.post_temper),
                     "sn_scope": str(args.sn_scope),
+                    "sampler": str(args.sampler),
+                    "stage": str(args.stage),
                 },
                 f,
                 indent=2,

@@ -73,6 +73,7 @@ from training.run_full_study import (
     DEFAULT_REWARD_DATA,
     DEFAULT_VAL_SIZE,
     REWARD_DATA_MODES,
+    RUN_STAGES,
     VALID_STUDY_METHODS,
     _collect_existing_summaries,
     _condition_run_key,
@@ -93,6 +94,7 @@ from training.trainer_trials import (
     VALID_REWARD_MODELS,
 )
 from utils.representation_bias import add_world_arguments, resolve_bias_configs, world_options_from_args
+from utils.seeding import OPTUNA_SAMPLERS
 
 
 def _iter_run_configs(args, out_dir: Path, val_size_configs: list):
@@ -397,6 +399,8 @@ def _execute_run(config: dict):
         crossfit_folds=int(config.get("crossfit_folds", 0) or 0),
         post_temper=bool(config.get("post_temper", False)),
         sn_scope=str(config.get("sn_scope", "batch")),
+        sampler=str(config.get("sampler", "tpe")),
+        stage=str(config.get("stage", "development")),
     )
 
     summary_df = _finalize_summary_df(
@@ -556,6 +560,21 @@ def main():
         help="Normalizer of the sndr / kl correction: batch (default, legacy: the minibatch mean weight) or "
         "global (the full-data mean weight, computed at the start of every epoch and held fixed; a "
         "stop-gradient SNDR surrogate, not exact SNDR).",
+    )
+    parser.add_argument(
+        "--sampler",
+        choices=list(OPTUNA_SAMPLERS),
+        default="tpe",
+        help="Optuna sampler: tpe (default; each train size starts from the previous size's best) or random "
+        "(seeded random search, no warm start: the same trial configurations and seeds in every run of the "
+        "grid, whatever the objective; the paired, replayed comparison of objectives).",
+    )
+    parser.add_argument(
+        "--stage",
+        choices=list(RUN_STAGES),
+        default="development",
+        help="Recorded with the results: development (default) or confirmatory (the frozen method on fresh "
+        "seeds and conditions).",
     )
     parser.add_argument(
         "--no-log-trick",
@@ -769,6 +788,8 @@ def main():
             "crossfit_folds": int(args.crossfit_folds),
             "post_temper": bool(args.post_temper),
             "sn_scope": str(args.sn_scope),
+            "sampler": str(args.sampler),
+            "stage": str(args.stage),
         }
         run_configs.append(cfg)
 
@@ -838,6 +859,8 @@ def main():
                     "crossfit_folds": int(args.crossfit_folds),
                     "post_temper": bool(args.post_temper),
                     "sn_scope": str(args.sn_scope),
+                    "sampler": str(args.sampler),
+                    "stage": str(args.stage),
                     "val_min": args.val_min,
                     "val_max": args.val_max,
                     "policy_reward_mode": args.policy_reward_mode,

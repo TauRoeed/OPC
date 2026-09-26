@@ -66,8 +66,17 @@ def pin_cpu_threads(n_threads: int = DEFAULT_CPU_THREADS) -> int:
     return n
 
 
-def optuna_sampler(seed: int, *labels):
-    """Seeded TPE sampler (Optuna's default sampler, made reproducible)."""
+OPTUNA_SAMPLERS = ("tpe", "random")
+
+
+def optuna_sampler(seed: int, *labels, kind: str = "tpe"):
+    """Seeded Optuna sampler: ``tpe`` (Optuna's default, made reproducible) or ``random`` (seeded
+    random search: its configurations do not depend on the trials' values, so every run with the same
+    seed, labels and search space proposes the same ones, whatever the objective)."""
     import optuna
 
-    return optuna.samplers.TPESampler(seed=derive_seed(seed, "optuna", *labels))
+    kind = str(kind).lower()
+    if kind not in OPTUNA_SAMPLERS:
+        raise ValueError(f"sampler must be one of {OPTUNA_SAMPLERS}, got {kind!r}")
+    sampler = optuna.samplers.RandomSampler if kind == "random" else optuna.samplers.TPESampler
+    return sampler(seed=derive_seed(seed, "optuna", *labels))

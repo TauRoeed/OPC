@@ -462,6 +462,19 @@ actual_reward             maximize true simulator reward (oracle; debug)
 Larger is better. Recent hurt-logging ablations often use `r_hat` together with
 `sndr` or `ipw`.
 
+**Sampler and paired comparisons (`--sampler`).** The default TPE sampler draws each size's first 10
+trials at random (seeded, so the same in every run) and then adapts to the trial values; every size
+after the first also starts from the previous size's best trial (a warm start). Runs that differ only
+in the objective therefore share just part of their configurations, and the rest follow each
+objective's own search. `--sampler random` is seeded random search with no warm start: trial k has the
+same configuration in every run with the same seeds and search space, and its seed (initialization,
+batch order) depends only on (seed, arm, train size, trial number). Runs that differ only in
+`--policy-losses`, `--sn-scope` or `--train-weights` are then a paired, replayed comparison: the same
+configurations trained under each objective, compared trial by trial and after each objective's own
+selection. The default TPE runs are the independent re-tuning. `--stage` records whether a run is a
+development run (designing the method; the default) or a confirmatory one (the frozen method on fresh
+seeds and conditions).
+
 ### 5.1 OPC validation row value
 
 OPC keeps the doubly robust validation estimator (not self-normalized). For
