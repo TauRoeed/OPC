@@ -4,6 +4,7 @@ warnings.filterwarnings("ignore")
 import sys
 sys.path.append("/code")
 
+import numpy as np
 import torch
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
@@ -157,9 +158,26 @@ def dm_reward(scores, policy_prob):
     return (scores * policy_prob).sum(dim=1)
 
 
-def dr_correction(iw, rewards, q_at_action):
-    """Per-row SNDR correction: w_i * (r_i - q_i) / mean(w)."""
-    return iw * (rewards - q_at_action) / iw.mean()
+DR_NORMALIZATIONS = ("none", "global", "batch")
+
+
+def dr_correction(iw, rewards, q_at_action, normalizer="batch"):
+    """Per-row DR correction w_i (r_i - q_i) / c.
+
+    ``normalizer``: ``'batch'`` (c = the minibatch mean weight: the SNDR form used through 63a3cc1,
+    whose objective changes with the batch size), ``None`` or ``'none'`` (c = 1: plain DR, whose
+    minibatch loss is an unbiased estimate of the full-data objective for any batch size), or a
+    number (c = the full-data mean weight: SNDR with a normalizer that does not depend on the batch).
+    """
+    if isinstance(normalizer, str):
+        if normalizer == "batch":
+            return iw * (rewards - q_at_action) / iw.mean()
+        if normalizer != "none":
+            raise ValueError(f"normalizer must be 'batch', 'none', None or a number, got {normalizer!r}")
+        normalizer = None
+    if normalizer is None:
+        return iw * (rewards - q_at_action)
+    return iw * (rewards - q_at_action) / float(normalizer)
 
 
 def sndr_r_hat(iw, rewards, q_at_action, dm):
@@ -179,10 +197,13 @@ def dr_sndr_surrogate(
     log_eps: float = 1e-10,
     iw_mode: str = "none",
     iw_param: float = float("inf"),
+    normalizer="batch",
 ):
     """SNDR policy surrogate: correction + DM, each scaled by log pi when requested.
 
     ``iw_mode`` / ``iw_param``: weight transform (none, clip at M, Su shrinkage with lambda).
+    ``normalizer``: how the correction is scaled (``dr_correction``): per minibatch (default, the
+    older form), not at all (DR), or by a given full-data mean weight.
 
     Log trick:
       - detach pi in IW and DM coefficients
@@ -200,12 +221,12 @@ def dr_sndr_surrogate(
     if use_log_trick:
         pi_coef = policy_prob.detach()
         iw = transform_importance_weights(pi_a.detach(), pscore, **wkw).detach()
-        correction = dr_correction(iw, rewards, q_factual)
+        correction = dr_correction(iw, rewards, q_factual, normalizer)
         corr_term = correction * log_p[idx, actions]
         dm_term = (scores * pi_coef * log_p).sum(dim=1)
     else:
         iw = transform_importance_weights(pi_a, pscore, **wkw)
-        corr_term = dr_correction(iw, rewards, q_factual)
+        corr_term = dr_correction(iw, rewards, q_factual, normalizer)
         dm_term = dm_reward(scores, policy_prob)
 
     return corr_term + dm_term
@@ -223,6 +244,7 @@ def dr_sndr_loss(
     log_eps: float = 1e-10,
     iw_mode: str = "none",
     iw_param: float = float("inf"),
+    normalizer="batch",
 ):
     """Minimize negative SNDR surrogate (ascend policy value)."""
     return -dr_sndr_surrogate(
@@ -236,16 +258,23 @@ def dr_sndr_loss(
         log_eps=log_eps,
         iw_mode=iw_mode,
         iw_param=iw_param,
+        normalizer=normalizer,
     ).mean()
 
 
 class _BanditPolicyLossBase(nn.Module):
     needs_qhat = True
 
-    def __init__(self, log_eps=1e-10, use_log_trick=True, propensity_mode="logged", weights="none"):
+    def __init__(self, log_eps=1e-10, use_log_trick=True, propensity_mode="logged", weights="none", normalization="batch"):
         super().__init__()
         self.log_eps = log_eps
         self.use_log_trick = bool(use_log_trick)
+        # scale of the DR correction in the SNDR-family losses: 'batch' (per minibatch, older),
+        # 'none' (plain DR) or 'global' (full-data mean weight, set by the trainer every epoch)
+        if normalization not in DR_NORMALIZATIONS:
+            raise ValueError(f"normalization must be one of {DR_NORMALIZATIONS}, got {normalization!r}")
+        self.normalization = normalization
+        self.global_normalizer = None
         # importance-weight transform for the IW / SNDR terms (utils.importance_weights spec)
         self.iw_mode, self.iw_param = parse_weight_spec(weights)
         self.propensity_mode = str(propensity_mode).lower()
@@ -266,6 +295,23 @@ class _BanditPolicyLossBase(nn.Module):
         iw_grad = grad_importance_weights(iw, self.use_log_trick)
         return iw_val, iw_grad
 
+    @property
+    def needs_global_normalizer(self) -> bool:
+        return self.normalization == "global"
+
+    def set_global_normalizer(self, value: float) -> None:
+        """The full-data mean transformed weight under the current policy (``--sn-scope global``)."""
+        if not (np.isfinite(float(value)) and float(value) > 0.0):
+            raise ValueError(f"global normalizer must be a positive number, got {value!r}")
+        self.global_normalizer = float(value)
+
+    def _normalizer(self):
+        if self.normalization == "global":
+            if self.global_normalizer is None:
+                raise RuntimeError("normalization='global' needs set_global_normalizer() before the first batch")
+            return self.global_normalizer
+        return None if self.normalization == "none" else "batch"
+
     def _logged_action_prob(self, policy_prob, actions):
         n = actions.shape[0]
         idx = torch.arange(n, device=policy_prob.device)
@@ -283,6 +329,7 @@ class _BanditPolicyLossBase(nn.Module):
             log_eps=self.log_eps,
             iw_mode=self.iw_mode,
             iw_param=self.iw_param,
+            normalizer=self._normalizer(),
         )
 
 
@@ -323,12 +370,26 @@ class NaiveRewardPolicyLoss(_BanditPolicyLossBase):
 
 
 class SNDRPolicyLoss(_BanditPolicyLossBase):
+    """DM(q_hat) + importance-weighted correction; ``normalization`` sets how the correction is
+    scaled: per minibatch ('batch', the older default), by the full-data mean weight ('global') or
+    not at all ('none', see ``DRPolicyLoss``)."""
+
     def forward(self, pscore, scores, policy_prob, original_policy_rewards, original_policy_actions):
         n = original_policy_actions.shape[0]
         scores, policy_prob = _align_policy_scores(scores, policy_prob)
         return self._dr_sndr_loss(
             pscore, scores, policy_prob, original_policy_rewards, original_policy_actions
         )
+
+
+class DRPolicyLoss(SNDRPolicyLoss):
+    """Doubly robust policy objective without self-normalization: DM(q_hat) + w (r - q_hat). Its
+    minibatch loss and gradient are unbiased estimates of the full-data ones for any batch size;
+    with shrunk weights it is DR with optimistic shrinkage (Su et al. 2020)."""
+
+    def __init__(self, log_eps=1e-10, use_log_trick=True, propensity_mode="logged", weights="none"):
+        super().__init__(log_eps=log_eps, use_log_trick=use_log_trick, propensity_mode=propensity_mode,
+                         weights=weights, normalization="none")
 
 
 def dm_surrogate(scores, policy_prob, *, use_log_trick: bool, log_eps: float = 1e-10):
@@ -354,12 +415,14 @@ class DMPolicyLoss(_BanditPolicyLossBase):
 class KLPolicyLoss(_BanditPolicyLossBase):
     """SNDR PG + batch MC KL toward logging policy (logged actions only)."""
 
-    def __init__(self, gamma=0.05, log_eps=1e-10, use_log_trick=True, propensity_mode="logged", weights="none"):
+    def __init__(self, gamma=0.05, log_eps=1e-10, use_log_trick=True, propensity_mode="logged", weights="none",
+                 normalization="batch"):
         super().__init__(
             log_eps=log_eps,
             use_log_trick=use_log_trick,
             propensity_mode=propensity_mode,
             weights=weights,
+            normalization=normalization,
         )
         self.gamma = gamma
 

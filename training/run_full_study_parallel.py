@@ -396,6 +396,7 @@ def _execute_run(config: dict):
         reward_data=str(config.get("reward_data", "external")),
         crossfit_folds=int(config.get("crossfit_folds", 0) or 0),
         post_temper=bool(config.get("post_temper", False)),
+        sn_scope=str(config.get("sn_scope", "batch")),
     )
 
     summary_df = _finalize_summary_df(
@@ -542,9 +543,17 @@ def main():
     parser.add_argument(
         "--policy-losses",
         nargs="+",
-        default=["sndr"],
-        help="OPC policy loss (default sndr). Fixed DR score clip. "
-        "No-prop stays naive.",
+        default=["dr"],
+        help="OPC training loss (default dr: DM + weighted correction, no self-normalization, so the "
+        "objective does not depend on the batch size; sndr = self-normalized, see --sn-scope; sndr with "
+        "the batch scope is the loss of runs before 2026-09-27). No-prop stays naive.",
+    )
+    parser.add_argument(
+        "--sn-scope",
+        choices=["batch", "global"],
+        default="batch",
+        help="Normalizer of the sndr / kl correction: batch (minibatch mean weight, the older form) or "
+        "global (full-data mean weight under the current policy, refreshed every epoch).",
     )
     parser.add_argument(
         "--no-log-trick",
@@ -757,6 +766,7 @@ def main():
             "reward_data": args.reward_data,
             "crossfit_folds": int(args.crossfit_folds),
             "post_temper": bool(args.post_temper),
+            "sn_scope": str(args.sn_scope),
         }
         run_configs.append(cfg)
 
@@ -825,6 +835,7 @@ def main():
                     "reward_data": args.reward_data,
                     "crossfit_folds": int(args.crossfit_folds),
                     "post_temper": bool(args.post_temper),
+                    "sn_scope": str(args.sn_scope),
                     "val_min": args.val_min,
                     "val_max": args.val_max,
                     "policy_reward_mode": args.policy_reward_mode,

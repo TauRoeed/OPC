@@ -76,6 +76,8 @@ def train(
         if epoch > 0:
             current_lr *= float(lr_decay)
             _set_optimizer_lr(optimizer, current_lr)
+        if getattr(criterion, "needs_global_normalizer", False):  # SNDR with --sn-scope global
+            criterion.set_global_normalizer(full_data_mean_weight(model, train_loader.dataset, criterion, device))
 
         if torch.cuda.is_available():
             torch.cuda.reset_peak_memory_stats()
@@ -100,6 +102,33 @@ def train(
             )
 
     return optimizer
+
+
+@torch.no_grad()
+def full_data_mean_weight(model, dataset, criterion, device, *, cells: int = 32 * 1024 * 1024) -> float:
+    """Mean transformed importance weight over all training rows under the model's current policy:
+    the SNDR normalizer that does not depend on the batch size (``--sn-scope global``). Rows are read
+    in fixed chunks in row order (no DataLoader, so the training shuffle is untouched), in eval mode."""
+    was_training = model.training
+    model.eval()
+    try:
+        n = len(dataset)
+        n_actions = int(getattr(model, "actions").numel()) if hasattr(model, "actions") else 1
+        step = max(1, int(cells) // max(1, n_actions))
+        total = 0.0
+        for s in range(0, n, step):
+            users = dataset.user_idx[s : s + step].to(device)
+            actions = dataset.action_idx[s : s + step].to(device)
+            pscore = dataset.pscore[s : s + step].to(device)
+            prob = model(users)
+            if prob.dim() == 3:
+                prob = prob.squeeze(-1)
+            pi_a = prob[torch.arange(users.shape[0], device=prob.device), actions]
+            iw, _ = criterion._prepare_iw(pi_a, pscore)
+            total += float(iw.double().sum())
+        return total / max(n, 1)
+    finally:
+        model.train(was_training)
 
 
 def run_train_loop(

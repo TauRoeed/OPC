@@ -135,6 +135,7 @@ from training.training_utils import (
 from models.custom_losses import (
     CRMPolicyLoss,
     DMPolicyLoss,
+    DRPolicyLoss,
     IPWPolicyLoss,
     KLCRMPolicyLoss,
     KLPolicyLoss,
@@ -147,7 +148,11 @@ from training.metrics_utils import (
     enrich_trial_pct_fields,
 )
 
-VALID_POLICY_LOSSES = ("kl_crm", "kl", "ipw", "sndr", "crm", "naive", "dm")
+VALID_POLICY_LOSSES = ("kl_crm", "kl", "ipw", "sndr", "dr", "crm", "naive", "dm")
+# Scale of the correction in the sndr / kl losses: per minibatch ('batch', the form used through
+# 63a3cc1, whose objective depends on the Optuna-searched batch size) or the full-data mean weight
+# ('global', refreshed every epoch). The dr loss has no self-normalization.
+SN_SCOPES = ("batch", "global")
 TEMPER_SCALE_RANGE = (0.5, 64.0)  # logit scales the tempered-logger baseline searches (log-uniform)
 # --post-temper: logit factors tried on every trained policy after training (1 = the trained policy)
 POST_TEMPER_GRID = (0.25, 0.5, 0.71, 1.0, 1.41, 2.0, 2.83, 4.0, 5.66, 8.0, 16.0)
@@ -338,12 +343,14 @@ def _kl_policy_loss(
     use_log_trick: bool = True,
     propensity_mode: str = "logged",
     weights="none",
+    normalization: str = "batch",
 ) -> KLPolicyLoss:
     return KLPolicyLoss(
         gamma=float(gamma),
         use_log_trick=use_log_trick,
         propensity_mode=propensity_mode,
         weights=weights,
+        normalization=normalization,
     )
 
 
@@ -396,9 +403,13 @@ def _policy_loss_from_name(
     iw_mode: str = "clip",
     shrink_lambda: float = 10.0,
     train_weights="none",
+    sn_scope: str = "batch",
 ):
-    """``train_weights``: weight spec for sndr / ipw / kl; crm and kl_crm use ``clip_m`` / ``iw_mode``."""
+    """``train_weights``: weight spec for sndr / dr / ipw / kl; crm and kl_crm use ``clip_m`` / ``iw_mode``.
+    ``sn_scope``: the sndr / kl correction's normalizer, per minibatch or full-data (``SN_SCOPES``)."""
     name = str(loss_name).lower()
+    if sn_scope not in SN_SCOPES:
+        raise ValueError(f"sn_scope must be one of {SN_SCOPES}, got {sn_scope!r}")
     if name == "kl_crm":
         return _kl_crm_policy_loss(
             kl_gamma,
@@ -415,6 +426,7 @@ def _policy_loss_from_name(
             use_log_trick=use_log_trick,
             propensity_mode=propensity_mode,
             weights=train_weights,
+            normalization=sn_scope,
         )
     if name == "ipw":
         return IPWPolicyLoss(
@@ -429,11 +441,14 @@ def _policy_loss_from_name(
         )
     if name == "dm":
         return DMPolicyLoss(use_log_trick=use_log_trick, propensity_mode=propensity_mode)
+    if name == "dr":
+        return DRPolicyLoss(use_log_trick=use_log_trick, propensity_mode=propensity_mode, weights=train_weights)
     if name == "sndr":
         return SNDRPolicyLoss(
             use_log_trick=use_log_trick,
             propensity_mode=propensity_mode,
             weights=train_weights,
+            normalization=sn_scope,
         )
     if name == "crm":
         return _crm_policy_loss(
@@ -2955,6 +2970,7 @@ def regression_trainer_trial(
     size_regression_bundles: dict | None = None,
     size_crossfit: dict | None = None,
     post_temper: bool = False,
+    sn_scope: str = "batch",
 ):
     """
     OPC / no-propensity trainer with Optuna over CF hyperparameters.
@@ -2993,6 +3009,8 @@ def regression_trainer_trial(
     ``size_crossfit``: ``{train_size: (fold_bundles, user_fold)}`` (``--crossfit-folds``): the
     training loss takes each user's q_hat from the fold model fit without that user's fold
     (``CrossFitScoresLookup``); validation scoring, selection and ``r_hat_train`` keep the full model.
+    ``sn_scope``: normalizer of the sndr / kl correction, ``batch`` (per minibatch, older) or
+    ``global`` (full-data mean weight, refreshed every epoch); the ``dr`` loss has none.
     ``post_temper``: after training, each trial's logits are scaled by the factor in
     ``POST_TEMPER_GRID`` with the best selection score on validation (``_post_temper``); the trial is
     that tempered policy from then on (true value, selection, logs; ``post_scale``).
@@ -3338,6 +3356,7 @@ def regression_trainer_trial(
                 iw_mode=crm_iw_mode,
                 shrink_lambda=crm_M,
                 train_weights=train_spec,
+                sn_scope=sn_scope,
             )
             if not temper_only:
                 train(

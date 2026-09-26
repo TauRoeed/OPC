@@ -18,6 +18,7 @@ from training.trainer_trials import (
     DEFAULT_QHAT_USER_CHUNK,
     LOGGED_RUN_IDX,
     estimate_condition_runtime_s,
+    SN_SCOPES,
     fit_shared_regression_bundle,
     format_runtime_estimate,
     no_propensity_trainer_trial,
@@ -294,6 +295,7 @@ def _run_condition(
     reward_data: str = "external",
     crossfit_folds: int = 0,
     post_temper: bool = False,
+    sn_scope: str = "batch",
 ):
     """One condition. ``methods`` may add the opt-in baselines (``BASELINE_METHODS``); their
     summaries and trials come back as a 6th item ``{method: (summary_df, trials_df)}`` when
@@ -303,7 +305,8 @@ def _run_condition(
     size's training rows, shared by every arm; the splits are the same in both modes).
     ``crossfit_folds`` K >= 2 (train mode only): users are split into K folds; the training losses
     take each user's q_hat from the model fit on the other folds' rows. ``post_temper``: every
-    trained policy (OPC, no-prop, DM) gets its sharpness chosen after training on validation."""
+    trained policy (OPC, no-prop, DM) gets its sharpness chosen after training on validation.
+    ``sn_scope``: normalizer of the sndr / kl training correction (per minibatch or full-data)."""
     reward_data = str(reward_data).lower()
     if reward_data not in REWARD_DATA_MODES:
         raise ValueError(f"reward_data must be one of {REWARD_DATA_MODES}, got {reward_data!r}")
@@ -483,6 +486,7 @@ def _run_condition(
             size_regression_bundles=size_bundles,
             size_crossfit=size_crossfit,
             post_temper=bool(post_temper),
+            sn_scope=str(sn_scope),
         )
     else:
         try:
@@ -646,6 +650,7 @@ def _run_condition(
         "reward_data": reward_data,
         "crossfit_folds": crossfit_folds,
         "post_temper": bool(post_temper),
+        "sn_scope": str(sn_scope),
         "dr_score_clip_m": parse_weight_spec(select_label)[1] if select_label.startswith("clip") else None,
         "shared_regression_size": int(
             shared_regression_bundle.get("sample_size", reg_size)
@@ -707,6 +712,8 @@ def _finalize_summary_df(opc_df, noprop_df, meta: dict, *, extra: dict | None = 
     summary_df["reward_data"] = meta.get("reward_data", "external")
     summary_df["crossfit_folds"] = int(meta.get("crossfit_folds", 0) or 0)
     summary_df["post_temper"] = bool(meta.get("post_temper", False))
+    summary_df["policy_loss_types"] = "+".join(meta.get("policy_loss_types", []) or [])
+    summary_df["sn_scope"] = meta.get("sn_scope", "batch")
     if "val_size" in summary_df.columns:
         summary_df["val_size_config"] = summary_df["val_size"]
     if {"opc", "no_propensity"}.issubset(set(summary_df.get("method", pd.Series(dtype=str)))):
@@ -883,12 +890,20 @@ def main():
     parser.add_argument(
         "--policy-losses",
         nargs="+",
-        default=["sndr"],
+        default=["dr"],
         choices=list(VALID_POLICY_LOSSES),
-        help="OPC policy-gradient loss (default sndr = pure SNDR train). "
-        "DR selection uses a fixed weight transform (--select-weights). "
-        "Multiple values = Optuna categorical over losses. "
-        "No-propensity stays naive (no IW/clip).",
+        help="OPC training loss (default dr: DM + weighted correction, no self-normalization, so the "
+        "objective does not depend on the batch size; sndr = self-normalized, see --sn-scope; sndr with "
+        "the batch scope is the loss of runs before 2026-09-27). DR selection uses a fixed weight "
+        "transform (--select-weights). Multiple values = Optuna categorical over losses. No-propensity stays naive.",
+    )
+    parser.add_argument(
+        "--sn-scope",
+        choices=list(SN_SCOPES),
+        default="batch",
+        help="Normalizer of the sndr / kl correction: batch (the minibatch mean weight, default, the older "
+        "form: the objective depends on the Optuna-searched batch size) or global (the full-data mean "
+        "weight under the current policy, refreshed every epoch).",
     )
     parser.add_argument(
         "--no-log-trick",
@@ -1071,6 +1086,7 @@ def main():
                                 reward_data=args.reward_data,
                                 crossfit_folds=int(args.crossfit_folds),
                                 post_temper=bool(args.post_temper),
+                                sn_scope=str(args.sn_scope),
                             )
                         except Exception as e:
                             failures.append({"run_key": run_key, "error": repr(e)})
@@ -1146,6 +1162,7 @@ def main():
                     "reward_data": args.reward_data,
                     "crossfit_folds": int(args.crossfit_folds),
                     "post_temper": bool(args.post_temper),
+                    "sn_scope": str(args.sn_scope),
                 },
                 f,
                 indent=2,

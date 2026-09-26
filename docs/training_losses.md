@@ -91,7 +91,7 @@ Relevant code: `AnalyticRewardModel` and `fit_shared_regression_bundle` in
 Supported policy-loss names (`VALID_POLICY_LOSSES` / `--policy-losses`):
 
 ```text
-sndr (default), kl_crm, kl, ipw, crm, naive
+dr (study default), sndr, kl_crm, kl, ipw, crm, naive, dm
 ```
 
 If more than one name is passed, Optuna treats `policy_loss` as a categorical.
@@ -99,8 +99,18 @@ If more than one name is passed, Optuna treats `policy_loss` as a categorical.
 ### OPC arm
 
 OPC uses logged propensities (`propensity_mode="logged"`) and IW / DR-style
-losses. The full-study default is pure `sndr` (negative SNDR surrogate only;
-no KL, no CRM) with the log trick fixed on.
+losses. The full-study default is `dr` (since 2026-09-27): the reward model's value of the policy
+plus the weighted correction w·(r − q̂), with no self-normalization, no KL and no CRM, and the log
+trick fixed on.
+
+**Why not `sndr` by default.** The SNDR loss divides the correction by the minibatch mean weight,
+so its objective changes with the batch size, which Optuna searches: tuning the batch size also
+tuned which estimator was optimized. The `dr` loss is one objective at every batch size (averaged
+over equal-size minibatches, its loss and gradient equal the full-data ones), and it matches the DR
+estimator used for selection. `sndr` stays available: `--sn-scope batch` (default for `sndr`) is the
+older minibatch form, so `--policy-losses sndr` reproduces the runs before 2026-09-27 exactly;
+`--sn-scope global` divides by the full-data mean weight under the current policy, recomputed at the
+start of every epoch (`full_data_mean_weight`), which also removes the dependence on the batch size.
 
 Legacy / ablation: `--policy-losses kl_crm` restores the unified loss
 
@@ -407,9 +417,11 @@ selection only when `--optuna-selection actual_reward`.
 
 CLI `--policy-losses` accepts any of:
 
-### 6.1 `sndr` (full-study default)
+### 6.1 `dr` (full-study default) and `sndr`
 
-Negative SNDR surrogate only (section 3.3), no KL, no CRM.
+`dr`: the negative DR surrogate (section 3.3 without the division by the mean weight), no KL, no
+CRM. `sndr`: the same with self-normalization, per minibatch (`--sn-scope batch`, the older default)
+or by the full-data mean weight (`--sn-scope global`).
 
 ### 6.2 `kl`
 
@@ -453,7 +465,7 @@ name, but the no-propensity arm always uses it.
 Full-study defaults:
 
 ```text
-OPC:           sndr, propensity_mode=logged, use_log_trick fixed True,
+OPC:           dr, propensity_mode=logged, use_log_trick fixed True,
                --train-weights / --select-weights (DEFAULT_TRAIN_WEIGHTS / DEFAULT_SELECT_WEIGHTS)
 no-propensity: naive, propensity_mode=uniform, use_log_trick fixed False
 ```

@@ -15,7 +15,7 @@ Main flow:
 
 | Knob | Default |
 |------|---------|
-| OPC train loss (`--policy-losses`) | `sndr` (pure SNDR; no KL/CRM) |
+| OPC train loss (`--policy-losses`) | `dr`: DM + weighted correction, no self-normalization, so the objective does not depend on the batch size; `sndr` (`--sn-scope batch`) is the loss of runs before 2026-09-27, `--sn-scope global` normalizes by the full-data mean weight |
 | Policy transform (`--policy-transform`) | `linear`: (I + D) x + b per side, starting exactly at the logger |
 | No-propensity train | always `naive` (no IW, no DM/DR, no clip) |
 | Optuna objective | `ci_low` = DR/naive mean − t·SE |
