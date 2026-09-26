@@ -46,16 +46,18 @@ Default `regression`: fit a logistic `RegressionModel` on the interaction featur
 `[our_x, our_a, our_x ⊙ our_a]` (`--reward-features`; `concat` = `[our_x, our_a]`, the older
 model) of the noisy vectors. Predictions are frozen for policy training and validation.
 
-Its data (`--reward-data`):
+Its data (`--reward-data`; the study runners default to `train` with 5 cross-fitting folds):
 
-- `external` (default): a separate regression slice of the logged sim (`--shared-regression-size`,
-  50k rows), fit once per condition and used at every train size. The slice is extra data that
-  only the arms using `q` (OPC, DM-only, the tempered logger's selection) benefit from.
-- `train`: one model per train size, fit on that size's own training rows and shared by every
-  arm, so each arm uses only the n logged rows it is given. The reg slice is still drawn, so the
-  train and validation rows are the same as in `external` mode (a matched comparison); condition
-  folders get `__qhat=train`.
-- `--crossfit-folds K` (with `train`): users are split into K folds, fold k's model is fit on the
+- `train` (default): one model per train size, fit on that size's own training rows and shared by
+  every arm, so each arm uses only the n logged rows it is given (the reward model and the policy
+  share one budget). The reg slice is still drawn, so the train and validation rows are the same as
+  in `external` mode (a matched comparison); condition folders get `__qhat=train`.
+- `external` (the runs before 2026-09-26): a separate regression slice of the logged sim
+  (`--shared-regression-size`, 50k rows), fit once per condition and used at every train size. The
+  slice is extra data that only the arms using `q` (OPC, DM-only, the tempered logger's selection)
+  benefit from: at 5k, a q fit on 50k rows beats the logger's own ranking by 2–5 CTR points on its
+  own, while one fit on 5k rows does not.
+- `--crossfit-folds K` (with `train`; default 5, off with `external`): users are split into K folds, fold k's model is fit on the
   other folds' training rows, and the training losses (SNDR, DM) take each user's `q` from the model
   that never saw that user's rows (`CrossFitScoresLookup`). Validation scoring and selection keep the
   model fit on all training rows (validation rows are never training rows). The cross-fitted `q` is

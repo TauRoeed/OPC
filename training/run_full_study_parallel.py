@@ -69,12 +69,16 @@ from utils.seeding import DEFAULT_CPU_THREADS, pin_cpu_threads
 from training.memory_budget import describe_plan, device_capacities, plan_worker_groups
 from training.run_full_study import (
     ALL_STUDY_METHODS,
+    DEFAULT_CROSSFIT_FOLDS,
+    DEFAULT_REWARD_DATA,
+    DEFAULT_VAL_SIZE,
     REWARD_DATA_MODES,
     VALID_STUDY_METHODS,
     _collect_existing_summaries,
     _condition_run_key,
     _finalize_summary_df,
     _normalize_study_methods,
+    _study_budget_from_args,
     _summary_has_methods,
     _no_prop_policy_loss_types,
     _resolve_val_size_configs,
@@ -517,7 +521,13 @@ def main():
         default=8,
         help="MC draws when --policy-reward-mode mc.",
     )
-    parser.add_argument("--val-size", type=int, default=None)
+    parser.add_argument(
+        "--val-size",
+        type=int,
+        default=DEFAULT_VAL_SIZE,
+        help="Fixed validation logged trajectories for every train_size (default %(default)s; --val-sizes "
+        "overrides). 0 = the older rule val_size = clamp(round(val_frac * train_size), val_min, val_max).",
+    )
     parser.add_argument(
         "--val-sizes",
         nargs="+",
@@ -644,17 +654,18 @@ def main():
     parser.add_argument(
         "--reward-data",
         choices=list(REWARD_DATA_MODES),
-        default="external",
-        help="Data of the regression reward model: external (default: a separate slice of "
-        "--shared-regression-size logged rows, the same at every train size) or train (each train "
-        "size's own training rows, so every arm uses only its n rows). Condition folders get __qhat=train.",
+        default=DEFAULT_REWARD_DATA,
+        help="Data of the regression reward model: train (default: each train size's own training rows, "
+        "so every arm uses only its n rows; folders get __qhat=train) or external (a separate slice of "
+        "--shared-regression-size logged rows, the same at every train size: the runs before 2026-09-26).",
     )
     parser.add_argument(
         "--crossfit-folds",
         type=int,
-        default=0,
+        default=None,
         help="With --reward-data train: split users into K folds; the training losses take each user's "
-        "q_hat from the model fit on the other folds' rows (0 = off; folders get __cf=K).",
+        f"q_hat from the model fit on the other folds' rows (default {DEFAULT_CROSSFIT_FOLDS} with train, "
+        "off with external; 0 = off; folders get __cf=K).",
     )
     parser.add_argument(
         "--skip-completed",
@@ -665,6 +676,7 @@ def main():
     parser.add_argument("--fail-fast", action="store_true", default=False)
     args = parser.parse_args()
     pin_cpu_threads(args.cpu_threads)  # env is inherited by spawned workers
+    args.reward_data, args.crossfit_folds = _study_budget_from_args(args)
     methods = _normalize_study_methods(args.methods)
     policy_loss_types = tuple(str(x).lower() for x in args.policy_losses)
     search_use_log_trick = not bool(args.no_log_trick)

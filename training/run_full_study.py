@@ -33,6 +33,22 @@ ALL_STUDY_METHODS = VALID_STUDY_METHODS + BASELINE_METHODS
 # (--shared-regression-size, the same at every train size); 'train' = each train size's own
 # training rows, so every arm uses only the n logged rows it is given.
 REWARD_DATA_MODES = ("external", "train")
+# Study defaults (2026-09-26): the reward model shares the policy's budget (fit on each train size's
+# own training rows, cross-fitted by user in 5 folds), and the validation split is fixed at 20,000
+# logged rows (DR standard error ~0.5-0.6 CTR points for OPC's selected policy, vs ~1.1 at 5,000).
+DEFAULT_REWARD_DATA = "train"
+DEFAULT_CROSSFIT_FOLDS = 5
+DEFAULT_VAL_SIZE = 20_000
+
+
+def _study_budget_from_args(args) -> tuple[str, int]:
+    """(reward_data, crossfit_folds) from the CLI: cross-fitting defaults to 5 folds with the
+    train-mode reward model and to off with the external one."""
+    reward_data = str(getattr(args, "reward_data", DEFAULT_REWARD_DATA))
+    folds = getattr(args, "crossfit_folds", None)
+    if folds is None:
+        folds = DEFAULT_CROSSFIT_FOLDS if reward_data == "train" else 0
+    return reward_data, int(folds)
 
 
 def _normalize_study_methods(methods: list[str] | tuple[str, ...] | None) -> tuple[str, ...]:
@@ -153,10 +169,11 @@ from utils.simulation_utils import generate_dataset
 
 
 def _resolve_val_size_configs(args):
-    """Return list of (val_size_or_none, label) for directory naming."""
+    """Return list of (val_size_or_none, label) for directory naming; ``--val-size 0`` = the older
+    fraction rule (label 'frac')."""
     if getattr(args, "val_sizes", None):
         return [(int(v), f"{int(v):g}") for v in args.val_sizes]
-    if args.val_size is not None:
+    if args.val_size is not None and int(args.val_size) > 0:
         return [(int(args.val_size), f"{int(args.val_size):g}")]
     return [(None, "frac")]
 
@@ -802,9 +819,9 @@ def main():
     parser.add_argument(
         "--val-size",
         type=int,
-        default=None,
-        help="If set (and --val-sizes omitted), fixed validation logged trajectories "
-        "for every train_size. Otherwise val_size = clamp(round(val_frac * train_size), val_min, val_max).",
+        default=DEFAULT_VAL_SIZE,
+        help="Fixed validation logged trajectories for every train_size (default %(default)s; --val-sizes "
+        "overrides). 0 = the older rule val_size = clamp(round(val_frac * train_size), val_min, val_max).",
     )
     parser.add_argument(
         "--val-sizes",
@@ -915,17 +932,18 @@ def main():
     parser.add_argument(
         "--reward-data",
         choices=list(REWARD_DATA_MODES),
-        default="external",
-        help="Data of the regression reward model: external (default: a separate slice of "
-        "--shared-regression-size logged rows, the same at every train size) or train (each train "
-        "size's own training rows, so every arm uses only its n rows). Condition folders get __qhat=train.",
+        default=DEFAULT_REWARD_DATA,
+        help="Data of the regression reward model: train (default: each train size's own training rows, "
+        "so every arm uses only its n rows; folders get __qhat=train) or external (a separate slice of "
+        "--shared-regression-size logged rows, the same at every train size: the runs before 2026-09-26).",
     )
     parser.add_argument(
         "--crossfit-folds",
         type=int,
-        default=0,
+        default=None,
         help="With --reward-data train: split users into K folds; the training losses take each user's "
-        "q_hat from the model fit on the other folds' rows (0 = off; folders get __cf=K).",
+        f"q_hat from the model fit on the other folds' rows (default {DEFAULT_CROSSFIT_FOLDS} with train, "
+        "off with external; 0 = off; folders get __cf=K).",
     )
     parser.add_argument(
         "--skip-completed",
@@ -944,12 +962,14 @@ def main():
     except ValueError as e:
         parser.error(str(e))
     world_options = world_options_from_args(args)
+    args.reward_data, args.crossfit_folds = _study_budget_from_args(args)
 
     emb_dir = Path(args.emb_dir)
     run_tag = args.run_tag or datetime.now().strftime("%Y%m%d_%H%M%S")
     out_dir = Path(args.out_dir) / f"run_{run_tag}"
     out_dir.mkdir(parents=True, exist_ok=True)
     print(f"Writing outputs to: {out_dir}")
+    print(f"Reward model data: {args.reward_data} (cross-fitting folds: {args.crossfit_folds or 'off'})")
     print(f"Validation configs: {val_size_configs}")
     print(f"Bias configs: {bias_configs}; world options: {world_options}")
     print(f"Policy losses: {policy_loss_types}")

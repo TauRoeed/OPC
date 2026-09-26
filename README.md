@@ -23,6 +23,8 @@ Main flow:
 | Study arms (`--methods`) | `opc no_propensity`; opt-in baselines `dm` (policy trained and selected on `q̂` alone) and `tempered_logger` (the logger's logits × s, s chosen by the DR score) |
 | Logit scale (`--learn-logit-scale`) | off; on, every trained policy also learns s in softmax(s·u·a/T), starting at 1 |
 | Reward model `q̂` | `regression` on interaction features `[x, a, x⊙a]` (`--reward-features`; bias script often uses `logging_score`) |
+| Reward-model data (`--reward-data`, `--crossfit-folds`) | `train`: fit on each train size's own training rows (the same budget as the policy), cross-fitted by user in 5 folds; `external` = a separate 50k-row slice (runs before 2026-09-26) |
+| Validation (`--val-size`) | 20,000 logged rows at every train size; `0` = the older rule `clamp(0.15·n, 5000, –)` |
 | Datasets (`--datasets`) | `ml myket kuairec kuairand anime msd`; lastfm is opt-in (a condition costs ~75× ml's; see Runtime estimate) |
 | Representation bias (`--bias-configs`) | `low medium high` (all three types at that level) |
 | Reference CTR (`--ctr-levels`) | 5% for the spread logger at medium bias; best item 30% |
@@ -265,9 +267,10 @@ runs ~5× slower per epoch than 4096.
 - `--reward-model {regression,logging_score,oracle}` — shared `q̂` for DM/DR/SNDR.
 - `--reward-features {interaction,concat}` — the regression reward model's features: `[x, a, x⊙a]` (default; item
   rankings can differ between users) or `[x, a]` (the previous model: one item ranking for every user).
-- `--reward-data {external,train}` — the reward model's data: a separate 50k-row slice, the same at every train size
-  (default), or each train size's own training rows (every arm then uses only its n rows). `--crossfit-folds K` (with
-  `train`) cross-fits it by user: each user's training `q̂` comes from a model fit without that user's rows.
+- `--reward-data {train,external}` — the reward model's data: each train size's own training rows (default; every arm
+  uses only its n rows) or a separate 50k-row slice, the same at every train size (the older runs). `--crossfit-folds K`
+  (default 5 with `train`, off with `external`) cross-fits it by user: each user's training `q̂` comes from a model fit
+  without that user's rows. `--val-size` (default 20000; 0 = the older fraction rule) fixes the validation split.
 - `--optuna-selection {ci_low,r_hat,actual_reward}` — what Optuna maximizes.
 - `--methods opc no_propensity` — or one arm only (e.g. finish no-prop after OPC).
 - `--slim` — log trial hyperparams; skip heavy post-hoc catalog eval.
