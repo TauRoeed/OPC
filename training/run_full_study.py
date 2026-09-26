@@ -16,6 +16,7 @@ from training.trainer_trials import (
     LazyRegressionSplitCache,
     DEFAULT_QHAT_ACTION_CHUNK,
     DEFAULT_QHAT_USER_CHUNK,
+    LOGGED_RUN_IDX,
     estimate_condition_runtime_s,
     fit_shared_regression_bundle,
     format_runtime_estimate,
@@ -28,6 +29,10 @@ VALID_STUDY_METHODS = ("opc", "no_propensity")  # the default arms
 # tempered_logger = no training, the logger's logits x s with s chosen by the DR selection score.
 BASELINE_METHODS = ("dm", "tempered_logger")
 ALL_STUDY_METHODS = VALID_STUDY_METHODS + BASELINE_METHODS
+# Where the regression reward model's data come from: 'external' = a separate reg slice
+# (--shared-regression-size, the same at every train size); 'train' = each train size's own
+# training rows, so every arm uses only the n logged rows it is given.
+REWARD_DATA_MODES = ("external", "train")
 
 
 def _normalize_study_methods(methods: list[str] | tuple[str, ...] | None) -> tuple[str, ...]:
@@ -155,10 +160,13 @@ def _load_optional_array(path: Path):
 
 
 def _condition_run_key(dataset_name: str, bias: str, ctr: float, seed: int, world_options: dict | None,
-                       val_label: str = "frac") -> str:
+                       val_label: str = "frac", reward_data: str = "external") -> str:
     """Folder name of one condition: dataset, bias, CTR, seed, the world options that differ from
-    the defaults (``world_run_key_suffix``) and the validation size when fixed."""
+    the defaults (``world_run_key_suffix``), the reward-model data when not external, and the
+    validation size when fixed."""
     key = f"dataset={dataset_name}__bias={bias}__ctr={ctr:g}__seed={seed}" + world_run_key_suffix(world_options)
+    if str(reward_data) != "external":
+        key = f"{key}__qhat={reward_data}"
     if val_label != "frac":
         key = f"{key}__val={val_label}"
     return key
@@ -243,11 +251,19 @@ def _run_condition(
     cpu_threads: int = DEFAULT_CPU_THREADS,
     learn_logit_scale: bool = False,
     return_extra: bool = False,
+    reward_data: str = "external",
 ):
     """One condition. ``methods`` may add the opt-in baselines (``BASELINE_METHODS``); their
     summaries and trials come back as a 6th item ``{method: (summary_df, trials_df)}`` when
     ``return_extra`` (the 5-item return is unchanged otherwise). ``learn_logit_scale``: every
-    trained policy (OPC, no-prop, DM) also learns a logit scale."""
+    trained policy (OPC, no-prop, DM) also learns a logit scale. ``reward_data``: ``external``
+    (default: q_hat from the separate reg slice) or ``train`` (q_hat fit per train size on that
+    size's training rows, shared by every arm; the splits are the same in both modes)."""
+    reward_data = str(reward_data).lower()
+    if reward_data not in REWARD_DATA_MODES:
+        raise ValueError(f"reward_data must be one of {REWARD_DATA_MODES}, got {reward_data!r}")
+    if reward_data == "train" and str(reward_model).lower() != "regression":
+        raise ValueError("reward_data='train' fits the regression reward model; other reward models use no data")
     methods = _normalize_study_methods(methods)
     run_opc = "opc" in methods
     run_no_prop = "no_propensity" in methods
@@ -342,6 +358,21 @@ def _run_condition(
         q_error=float(q_error),
         q_bad_value=q_bad_value,
     )
+    size_bundles = None
+    if reward_data == "train":  # each size's own training rows fit its q_hat; every arm shares it
+        size_bundles = {
+            int(n): fit_shared_regression_bundle(
+                dataset,
+                split_cache[(int(n), LOGGED_RUN_IDX)]["train_data"],
+                reward_model="regression",
+                reward_features=str(reward_features),
+                user_chunk=int(qhat_user_chunk),
+                action_chunk=int(qhat_action_chunk),
+                q_error=float(q_error),
+                q_bad_value=q_bad_value,
+            )
+            for n in train_sizes
+        }
 
     opc_log_paths = {
         "trials": run_dir / "opc_trials_long.csv",
@@ -389,6 +420,7 @@ def _run_condition(
             log_select_weights=tuple(log_select_weights or ()),
             policy_transform=policy_transform,
             learn_logit_scale=bool(learn_logit_scale),
+            size_regression_bundles=size_bundles,
         )
     else:
         try:
@@ -431,6 +463,7 @@ def _run_condition(
             select_weights=select_weights,
             policy_transform=policy_transform,
             learn_logit_scale=bool(learn_logit_scale),
+            size_regression_bundles=size_bundles,
         )
     else:
         try:
@@ -481,6 +514,7 @@ def _run_condition(
             select_weights=select_weights,
             log_select_weights=tuple(log_select_weights or ()),
             policy_transform=policy_transform,
+            size_regression_bundles=size_bundles,
             **arm,
         )
 
@@ -542,6 +576,7 @@ def _run_condition(
         "log_select_weights": [weight_spec_label(w) for w in (log_select_weights or ())],
         "policy_transform": str(policy_transform),
         "learn_logit_scale": bool(learn_logit_scale),
+        "reward_data": reward_data,
         "dr_score_clip_m": parse_weight_spec(select_label)[1] if select_label.startswith("clip") else None,
         "shared_regression_size": int(
             shared_regression_bundle.get("sample_size", reg_size)
@@ -600,6 +635,7 @@ def _finalize_summary_df(opc_df, noprop_df, meta: dict, *, extra: dict | None = 
     summary_df["reward_features"] = meta.get("reward_features")  # None unless reward_model=regression
     for k in ("train_weights", "select_weights", "policy_transform", "learn_logit_scale"):
         summary_df[k] = meta.get(k)
+    summary_df["reward_data"] = meta.get("reward_data", "external")
     if "val_size" in summary_df.columns:
         summary_df["val_size_config"] = summary_df["val_size"]
     if {"opc", "no_propensity"}.issubset(set(summary_df.get("method", pd.Series(dtype=str)))):
@@ -830,6 +866,14 @@ def main():
         "starting at 1: sharpen or flatten without re-ranking (default: off).",
     )
     parser.add_argument(
+        "--reward-data",
+        choices=list(REWARD_DATA_MODES),
+        default="external",
+        help="Data of the regression reward model: external (default: a separate slice of "
+        "--shared-regression-size logged rows, the same at every train size) or train (each train "
+        "size's own training rows, so every arm uses only its n rows). Condition folders get __qhat=train.",
+    )
+    parser.add_argument(
         "--skip-completed",
         action=argparse.BooleanOptionalAction,
         default=True,
@@ -882,7 +926,8 @@ def main():
                     val_root.mkdir(parents=True, exist_ok=True)
 
                     for bias in bias_configs:
-                        run_key = _condition_run_key(dataset_name, bias, ctr, seed, world_options, val_label)
+                        run_key = _condition_run_key(dataset_name, bias, ctr, seed, world_options, val_label,
+                                                     reward_data=args.reward_data)
 
                         print(f"\n=== Running {run_key} ===")
                         run_dir = val_root / run_key
@@ -935,6 +980,7 @@ def main():
                                 world_options=world_options,
                                 learn_logit_scale=bool(args.learn_logit_scale),
                                 return_extra=True,
+                                reward_data=args.reward_data,
                             )
                         except Exception as e:
                             failures.append({"run_key": run_key, "error": repr(e)})
@@ -1007,6 +1053,7 @@ def main():
                     "select_weights": args.select_weights,
                     "policy_transform": args.policy_transform,
                     "learn_logit_scale": bool(args.learn_logit_scale),
+                    "reward_data": args.reward_data,
                 },
                 f,
                 indent=2,

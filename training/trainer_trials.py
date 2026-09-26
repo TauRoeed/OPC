@@ -2817,6 +2817,7 @@ def regression_trainer_trial(
     select_estimator: str = "dr",
     learn_logit_scale: bool = False,
     temper_only: bool = False,
+    size_regression_bundles: dict | None = None,
 ):
     """
     OPC / no-propensity trainer with Optuna over CF hyperparameters.
@@ -2849,6 +2850,9 @@ def regression_trainer_trial(
     ``learn_logit_scale``: the policy also learns a logit scale s (softmax(s · u·a / T), starting
     at 1: sharpen or flatten without re-ranking). ``temper_only``: the tempered-logger baseline, no
     training: each trial is the logger with logits x s, s searched in ``TEMPER_SCALE_RANGE``.
+    ``size_regression_bundles``: ``{train_size: bundle}`` of reward models fit on each size's own
+    training rows (``--reward-data train``); each size then scores, trains and selects with its own
+    q_hat instead of ``shared_regression_bundle`` (the external reg slice).
 
     ``search_use_log_trick``: if False, always use direct-prob surrogate (no log trick)
     for applicable losses and do not tune ``use_log_trick`` in Optuna.
@@ -3093,6 +3097,10 @@ def regression_trainer_trial(
             original_policy_prob=None,
             propensity_mode=propensity_mode,
         )
+        if size_regression_bundles is not None:  # q_hat fit on this size's own training rows
+            shared_regression_bundle = size_regression_bundles[int(train_size)]
+            shared_regression_model = shared_regression_bundle["regression_model"]
+            shared_scores_all_t = _scores_lookup_from_bundle(shared_regression_bundle, device)
 
         num_workers = _dataloader_num_workers()
 
@@ -3493,6 +3501,7 @@ def no_propensity_trainer_trial(
     select_weights=None,
     policy_transform: str = "linear",
     learn_logit_scale: bool = False,
+    size_regression_bundles: dict | None = None,
 ):
     """
     Explicit no-propensity baseline with parity to regression trainer:
@@ -3533,6 +3542,7 @@ def no_propensity_trainer_trial(
         select_weights=select_weights,  # post-hoc estimates only; no-prop has no weights
         policy_transform=policy_transform,
         learn_logit_scale=learn_logit_scale,
+        size_regression_bundles=size_regression_bundles,
     )
 
 

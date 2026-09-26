@@ -42,9 +42,19 @@ one shared q-source per condition (same for OPC and no-propensity). Flag:
 --reward-model {regression, logging_score, oracle}
 ```
 
-Default `regression`: fit a logistic `RegressionModel` on
-`concat(our_x, our_a)` from the regression slice of the logged sim (noisy
-features). Predictions are frozen for policy training and validation.
+Default `regression`: fit a logistic `RegressionModel` on the interaction features
+`[our_x, our_a, our_x ⊙ our_a]` (`--reward-features`; `concat` = `[our_x, our_a]`, the older
+model) of the noisy vectors. Predictions are frozen for policy training and validation.
+
+Its data (`--reward-data`):
+
+- `external` (default): a separate regression slice of the logged sim (`--shared-regression-size`,
+  50k rows), fit once per condition and used at every train size. The slice is extra data that
+  only the arms using `q` (OPC, DM-only, the tempered logger's selection) benefit from.
+- `train`: one model per train size, fit on that size's own training rows and shared by every
+  arm, so each arm uses only the n logged rows it is given. The reg slice is still drawn, so the
+  train and validation rows are the same as in `external` mode (a matched comparison); condition
+  folders get `__qhat=train`.
 
 `logging_score`: no fit. Use the same CTR link as the simulator on the
 **noisy** logging embeddings:

@@ -69,6 +69,7 @@ from utils.seeding import DEFAULT_CPU_THREADS, pin_cpu_threads
 from training.memory_budget import describe_plan, device_capacities, plan_worker_groups
 from training.run_full_study import (
     ALL_STUDY_METHODS,
+    REWARD_DATA_MODES,
     VALID_STUDY_METHODS,
     _collect_existing_summaries,
     _condition_run_key,
@@ -110,7 +111,8 @@ def _iter_run_configs(args, out_dir: Path, val_size_configs: list):
                     )
                     for bias in bias_configs:
                         # Tag folder with val only for real fixed/swept vals.
-                        run_key = _condition_run_key(dataset_name, bias, ctr, seed, world_options, val_label)
+                        run_key = _condition_run_key(dataset_name, bias, ctr, seed, world_options, val_label,
+                                                     reward_data=getattr(args, "reward_data", "external"))
                         yield {
                             "dataset_name": dataset_name,
                             "bias": bias,
@@ -386,6 +388,7 @@ def _execute_run(config: dict):
         world_options=config.get("world_options"),
         learn_logit_scale=bool(config.get("learn_logit_scale", False)),
         return_extra=True,
+        reward_data=str(config.get("reward_data", "external")),
     )
 
     summary_df = _finalize_summary_df(
@@ -637,6 +640,14 @@ def main():
         "starting at 1: sharpen or flatten without re-ranking (default: off).",
     )
     parser.add_argument(
+        "--reward-data",
+        choices=list(REWARD_DATA_MODES),
+        default="external",
+        help="Data of the regression reward model: external (default: a separate slice of "
+        "--shared-regression-size logged rows, the same at every train size) or train (each train "
+        "size's own training rows, so every arm uses only its n rows). Condition folders get __qhat=train.",
+    )
+    parser.add_argument(
         "--skip-completed",
         action=argparse.BooleanOptionalAction,
         default=True,
@@ -714,6 +725,7 @@ def main():
             "log_select_weights": list(args.log_select_weights),
             "policy_transform": args.policy_transform,
             "learn_logit_scale": bool(args.learn_logit_scale),
+            "reward_data": args.reward_data,
         }
         run_configs.append(cfg)
 
@@ -779,6 +791,7 @@ def main():
                     "select_weights": args.select_weights,
                     "policy_transform": args.policy_transform,
                     "learn_logit_scale": bool(args.learn_logit_scale),
+                    "reward_data": args.reward_data,
                     "val_min": args.val_min,
                     "val_max": args.val_max,
                     "policy_reward_mode": args.policy_reward_mode,
