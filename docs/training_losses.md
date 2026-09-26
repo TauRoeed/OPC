@@ -298,6 +298,46 @@ H(w) = w up to M and M(1 + ln(w/M)) above it; for `shrink:λ`, H(w) = √λ · a
 to √λ · π/2 (≈ 15.7 at λ = 100). So with a weight transform, the gradient is that of DM + H(w)e/N,
 not of the transformed estimate DM + g(w)e/N. This convention is the same in all three variants.
 
+**Log trick or direct gradient (`--opc-gradient`).** The objective the log trick optimizes and the
+transformed DR estimate it is named after differ whenever the transform acts. The direct (pathwise)
+gradient differentiates the transformed estimate itself: `--opc-gradient direct` trains OPC with
+`use_log_trick=False`, whose ascent direction is exactly ∇ mean[DM_i + g(w_i) e_i / N]. The DM term is
+exact either way. Per row, both move along ∇w_i = ∇π(a_i|x_i) / π_b(a_i|x_i), times e_i / N and a
+coefficient: g(w)/w under the log trick and g′(w) directly.
+
+| transform | w | 1 | 3 | 10 | 30 | 100 | 300 |
+|---|---|---|---|---|---|---|---|
+| `clip:10` | g(w) | 1 | 3 | 10 | 10 | 10 | 10 |
+| | H(w) (log trick) | 1 | 3 | 10 | 21 | 33 | 44 |
+| | log-trick coefficient g/w | 1 | 1 | 1 | 0.33 | 0.1 | 0.033 |
+| | direct coefficient g′ | 1 | 1 | 0 above 10 | 0 | 0 | 0 |
+| `shrink:100` | g(w) | 0.99 | 2.75 | 5 | 3 | 0.99 | 0.33 |
+| | H(w) (log trick) | 1.0 | 2.9 | 7.9 | 12.5 | 14.7 | 15.4 |
+| | log-trick coefficient g/w | 0.99 | 0.92 | 0.5 | 0.1 | 0.0099 | 0.0011 |
+| | direct coefficient g′ | 0.97 | 0.77 | 0 | −0.08 | −0.0097 | −0.0011 |
+| `shrink:10000` | g(w) | 1 | 3 | 9.9 | 27.5 | 50 | 30 |
+| | H(w) (log trick) | 1 | 3 | 10 | 29 | 79 | 125 |
+| | log-trick coefficient g/w | 1 | 1 | 0.99 | 0.92 | 0.5 | 0.1 |
+| | direct coefficient g′ | 1 | 1 | 0.97 | 0.77 | 0 | −0.08 |
+
+With raw weights (`none`) both coefficients are 1 and the two gradients are identical.
+
+The log-trick coefficient is positive at every w. It follows a monotone objective: a row's weight
+always counts in the direction of its residual, and the count saturates.
+
+The direct gradient of the transformed estimate treats heavy rows differently:
+- **`clip:M`:** rows above M get no gradient from the correction. Raising or lowering their
+  probability is free.
+- **`shrink:λ`:** past w = √λ the coefficient turns negative. The estimate is non-monotone in w (the
+  shrunk weight falls back toward 0), so maximizing it lowers the probability of clicked heavy rows
+  (e > 0) and raises that of unclicked ones (e < 0).
+
+`tests/test_opc_gradient.py` checks both gradients against literal full-data autograd for `none`,
+`clip:10`, `shrink:100` and `shrink:10000`, the closed forms of H against numerical integration, and
+the sign reversal on a single clicked row with w = 20 under `shrink:100`. Which objective to name,
+and train, is an open development question: a paired comparison with fixed hyperparameters
+(`--sampler random`) is planned.
+
 - **`dr`** follows J_DR(θ) = (1/n) Σ_i [DM_i + H(w_i) e_i]. It is per-example additive, and with raw
   weights it is exactly the DR estimate. Summed over an epoch at fixed θ, its minibatch directions
   equal (n/b) · ∇J_DR for any batch size, the short final batch included.
@@ -595,18 +635,19 @@ then sharpened per condition: its temperature is lowered until it earns `--logge
 `--logger-greedy-share off` keeps `T` (the logger before 2026-09-26). A sharper logger gives
 heavier importance weights; see [representation_bias.md](representation_bias.md).
 
-### 7.4 Log trick (`--no-log-trick`)
+### 7.4 Log trick (`--opc-gradient`, `--no-log-trick`)
 
 Full study:
 
 ```text
-OPC:           use_log_trick fixed True
+OPC:           use_log_trick fixed by --opc-gradient (log-trick, the default, or direct)
 no-propensity: use_log_trick fixed False
+dm:            use_log_trick fixed False
 ```
 
-`--no-log-trick` disables the log-trick surrogate for searchable settings
-(`search_use_log_trick=False`). With a fixed flag set by the study runner, Optuna
-does not tune `use_log_trick`.
+Section 3.4 derives what each form optimizes. `--no-log-trick` only matters for trainers that search
+`use_log_trick` (`search_use_log_trick=False`). Every arm of the full study has it fixed, so the flag
+does not change the study's training (before `--opc-gradient`, passing it left OPC on the log trick).
 
 ## 8. Numerical checks
 

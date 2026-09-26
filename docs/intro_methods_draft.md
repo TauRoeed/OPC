@@ -182,8 +182,8 @@ No IW, DM, SNDR, KL, or CRM. Full study fixes `use_log_trick=False` for this arm
 
 The log-trick version detaches policy-probability coefficients and multiplies by
 `log pi_theta`. The direct version keeps probabilities attached. In
-`run_full_study.py`, OPC fixes log trick True and no-propensity fixes it False.
-`--no-log-trick` disables the searchable log-trick path.
+`run_full_study.py`, OPC's form is set by `--opc-gradient` (log trick by default) and no-propensity
+fixes it False. `--no-log-trick` only affects trainers that search it; the full study's arms are fixed.
 
 ### Hyperparameter Optimization and Policy Selection
 

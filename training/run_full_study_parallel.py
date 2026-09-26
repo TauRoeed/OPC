@@ -72,6 +72,7 @@ from training.run_full_study import (
     DEFAULT_CROSSFIT_FOLDS,
     DEFAULT_REWARD_DATA,
     DEFAULT_VAL_SIZE,
+    OPC_GRADIENTS,
     REWARD_DATA_MODES,
     RUN_STAGES,
     VALID_STUDY_METHODS,
@@ -401,6 +402,7 @@ def _execute_run(config: dict):
         sn_scope=str(config.get("sn_scope", "batch")),
         sampler=str(config.get("sampler", "tpe")),
         stage=str(config.get("stage", "development")),
+        opc_gradient=str(config.get("opc_gradient", "log-trick")),
     )
 
     summary_df = _finalize_summary_df(
@@ -577,9 +579,18 @@ def main():
         "seeds and conditions).",
     )
     parser.add_argument(
+        "--opc-gradient",
+        choices=list(OPC_GRADIENTS),
+        default="log-trick",
+        help="How OPC's training loss is differentiated: log-trick (default; the exact gradient of "
+        "DM + H(w)(r - q_hat), H(w) = int_0^w g(t)/t dt) or direct (pathwise: the exact gradient of the "
+        "transformed estimate DM + g(w)(r - q_hat)). Identical for --train-weights none.",
+    )
+    parser.add_argument(
         "--no-log-trick",
         action="store_true",
-        help="Disable log-trick for policy losses; skip Optuna tuning of use_log_trick.",
+        help="Only for trainers that search use_log_trick; every arm of this study has it fixed (OPC: "
+        "--opc-gradient), so this flag does not change training here.",
     )
     parser.add_argument(
         "--shared-regression-size",
@@ -790,6 +801,7 @@ def main():
             "sn_scope": str(args.sn_scope),
             "sampler": str(args.sampler),
             "stage": str(args.stage),
+            "opc_gradient": str(args.opc_gradient),
         }
         run_configs.append(cfg)
 
@@ -861,6 +873,7 @@ def main():
                     "sn_scope": str(args.sn_scope),
                     "sampler": str(args.sampler),
                     "stage": str(args.stage),
+                    "opc_gradient": str(args.opc_gradient),
                     "val_min": args.val_min,
                     "val_max": args.val_max,
                     "policy_reward_mode": args.policy_reward_mode,

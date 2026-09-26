@@ -266,6 +266,10 @@ runs ~5× slower per epoch than 4096.
   the same configuration and the same trial seed in every run with the same grid and seeds. Run one objective per
   run tag (e.g. `--policy-losses dr`, `--policy-losses sndr --sn-scope global`) and compare trial by trial.
 - `--stage {development,confirmatory}` (default `development`) — what the results are for, recorded with them.
+- `--opc-gradient {log-trick,direct}` (default `log-trick`) — how OPC's loss is differentiated. The log trick
+  follows the gradient of DM + H(w)(r − q̂) with H(w) = ∫₀ʷ g(t)/t dt. `direct` is the exact gradient of the
+  transformed estimate DM + g(w)(r − q̂). They coincide for `--train-weights none`
+  (`docs/training_losses.md` §3.4).
 - `--logger-greedy-share` (default 0.8; `off` = the older spread logger) — logger sharpness: the logger earns this
   share of its own greedy CTR. Sharper loggers leave less room the logs can evaluate (see the simulator doc).
 - `--bias-configs` — levels per condition: `medium` (all three types) or `warp/group/vector`, e.g. `high/none/low`.

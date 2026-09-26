@@ -37,6 +37,11 @@ REWARD_DATA_MODES = ("external", "train")
 # What the results are for: development runs design the method (objective, weights, defaults);
 # confirmatory runs evaluate the frozen method on fresh seeds and conditions.
 RUN_STAGES = ("development", "confirmatory")
+# How OPC's training loss is differentiated (docs/training_losses.md 3.4): 'log-trick' (the transformed
+# weight g(w) as a detached coefficient on grad log pi: the exact gradient of DM + H(w)(r - q_hat) with
+# H(w) = int_0^w g(t)/t dt) or 'direct' (pathwise through g(w): the exact gradient of the transformed
+# estimate DM + g(w)(r - q_hat) itself). The two coincide for raw weights.
+OPC_GRADIENTS = ("log-trick", "direct")
 # Study defaults (2026-09-26): the reward model shares the policy's budget (fit on each train size's
 # own training rows, cross-fitted by user in 5 folds), and the validation split is fixed at 20,000
 # logged rows (DR standard error ~0.5-0.6 CTR points for OPC's selected policy, vs ~1.1 at 5,000).
@@ -302,6 +307,7 @@ def _run_condition(
     sn_scope: str = "batch",
     sampler: str = "tpe",
     stage: str = "development",
+    opc_gradient: str = "log-trick",
 ):
     """One condition. ``methods`` may add the opt-in baselines (``BASELINE_METHODS``); their
     summaries and trials come back as a 6th item ``{method: (summary_df, trials_df)}`` when
@@ -315,9 +321,14 @@ def _run_condition(
     ``sn_scope``: normalizer of the sndr / kl training correction (per minibatch or full-data).
     ``sampler``: Optuna's ``tpe`` (default) or ``random`` (seeded random search without warm starts:
     the same trial configurations and seeds in every run of the grid, the paired comparison of
-    objectives). ``stage``: ``development`` (default) or ``confirmatory``, recorded with the results."""
+    objectives). ``stage``: ``development`` (default) or ``confirmatory``, recorded with the results.
+    ``opc_gradient``: ``log-trick`` (default) or ``direct``, how OPC's loss is differentiated
+    (``OPC_GRADIENTS``); the other arms are fixed (no-propensity and DM direct, tempered untrained)."""
     if str(stage) not in RUN_STAGES:
         raise ValueError(f"stage must be one of {RUN_STAGES}, got {stage!r}")
+    if str(opc_gradient) not in OPC_GRADIENTS:
+        raise ValueError(f"opc_gradient must be one of {OPC_GRADIENTS}, got {opc_gradient!r}")
+    opc_log_trick = str(opc_gradient) == "log-trick"
     reward_data = str(reward_data).lower()
     if reward_data not in REWARD_DATA_MODES:
         raise ValueError(f"reward_data must be one of {REWARD_DATA_MODES}, got {reward_data!r}")
@@ -478,7 +489,7 @@ def _run_condition(
             policy_loss_types=policy_loss_types,
             dataset_name=dataset_name,
             search_use_log_trick=search_use_log_trick,
-            use_log_trick_fixed=True,
+            use_log_trick_fixed=opc_log_trick,
             shared_regression_bundle=shared_regression_bundle,
             shared_regression_size=shared_regression_size,
             qhat_user_chunk=qhat_user_chunk,
@@ -651,7 +662,8 @@ def _run_condition(
         "slim": bool(slim),
         "policy_loss_types": list(policy_loss_types),
         "search_use_log_trick": bool(search_use_log_trick),
-        "opc_use_log_trick_fixed": True,
+        "opc_use_log_trick_fixed": opc_log_trick,
+        "opc_gradient": str(opc_gradient),
         "no_prop_use_log_trick_fixed": False,
         "study_methods": list(methods),
         "opc_policy_loss_types": list(policy_loss_types),
@@ -732,6 +744,7 @@ def _finalize_summary_df(opc_df, noprop_df, meta: dict, *, extra: dict | None = 
     summary_df["sn_scope"] = meta.get("sn_scope", "batch")
     summary_df["sampler"] = meta.get("sampler", "tpe")
     summary_df["stage"] = meta.get("stage", "development")
+    summary_df["opc_gradient"] = meta.get("opc_gradient", "log-trick")
     if "val_size" in summary_df.columns:
         summary_df["val_size_config"] = summary_df["val_size"]
     if {"opc", "no_propensity"}.issubset(set(summary_df.get("method", pd.Series(dtype=str)))):
@@ -944,10 +957,20 @@ def main():
         "used to design the method) or confirmatory (the frozen method on fresh seeds and conditions).",
     )
     parser.add_argument(
+        "--opc-gradient",
+        choices=list(OPC_GRADIENTS),
+        default="log-trick",
+        help="How OPC's training loss is differentiated: log-trick (default: the transformed weight is a "
+        "detached coefficient on grad log pi, the exact gradient of DM + H(w)(r - q_hat) with "
+        "H(w) = int_0^w g(t)/t dt) or direct (pathwise through the transformed weight g(w): the exact "
+        "gradient of the transformed estimate DM + g(w)(r - q_hat)). The two coincide for --train-weights "
+        "none. docs/training_losses.md 3.4.",
+    )
+    parser.add_argument(
         "--no-log-trick",
         action="store_true",
-        help="Disable log-trick policy surrogate (direct probs). "
-        "Skips tuning use_log_trick in Optuna.",
+        help="Only for trainers that search use_log_trick; every arm of this study has it fixed (OPC: "
+        "--opc-gradient; no-propensity and DM: direct), so this flag does not change training here.",
     )
     parser.add_argument(
         "--shared-regression-size",
@@ -1127,6 +1150,7 @@ def main():
                                 sn_scope=str(args.sn_scope),
                                 sampler=str(args.sampler),
                                 stage=str(args.stage),
+                                opc_gradient=str(args.opc_gradient),
                             )
                         except Exception as e:
                             failures.append({"run_key": run_key, "error": repr(e)})
@@ -1205,6 +1229,7 @@ def main():
                     "sn_scope": str(args.sn_scope),
                     "sampler": str(args.sampler),
                     "stage": str(args.stage),
+                    "opc_gradient": str(args.opc_gradient),
                 },
                 f,
                 indent=2,
