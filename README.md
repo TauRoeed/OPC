@@ -15,11 +15,11 @@ Main flow:
 
 | Knob | Default |
 |------|---------|
-| OPC train loss (`--policy-losses`) | `dr`: DM + weighted correction, no self-normalization, so the objective does not depend on the batch size; `sndr` (`--sn-scope batch`) is the loss of runs before 2026-09-27, `--sn-scope global` normalizes by the full-data mean weight |
+| OPC train loss (`--policy-losses`) | `sndr` with `--sn-scope batch` (the legacy minibatch-normalized SNDR), provisionally. Three objective variants are under a controlled comparison: legacy SNDR, `sndr --sn-scope global` (epoch-refreshed, stop-gradient full-data normalizer) and `dr` (no self-normalization); see `docs/training_losses.md` |
 | Policy transform (`--policy-transform`) | `linear`: (I + D) x + b per side, starting exactly at the logger |
 | No-propensity train | always `naive` (no IW, no DM/DR, no clip) |
 | Optuna objective | `ci_low` = DR/naive mean − t·SE |
-| Importance weights | `--train-weights` (sndr / ipw / kl losses; default `shrink:100`) and `--select-weights` (selection + post-hoc; default `clip:10`): `none`, `clip:M` or `shrink:λ`; interim values from the 2026-09-26 tuning, see `training/trainer_trials.py`; **not** Optuna-searched |
+| Importance weights | `--train-weights` (sndr / dr / ipw / kl losses; default `shrink:100`) and `--select-weights` (selection + post-hoc; default `clip:10`): `none`, `clip:M` or `shrink:λ`; interim values from the 2026-09-26 tuning, see `training/trainer_trials.py`; **not** Optuna-searched |
 | Study arms (`--methods`) | `opc no_propensity`; opt-in baselines `dm` (policy trained and selected on `q̂` alone) and `tempered_logger` (the logger's logits × s, s chosen by the DR score) |
 | Logit scale (`--learn-logit-scale`) | off; on, every trained policy also learns s in softmax(s·u·a/T), starting at 1 |
 | Reward model `q̂` | `regression` on interaction features `[x, a, x⊙a]` (`--reward-features`; bias script often uses `logging_score`) |
@@ -29,7 +29,7 @@ Main flow:
 | Representation bias (`--bias-configs`) | `low medium high` (all three types at that level) |
 | Reference CTR (`--ctr-levels`) | 5% for the spread logger at medium bias; best item 30% |
 | Logging temperature | the spread logger (clean logger over 50% of the catalog, `--logging-spread`) calibrates the click model; the actual logger is sharpened per condition to earn 80% of its own greedy CTR (`--logger-greedy-share 0.8`; `off` = the spread logger, as before 2026-09-26) |
-| Batch sizes | `batch_schedule(train_size)` unless you pass `--optuna-batch-sizes` |
+| Batch sizes | `batch_schedule(train_size)` unless you pass `--optuna-batch-sizes`. The last minibatch of an epoch is usually short; for per-example additive losses (`dr`, `--sn-scope global`, `dm`, `naive`) it counts in proportion to its rows, so every row weighs the same (legacy SNDR keeps one mean per batch) |
 | Skip finished cells | `--skip-completed` on (checks `summary_metrics.csv` only) |
 
 Offline clip pick: `scripts/sim_dr_score_clip_logging_score.py` → `artifacts/oom_smoke/dr_score_clip_logging_score`.

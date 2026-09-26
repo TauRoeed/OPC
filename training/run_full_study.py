@@ -890,20 +890,23 @@ def main():
     parser.add_argument(
         "--policy-losses",
         nargs="+",
-        default=["dr"],
+        default=["sndr"],
         choices=list(VALID_POLICY_LOSSES),
-        help="OPC training loss (default dr: DM + weighted correction, no self-normalization, so the "
-        "objective does not depend on the batch size; sndr = self-normalized, see --sn-scope; sndr with "
-        "the batch scope is the loss of runs before 2026-09-27). DR selection uses a fixed weight "
-        "transform (--select-weights). Multiple values = Optuna categorical over losses. No-propensity stays naive.",
+        help="OPC training loss. Three objective variants are under a controlled comparison (development "
+        "runs): sndr with --sn-scope batch (default: the legacy minibatch-normalized SNDR, whose objective "
+        "depends on the batch size), sndr with --sn-scope global (epoch-refreshed, stop-gradient full-data "
+        "normalizer) and dr (no self-normalization). The default stays the legacy one until that comparison "
+        "decides. DR selection uses a fixed weight transform (--select-weights). Multiple values = Optuna "
+        "categorical over losses. No-propensity stays naive.",
     )
     parser.add_argument(
         "--sn-scope",
         choices=list(SN_SCOPES),
         default="batch",
-        help="Normalizer of the sndr / kl correction: batch (the minibatch mean weight, default, the older "
-        "form: the objective depends on the Optuna-searched batch size) or global (the full-data mean "
-        "weight under the current policy, refreshed every epoch).",
+        help="Normalizer of the sndr / kl correction: batch (default, legacy: the minibatch mean weight, so "
+        "the objective depends on the Optuna-searched batch size) or global (the full-data mean weight, "
+        "computed at the start of every epoch and held fixed: no gradient through it, stale after the "
+        "epoch's first step; a stop-gradient SNDR surrogate, not exact SNDR, docs/training_losses.md 3.4).",
     )
     parser.add_argument(
         "--no-log-trick",

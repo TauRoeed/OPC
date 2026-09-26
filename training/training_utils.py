@@ -106,9 +106,10 @@ def train(
 
 @torch.no_grad()
 def full_data_mean_weight(model, dataset, criterion, device, *, cells: int = 32 * 1024 * 1024) -> float:
-    """Mean transformed importance weight over all training rows under the model's current policy:
-    the SNDR normalizer that does not depend on the batch size (``--sn-scope global``). Rows are read
-    in fixed chunks in row order (no DataLoader, so the training shuffle is untouched), in eval mode."""
+    """Mean transformed importance weight over all training rows under the model's current policy.
+    ``--sn-scope global`` computes it at the start of every epoch and holds it fixed for the whole
+    epoch: a number, so no gradient flows through it, and stale after the epoch's first step. Rows are
+    read in fixed chunks in row order (no DataLoader, so the training shuffle is untouched), in eval mode."""
     was_training = model.training
     model.eval()
     try:
@@ -131,6 +132,23 @@ def full_data_mean_weight(model, dataset, criterion, device, *, cells: int = 32 
         model.train(was_training)
 
 
+def minibatch_loss(criterion, pscore, scores, policy, rewards, actions, nominal_batch_size=None):
+    """One minibatch's training loss.
+
+    A per-example additive loss (``criterion.per_example_additive``: a mean of per-row terms) is
+    scaled by rows / ``nominal_batch_size`` on a short batch (the DataLoader's final batch when the
+    row count is not a multiple of the batch size), so every row carries weight 1 / nominal in every
+    epoch: summed over an epoch at fixed parameters, the minibatch gradients equal (n / nominal) times
+    the full-data gradient. Without it, the final batch's mean would count as much as a full batch's
+    and upweight its rows by nominal / rows. Full batches are unchanged. A loss defined per minibatch
+    (legacy SNDR, the CRM variance penalty) keeps one equal-weight mean per batch."""
+    loss = criterion(pscore, scores, policy, rewards, actions)
+    rows = int(actions.shape[0])
+    if nominal_batch_size and rows != int(nominal_batch_size) and getattr(criterion, "per_example_additive", False):
+        loss = loss * (rows / float(nominal_batch_size))
+    return loss
+
+
 def run_train_loop(
     model,
     train_loader,
@@ -145,6 +163,7 @@ def run_train_loop(
         assert next(model.parameters()).is_cuda, "Model is on CPU!"
 
     needs_qhat = bool(getattr(criterion, "needs_qhat", True))
+    nominal_batch_size = getattr(train_loader, "batch_size", None)
 
     for step, (user_idx, action_idx, rewards, pscore) in enumerate(train_loader, 1):
         user_idx = user_idx.to(device, non_blocking=True)
@@ -173,7 +192,7 @@ def run_train_loop(
             scores = None
 
         optimizer.zero_grad(set_to_none=True)
-        loss = criterion(pscore, scores, policy, rewards, action_idx)
+        loss = minibatch_loss(criterion, pscore, scores, policy, rewards, action_idx, nominal_batch_size)
         loss.backward()
         torch.nn.utils.clip_grad_norm_(
             model.parameters(), max_norm=1.0, error_if_nonfinite=True

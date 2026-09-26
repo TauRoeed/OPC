@@ -3009,8 +3009,9 @@ def regression_trainer_trial(
     ``size_crossfit``: ``{train_size: (fold_bundles, user_fold)}`` (``--crossfit-folds``): the
     training loss takes each user's q_hat from the fold model fit without that user's fold
     (``CrossFitScoresLookup``); validation scoring, selection and ``r_hat_train`` keep the full model.
-    ``sn_scope``: normalizer of the sndr / kl correction, ``batch`` (per minibatch, older) or
-    ``global`` (full-data mean weight, refreshed every epoch); the ``dr`` loss has none.
+    ``sn_scope``: normalizer of the sndr / kl correction, ``batch`` (per minibatch, legacy) or
+    ``global`` (full-data mean weight computed at the start of every epoch and held fixed: a
+    stop-gradient, epoch-stale SNDR surrogate, docs/training_losses.md 3.4); the ``dr`` loss has none.
     ``post_temper``: after training, each trial's logits are scaled by the factor in
     ``POST_TEMPER_GRID`` with the best selection score on validation (``_post_temper``); the trial is
     that tempered policy from then on (true value, selection, logs; ``post_scale``).

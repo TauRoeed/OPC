@@ -543,17 +543,19 @@ def main():
     parser.add_argument(
         "--policy-losses",
         nargs="+",
-        default=["dr"],
-        help="OPC training loss (default dr: DM + weighted correction, no self-normalization, so the "
-        "objective does not depend on the batch size; sndr = self-normalized, see --sn-scope; sndr with "
-        "the batch scope is the loss of runs before 2026-09-27). No-prop stays naive.",
+        default=["sndr"],
+        help="OPC training loss: sndr with --sn-scope batch (default: legacy minibatch-normalized SNDR), "
+        "sndr with --sn-scope global (epoch-refreshed, stop-gradient full-data normalizer) or dr (no "
+        "self-normalization). The three are under a controlled comparison; the default stays the legacy "
+        "one until it decides. No-prop stays naive.",
     )
     parser.add_argument(
         "--sn-scope",
         choices=["batch", "global"],
         default="batch",
-        help="Normalizer of the sndr / kl correction: batch (minibatch mean weight, the older form) or "
-        "global (full-data mean weight under the current policy, refreshed every epoch).",
+        help="Normalizer of the sndr / kl correction: batch (default, legacy: the minibatch mean weight) or "
+        "global (the full-data mean weight, computed at the start of every epoch and held fixed; a "
+        "stop-gradient SNDR surrogate, not exact SNDR).",
     )
     parser.add_argument(
         "--no-log-trick",

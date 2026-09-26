@@ -91,7 +91,7 @@ Relevant code: `AnalyticRewardModel` and `fit_shared_regression_bundle` in
 Supported policy-loss names (`VALID_POLICY_LOSSES` / `--policy-losses`):
 
 ```text
-dr (study default), sndr, kl_crm, kl, ipw, crm, naive, dm
+sndr (study default, provisional), dr, kl_crm, kl, ipw, crm, naive, dm
 ```
 
 If more than one name is passed, Optuna treats `policy_loss` as a categorical.
@@ -99,18 +99,21 @@ If more than one name is passed, Optuna treats `policy_loss` as a categorical.
 ### OPC arm
 
 OPC uses logged propensities (`propensity_mode="logged"`) and IW / DR-style
-losses. The full-study default is `dr` (since 2026-09-27): the reward model's value of the policy
-plus the weighted correction w·(r − q̂), with no self-normalization, no KL and no CRM, and the log
-trick fixed on.
+losses: the reward model's value of the policy plus the weighted correction w·(r − q̂), no KL and no
+CRM, with the log trick fixed on. The full-study default is legacy `sndr` (`--sn-scope batch`),
+provisionally.
 
-**Why not `sndr` by default.** The SNDR loss divides the correction by the minibatch mean weight,
-so its objective changes with the batch size, which Optuna searches: tuning the batch size also
-tuned which estimator was optimized. The `dr` loss is one objective at every batch size (averaged
-over equal-size minibatches, its loss and gradient equal the full-data ones), and it matches the DR
-estimator used for selection. `sndr` stays available: `--sn-scope batch` (default for `sndr`) is the
-older minibatch form, so `--policy-losses sndr` reproduces the runs before 2026-09-27 exactly;
-`--sn-scope global` divides by the full-data mean weight under the current policy, recomputed at the
-start of every epoch (`full_data_mean_weight`), which also removes the dependence on the batch size.
+**Three objective variants under comparison.** The legacy SNDR loss divides the correction by the
+minibatch mean weight, so its objective changes with the batch size, which Optuna searches: tuning
+the batch size also tunes which objective is optimized. Two variants remove that dependence, and
+each is also a different objective, not only a fix: `dr` (no self-normalization; per-example
+additive) and `sndr --sn-scope global` (the correction divided by the full-data mean weight,
+computed at the start of every epoch and held fixed; not exact SNDR, see section 3.4). The three are
+method variants in a controlled comparison: paired runs that replay the same trial configurations
+and seeds under each objective, and independent re-tuning of each. All of these are development runs.
+The default will be chosen, and frozen, after that comparison; confirmatory results then use fresh
+seeds and conditions. `--policy-losses sndr` (the default) reproduces the OPC arm of the runs before
+2026-09-27 exactly.
 
 Legacy / ablation: `--policy-losses kl_crm` restores the unified loss
 
@@ -265,7 +268,82 @@ SNDR_direct_i = DM_i + [w_i / mean(w)] * (r_i - q_i)
 negative SNDR direct = -(1 / n) * sum_i SNDR_direct_i
 ```
 
-### 3.4 Batch Monte Carlo KL penalty
+This is the legacy minibatch form: `mean(w)` is over the minibatch. Section 3.4 derives what this and
+the other two variants optimize.
+
+### 3.4 What each objective variant optimizes
+
+Notation for row i: weight w_i(θ) = π_θ(a_i|x_i) / π_b(a_i|x_i); transformed weight g(w_i), with
+g(w) = w (`none`), min(w, M) (`clip:M`) or λw / (w² + λ) (`shrink:λ`); residual e_i = r_i − q̂(x_i, a_i);
+DM value DM_i(θ) = Σ_a π_θ(a|x_i) q̂(x_i, a). n is the number of training rows and b the batch size.
+
+Under the log trick the weights are detached and multiply ∇log π_θ(a_i|x_i) = ∇w_i / w_i. The ascent
+direction on a minibatch B is therefore
+
+```text
+d_B(θ) = (1/b) Σ_{i∈B} [ ∇DM_i(θ) + (e_i / N) · (g(w_i) / w_i) · ∇w_i(θ) ]
+       = (1/b) Σ_{i∈B} ∇[ DM_i(θ) + H(w_i(θ)) · e_i / N ],        H(w) = ∫_0^w g(t)/t dt,
+```
+
+where N is a number held fixed during backpropagation. The three variants differ only in N:
+
+| variant | N | gradient through N | computed |
+|---|---|---|---|
+| `dr` | 1 | — | — |
+| `sndr --sn-scope global` | c_e = mean over all training rows of g(w_j(θ_e)) | none (a number) | once per epoch, at its start (θ_e); stale after the first step |
+| `sndr` (legacy, `--sn-scope batch`) | the batch's mean of g(w_j(θ)) | none under the log trick (the weights are detached) | every step, from the batch itself; legacy also uses 1/\|B\| in place of 1/b, so each batch's ratio counts once |
+
+H is the weight whose exact gradient the log trick follows: H(w) = w for `none`; for `clip:M`,
+H(w) = w up to M and M(1 + ln(w/M)) above it; for `shrink:λ`, H(w) = √λ · arctan(w/√λ), which rises
+to √λ · π/2 (≈ 15.7 at λ = 100). So with a weight transform, the gradient is that of DM + H(w)e/N,
+not of the transformed estimate DM + g(w)e/N. This convention is the same in all three variants.
+
+- **`dr`** follows J_DR(θ) = (1/n) Σ_i [DM_i + H(w_i) e_i]. It is per-example additive, and with raw
+  weights it is exactly the DR estimate. Summed over an epoch at fixed θ, its minibatch directions
+  equal (n/b) · ∇J_DR for any batch size, the short final batch included.
+- **`sndr --sn-scope global`** follows, during epoch e, J_e(θ) = (1/n) Σ_i [DM_i + H(w_i) e_i / c_e]:
+  DR's direction with the correction divided by c_e. With raw weights at θ_e, J_e has the value of
+  the full-data SNDR estimate, but not its gradient. The literal full-data SNDR ratio
+  V(θ) = (1/n) Σ_i DM_i + Σ_i g(w_i) e_i / Σ_i g(w_i) has
+
+  ```text
+  ∇V = (1/n) Σ_i ∇DM_i + (1/(n c)) Σ_i g'(w_i) ∇w_i · (e_i − R),
+       c = (1/n) Σ_i g(w_i),   R = Σ_i g(w_i) e_i / Σ_i g(w_i).
+  ```
+
+  At θ_e, ∇J_e differs from ∇V in three ways:
+  - It lacks the term −(R/c) ∇c: the gradient through the denominator, which is self-normalization's
+    baseline R.
+  - It uses g(w)/w where ∇V has g'(w). The two coincide for raw weights.
+  - After the first step, c_e is no longer c(θ).
+
+  So `global` is a stop-gradient, epoch-stale SNDR surrogate. It is not exact SNDR.
+- **Legacy `sndr`**: each batch follows its own stop-gradient ratio,
+  (1/|B|) Σ_{i∈B} ∇[DM_i + H(w_i) e_i / w̄_B], where w̄_B is the batch's mean weight. That mean depends
+  on which rows share the batch, so the epoch's direction, and the objective, change with the batch
+  size. With the log trick off, the batch denominator carries its gradient, and one batch of all rows
+  gives exactly ∇V; OPC runs with the log trick on.
+
+Under the log trick the reported loss value is a surrogate: minus the sum of the detached
+coefficients times log π. Only its gradient carries the meaning above; its value does not estimate
+the policy's value. `tests/test_objective_gradients.py` checks each statement against literal
+full-data autograd at fixed parameters, including the identity ∇V − ∇J_e = −(R/c) ∇c. It also checks
+that the trainer sets the global normalizer once per epoch, and that the normalizer is stale after
+every step that follows.
+
+**Minibatch weighting (the short final batch).** The training DataLoader keeps the final short
+batch (no `drop_last`), and the study's train sizes are not multiples of its batch sizes: 25,000 rows
+in batches of 2048 leave a last batch of 424. For per-example additive losses (`dr`, `sndr`/`kl` with
+`--sn-scope global`, `dm`, `naive`, `ipw`), `training_utils.minibatch_loss` scales a short batch's
+mean by rows / b, so every row weighs 1/b in every epoch. Before this fix (commits up to b584edc),
+the last batch's mean counted as much as a full batch's and upweighted its rows by b / rows (1.1× to
+4.8× in the study's grid). This changes the dm-only and no-propensity arms slightly (their last batch
+only), and `dr` and `global` compared with b584edc. Legacy SNDR and the CRM variance losses are
+per-minibatch statistics: they keep one equal-weight mean per batch, as before. This accounting is of
+gradients. Adam's per-coordinate step normalization and the per-step gradient-norm clip (max norm 1)
+act on each step's direction, identically for every variant.
+
+### 3.5 Batch Monte Carlo KL penalty
 
 The KL term discourages the learned policy from moving too far from the logging
 policy. It is estimated only at logged actions:
@@ -283,7 +361,7 @@ Its contribution to the total loss is:
 kl_gamma * KL_MC
 ```
 
-### 3.5 CRM variance penalty
+### 3.6 CRM variance penalty
 
 First clip each importance ratio at Optuna parameter `crm_M`:
 
@@ -303,7 +381,7 @@ This discourages policies whose estimated risk has high sample variance. In the
 unified `KLCRMPolicyLoss`, gradients flow through `clipped_w_i`, so
 `crm_lambda` changes the policy update.
 
-### 3.6 Complete `kl_crm` loss (legacy / ablation)
+### 3.7 Complete `kl_crm` loss (legacy / ablation)
 
 ```text
 OPC loss (kl_crm)
@@ -417,11 +495,12 @@ selection only when `--optuna-selection actual_reward`.
 
 CLI `--policy-losses` accepts any of:
 
-### 6.1 `dr` (full-study default) and `sndr`
+### 6.1 `sndr` (full-study default, provisional) and `dr`
 
-`dr`: the negative DR surrogate (section 3.3 without the division by the mean weight), no KL, no
-CRM. `sndr`: the same with self-normalization, per minibatch (`--sn-scope batch`, the older default)
-or by the full-data mean weight (`--sn-scope global`).
+`sndr`: the negative SNDR surrogate of section 3.3, no KL, no CRM, self-normalized per minibatch
+(`--sn-scope batch`, legacy) or by the full-data mean weight held fixed for each epoch
+(`--sn-scope global`). `dr`: the same without the division by the mean weight. Section 3.4 derives
+what each variant optimizes.
 
 ### 6.2 `kl`
 

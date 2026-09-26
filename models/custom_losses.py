@@ -164,10 +164,11 @@ DR_NORMALIZATIONS = ("none", "global", "batch")
 def dr_correction(iw, rewards, q_at_action, normalizer="batch"):
     """Per-row DR correction w_i (r_i - q_i) / c.
 
-    ``normalizer``: ``'batch'`` (c = the minibatch mean weight: the SNDR form used through 63a3cc1,
-    whose objective changes with the batch size), ``None`` or ``'none'`` (c = 1: plain DR, whose
-    minibatch loss is an unbiased estimate of the full-data objective for any batch size), or a
-    number (c = the full-data mean weight: SNDR with a normalizer that does not depend on the batch).
+    ``normalizer``: ``'batch'`` (c = the minibatch mean of ``iw``: legacy SNDR, whose objective
+    changes with the batch size; c carries a gradient only when ``iw`` does, i.e. not under the log
+    trick), ``None`` or ``'none'`` (c = 1: plain DR, a per-example additive objective), or a number
+    (c held fixed: ``--sn-scope global`` passes the full-data mean weight computed at the start of the
+    epoch, so no gradient flows through c and c is stale after the epoch's first step).
     """
     if isinstance(normalizer, str):
         if normalizer == "batch":
@@ -264,6 +265,9 @@ def dr_sndr_loss(
 
 class _BanditPolicyLossBase(nn.Module):
     needs_qhat = True
+    # The loss is a mean of per-row terms (no per-minibatch statistic), so the trainer can weight a
+    # short minibatch by its rows (training_utils.minibatch_loss). Per-batch losses override this.
+    per_example_additive = True
 
     def __init__(self, log_eps=1e-10, use_log_trick=True, propensity_mode="logged", weights="none", normalization="batch"):
         super().__init__()
@@ -371,8 +375,14 @@ class NaiveRewardPolicyLoss(_BanditPolicyLossBase):
 
 class SNDRPolicyLoss(_BanditPolicyLossBase):
     """DM(q_hat) + importance-weighted correction; ``normalization`` sets how the correction is
-    scaled: per minibatch ('batch', the older default), by the full-data mean weight ('global') or
-    not at all ('none', see ``DRPolicyLoss``)."""
+    scaled: per minibatch ('batch', legacy SNDR), by a fixed full-data mean weight refreshed every
+    epoch ('global') or not at all ('none', see ``DRPolicyLoss``). Under the log trick the weights,
+    and so both normalizers, carry no gradient: none of the three is the gradient of the SNDR ratio
+    (docs/training_losses.md, section 3.4)."""
+
+    @property
+    def per_example_additive(self) -> bool:
+        return self.normalization != "batch"  # legacy SNDR is a ratio per minibatch
 
     def forward(self, pscore, scores, policy_prob, original_policy_rewards, original_policy_actions):
         n = original_policy_actions.shape[0]
@@ -383,9 +393,11 @@ class SNDRPolicyLoss(_BanditPolicyLossBase):
 
 
 class DRPolicyLoss(SNDRPolicyLoss):
-    """Doubly robust policy objective without self-normalization: DM(q_hat) + w (r - q_hat). Its
-    minibatch loss and gradient are unbiased estimates of the full-data ones for any batch size;
-    with shrunk weights it is DR with optimistic shrinkage (Su et al. 2020)."""
+    """Doubly robust policy objective without self-normalization: DM(q_hat) + w (r - q_hat), a mean of
+    per-row terms, so its minibatch gradients add up to the full-data gradient for any batch size. With
+    raw weights under the log trick the gradient is that of the DR estimate; with a weight transform g
+    it is the gradient of DM + H(w) (r - q_hat), H(w) = integral of g(t)/t from 0 to w, not of the
+    transformed estimate DM + g(w) (r - q_hat) (docs/training_losses.md, section 3.4)."""
 
     def __init__(self, log_eps=1e-10, use_log_trick=True, propensity_mode="logged", weights="none"):
         super().__init__(log_eps=log_eps, use_log_trick=use_log_trick, propensity_mode=propensity_mode,
@@ -415,6 +427,10 @@ class DMPolicyLoss(_BanditPolicyLossBase):
 class KLPolicyLoss(_BanditPolicyLossBase):
     """SNDR PG + batch MC KL toward logging policy (logged actions only)."""
 
+    @property
+    def per_example_additive(self) -> bool:
+        return self.normalization != "batch"
+
     def __init__(self, gamma=0.05, log_eps=1e-10, use_log_trick=True, propensity_mode="logged", weights="none",
                  normalization="batch"):
         super().__init__(
@@ -440,6 +456,8 @@ class KLPolicyLoss(_BanditPolicyLossBase):
 
 class CRMPolicyLoss(_BanditPolicyLossBase):
     """Counterfactual Risk Minimization: clipped/shrunk IPS + variance penalty (Eq. 5)."""
+
+    per_example_additive = False  # the variance penalty is a per-minibatch statistic
 
     def __init__(
         self,
@@ -488,6 +506,8 @@ class KLCRMPolicyLoss(_BanditPolicyLossBase):
     transformed IW so ``crm_lambda`` affects updates under the log-trick SNDR path
     (unlike standalone CRM, which detaches Var(u)).
     """
+
+    per_example_additive = False  # legacy SNDR and the variance penalty are per-minibatch statistics
 
     def __init__(
         self,
