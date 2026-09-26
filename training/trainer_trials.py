@@ -108,6 +108,7 @@ from utils.simulation_utils import (
     CustomCFDataset,
     CustomCFDatasetPS,
     collate_prebatched,
+    calc_greedy_reward,
     calc_reward,
     calc_uniform_reward,
     calc_reward_mc,
@@ -1092,6 +1093,7 @@ def _study_trials_long(
                 )
                 if attrs.get("actual_reward") is not None
                 else float("nan"),
+                "actual_reward_greedy": float(attrs.get("actual_reward_greedy", float("nan"))),
                 "param_lr": float(params.get("lr", float("nan"))),
                 "param_num_epochs": int(params.get("num_epochs", -1)),
                 "param_batch_size": int(params.get("batch_size", -1)),
@@ -2251,6 +2253,12 @@ def _policy_reward_from_embeddings(
     return calc_reward(dataset, pi_obj, chunk_size=user_chunk)
 
 
+def _policy_greedy_reward_from_embeddings(dataset, user_emb, item_emb):
+    """True value of recommending each user the policy's top item (its exploitation part)."""
+    ensure_exact_env_q_cache(dataset)
+    return calc_greedy_reward(dataset, user_emb, item_emb)
+
+
 def _dataset_log_constants(dataset, our_x, our_a):
     """CTR from env (oracle setting in sim) and exact true reward for logging policy."""
     env = dataset.get("env")
@@ -3143,6 +3151,7 @@ def regression_trainer_trial(
             select_weights=select_spec,
         )
     results[0]["val_size"] = float(v_baseline)
+    results[0]["policy_rewards_greedy"] = _policy_greedy_reward_from_embeddings(dataset, our_x_orig, our_a_orig)
     if cf_popularity:
         results[0]["pop_weight"] = float(cf_popularity["pop_weight"])
     results[0].update(_log_constants)
@@ -3333,6 +3342,8 @@ def regression_trainer_trial(
             print(
                 f"actual reward: {r}"
             )
+            # the greedy (exploitation) part's true value, for reference: comparisons without sharpening
+            trial.set_user_attr("actual_reward_greedy", _policy_greedy_reward_from_embeddings(dataset, trial_x, trial_a))
             val_diag = {}
             dr_vec, ess_val, ess_raw = _split_dr_vec_and_ess(
                 val_data,
@@ -3501,6 +3512,7 @@ def regression_trainer_trial(
         if cf_popularity:
             trial_res["pop_weight"] = _policy_pop_weight(dataset, learned_a)
         trial_res["logit_scale"] = float(study.best_trial.user_attrs.get("logit_scale", 1.0))
+        trial_res["policy_rewards_greedy"] = float(study.best_trial.user_attrs.get("actual_reward_greedy", float("nan")))
         trial_res.update(enrich_summary_pct_fields(trial_res))
 
         trial_dicts_this_size.append(trial_res)

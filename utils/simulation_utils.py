@@ -396,6 +396,46 @@ def _exact_value_torch(
         torch.cuda.empty_cache()
 
 
+def calc_greedy_reward(dataset: dict, user_emb: np.ndarray, item_emb: np.ndarray, *, chunk_size: int = 2048) -> float:
+    """True value of the policy's greedy (exploitation) part: sum_u prior[u] * q(u, argmax_a x_u . a_a).
+
+    The softmax temperature does not move the argmax, so this is the value of recommending each
+    user the policy's top item. Scores in float32 (on the GPU with TF32 off, like
+    ``_exact_value_torch``), sums in float64; ties go to the first item.
+    """
+    env = dataset["env"]
+    n_users = int(dataset["n_users"])
+    n_actions = int(dataset["n_actions"])
+    prior = _normalized_prior(dataset)
+    q_cache = dataset.get("q_x_a")
+    device = _exact_reward_device(dataset)
+    if device is not None:
+        rows = max(1, min(n_users, EXACT_REWARD_GPU_BLOCK_CELLS // max(n_actions, 1)))
+        t = lambda a: torch.as_tensor(np.asarray(a, dtype=np.float32), device=device)
+        prev = torch.get_float32_matmul_precision()
+        torch.set_float32_matmul_precision("highest")
+        try:
+            pol_x, pol_a_t = t(user_emb), t(item_emb).T.contiguous()
+            best = torch.empty(n_users, dtype=torch.long, device=device)
+            for u0 in range(0, n_users, rows):
+                u1 = min(u0 + rows, n_users)
+                best[u0:u1] = (pol_x[u0:u1] @ pol_a_t).argmax(dim=1)
+            best = best.cpu().numpy()
+        finally:
+            torch.set_float32_matmul_precision(prev)
+            pol_x = pol_a_t = None
+            torch.cuda.empty_cache()
+    else:
+        ux, ia = np.asarray(user_emb, dtype=np.float32), np.asarray(item_emb, dtype=np.float32)
+        best = np.empty(n_users, dtype=np.int64)
+        for u0 in range(0, n_users, int(chunk_size)):
+            u1 = min(u0 + int(chunk_size), n_users)
+            best[u0:u1] = (ux[u0:u1] @ ia.T).argmax(axis=1)
+    users = np.arange(n_users, dtype=np.int64)
+    q = (np.asarray(q_cache)[users, best] if q_cache is not None else env.reward_prob(users, best)).astype(np.float64)
+    return float(np.dot(prior, q))
+
+
 def calc_reward_mc(dataset: dict, policy, n_sim=30):
     """Compute / estimate the value of a policy.
 
