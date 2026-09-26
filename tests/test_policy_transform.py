@@ -26,7 +26,7 @@ def test_new_transforms_start_exactly_at_the_identity(kind, device):
     try:
         t = make_policy_transform(kind, 12).to(device)
         x = torch.randn(300, 12, device=device) * 3
-        t.train()  # dropout active in the MLP part: its output is still exactly 0
+        t.train()
         assert torch.equal(t(x), x) and torch.equal(t(x, torch.arange(300, device=device)), x)
         t.eval()
         assert torch.equal(t(x), x)
@@ -57,12 +57,10 @@ def test_linear_formula_and_learning():
 def test_linear_plus_mlp_formula_and_both_parts_learn():
     torch.manual_seed(1)
     t = LinearPlusMLPCorrection(6)
+    # the MLP sees the raw vector: no LayerNorm, no dropout
+    assert not any(isinstance(m, (torch.nn.LayerNorm, torch.nn.Dropout)) for m in t.modules())
     x = torch.randn(40, 6)
-    t.eval()
-    with torch.no_grad():
-        want = t.linear(x) + t.nonlinear.mlp(t.nonlinear.ln(x))
-    torch.testing.assert_close(t(x), want)
-    last = t.nonlinear.mlp[3]
+    last = t.mlp[2]
     assert last.weight.abs().sum() == 0 and last.bias.abs().sum() == 0
     opt = torch.optim.Adam(t.parameters(), lr=0.05)
     t.train()
@@ -71,6 +69,15 @@ def test_linear_plus_mlp_formula_and_both_parts_learn():
         ((t(x) - torch.sin(x)) ** 2).mean().backward()
         opt.step()
     assert last.weight.abs().sum() > 0 and t.linear.delta.abs().sum() > 0
+    with torch.no_grad():
+        want = x + x @ t.linear.delta.T + t.linear.bias + t.mlp[2](torch.nn.functional.gelu(t.mlp[0](x)))
+        torch.testing.assert_close(t(x), want)
+        trained = t(x)
+        t.eval()
+        assert torch.equal(t(x), trained)  # no dropout: the same output in training and evaluation mode
+    # the MLP term sees the vector's norm (after LayerNorm, x and 3x would look alike)
+    with torch.no_grad():
+        assert not torch.allclose(t(3 * x) - t.linear(3 * x), t(x) - t.linear(x), atol=1e-4)
 
 
 def test_factory_and_the_older_transform():

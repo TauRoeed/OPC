@@ -444,7 +444,8 @@ def main():
         choices=list(POLICY_TRANSFORMS),
         default="linear",
         help="How the learned policy corrects the biased vectors: linear = (I + D) x + b per side, "
-        "starting at the logger (default); mlp = x + MLP(LN(x)) (the older transform); linear+mlp = both.",
+        "starting at the logger (default); mlp = x + MLP(LN(x)) (the older transform); linear+mlp = "
+        "(I + D) x + b + MLP(x), also starting at the logger.",
     )
     parser.add_argument(
         "--log-select-weights",

@@ -249,7 +249,7 @@ runs ~5× slower per epoch than 4096.
 - `--policy-losses sndr` (default) — OPC train loss.
 - `--policy-transform {linear,linear+mlp,mlp}` — how the learned policy corrects the biased vectors: `linear`
   (default) = (I + D) x + b per side, starting exactly at the logger; `mlp` = x + MLP(LayerNorm(x)) (older);
-  `linear+mlp` = both.
+  `linear+mlp` = (I + D) x + b + MLP(x), no LayerNorm or dropout.
 - `--train-weights`, `--select-weights` — importance-weight transform (`none`, `clip:M`, `shrink:λ`) in the OPC
   training losses and in selection + post-hoc estimates; `--log-select-weights` logs other selection transforms
   per trial (tuning). `--train-weights none --select-weights clip:1` reproduces older runs.

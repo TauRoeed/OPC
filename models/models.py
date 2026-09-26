@@ -234,24 +234,32 @@ class GlobalLinearCorrection(nn.Module):
 
 
 class LinearPlusMLPCorrection(nn.Module):
-    """``GlobalLinearCorrection`` plus the MLP term of ``SingleMLPTransform`` with its last layer at
-    zero: y = (I + D) x + b + MLP(LN(x)), exactly x at the start."""
+    """``GlobalLinearCorrection`` plus an MLP term whose last layer starts at zero:
+    y = (I + D) x + b + MLP(x), exactly x at the start.
 
-    def __init__(self, embedding_dim: int, hidden: int = 64, dropout: float = 0.1):
+    The MLP sees the raw vector: no LayerNorm (it would hide each vector's norm and its component
+    along (1, ..., 1)) and no dropout (random masks that also differ between CPU and GPU).
+    """
+
+    def __init__(self, embedding_dim: int, hidden: int = 64):
         super().__init__()
         self.linear = GlobalLinearCorrection(embedding_dim)
-        self.nonlinear = SingleMLPTransform(embedding_dim, hidden=hidden, dropout=dropout)
-        last = self.nonlinear.mlp[3]
-        nn.init.zeros_(last.weight)
-        nn.init.zeros_(last.bias)
+        self.mlp = nn.Sequential(
+            nn.Linear(embedding_dim, hidden),
+            nn.GELU(),
+            nn.Linear(hidden, embedding_dim),
+        )
+        nn.init.zeros_(self.mlp[2].weight)
+        nn.init.zeros_(self.mlp[2].bias)
 
     def forward(self, x: torch.Tensor, idx=None):
-        return self.linear(x) + self.nonlinear.mlp(self.nonlinear.ln(x))
+        return self.linear(x) + self.mlp(x)
 
 
 # --policy-transform: how the learned policy corrects the biased vectors (one module for users,
 # one for items). linear = GlobalLinearCorrection (default), mlp = SingleMLPTransform (x + MLP(LN(x)),
-# random init), linear+mlp = both, starting at the identity.
+# random init, dropout; the older transform), linear+mlp = (I + D) x + b + MLP(x), starting at the
+# identity, without LayerNorm or dropout.
 POLICY_TRANSFORMS = ("linear", "linear+mlp", "mlp")
 
 

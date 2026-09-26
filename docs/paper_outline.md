@@ -146,7 +146,7 @@ The regression trainer uses `CFModel` with one correction for all users and one 
 - `linear` (default): `GlobalLinearCorrection`, (I + D) x + b, starting at the identity, so the
   policy starts exactly at the logger.
 - `mlp`: `SingleMLPTransform`, x + MLP(LayerNorm(x)) with random initialization (the older one).
-- `linear+mlp`: both, with the MLP's last layer starting at zero.
+- `linear+mlp`: (I + D) x + b + MLP(x), the MLP's last layer starting at zero; no LayerNorm or dropout.
 
 Relevant code:
 
