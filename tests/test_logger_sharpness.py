@@ -1,4 +1,4 @@
-"""The sharpened logger (utils/representation_bias.py, ``logger_greedy_share``, default 0.9): per
+"""The sharpened logger (utils/representation_bias.py, ``logger_greedy_share``, default 0.8): per
 condition the logger's temperature is lowered from the spread temperature until it earns that
 share of its own greedy CTR. The truth, the vectors and the click model do not change; ``off``
 keeps the spread logger (the logger before 2026-09-26), and the study pipeline logs from and
@@ -45,7 +45,7 @@ def _full_population_share(ds):
 
 
 def test_default_and_parsing():
-    assert DEFAULT_LOGGER_GREEDY_SHARE == 0.9
+    assert DEFAULT_LOGGER_GREEDY_SHARE == 0.8
     for off in ("off", "OFF", "none", "0", 0, 0.0, None):
         assert parse_logger_greedy_share(off) == 0.0
     assert parse_logger_greedy_share("0.95") == 0.95
@@ -88,7 +88,7 @@ def test_a_share_below_the_spread_logger_flattens_it(emb):
 @pytest.mark.parametrize("bias", ["none", "low", "high", "high/none/none", "none/high/none", "none/none/high"])
 def test_every_bias_config_gets_its_own_sharpened_logger(emb, bias):
     ds, ref = _world(emb, bias), _world(emb)
-    assert ds["world"]["logger_share_achieved"] == pytest.approx(0.9, abs=1e-9)
+    assert ds["world"]["logger_share_achieved"] == pytest.approx(0.8, abs=1e-9)
     assert ds["world"]["spread_temperature"] == ref["world"]["spread_temperature"]  # the truth is shared
     if bias == "none":  # no bias: the logger's own ranking is the true one
         assert ds["world"]["logger_greedy_ctr"] == pytest.approx(ds["world"]["best_item_ctr"], abs=0.02)
@@ -168,14 +168,15 @@ def test_cli_run_key_and_description(emb):
     p = argparse.ArgumentParser()
     add_world_arguments(p)
     default = world_options_from_args(p.parse_args([]))
-    assert default["logger_greedy_share"] == 0.9 and world_run_key_suffix(default) == ""
+    assert default["logger_greedy_share"] == 0.8 and world_run_key_suffix(default) == ""
+    assert world_run_key_suffix(world_options_from_args(p.parse_args(["--logger-greedy-share", "0.9"]))) == "__lgs=0.9"
     off = world_options_from_args(p.parse_args(["--logger-greedy-share", "off"]))
     assert off["logger_greedy_share"] == 0.0 and world_run_key_suffix(off) == "__lgs=0"
     sharp = world_options_from_args(p.parse_args(["--logger-greedy-share", "0.95"]))
     assert world_run_key_suffix(sharp) == "__lgs=0.95"
     with pytest.raises(SystemExit):
         p.parse_args(["--logger-greedy-share", "1.2"])
-    assert "90% of its greedy CTR" in describe_world(_world(emb)["world"])
+    assert "80% of its greedy CTR" in describe_world(_world(emb)["world"])
     assert "sharpening off" in describe_world(_world(emb, logger_greedy_share="off")["world"])
 
 

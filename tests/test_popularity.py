@@ -126,8 +126,8 @@ def test_truth_targets_hold_with_popularity(worlds):
     assert calc_reward(ds, spread) == pytest.approx(0.05, abs=0.003)  # medium spread logger, beta_log = beta_true
     scores = ds["emb_x"].astype(np.float64) @ ds["emb_a"].astype(np.float64).T
     assert rb._effective_items(scores, w["spread_temperature"]) / ds["n_actions"] == pytest.approx(0.5, abs=0.02)
-    # the sharpened logger (default) earns 90% of its greedy CTR, popularity column included
-    assert w["logger_share_achieved"] == pytest.approx(0.9, abs=1e-9)
+    # the sharpened logger (default) earns 80% of its greedy CTR, popularity column included
+    assert w["logger_share_achieved"] == pytest.approx(0.8, abs=1e-9)
     # the clean score is taste + popularity
     X, A = ds["emb_x"][:, :DIM].astype(np.float64), ds["emb_a"][:, :DIM].astype(np.float64)
     np.testing.assert_allclose(scores, X @ A.T + ds["item_popularity"].astype(np.float64), atol=1e-4)

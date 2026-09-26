@@ -28,7 +28,7 @@ Main flow:
 | Datasets (`--datasets`) | `ml myket kuairec kuairand anime msd`; lastfm is opt-in (a condition costs ~75× ml's; see Runtime estimate) |
 | Representation bias (`--bias-configs`) | `low medium high` (all three types at that level) |
 | Reference CTR (`--ctr-levels`) | 5% for the spread logger at medium bias; best item 30% |
-| Logging temperature | the spread logger (clean logger over 50% of the catalog, `--logging-spread`) calibrates the click model; the actual logger is sharpened per condition to earn 90% of its own greedy CTR (`--logger-greedy-share 0.9`; `off` = the spread logger, as before 2026-09-26) |
+| Logging temperature | the spread logger (clean logger over 50% of the catalog, `--logging-spread`) calibrates the click model; the actual logger is sharpened per condition to earn 80% of its own greedy CTR (`--logger-greedy-share 0.8`; `off` = the spread logger, as before 2026-09-26) |
 | Batch sizes | `batch_schedule(train_size)` unless you pass `--optuna-batch-sizes` |
 | Skip finished cells | `--skip-completed` on (checks `summary_metrics.csv` only) |
 
@@ -259,7 +259,7 @@ runs ~5× slower per epoch than 4096.
   per trial (tuning). `--train-weights none --select-weights clip:1` reproduces older runs.
 - `--methods opc no_propensity dm tempered_logger` — adds the DM-only and tempered-logger baselines (same
   splits, reward model and selection weights); `--learn-logit-scale` lets every trained policy learn a logit scale.
-- `--logger-greedy-share` (default 0.9; `off` = the older spread logger) — logger sharpness: the logger earns this
+- `--logger-greedy-share` (default 0.8; `off` = the older spread logger) — logger sharpness: the logger earns this
   share of its own greedy CTR. Sharper loggers leave less room the logs can evaluate (see the simulator doc).
 - `--bias-configs` — levels per condition: `medium` (all three types) or `warp/group/vector`, e.g. `high/none/low`.
 - `--pop-strength` (default 0: clicks follow taste only), `--logger-pop-strength` (default: the same) — weight of BPR's item bias in the true score and in the logger's; needs `{dataset}_item_bias.npy`.

@@ -58,7 +58,7 @@ The world has two copies of every user and item vector:
      (`--ctr-reference uniform`; H1 uses this).
 
    In code this is `SyntheticBanditEnv(scale=α/sd, offset=b − α·mean/sd)`.
-6. **Logger sharpness** (per condition, `--logger-greedy-share`, default 0.9). The biased logger
+6. **Logger sharpness** (per condition, `--logger-greedy-share`, default 0.8). The biased logger
    `softmax(our_x · our_a / T_log)` gets the temperature `T_log = T / f` at which it earns that
    share of its own greedy CTR on the calibration users (`sharpen_logger`: step up from f = 1,
    then brentq). It mostly exploits its ranking and explores near the top of it. It is optionally
@@ -67,12 +67,17 @@ The world has two copies of every user and item vector:
    (the logger before 2026-09-26, which spreads over half the catalog and earns only about 25–35%
    of its own greedy CTR). The click model does not change.
 
-   Why 0.9 by default, and what the other values cost (ml / kuairand / anime, seed 100): at 0.9 the
-   logger's temperature drops 4.7–6.4 times and it spreads over about 20–100 items. How much room
-   the logs can still evaluate, measured as the best value a linear policy reaches when trained
-   on the truth while keeping its ESS under the logger near 10%, is about +5 to +7.6 points over
-   the logger at 0.8, +3 to +5.3 at 0.9 and +1.6 to +2.3 at 0.95. Today's spread logger evaluates
-   the least at every ESS level, because its exploration covers the whole catalog.
+   Why 0.8 by default (2026-09-26; ml / kuairand / anime): at 0.8 the logger's temperature drops
+   about 4.2 times and it spreads over 110–260 items (0.9: 30–65, 0.95: 11–21). How much room the
+   logs can still evaluate, measured as the best value a linear policy reaches when trained on the
+   truth while keeping its ESS under the logger near 10%, is about +5 to +7.6 points over the
+   logger at 0.8, +3 to +5.3 at 0.9 and +1.6 to +2.3 at 0.95; today's spread logger evaluates the
+   least at every ESS level. In actual learning (budget-fair, cross-fitted q_hat) OPC's lead over
+   the tempered logger is the same at 0.8, 0.9 and 0.95 (+2.7 to +3.5 points at medium bias,
+   25k–100k) and the trained policies reach the same value, but OPC's lead over DM-only at 5k is
+   +1.05 at 0.8 against +0.1 to +0.2 at 0.9 and 0.95. Part of every method's gain over the logger
+   is sharpening (up to a quarter of the logger's value at 0.8); the tempered-logger baseline
+   measures that part.
 
 All draws depend only on the seed. The levels are therefore nested (the same bias
 directions at growing ε), and the truth (clean vectors, α, b, T, user prior) is identical
@@ -111,7 +116,7 @@ Only when a popularity weight is positive (otherwise the runs are the taste-only
 | `--logger-pop-strength` | = `--pop-strength` | β_log, the logger's weight on the item bias |
 | `--env-centering` | 0 | λ, share of the mean vector removed (0 = off) |
 | `--logging-spread` | 0.5 | spread temperature T: clean logger's effective items / catalog (calibrates the click model) |
-| `--logger-greedy-share` | 0.9 | the logger earns this share of its own greedy CTR (`off` = the spread logger) |
+| `--logger-greedy-share` | 0.8 | the logger earns this share of its own greedy CTR (`off` = the spread logger) |
 | `--best-ctr` | 0.30 | best item per user, averaged over users |
 | `--ctr-levels` | 0.05 | target CTR of the reference policy |
 | `--ctr-reference` | `logger` | `logger` (at medium bias) or `uniform` (not on H1, which always uses uniform) |

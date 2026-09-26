@@ -23,7 +23,7 @@ Build order for one condition (``build_world``):
      spread-temperature logger at ``reference_bias`` levels, or the uniform policy) has
      ``target_ctr``.
   5. Logger sharpness (per condition): the biased logger's temperature is lowered from T until
-     its CTR is ``logger_greedy_share`` (default 0.9) of its own greedy CTR, so it mostly
+     its CTR is ``logger_greedy_share`` (default 0.8) of its own greedy CTR, so it mostly
      exploits its ranking and explores near the top. ``off`` keeps T (the logger before
      2026-09-26, spread over half the catalog). The click model of step 4 does not change.
 Draws depend only on the seed, so bias levels are nested and the truth (alpha, b, T) is
@@ -51,7 +51,7 @@ BIAS_LEVELS = ("none", "low", "medium", "high")
 LEVEL_SIGNAL_KEPT = {"none": 1.0, "low": 0.90, "medium": 0.75, "high": 0.50}
 GROUP_SOURCES = ("cluster", "metadata")
 CTR_REFERENCES = ("logger", "uniform")
-DEFAULT_LOGGER_GREEDY_SHARE = 0.9  # the logger earns this share of its own greedy CTR (0 = off)
+DEFAULT_LOGGER_GREEDY_SHARE = 0.8  # the logger earns this share of its own greedy CTR (0 = off)
 
 
 def parse_logger_greedy_share(value) -> float:
@@ -618,7 +618,7 @@ def build_world(emb_x, emb_a, bias, *, seed: int, config: WorldConfig | None = N
                 logger_greedy_share=DEFAULT_LOGGER_GREEDY_SHARE) -> dict:
     """Dataset dict for one condition (same keys the trainers use) plus a JSON-able ``world`` record.
 
-    ``logger_greedy_share`` (default 0.9; 0 / 'off' = the spread temperature T): the logger's
+    ``logger_greedy_share`` (default 0.8; 0 / 'off' = the spread temperature T): the logger's
     temperature becomes T / f, f chosen so its CTR on the calibration users is that share of its
     own greedy CTR (``sharpen_logger``). ``policy_temperature`` and ``world['logging_temperature']``
     are the logger's temperature; ``world['spread_temperature']`` is T. A uniform mix

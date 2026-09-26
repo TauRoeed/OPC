@@ -482,7 +482,7 @@ are `0.2`–`0.5`.
 The spread sets the temperature `T` at which the clean logger's effective number of items is
 `spread × |A|` (default 0.5); that spread logger calibrates the click model. The actual logger is
 then sharpened per condition: its temperature is lowered until it earns `--logger-greedy-share`
-(default 0.9) of its own greedy CTR. The learned policies start at the logger's temperature.
+(default 0.8) of its own greedy CTR. The learned policies start at the logger's temperature.
 `--logger-greedy-share off` keeps `T` (the logger before 2026-09-26). A sharper logger gives
 heavier importance weights; see [representation_bias.md](representation_bias.md).
 
