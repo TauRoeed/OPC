@@ -2835,8 +2835,9 @@ def regression_trainer_trial(
     ``shrink:lambda``; defaults ``DEFAULT_TRAIN_WEIGHTS`` / ``DEFAULT_SELECT_WEIGHTS``) for the
     sndr / ipw / kl training losses and for the DR selection score and post-hoc estimates.
     ``dr_score_clip_m`` (older callers) sets the selection transform to clip:M. Both are ignored
-    for no-prop (pure naive). ``log_select_weights``: more specs whose selection scores are logged
-    per OPC trial (``sel_r_hat[spec]``, ``sel_ci_low[spec]``) for tuning; they do not steer Optuna.
+    for no-prop (pure naive). ``log_select_weights``: more specs whose DR selection scores are logged
+    per trial (``sel_r_hat[spec]``, ``sel_ci_low[spec]``), with the logged propensities for every arm
+    (no-prop included, so its trials can be re-selected by DR after the fact); they do not steer Optuna.
 
     ``policy_transform``: how the policy corrects the biased vectors (``models.models.POLICY_TRANSFORMS``):
     ``linear`` (default; (I + D) x + b per side, starting at the identity), ``mlp`` (x + MLP(LN(x)),
@@ -3262,7 +3263,7 @@ def regression_trainer_trial(
             trial.set_user_attr("ess_raw", ess_raw)
             for k, v in val_diag.items():  # weight profile and DM / correction split (validation)
                 trial.set_user_attr(f"diag_{k}", v)
-            if apply_dr_score_clip and log_select_weights:
+            if log_select_weights:  # every arm, no-prop included: the logged propensities, not steering Optuna
                 for label, (v_hat, v_low) in _selection_score_variants(
                     val_data, trial_x, trial_a, trial_scores_all, dataset, log_select_weights
                 ).items():

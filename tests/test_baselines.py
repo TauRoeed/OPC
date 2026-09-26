@@ -238,3 +238,16 @@ def test_cli_accepts_the_baselines_and_the_scale(module, monkeypatch, capsys):
         main()
     text = " ".join(capsys.readouterr().out.split())
     assert "tempered_logger" in text and "--learn-logit-scale" in text
+
+
+def test_every_arm_logs_the_dr_selection_variants(toy, tmp_path):
+    """The 2 x 2 design after the fact: no-prop trials (naive training, naive selection) also get the
+    DR selection scores with the logged propensities, equal to what OPC's scoring gives them."""
+    from training.trainer_trials import _selection_score_variants
+
+    _, ds = toy
+    _, trials = _trainer(ds, tmp_path, method_label="no_propensity", policy_loss_types=("naive",),
+                         propensity_mode="uniform", log_select_weights=("clip:10", "dm"))
+    assert trials[["sel_r_hat[clip:10]", "sel_ci_low[clip:10]", "sel_r_hat[dm]"]].notna().all().all()
+    assert (trials["ess"] == trials["ess"].iloc[0]).all()  # its own selection stays naive (no weights)
+    assert not np.allclose(trials["r_hat"], trials["sel_r_hat[clip:10]"])
