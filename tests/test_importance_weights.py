@@ -180,6 +180,10 @@ def test_runner_passes_the_weights_to_losses_selection_and_meta(tmp_path, monkey
     opc = trials[trials["method"] == "opc"]
     assert (opc["param_dr_score_clip_m"] == 7.0).all() and opc["ess_raw"].notna().all()
     assert (opc["ess"] > 0).all() and (opc["ess_raw"] > 0).all()
+    # per-trial diagnostics of the trained policy on the validation logs (OPC only)
+    diag = ["diag_w_max", "diag_w_share_gt1", "diag_w_share_gt10", "diag_w_share_gt100", "diag_dm_mean", "diag_correction_mean"]
+    assert opc[diag].notna().all().all() and trials.loc[trials["method"] == "no_propensity", diag].isna().all().all()
+    np.testing.assert_allclose(opc["diag_dm_mean"] + opc["diag_correction_mean"], opc["r_hat"], rtol=1e-5)
 
 
 def test_eval_policy_uses_its_weights():

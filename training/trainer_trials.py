@@ -1108,8 +1108,8 @@ def _study_trials_long(
         )
         if "pop_weight" in attrs:  # learned popularity weight (worlds with a popularity column)
             rows[-1]["pop_weight"] = float(attrs["pop_weight"])
-        for k, v in attrs.items():  # selection scores under other weight specs (tuning runs)
-            if k.startswith(("sel_r_hat[", "sel_ci_low[")):
+        for k, v in attrs.items():  # selection scores under other weight specs (tuning runs), diagnostics
+            if k.startswith(("sel_r_hat[", "sel_ci_low[", "diag_")):
                 rows[-1][k] = float(v)
         act = rows[-1]["actual_reward"]
         val = rows[-1]["value"]
@@ -2059,9 +2059,11 @@ def _split_dr_vec_and_ess(
     propensity_mode: str = "logged",
     dr_clip_m: float | None = None,
     weights=None,
+    diagnostics: dict | None = None,
 ) -> tuple[np.ndarray, float, float]:
     """Per-row value vector, ESS of the weights used and ESS of the raw weights on a logged split
-    (train or val), on the training device.
+    (train or val), on the training device. ``diagnostics`` (a dict, off-policy only) receives how far
+    the policy is from the logger and how the estimate splits (``_weight_diagnostics``).
 
     Off-policy (``logged``): DR_i = DM_i + ŵ_i * (r - q) with ŵ the ``weights`` spec
     (utils.importance_weights: none, clip:M, shrink:lambda) of w = π_e/π_b; without ``weights``,
@@ -2072,7 +2074,25 @@ def _split_dr_vec_and_ess(
     parts = _split_dr_components(split_data, trial_x, trial_a, score_lookup, dataset, propensity_mode=propensity_mode)
     if weights is None:
         weights = ("clip", float(dr_clip_m)) if dr_clip_m is not None and np.isfinite(float(dr_clip_m)) else "none"
-    return _dr_values(parts, weights)
+    out = _dr_values(parts, weights)
+    if diagnostics is not None and parts["off_policy"]:
+        diagnostics.update(_weight_diagnostics(parts, out[0]))
+    return out
+
+
+def _weight_diagnostics(parts: dict, dr_vec: np.ndarray) -> dict:
+    """Raw-weight profile of a trained policy on a logged split and the split of its DR estimate:
+    the largest weight, the shares of rows with weights above 1 / 10 / 100, and the mean model part
+    (DM) and correction part of the estimate."""
+    raw = parts["pi"] / (parts["pscore"] + 1e-12)
+    return {
+        "w_max": float(raw.max()) if len(raw) else float("nan"),
+        "w_share_gt1": float(np.mean(raw > 1.0)),
+        "w_share_gt10": float(np.mean(raw > 10.0)),
+        "w_share_gt100": float(np.mean(raw > 100.0)),
+        "dm_mean": float(np.mean(parts["dm"])),
+        "correction_mean": float(np.mean(dr_vec - parts["dm"])),
+    }
 
 
 def _selection_score_variants(split_data, trial_x, trial_a, score_lookup, dataset, specs) -> dict:
@@ -3149,6 +3169,7 @@ def regression_trainer_trial(
             print(
                 f"actual reward: {r}"
             )
+            val_diag = {}
             dr_vec, ess_val, ess_raw = _split_dr_vec_and_ess(
                 val_data,
                 trial_x,
@@ -3157,6 +3178,7 @@ def regression_trainer_trial(
                 dataset,
                 propensity_mode=propensity_mode,
                 weights=score_weights,
+                diagnostics=val_diag,
             )
             dr_vec_tr, ess_train, _ = _split_dr_vec_and_ess(
                 train_data,
@@ -3199,6 +3221,8 @@ def regression_trainer_trial(
             trial.set_user_attr("ess", ess_val)
             trial.set_user_attr("ess_train", ess_train)
             trial.set_user_attr("ess_raw", ess_raw)
+            for k, v in val_diag.items():  # weight profile and DM / correction split (validation)
+                trial.set_user_attr(f"diag_{k}", v)
             if apply_dr_score_clip and log_select_weights:
                 for label, (v_hat, v_low) in _selection_score_variants(
                     val_data, trial_x, trial_a, trial_scores_all, dataset, log_select_weights

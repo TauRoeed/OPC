@@ -25,7 +25,7 @@ N_USERS, N_ITEMS, DIM = 1500, 1200, 12  # the popularity tests' toy: calibrates 
 
 
 def _reference_dr_vec_and_ess(split_data, trial_x, trial_a, score_lookup, dataset, *, propensity_mode="logged", dr_clip_m=None,
-                              weights=None):
+                              weights=None, diagnostics=None):
     """The numpy implementation before the device path (kept here as the reference)."""
     pscore = np.asarray(split_data["pscore"], dtype=np.float32)
     users = np.asarray(split_data["x_idx"], dtype=np.int64)
@@ -44,6 +44,10 @@ def _reference_dr_vec_and_ess(split_data, trial_x, trial_a, score_lookup, datase
         weights = ("clip", dr_clip_m) if dr_clip_m is not None and np.isfinite(float(dr_clip_m)) else "none"
     iw = transform_weights(raw, weights)
     ess = lambda w: float((w.sum() ** 2) / ((w**2).sum() + 1e-12))
+    if diagnostics is not None:
+        diagnostics.update(w_max=float(raw.max()), w_share_gt1=float(np.mean(raw > 1)), w_share_gt10=float(np.mean(raw > 10)),
+                           w_share_gt100=float(np.mean(raw > 100)), dm_mean=float(dm.mean()),
+                           correction_mean=float(np.mean(iw * (reward - q_f))))
     return dm + iw * (reward - q_f), ess(iw), ess(raw)
 
 
@@ -138,12 +142,21 @@ def test_split_scores_match_the_numpy_reference(setup, device, monkeypatch):
         for data in (split["train_data"], split["val_data"]):
             for mode, clip, weights in (("logged", 1.0, None), ("logged", None, None), ("uniform", None, None),
                                         ("logged", None, "clip:5"), ("logged", None, "shrink:25")):
+                got_d, ref_d = {}, {}
                 got_v, got_ess, got_raw = _split_dr_vec_and_ess(data, trial_x, trial_a, lk, ds, propensity_mode=mode,
-                                                                dr_clip_m=clip, weights=weights)
+                                                                dr_clip_m=clip, weights=weights, diagnostics=got_d)
                 ref_v, ref_ess, ref_raw = _reference_dr_vec_and_ess(data, trial_x, trial_a, lk, ds, propensity_mode=mode,
-                                                                    dr_clip_m=clip, weights=weights)
+                                                                    dr_clip_m=clip, weights=weights, diagnostics=ref_d)
                 np.testing.assert_allclose(got_v, ref_v, rtol=1e-4, atol=1e-6, err_msg=f"{name} {mode} {clip} {weights}")
                 assert got_ess == pytest.approx(ref_ess, rel=1e-4) and got_raw == pytest.approx(ref_raw, rel=1e-4)
+                if mode == "uniform":
+                    assert got_d == {}  # no weights, no diagnostics
+                else:
+                    assert set(got_d) == set(ref_d)
+                    for k in got_d:
+                        assert got_d[k] == pytest.approx(ref_d[k], rel=1e-4, abs=1e-6), (name, k)
+                    assert got_d["dm_mean"] + got_d["correction_mean"] == pytest.approx(float(got_v.mean()), rel=1e-5, abs=1e-7)
+                    assert 0.0 <= got_d["w_share_gt100"] <= got_d["w_share_gt10"] <= got_d["w_share_gt1"] <= 1.0
                 assert float(got_v.mean()) == pytest.approx(float(ref_v.mean()), rel=1e-5, abs=1e-8)
 
 
