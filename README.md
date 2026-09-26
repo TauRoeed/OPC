@@ -266,7 +266,8 @@ runs ~5× slower per epoch than 4096.
 - `--reward-features {interaction,concat}` — the regression reward model's features: `[x, a, x⊙a]` (default; item
   rankings can differ between users) or `[x, a]` (the previous model: one item ranking for every user).
 - `--reward-data {external,train}` — the reward model's data: a separate 50k-row slice, the same at every train size
-  (default), or each train size's own training rows (every arm then uses only its n rows).
+  (default), or each train size's own training rows (every arm then uses only its n rows). `--crossfit-folds K` (with
+  `train`) cross-fits it by user: each user's training `q̂` comes from a model fit without that user's rows.
 - `--optuna-selection {ci_low,r_hat,actual_reward}` — what Optuna maximizes.
 - `--methods opc no_propensity` — or one arm only (e.g. finish no-prop after OPC).
 - `--slim` — log trial hyperparams; skip heavy post-hoc catalog eval.

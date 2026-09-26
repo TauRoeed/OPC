@@ -1707,6 +1707,112 @@ class RegressionScoresLookup:
         return torch.as_tensor(q, device=self.device, dtype=torch.float32)
 
 
+class CrossFitScoresLookup:
+    """q_hat rows for training batches with per-user cross-fitting: user u's row comes from the
+    fold model fit without the training rows of u's fold (``user_fold[u]``), so the SNDR / DM
+    training terms never see a reward model fit on the same user's rows. Every other use
+    (validation scoring and selection, the closed forms, the reward model itself) goes to
+    ``full_lookup``: validation rows are never training rows, so the full model is out of sample
+    there.
+
+    Built once per train size, in the form the full model uses, so batches cost the same:
+      - ``dense``: when the full q_hat is materialized, one (n_users, n_actions) matrix whose row u
+        comes from u's fold model (training batches gather rows);
+      - ``linear``: otherwise, one linear form for every fold, logit = s_u + [z_u, e_k(u)] . [a; t^0..t^(K-1)]
+        (s_u = x_u . w_ctx^k(u), z_u = x_u * w_int^k(u), t^k the fold's action scores);
+      - ``route``: models without a closed form, each batch split by fold (slow; kept as the reference).
+    """
+
+    def __init__(self, fold_lookups, user_fold, full_lookup, *, mode: str = "auto"):
+        self.fold_lookups = list(fold_lookups)
+        self.full_lookup = full_lookup
+        self._fold_np = np.asarray(user_fold, dtype=np.int64)
+        self._fold_t: dict = {}
+        self._dense = None
+        self._aug = None
+        device = torch.device(full_lookup.device)
+        if mode in ("auto", "dense") and full_lookup.q_hat_all is not None:
+            self._dense = self._build_dense(device)
+        elif mode in ("auto", "linear"):
+            self._aug = self._build_linear(device)
+        self.mode = "dense" if self._dense is not None else ("linear" if self._aug is not None else "route")
+
+    def __getattr__(self, name):  # only called when normal lookup fails
+        if name in ("fold_lookups", "full_lookup", "_fold_np", "_fold_t", "_dense", "_aug", "mode"):
+            raise AttributeError(name)
+        return getattr(self.full_lookup, name)
+
+    def _build_dense(self, device):
+        n_users, n_actions = len(self._fold_np), int(self.full_lookup.n_actions)
+        out = torch.empty((n_users, n_actions), device=device, dtype=torch.float32)
+        step = max(1, (16 * 1024 * 1024) // max(1, n_actions))
+        for k, lookup in enumerate(self.fold_lookups):
+            users = np.flatnonzero(self._fold_np == k)
+            fn = lookup.qhat_block_fn(device)
+            for s0 in range(0, len(users), step):
+                u = users[s0 : s0 + step]
+                out[torch.as_tensor(u, device=device)] = fn(u, 0, n_actions).to(torch.float32)
+        return out
+
+    def _build_linear(self, device):
+        parts = [getattr(lk.regression_model, "linear_qhat_parts", lambda _pos: None)(0) for lk in self.fold_lookups]
+        if any(p is None or p[2] != "logistic" for p in parts) or int(getattr(self.full_lookup.regression_model, "len_list", 1)) != 1:
+            return None
+        ctx = np.asarray(self.full_lookup.user_context, dtype=np.float64)
+        action_context = np.asarray(self.fold_lookups[0].regression_model.action_context, dtype=np.float64)
+        n_users, d_a, n_folds = ctx.shape[0], action_context.shape[1], len(parts)
+        user_scores = np.empty(n_users)
+        z = np.zeros((n_users, d_a + n_folds))
+        for k, (w_context, _, _, w_interaction) in enumerate(parts):
+            users = self._fold_np == k
+            user_scores[users] = ctx[users] @ w_context
+            if w_interaction is not None:
+                z[users, :d_a] = ctx[users] * w_interaction
+            z[users, d_a + k] = 1.0
+        actions_t = np.vstack([action_context.T, np.stack([p[1] for p in parts])])  # (d_a + K, n_actions)
+        as_t = lambda a: torch.as_tensor(a, device=device, dtype=torch.float64)
+        return as_t(user_scores), as_t(z), as_t(actions_t).contiguous()
+
+    def _folds(self, idx):
+        key = str(idx.device)
+        if key not in self._fold_t:
+            self._fold_t[key] = torch.as_tensor(self._fold_np, device=idx.device)
+        return self._fold_t[key][idx]
+
+    def _route(self, idx):
+        folds = self._folds(idx)
+        out = None
+        for k, lookup in enumerate(self.fold_lookups):
+            mask = folds == k
+            if not bool(mask.any()):
+                continue
+            rows = lookup[idx[mask]]
+            if out is None:
+                out = torch.empty((idx.shape[0], rows.shape[1]), device=rows.device, dtype=rows.dtype)
+            out[mask.to(rows.device)] = rows
+        return out
+
+    def __getitem__(self, user_idx):
+        if isinstance(user_idx, torch.Tensor):
+            idx = user_idx.detach().long().reshape(-1)
+        else:
+            idx = torch.as_tensor(np.asarray(user_idx, dtype=np.int64).reshape(-1))
+        if self._dense is not None:
+            return self._dense[idx.to(self._dense.device)]
+        if self._aug is not None:
+            user_scores, z, actions_t = self._aug
+            idx = idx.to(user_scores.device)
+            n_actions = actions_t.shape[1]
+            s, zi = user_scores[idx][:, None], z[idx]
+            out = torch.empty((idx.shape[0], n_actions), device=s.device, dtype=torch.float32)
+            step = max(1, (8 * 1024 * 1024) // max(1, idx.shape[0]))  # fp64 logits in action chunks
+            for a0 in range(0, n_actions, step):
+                a1 = min(n_actions, a0 + step)
+                out[:, a0:a1] = torch.sigmoid(s + zi @ actions_t[:, a0:a1])
+            return out
+        return self._route(idx)
+
+
 def _scores_lookup_from_bundle(bundle: dict, device) -> RegressionScoresLookup:
     return RegressionScoresLookup(
         bundle["regression_model"],
@@ -2818,6 +2924,7 @@ def regression_trainer_trial(
     learn_logit_scale: bool = False,
     temper_only: bool = False,
     size_regression_bundles: dict | None = None,
+    size_crossfit: dict | None = None,
 ):
     """
     OPC / no-propensity trainer with Optuna over CF hyperparameters.
@@ -2853,6 +2960,9 @@ def regression_trainer_trial(
     ``size_regression_bundles``: ``{train_size: bundle}`` of reward models fit on each size's own
     training rows (``--reward-data train``); each size then scores, trains and selects with its own
     q_hat instead of ``shared_regression_bundle`` (the external reg slice).
+    ``size_crossfit``: ``{train_size: (fold_bundles, user_fold)}`` (``--crossfit-folds``): the
+    training loss takes each user's q_hat from the fold model fit without that user's fold
+    (``CrossFitScoresLookup``); validation scoring, selection and ``r_hat_train`` keep the full model.
 
     ``search_use_log_trick``: if False, always use direct-prob surrogate (no log trick)
     for applicable losses and do not tune ``use_log_trick`` in Optuna.
@@ -3101,6 +3211,12 @@ def regression_trainer_trial(
             shared_regression_bundle = size_regression_bundles[int(train_size)]
             shared_regression_model = shared_regression_bundle["regression_model"]
             shared_scores_all_t = _scores_lookup_from_bundle(shared_regression_bundle, device)
+        train_scores_t = shared_scores_all_t  # what the training loss sees
+        if size_crossfit is not None and int(train_size) in size_crossfit:
+            fold_bundles, user_fold = size_crossfit[int(train_size)]
+            train_scores_t = CrossFitScoresLookup(
+                [_scores_lookup_from_bundle(b, device) for b in fold_bundles], user_fold, shared_scores_all_t
+            )
 
         num_workers = _dataloader_num_workers()
 
@@ -3193,7 +3309,7 @@ def regression_trainer_trial(
                 train(
                     trial_model,
                     final_train_loader,
-                    trial_scores_all,
+                    train_scores_t,
                     criterion=criterion,
                     num_epochs=epochs,
                     lr=lr,
@@ -3503,6 +3619,7 @@ def no_propensity_trainer_trial(
     learn_logit_scale: bool = False,
     size_regression_bundles: dict | None = None,
     log_select_weights=(),
+    size_crossfit: dict | None = None,
 ):
     """
     Explicit no-propensity baseline with parity to regression trainer:
@@ -3545,6 +3662,7 @@ def no_propensity_trainer_trial(
         learn_logit_scale=learn_logit_scale,
         size_regression_bundles=size_regression_bundles,
         log_select_weights=log_select_weights,  # DR re-selection scores, logged only (the 2 x 2 design)
+        size_crossfit=size_crossfit,
     )
 
 

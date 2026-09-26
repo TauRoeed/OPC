@@ -55,6 +55,14 @@ Its data (`--reward-data`):
   arm, so each arm uses only the n logged rows it is given. The reg slice is still drawn, so the
   train and validation rows are the same as in `external` mode (a matched comparison); condition
   folders get `__qhat=train`.
+- `--crossfit-folds K` (with `train`): users are split into K folds, fold k's model is fit on the
+  other folds' training rows, and the training losses (SNDR, DM) take each user's `q` from the model
+  that never saw that user's rows (`CrossFitScoresLookup`). Validation scoring and selection keep the
+  model fit on all training rows (validation rows are never training rows). The cross-fitted `q` is
+  built once per train size in the form the full model uses (a dense matrix when the full one is
+  materialized, else one linear form over all folds), so a training batch costs the same:
+  0.08 vs 0.09 ms per 1,024 rows on ml, and a condition's run time does not change. Folders get
+  `__cf=K`.
 
 `logging_score`: no fit. Use the same CTR link as the simulator on the
 **noisy** logging embeddings:

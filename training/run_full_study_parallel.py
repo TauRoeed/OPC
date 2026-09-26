@@ -112,7 +112,8 @@ def _iter_run_configs(args, out_dir: Path, val_size_configs: list):
                     for bias in bias_configs:
                         # Tag folder with val only for real fixed/swept vals.
                         run_key = _condition_run_key(dataset_name, bias, ctr, seed, world_options, val_label,
-                                                     reward_data=getattr(args, "reward_data", "external"))
+                                                     reward_data=getattr(args, "reward_data", "external"),
+                                                     crossfit_folds=int(getattr(args, "crossfit_folds", 0) or 0))
                         yield {
                             "dataset_name": dataset_name,
                             "bias": bias,
@@ -389,6 +390,7 @@ def _execute_run(config: dict):
         learn_logit_scale=bool(config.get("learn_logit_scale", False)),
         return_extra=True,
         reward_data=str(config.get("reward_data", "external")),
+        crossfit_folds=int(config.get("crossfit_folds", 0) or 0),
     )
 
     summary_df = _finalize_summary_df(
@@ -648,6 +650,13 @@ def main():
         "size's own training rows, so every arm uses only its n rows). Condition folders get __qhat=train.",
     )
     parser.add_argument(
+        "--crossfit-folds",
+        type=int,
+        default=0,
+        help="With --reward-data train: split users into K folds; the training losses take each user's "
+        "q_hat from the model fit on the other folds' rows (0 = off; folders get __cf=K).",
+    )
+    parser.add_argument(
         "--skip-completed",
         action=argparse.BooleanOptionalAction,
         default=True,
@@ -726,6 +735,7 @@ def main():
             "policy_transform": args.policy_transform,
             "learn_logit_scale": bool(args.learn_logit_scale),
             "reward_data": args.reward_data,
+            "crossfit_folds": int(args.crossfit_folds),
         }
         run_configs.append(cfg)
 
@@ -792,6 +802,7 @@ def main():
                     "policy_transform": args.policy_transform,
                     "learn_logit_scale": bool(args.learn_logit_scale),
                     "reward_data": args.reward_data,
+                    "crossfit_folds": int(args.crossfit_folds),
                     "val_min": args.val_min,
                     "val_max": args.val_max,
                     "policy_reward_mode": args.policy_reward_mode,

@@ -56,6 +56,26 @@ def _no_prop_policy_loss_types(policy_loss_types: tuple[str, ...] | None = None)
     return ("naive",)
 
 
+def _subset_rows(data: dict, mask) -> dict:
+    """The logged rows of ``data`` (a ``get_train_data`` dict) where ``mask`` is True."""
+    mask = np.asarray(mask, dtype=bool)
+    out = {k: (np.asarray(v)[mask] if k in ("x", "a", "r", "x_idx", "pscore") else v) for k, v in data.items()}
+    out["num_data"] = int(mask.sum())
+    return out
+
+
+def _crossfit_bundles(dataset, train_data, user_fold, folds, **fit_kw) -> list:
+    """One reward model per fold k, fit on the training rows whose user is not in fold k."""
+    row_fold = np.asarray(user_fold)[np.asarray(train_data["x_idx"], dtype=np.int64)]
+    bundles = []
+    for k in range(int(folds)):
+        rows = row_fold != k
+        if not rows.any() or rows.all():
+            raise ValueError(f"cross-fitting fold {k}: {int(rows.sum())} of {len(rows)} rows left to fit on")
+        bundles.append(fit_shared_regression_bundle(dataset, _subset_rows(train_data, rows), materialize_qhat="never", **fit_kw))
+    return bundles
+
+
 def _summary_has_methods(summary_path: Path, methods) -> bool:
     """True when ``summary_metrics.csv`` already holds every requested method (skip-completed)."""
     try:
@@ -124,6 +144,7 @@ from utils.representation_bias import (
 )
 from utils.seeding import (
     DEFAULT_CPU_THREADS,
+    derive_seed,
     enable_determinism,
     pin_cpu_threads,
     seed_everything,
@@ -160,13 +181,15 @@ def _load_optional_array(path: Path):
 
 
 def _condition_run_key(dataset_name: str, bias: str, ctr: float, seed: int, world_options: dict | None,
-                       val_label: str = "frac", reward_data: str = "external") -> str:
+                       val_label: str = "frac", reward_data: str = "external", crossfit_folds: int = 0) -> str:
     """Folder name of one condition: dataset, bias, CTR, seed, the world options that differ from
-    the defaults (``world_run_key_suffix``), the reward-model data when not external, and the
-    validation size when fixed."""
+    the defaults (``world_run_key_suffix``), the reward-model data when not external (and its
+    cross-fitting folds), and the validation size when fixed."""
     key = f"dataset={dataset_name}__bias={bias}__ctr={ctr:g}__seed={seed}" + world_run_key_suffix(world_options)
     if str(reward_data) != "external":
         key = f"{key}__qhat={reward_data}"
+    if int(crossfit_folds or 0) > 0:
+        key = f"{key}__cf={int(crossfit_folds)}"
     if val_label != "frac":
         key = f"{key}__val={val_label}"
     return key
@@ -252,18 +275,24 @@ def _run_condition(
     learn_logit_scale: bool = False,
     return_extra: bool = False,
     reward_data: str = "external",
+    crossfit_folds: int = 0,
 ):
     """One condition. ``methods`` may add the opt-in baselines (``BASELINE_METHODS``); their
     summaries and trials come back as a 6th item ``{method: (summary_df, trials_df)}`` when
     ``return_extra`` (the 5-item return is unchanged otherwise). ``learn_logit_scale``: every
     trained policy (OPC, no-prop, DM) also learns a logit scale. ``reward_data``: ``external``
     (default: q_hat from the separate reg slice) or ``train`` (q_hat fit per train size on that
-    size's training rows, shared by every arm; the splits are the same in both modes)."""
+    size's training rows, shared by every arm; the splits are the same in both modes).
+    ``crossfit_folds`` K >= 2 (train mode only): users are split into K folds; the training losses
+    take each user's q_hat from the model fit on the other folds' rows."""
     reward_data = str(reward_data).lower()
     if reward_data not in REWARD_DATA_MODES:
         raise ValueError(f"reward_data must be one of {REWARD_DATA_MODES}, got {reward_data!r}")
     if reward_data == "train" and str(reward_model).lower() != "regression":
         raise ValueError("reward_data='train' fits the regression reward model; other reward models use no data")
+    crossfit_folds = int(crossfit_folds or 0)
+    if crossfit_folds and (crossfit_folds < 2 or reward_data != "train"):
+        raise ValueError("crossfit_folds needs K >= 2 and reward_data='train' (the model is fit on the training rows)")
     methods = _normalize_study_methods(methods)
     run_opc = "opc" in methods
     run_no_prop = "no_propensity" in methods
@@ -373,6 +402,18 @@ def _run_condition(
             )
             for n in train_sizes
         }
+    size_crossfit = None
+    if crossfit_folds:
+        user_fold = np.random.default_rng(derive_seed(seed, "crossfit", "user_fold")).integers(
+            0, crossfit_folds, int(dataset["n_users"])
+        )
+        fit_kw = dict(reward_model="regression", reward_features=str(reward_features), user_chunk=int(qhat_user_chunk),
+                      action_chunk=int(qhat_action_chunk), q_error=float(q_error), q_bad_value=q_bad_value)
+        size_crossfit = {
+            int(n): (_crossfit_bundles(dataset, split_cache[(int(n), LOGGED_RUN_IDX)]["train_data"], user_fold,
+                                       crossfit_folds, **fit_kw), user_fold)
+            for n in train_sizes
+        }
 
     opc_log_paths = {
         "trials": run_dir / "opc_trials_long.csv",
@@ -421,6 +462,7 @@ def _run_condition(
             policy_transform=policy_transform,
             learn_logit_scale=bool(learn_logit_scale),
             size_regression_bundles=size_bundles,
+            size_crossfit=size_crossfit,
         )
     else:
         try:
@@ -465,6 +507,7 @@ def _run_condition(
             learn_logit_scale=bool(learn_logit_scale),
             size_regression_bundles=size_bundles,
             log_select_weights=tuple(log_select_weights or ()),
+            size_crossfit=size_crossfit,
         )
     else:
         try:
@@ -516,6 +559,7 @@ def _run_condition(
             log_select_weights=tuple(log_select_weights or ()),
             policy_transform=policy_transform,
             size_regression_bundles=size_bundles,
+            size_crossfit=size_crossfit,
             **arm,
         )
 
@@ -578,6 +622,7 @@ def _run_condition(
         "policy_transform": str(policy_transform),
         "learn_logit_scale": bool(learn_logit_scale),
         "reward_data": reward_data,
+        "crossfit_folds": crossfit_folds,
         "dr_score_clip_m": parse_weight_spec(select_label)[1] if select_label.startswith("clip") else None,
         "shared_regression_size": int(
             shared_regression_bundle.get("sample_size", reg_size)
@@ -637,6 +682,7 @@ def _finalize_summary_df(opc_df, noprop_df, meta: dict, *, extra: dict | None = 
     for k in ("train_weights", "select_weights", "policy_transform", "learn_logit_scale"):
         summary_df[k] = meta.get(k)
     summary_df["reward_data"] = meta.get("reward_data", "external")
+    summary_df["crossfit_folds"] = int(meta.get("crossfit_folds", 0) or 0)
     if "val_size" in summary_df.columns:
         summary_df["val_size_config"] = summary_df["val_size"]
     if {"opc", "no_propensity"}.issubset(set(summary_df.get("method", pd.Series(dtype=str)))):
@@ -875,6 +921,13 @@ def main():
         "size's own training rows, so every arm uses only its n rows). Condition folders get __qhat=train.",
     )
     parser.add_argument(
+        "--crossfit-folds",
+        type=int,
+        default=0,
+        help="With --reward-data train: split users into K folds; the training losses take each user's "
+        "q_hat from the model fit on the other folds' rows (0 = off; folders get __cf=K).",
+    )
+    parser.add_argument(
         "--skip-completed",
         action=argparse.BooleanOptionalAction,
         default=True,
@@ -928,7 +981,7 @@ def main():
 
                     for bias in bias_configs:
                         run_key = _condition_run_key(dataset_name, bias, ctr, seed, world_options, val_label,
-                                                     reward_data=args.reward_data)
+                                                     reward_data=args.reward_data, crossfit_folds=args.crossfit_folds)
 
                         print(f"\n=== Running {run_key} ===")
                         run_dir = val_root / run_key
@@ -982,6 +1035,7 @@ def main():
                                 learn_logit_scale=bool(args.learn_logit_scale),
                                 return_extra=True,
                                 reward_data=args.reward_data,
+                                crossfit_folds=int(args.crossfit_folds),
                             )
                         except Exception as e:
                             failures.append({"run_key": run_key, "error": repr(e)})
@@ -1055,6 +1109,7 @@ def main():
                     "policy_transform": args.policy_transform,
                     "learn_logit_scale": bool(args.learn_logit_scale),
                     "reward_data": args.reward_data,
+                    "crossfit_folds": int(args.crossfit_folds),
                 },
                 f,
                 indent=2,
