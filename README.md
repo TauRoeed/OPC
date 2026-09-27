@@ -15,11 +15,11 @@ Main flow:
 
 | Knob | Default |
 |------|---------|
-| OPC train loss (`--policy-losses`) | `sndr` with `--sn-scope batch` (the legacy minibatch-normalized SNDR), provisionally. Three objective variants are under a controlled comparison: legacy SNDR, `sndr --sn-scope global` (epoch-refreshed, stop-gradient full-data normalizer) and `dr` (no self-normalization); see `docs/training_losses.md` |
+| OPC train loss (`--policy-losses`) | `sndr` with `--sn-scope batch` (the legacy minibatch-normalized SNDR), provisionally. Three objective variants were compared in paired development runs: legacy SNDR, `sndr --sn-scope global` (epoch-refreshed, stop-gradient full-data normalizer) and `dr` (no self-normalization). The evidence and what is still open are in `docs/training_losses.md` §9 and `docs/decision_record_opc_objective_weighting.md` |
 | Policy transform (`--policy-transform`) | `linear`: (I + D) x + b per side, starting exactly at the logger |
 | No-propensity train | always `naive` (no IW, no DM/DR, no clip) |
 | Optuna objective | `ci_low` = DR/naive mean − t·SE |
-| Importance weights | `--train-weights` (sndr / dr / ipw / kl losses; default `shrink:100`) and `--select-weights` (selection + post-hoc; default `clip:10`): `none`, `clip:M` or `shrink:λ`; interim values from the 2026-09-26 tuning, see `training/trainer_trials.py`; **not** Optuna-searched |
+| Importance weights | `--train-weights` (sndr / dr / ipw / kl losses; default `shrink:100`; options `none`, `clip:M`, `shrink:λ`, `harmonic:λ`) and `--select-weights` (selection + post-hoc; default `clip:10`): `none`, `clip:M` or `shrink:λ`; interim values from the 2026-09-26 tuning, see `training/trainer_trials.py`; **not** Optuna-searched |
 | Study arms (`--methods`) | `opc no_propensity`; opt-in baselines `dm` (policy trained and selected on `q̂` alone) and `tempered_logger` (the logger's logits × s, s chosen by the DR score) |
 | Logit scale (`--learn-logit-scale`) | off; on, every trained policy also learns s in softmax(s·u·a/T), starting at 1 |
 | Reward model `q̂` | `regression` on interaction features `[x, a, x⊙a]` (`--reward-features`; bias script often uses `logging_score`) |

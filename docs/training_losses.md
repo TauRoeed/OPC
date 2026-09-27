@@ -353,9 +353,8 @@ The direct gradient of the transformed estimate treats heavy rows differently:
 
 `tests/test_opc_gradient.py` checks both gradients against literal full-data autograd for `none`,
 `clip:10`, `shrink:100` and `shrink:10000`, the closed forms of H against numerical integration, and
-the sign reversal on a single clicked row with w = 20 under `shrink:100`. Which objective to name,
-and train, is an open development question: a paired comparison with fixed hyperparameters
-(`--sampler random`) is planned.
+the sign reversal on a single clicked row with w = 20 under `shrink:100`. Section 9 reports the
+paired comparisons (development runs).
 
 - **`dr`** follows J_DR(θ) = (1/n) Σ_i [DM_i + H(w_i) e_i]. It is per-example additive, and with raw
   weights it is exactly the DR estimate. Summed over an epoch at fixed θ, its minibatch directions
@@ -675,3 +674,121 @@ does not change the study's training (before `--opc-gradient`, passing it left O
 - the unified OPC loss produces finite, nonzero gradients without NaNs
 - the naive loss equals `-mean(r_i * pi_i)`
 - the naive loss produces finite, nonzero pathwise gradients
+
+## 9. Development evidence: objective, gradient form and importance weights (2026-09-27)
+
+All runs below are **development runs**, used to design the method. They are not confirmatory: once
+the objective and weighting are frozen, the paper protocol is evaluated on fresh seeds and conditions.
+Runs are listed in `artifacts/full_study/run_registry.csv`, and the decision record is
+`docs/decision_record_opc_objective_weighting.md`.
+
+**Protocol.** OPC arm only:
+- **Grid:** ml, kuairand and anime × medium and high bias × seeds 100 and 101, at train sizes 5k, 25k
+  and 100k, with 20 trials per size.
+- **Final setting:** logger share 0.8; q̂ on each size's own rows with 5-fold cross-fitting; 20,000
+  validation rows; learnable logit scale; selection by the DR lower bound with clip:10.
+
+Paired runs use `--sampler random`, so the same 20 configurations and trial seeds appear in every run
+with no warm start. Differences are points of true CTR, averaged within each condition, with a 95% CI
+over the 6 conditions per bias × size cell. "Per trial" compares identical configurations; "selected"
+compares each run's own selected policy. All fixed-code results below are on code at or after b5efc7d,
+which has the short-batch fix.
+
+**Objective, all with the log trick and shrink:100 (paired, 120 trials per cell).**
+
+| comparison | per trial, range over the 6 cells | trials where the first is better, per cell | selected |
+|---|---|---|---|
+| legacy SNDR − `dr` | −0.03 to −0.32 (all CIs exclude 0) | 1–13 of 120 | −0.07 to −0.41 |
+| global SNDR − `dr` | −0.02 to −0.26 (all CIs exclude 0) | 0–5 of 120 | −0.07 to −0.41 |
+| global − legacy SNDR | +0.00 to +0.05 | 89–113 of 120 | −0.05 to +0.10 (all CIs include 0) |
+
+**Gradient form, `dr` direct − log trick (paired).**
+
+| weights | per trial | selected |
+|---|---|---|
+| `none` (identical gradients: control) | ±0.00, CIs within ±0.01; per-trial absolute difference: median 0.000, 90th percentile ≤ 0.001 | within ±0.04 |
+| `clip:10` | −0.06 to +0.03, mixed | −0.14 to +0.18, mixed |
+| `shrink:100` | −0.02 to +0.14; at 25k the CIs exclude or touch 0 (high +0.14 [+0.01, +0.27], medium +0.06 [+0.00, +0.11]) | −0.04 to +0.27 |
+
+Under both `clip:10` and `shrink:100`, the direct form trains policies closer to the logger. From 25k
+up they have:
+- fewer rows with a weight above 10;
+- a larger raw-weight ESS;
+- a smaller learned logit scale.
+
+**Weights under the log trick (`dr`, paired, against `shrink:100`).** No difference at 5k. From 25k
+up:
+- `clip:10` is 0.10–0.20 points lower per trial.
+- `none` is 0.15–0.36 points lower per trial.
+- Under the direct gradient, `clip:10` is 0.06–0.33 points lower per trial.
+
+**Earlier runs on pre-fix code (b584edc: last batch upweighted; TPE re-tuning).** Each variant was
+re-tuned by its own TPE search, against legacy SNDR (Test 2's cross-fitted 0.8 run):
+- `dr` + shrink:100: +0.07 to +0.45 (four of six CIs exclude 0).
+- `dr` + none / clip:10 / shrink:10000, and global SNDR: within ±0.27, mostly including 0.
+
+TPE's first 10 trials per size are seeded random draws, so they are identical across these runs. On
+those identical trials:
+- `dr` − legacy: +0.05 to +0.36 per trial.
+- global − legacy: +0.00 to +0.05.
+- global − `dr`: −0.04 to −0.30.
+
+These agree in direction with the fixed-code results.
+
+**Final bounded comparison: weighting only (`dr`, direct gradient, paired, 120 trials per cell).**
+Raw DR and `shrink:100` are the 3bed8de runs, which reproduce bit for bit on d40aaef (one condition
+each, all 60 trials). The harmonic runs are on d40aaef. λ was fixed at the prespecified values 0.05, 0.1
+and 0.2 (caps 20, 10 and 5); no other value was run.
+
+Selected true CTR (%), mean over the 6 conditions:
+
+| cell | raw (`none`) | `shrink:100` | `harmonic:0.05` | `harmonic:0.1` | `harmonic:0.2` |
+|---|---|---|---|---|---|
+| high 5k | 14.92 | 15.14 | 15.10 | 15.38 | 15.71 |
+| high 25k | 16.60 | 17.25 | 17.22 | 17.33 | 17.58 |
+| high 100k | 17.50 | 18.06 | 18.02 | 18.16 | 18.26 |
+| medium 5k | 20.90 | 20.75 | 20.84 | 20.88 | 21.01 |
+| medium 25k | 22.08 | 22.33 | 22.25 | 22.45 | 22.49 |
+| medium 100k | 22.55 | 22.78 | 22.87 | 22.88 | 22.90 |
+
+Paired differences in points (range over the 6 cells):
+
+| comparison | per trial | trials better, per cell | selected |
+|---|---|---|---|
+| `shrink:100` − raw | −0.03 to +0.51 (CIs exclude 0 from 25k up) | 62–112 of 120 | −0.15 to +0.65 |
+| `harmonic:0.05` − `shrink:100` | −0.01 to +0.07 (CIs include 0 except medium 5k) | 62–118 of 120 | −0.08 to +0.09 |
+| `harmonic:0.1` − `shrink:100` | +0.09 to +0.23 (all CIs exclude 0) | 108–119 of 120 | +0.09 to +0.24 (2 of 6 CIs exclude 0) |
+| `harmonic:0.2` − `shrink:100` | +0.13 to +0.49 (all CIs exclude 0) | 117–119 of 120 | +0.12 to +0.57 (4 of 6 CIs exclude 0) |
+| `harmonic:0.2` − raw | +0.16 to +1.00 (all CIs exclude 0) | 115–120 of 120 | +0.11 to +0.98 |
+
+Diagnostics of the selected policies:
+- **Raw-weight ESS on validation (rows of 20,000):** raw 297–955; `shrink:100` 273–2,362; harmonic
+  234–1,504.
+- **Share of rows with w > 10:** 1.5–2.9% for every method.
+- **Learned logit scale:** raw 3.3–18.8; `shrink:100` 2.5–6.8; harmonic 2.7–16.9. Over all trials: raw
+  1.6–6.6, `shrink:100` 1.5–3.9, `harmonic:0.2` 1.5–4.5.
+- **Selection-estimate error:** the validation DR point estimate minus the truth is +0.07 to +1.55
+  points for every method, with every CI including 0. The lower bound sits below the truth in all but
+  one cell.
+- **Selection quality:** the Spearman correlation between the selection score and the truth is ≥ 0.73,
+  and the selection regret is ≤ 0.26 points.
+
+On these development conditions:
+- Both smooth corrections improve on raw DR from 25k up.
+- `harmonic:0.05` matches `shrink:100`. At λ = 0.1 and 0.2 the harmonic correction is ahead by 0.1–0.5
+  points per trial.
+- The effect of λ is monotone, and its best value is at the edge of the prespecified set.
+- The choice among the smooth corrections moves the selected policy's true CTR by up to about
+  0.6 points. That is comparable to the OPC − DM differences at medium bias in the budget-fair runs
+  (+0.5 to +1.1).
+
+**What exists, and what is retained.** Every option above is implemented, tested and recorded in
+the run metadata, and the CLI defaults are unchanged (provisional): legacy `sndr`, log trick,
+`shrink:100` training weights, `clip:10` selection weights.
+- **Out of the main future grid, unless there is a specific scientific reason:** the log-trick form
+  of transformed weights (the arctan-saturated objective for `shrink:λ`), `clip:10` and
+  `shrink:10000` as training weights, and legacy and global SNDR. They stay available for
+  reproducibility and appendix diagnostics.
+- **Raw DR** (`dr`, `none`) remains the unregularized baseline.
+- **The main method's weighting** is decided at the scientific reassessment, among the direct-gradient
+  candidates compared above.
