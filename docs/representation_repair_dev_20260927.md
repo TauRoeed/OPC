@@ -6,6 +6,10 @@ f5cade9: OPC = DR, differentiated directly, harmonic:0.1 training weights, clip:
 It is not the final paper choice (see `docs/decision_record_opc_objective_weighting.md`). The tables
 are in `artifacts/full_study/summaries_20260927/` and the runs in `artifacts/full_study/run_registry.csv`.
 
+Follow-up: [representation_repair_followup_20260927.md](representation_repair_followup_20260927.md) covers three
+things: a validation of the Stage 1 oracle bounds (the bounds stand), per-dataset tables, and the
+structural-vs-learning gap decomposition.
+
 ## Question
 
 Can logged-feedback learning undo a logger's representation bias, and when does the propensity

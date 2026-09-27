@@ -5,7 +5,7 @@ Offline policy comparison experiments with matrix-factorization embeddings.
 **Loss / Optuna details:** [`docs/training_losses.md`](docs/training_losses.md)  
 **Research notes:** [`docs/research_workplan.md`](docs/research_workplan.md)  
 **Simulator:** [`docs/representation_bias.md`](docs/representation_bias.md)  
-**Representation repair (development results, 2026-09-27):** [`docs/representation_repair_dev_20260927.md`](docs/representation_repair_dev_20260927.md)
+**Representation repair (development results, 2026-09-27):** [`docs/representation_repair_dev_20260927.md`](docs/representation_repair_dev_20260927.md) · follow-up: [`docs/representation_repair_followup_20260927.md`](docs/representation_repair_followup_20260927.md)
 
 Main flow:
 1. Fit/generate BPR artifacts (user/item factors + metadata arrays).
