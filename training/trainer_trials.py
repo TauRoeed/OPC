@@ -165,7 +165,7 @@ POST_TEMPER_GRID = (0.25, 0.5, 0.71, 1.0, 1.41, 2.0, 2.83, 4.0, 5.66, 8.0, 16.0)
 # gets 93.5% and raw weights 77%; the training transform moves the true value by at most ~0.2
 # points (shrink:100 best, clip:100 significantly worse). To be re-tuned on the sharpened logger.
 # Trainer-API fallbacks (and the H1 runner's defaults). The full-study runners pass their own working default,
-# run_full_study.STUDY_TRAIN_WEIGHTS (harmonic:0.1, since 2026-09-28); selection keeps clip:10 everywhere.
+# run_full_study.STUDY_TRAIN_WEIGHTS (harmonic:0.1, since f5cade9 (2026-09-27)); selection keeps clip:10 everywhere.
 DEFAULT_TRAIN_WEIGHTS = "shrink:100"
 DEFAULT_SELECT_WEIGHTS = "clip:10"
 VALID_OPTUNA_SELECTION = ("ci_low", "r_hat", "actual_reward")
@@ -2974,6 +2974,7 @@ def regression_trainer_trial(
     post_temper: bool = False,
     sn_scope: str = "batch",
     sampler: str = "tpe",
+    seed_label: str | None = None,
 ):
     """
     OPC / no-propensity trainer with Optuna over CF hyperparameters.
@@ -3022,6 +3023,10 @@ def regression_trainer_trial(
     or ``random`` (seeded random search, no warm start): trial k then has the same configuration and
     the same trial seed in every run with the same seed, grid and search space, whatever the
     objective, which is the paired (replayed) comparison of objectives (``utils.seeding.optuna_sampler``).
+    ``seed_label``: the label the Optuna sampler and the per-trial seeds are derived from (default
+    ``method_label``). The study passes ``"opc"`` for every arm that shares OPC's search space under
+    ``--sampler random``, so OPC, DM-only and no-propensity train the same configurations with the same
+    seeds (paired across arms); OPC's own runs are unchanged.
 
     ``search_use_log_trick``: if False, always use direct-prob surrogate (no log trick)
     for applicable losses and do not tune ``use_log_trick`` in Optuna.
@@ -3289,7 +3294,7 @@ def regression_trainer_trial(
 
         # --- Define Optuna objective ---
         def objective(trial):
-            seed_everything(derive_seed(seed, method_label, train_size, "trial", trial.number))
+            seed_everything(derive_seed(seed, seed_label or method_label, train_size, "trial", trial.number))
             print(f"\n[Regression] Optuna Trial {trial.number}")
             if temper_only:  # tempered logger: no training, only the logit scale
                 logit_scale = trial.suggest_float("logit_scale", *TEMPER_SCALE_RANGE, log=True)
@@ -3471,7 +3476,7 @@ def regression_trainer_trial(
 
         # --- Run Optuna search ---
         study = optuna.create_study(
-            direction="maximize", sampler=optuna_sampler(seed, method_label, train_size, kind=sampler)
+            direction="maximize", sampler=optuna_sampler(seed, seed_label or method_label, train_size, kind=sampler)
         )
         if last_best_params is not None and sampler == "tpe":  # random search replays: no warm start
             study.enqueue_trial(
@@ -3696,6 +3701,7 @@ def no_propensity_trainer_trial(
     size_crossfit: dict | None = None,
     post_temper: bool = False,
     sampler: str = "tpe",
+    seed_label: str | None = None,
 ):
     """
     Explicit no-propensity baseline with parity to regression trainer:
@@ -3741,6 +3747,7 @@ def no_propensity_trainer_trial(
         size_crossfit=size_crossfit,
         post_temper=post_temper,
         sampler=sampler,
+        seed_label=seed_label,
     )
 
 

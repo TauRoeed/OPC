@@ -555,7 +555,7 @@ def main():
         nargs="+",
         default=list(STUDY_POLICY_LOSSES),
         help="OPC training loss: dr (default; the working development default, not the final paper choice), "
-        "or sndr with --sn-scope batch (legacy, the default before 2026-09-28) / global, kept for "
+        "or sndr with --sn-scope batch (legacy, the default before f5cade9) / global, kept for "
         "reproducibility. No-prop stays naive.",
     )
     parser.add_argument(
@@ -587,7 +587,7 @@ def main():
         default=STUDY_OPC_GRADIENT,
         help="How OPC's training loss is differentiated: direct (default; the exact gradient of the named "
         "estimate DM + g(w)(r - q_hat)) or log-trick (the gradient of DM + H(w)(r - q_hat), H(w) = "
-        "int_0^w g(t)/t dt; the default before 2026-09-28). Identical for --train-weights none.",
+        "int_0^w g(t)/t dt; the default before f5cade9). Identical for --train-weights none.",
     )
     parser.add_argument(
         "--no-log-trick",

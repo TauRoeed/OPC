@@ -41,7 +41,7 @@ RUN_STAGES = ("development", "confirmatory")
 # H(w) = int_0^w g(t)/t dt) or 'direct' (pathwise through g(w): the exact gradient of the transformed
 # estimate DM + g(w)(r - q_hat) itself). The two coincide for raw weights.
 OPC_GRADIENTS = ("log-trick", "direct")
-# Working development defaults since 2026-09-28 (docs/decision_record_opc_objective_weighting.md): OPC trains DR,
+# Working development defaults since f5cade9 (2026-09-27) (docs/decision_record_opc_objective_weighting.md): OPC trains DR,
 # differentiated directly, with Metelli et al.'s harmonic weights at lambda = 0.1; selection keeps clip:10. This is
 # the working method for development runs, not the final paper choice. Standard alternatives: shrink:100 (Su et al.
 # 2020, the prespecified smooth-weight comparison) and none (raw DR, the unregularized reference). The previous
@@ -377,6 +377,9 @@ def _run_condition(
         raise ValueError(f"stage must be one of {RUN_STAGES}, got {stage!r}")
     if str(opc_gradient) not in OPC_GRADIENTS:
         raise ValueError(f"opc_gradient must be one of {OPC_GRADIENTS}, got {opc_gradient!r}")
+    # random search pairs the arms that share OPC's search space (OPC, no-propensity, DM-only): the same
+    # configurations and trial seeds; TPE keeps each arm's own stream (unchanged)
+    shared_seed_label = "opc" if str(sampler) == "random" else None
     opc_log_trick = str(opc_gradient) == "log-trick"
     train_weights = STUDY_TRAIN_WEIGHTS if train_weights is None else train_weights  # explicit for every trainer
     train_mode = parse_weight_spec(train_weights)[0]
@@ -537,6 +540,7 @@ def _run_condition(
             post_temper=bool(post_temper),
             sn_scope=str(sn_scope),
             sampler=str(sampler),
+            seed_label=shared_seed_label,
         )
     else:
         try:
@@ -584,6 +588,7 @@ def _run_condition(
             size_crossfit=size_crossfit,
             post_temper=bool(post_temper),
             sampler=str(sampler),
+            seed_label=shared_seed_label,
         )
     else:
         try:
@@ -639,6 +644,7 @@ def _run_condition(
             size_regression_bundles=size_bundles,
             size_crossfit=size_crossfit,
             sampler=str(sampler),
+            seed_label=shared_seed_label if method == "dm" else None,  # the tempered logger searches its own space
             **arm,
         )
 
@@ -708,6 +714,7 @@ def _run_condition(
         "post_temper": bool(post_temper),
         "sn_scope": str(sn_scope),
         "sampler": str(sampler),
+        "paired_arms": shared_seed_label is not None,
         "stage": str(stage),
         "dr_score_clip_m": parse_weight_spec(select_label)[1] if select_label.startswith("clip") else None,
         "shared_regression_size": int(
@@ -963,8 +970,8 @@ def main():
         default=list(STUDY_POLICY_LOSSES),
         choices=list(VALID_POLICY_LOSSES),
         help="OPC training loss. Default dr (DM + weighted correction, no self-normalization): the working "
-        "development default since 2026-09-28, not the final paper choice. sndr with --sn-scope batch (legacy "
-        "minibatch-normalized SNDR, the default before 2026-09-28) and --sn-scope global remain for "
+        "development default since f5cade9 (2026-09-27), not the final paper choice. sndr with --sn-scope batch (legacy "
+        "minibatch-normalized SNDR, the default before f5cade9) and --sn-scope global remain for "
         "reproducibility and diagnostics (docs/training_losses.md 3.4, 9). DR selection uses a fixed weight "
         "transform (--select-weights). Multiple values = Optuna categorical over losses. No-propensity stays naive.",
     )
@@ -1001,7 +1008,7 @@ def main():
         help="How OPC's training loss is differentiated: direct (default: pathwise through the transformed "
         "weight g(w), the exact gradient of the named estimate DM + g(w)(r - q_hat)) or log-trick (the "
         "transformed weight as a detached coefficient on grad log pi: the exact gradient of DM + H(w)(r - q_hat) "
-        "with H(w) = int_0^w g(t)/t dt; the default before 2026-09-28, kept for reproducibility). The two "
+        "with H(w) = int_0^w g(t)/t dt; the default before f5cade9, kept for reproducibility). The two "
         "coincide for --train-weights none. docs/training_losses.md 3.4.",
     )
     parser.add_argument(

@@ -167,3 +167,34 @@ def test_parallel_runner_forwards_sampler_and_stage(monkeypatch, tmp_path):
     with pytest.raises(Called):
         par._execute_run(config)
     assert (captured["kwargs"]["sampler"], captured["kwargs"]["stage"]) == ("random", "confirmatory")
+
+
+def test_random_sampler_pairs_the_arms_that_share_a_search_space(tmp_path):
+    """Under --sampler random, OPC, no-propensity and DM-only draw their configurations and trial seeds from
+    OPC's stream, so trial k is the same configuration for all three (and OPC's trials are exactly those of an
+    OPC-only run); TPE keeps each arm's own stream."""
+    from test_reproducibility import _toy_embeddings
+
+    from training.run_full_study import _run_condition
+
+    _toy_embeddings(tmp_path)
+    kw = dict(dataset_name="toy", emb_dir=tmp_path, bias="medium", ctr=0.05, seed=0, train_sizes=[1000, 1500],
+              n_trials=3, batch_size=None, val_size=1000, val_frac=0.15, val_min=1000, val_max=None,
+              policy_reward_mode="exact", policy_reward_mc_sim=8, slim=True, shared_regression_size=2000)
+
+    def trials(name, **extra):
+        run_dir = tmp_path / name
+        run_dir.mkdir()
+        *_, meta = _run_condition(**kw, run_dir=run_dir, **extra)
+        t = pd.read_csv(run_dir / "trials_long.csv")
+        return {m: g.set_index(["train_size", "trial_number"]).sort_index() for m, g in t.groupby("method")}, meta
+
+    arms, meta = trials("paired", sampler="random", methods=("opc", "no_propensity", "dm"))
+    assert meta["paired_arms"] is True
+    for method in ("no_propensity", "dm"):
+        pd.testing.assert_frame_equal(arms[method][PARAMS], arms["opc"][PARAMS])
+    alone, _ = trials("opc_only", sampler="random", methods=("opc",))
+    pd.testing.assert_frame_equal(alone["opc"][PARAMS + ["actual_reward"]], arms["opc"][PARAMS + ["actual_reward"]])
+    tpe, meta_tpe = trials("tpe", methods=("opc", "dm"))
+    assert meta_tpe["paired_arms"] is False
+    assert not tpe["dm"][PARAMS].equals(tpe["opc"][PARAMS])  # TPE: each arm's own stream, as before

@@ -1,7 +1,7 @@
 # Decision record: OPC training objective and importance weighting (2026-09-27)
 
 Status: the development work on this component is closed. Working development defaults were set on
-2026-09-28 (see the update below). The final paper choice is left to the scientific reassessment.
+2026-09-27 (f5cade9; see the update below). The final paper choice is left to the scientific reassessment.
 All evidence comes from development runs; the frozen protocol will be evaluated on fresh confirmatory
 seeds and conditions.
 
@@ -64,8 +64,8 @@ artifacts/full_study/run_registry.csv.
    (arctan) surrogate for transformed weights, `clip:10` and `shrink:10000` training weights, and legacy
    and global SNDR.
 4. **Raw DR remains the unregularized baseline.**
-5. **Working development defaults (updated 2026-09-28, see below).** The full-study runners default to
-   `dr`, the direct gradient and `harmonic:0.1`, with selection kept at `clip:10`. Before 2026-09-28 the
+5. **Working development defaults (updated 2026-09-27, f5cade9, see below).** The full-study runners default to
+   `dr`, the direct gradient and `harmonic:0.1`, with selection kept at `clip:10`. Before f5cade9 the
    defaults were legacy `sndr`, the log trick and `shrink:100`.
 
 ## Left open for the reassessment
@@ -78,10 +78,10 @@ artifacts/full_study/run_registry.csv.
   - The effect of λ is monotone, with its best value at the edge of the prespecified set. The paper's own
     rule chooses λ from n, δ and the 2-Rényi divergence, and would give a smaller λ here.
   - Whether to adopt harmonic, and at which λ, is not decided here.
-- **The objective and gradient form** are the working defaults since 2026-09-28 (`dr`, direct). Freezing
+- **The objective and gradient form** are the working defaults since f5cade9 (2026-09-27) (`dr`, direct). Freezing
   them for the paper is part of the protocol freeze before confirmatory runs.
 
-## Update 2026-09-28: working development defaults
+## Update 2026-09-27 (f5cade9): working development defaults
 
 On the user's decision, the full-study runners (`run_full_study`, `run_full_study_parallel`) use these
 working defaults for development runs:

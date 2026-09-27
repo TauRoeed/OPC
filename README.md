@@ -15,12 +15,12 @@ Main flow:
 
 | Knob | Default |
 |------|---------|
-| OPC train loss (`--policy-losses`) | `dr` (DM + weighted correction, no self-normalization): the working development default since 2026-09-28, not the final paper choice. Legacy `sndr --sn-scope batch` (the default before) and `--sn-scope global` stay for reproducibility and diagnostics; the evidence is in `docs/training_losses.md` §9 and `docs/decision_record_opc_objective_weighting.md` |
-| OPC gradient (`--opc-gradient`) | `direct`: the named estimate is the objective optimized; `log-trick` (the default before 2026-09-28) reproduces older runs |
+| OPC train loss (`--policy-losses`) | `dr` (DM + weighted correction, no self-normalization): the working development default since f5cade9 (2026-09-27), not the final paper choice. Legacy `sndr --sn-scope batch` (the default before) and `--sn-scope global` stay for reproducibility and diagnostics; the evidence is in `docs/training_losses.md` §9 and `docs/decision_record_opc_objective_weighting.md` |
+| OPC gradient (`--opc-gradient`) | `direct`: the named estimate is the objective optimized; `log-trick` (the default before f5cade9) reproduces older runs |
 | Policy transform (`--policy-transform`) | `linear`: (I + D) x + b per side, starting exactly at the logger |
 | No-propensity train | always `naive` (no IW, no DM/DR, no clip) |
 | Optuna objective | `ci_low` = DR/naive mean − t·SE |
-| Importance weights | `--train-weights` default `harmonic:0.1` (Metelli et al. 2021): the working development default, not the final paper choice. `shrink:100` (Su et al. 2020) is the prespecified standard smooth-weight comparison, and `none` (raw DR) the unregularized reference; `clip:M` and `shrink:10000` stay for reproducibility. `--select-weights` (selection + post-hoc) keeps `clip:10`. Neither is Optuna-searched. `--policy-losses sndr --sn-scope batch --opc-gradient log-trick --train-weights shrink:100` reproduces the defaults before 2026-09-28; the H1 runner keeps those settings |
+| Importance weights | `--train-weights` default `harmonic:0.1` (Metelli et al. 2021): the working development default, not the final paper choice. `shrink:100` (Su et al. 2020) is the prespecified standard smooth-weight comparison, and `none` (raw DR) the unregularized reference; `clip:M` and `shrink:10000` stay for reproducibility. `--select-weights` (selection + post-hoc) keeps `clip:10`. Neither is Optuna-searched. `--policy-losses sndr --sn-scope batch --opc-gradient log-trick --train-weights shrink:100` reproduces the defaults before f5cade9; the H1 runner keeps those settings |
 | Study arms (`--methods`) | `opc no_propensity`; opt-in baselines `dm` (policy trained and selected on `q̂` alone) and `tempered_logger` (the logger's logits × s, s chosen by the DR score) |
 | Logit scale (`--learn-logit-scale`) | off; on, every trained policy also learns s in softmax(s·u·a/T), starting at 1 |
 | Reward model `q̂` | `regression` on interaction features `[x, a, x⊙a]` (`--reward-features`; bias script often uses `logging_score`) |
@@ -268,7 +268,7 @@ runs ~5× slower per epoch than 4096.
   the same configuration and the same trial seed in every run with the same grid and seeds. Run one objective per
   run tag (e.g. `--policy-losses dr`, `--policy-losses sndr --sn-scope global`) and compare trial by trial.
 - `--stage {development,confirmatory}` (default `development`) — what the results are for, recorded with them.
-- `--opc-gradient {log-trick,direct}` (default `direct`, since 2026-09-28) — how OPC's loss is differentiated. The log trick
+- `--opc-gradient {log-trick,direct}` (default `direct`, since f5cade9 (2026-09-27)) — how OPC's loss is differentiated. The log trick
   follows the gradient of DM + H(w)(r − q̂) with H(w) = ∫₀ʷ g(t)/t dt. `direct` is the exact gradient of the
   transformed estimate DM + g(w)(r − q̂). They coincide for `--train-weights none`
   (`docs/training_losses.md` §3.4).

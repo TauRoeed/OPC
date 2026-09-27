@@ -1,4 +1,4 @@
-"""Working development defaults since 2026-09-28 (docs/decision_record_opc_objective_weighting.md): the full-study
+"""Working development defaults since f5cade9 (2026-09-27) (docs/decision_record_opc_objective_weighting.md): the full-study
 runners train OPC as DR, differentiated directly, with harmonic:0.1 weights; selection keeps clip:10. The previous
 defaults (legacy SNDR, log trick, shrink:100) stay reproducible with explicit flags, and the H1 runner keeps its own
 settings."""

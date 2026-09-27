@@ -154,7 +154,7 @@ def test_cli(module, monkeypatch, capsys, tmp_path):
     monkeypatch.setattr(argparse.ArgumentParser, "parse_args", parse)
     with pytest.raises(Parsed):
         main()
-    assert seen["default"].opc_gradient == "direct" and seen["set"].opc_gradient == "log-trick"  # direct since 2026-09-28
+    assert seen["default"].opc_gradient == "direct" and seen["set"].opc_gradient == "log-trick"  # direct since f5cade9 (2026-09-27)
 
 
 def test_parallel_runner_forwards_the_gradient(monkeypatch, tmp_path):

@@ -102,7 +102,7 @@ OPC uses logged propensities (`propensity_mode="logged"`) and IW / DR-style
 losses: the reward model's value of the policy plus the weighted correction w·(r − q̂), no KL and no
 CRM.
 
-**Working development default (since 2026-09-28).** OPC trains `dr` with the direct gradient
+**Working development default (since f5cade9 (2026-09-27)).** OPC trains `dr` with the direct gradient
 (`--opc-gradient direct`), so the named estimate is the objective being optimized. Its weights are
 `harmonic:0.1` (Metelli et al. 2021), and selection keeps `clip:10`. This is the working method for
 development runs, not the final paper choice. It was chosen as an established smooth, monotone and
@@ -118,7 +118,7 @@ The objective variants remain available for reproducibility and diagnostics:
   exact SNDR (section 3.4).
 - **The previous defaults** are reproduced by `--policy-losses sndr --sn-scope batch --opc-gradient
   log-trick --train-weights shrink:100`. That configuration reproduces the OPC arm of the runs before
-  2026-09-28, and the H1 runner keeps it.
+  f5cade9, and the H1 runner keeps it.
 
 Legacy / ablation: `--policy-losses kl_crm` restores the unified loss
 
@@ -251,7 +251,7 @@ DM_i = sum over actions a [q(x_i, a) * pi_theta(a | x_i)]
 
 ### 3.3 SNDR log-trick surrogate
 
-The legacy OPC path (`sndr` with `--opc-gradient log-trick`, the default before 2026-09-28) and
+The legacy OPC path (`sndr` with `--opc-gradient log-trick`, the default before f5cade9) and
 `kl_crm` both use a policy-gradient surrogate (`use_log_trick=True`).
 Probabilities used as coefficients are detached (treated as constants), while
 gradients flow through log policy probabilities.
@@ -575,7 +575,7 @@ CLI `--policy-losses` accepts any of:
 ### 6.1 `dr` (working development default) and `sndr`
 
 `dr`: DM(q̂) plus the weighted correction, without self-normalization, no KL, no CRM. `sndr`: the same,
-self-normalized per minibatch (`--sn-scope batch`, legacy; the default before 2026-09-28) or by the
+self-normalized per minibatch (`--sn-scope batch`, legacy; the default before f5cade9) or by the
 full-data mean weight held fixed for each epoch (`--sn-scope global`). Section 3.4 derives what each
 variant optimizes.
 
@@ -664,7 +664,7 @@ heavier importance weights; see [representation_bias.md](representation_bias.md)
 Full study:
 
 ```text
-OPC:           use_log_trick fixed by --opc-gradient (direct, the default since 2026-09-28, or log-trick)
+OPC:           use_log_trick fixed by --opc-gradient (direct, the default since f5cade9 (2026-09-27), or log-trick)
 no-propensity: use_log_trick fixed False
 dm:            use_log_trick fixed False
 ```
@@ -789,7 +789,7 @@ On these development conditions:
   (+0.5 to +1.1).
 
 **What exists, and what is retained.** Every option above is implemented, tested and recorded in
-the run metadata. Since 2026-09-28 the working development defaults are `dr`, the direct gradient,
+the run metadata. Since f5cade9 (2026-09-27) the working development defaults are `dr`, the direct gradient,
 `harmonic:0.1` training weights and `clip:10` selection weights. They are not the final paper choice.
 The standard comparison is `shrink:100` with the direct gradient; the reference is raw DR.
 - **Out of the main future grid, unless there is a specific scientific reason:** the log-trick form

@@ -165,7 +165,7 @@ def test_trainer_wiring_and_defaults(monkeypatch, capsys):
             main()
         text = " ".join(capsys.readouterr().out.split())
         assert "--sn-scope" in text and "working development default" in text
-    # the working development default since 2026-09-28: dr (legacy SNDR stays available)
+    # the working development default since f5cade9 (2026-09-27): dr (legacy SNDR stays available)
     real_parse, seen = argparse.ArgumentParser.parse_args, {}
 
     class Parsed(Exception):
