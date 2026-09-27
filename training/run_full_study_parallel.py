@@ -341,7 +341,7 @@ def _run_with_memory_cap(run_configs, *, max_workers, min_workers, num_gpus, mem
     plan = plan_worker_groups(
         run_configs, max_workers=max_workers, capacities=capacities, n_slots=num_gpus
     )
-    print(describe_plan(plan, kind, capacities, max_workers), flush=True)
+    print(describe_plan(plan, kind, capacities, max_workers, n_slots=num_gpus), flush=True)
     failures = []
     for workers, cfgs in plan:
         failures += _run_configs_with_oom_backoff(
