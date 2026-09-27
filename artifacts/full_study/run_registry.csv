@@ -41,3 +41,4 @@ run_oracle_repair_stage3_lgs_0_95,development,f2e03b5,Stage 3: oracle repair bou
 run_stage3_lgs_0_6,development,f2e03b5,Stage 3: logging-support sweep at logger share 0.6; four arms; 25k,ml/kuairand x seeds 100/101 x warp/group/vector high
 run_stage3_lgs_0_8,development,f2e03b5,Stage 3: logging-support sweep at logger share 0.8 (repeats the Stage 2 25k cells),bit-identical to the run_stage2_ml/kuairand 25k trials (48/48 trial tables)
 run_stage3_lgs_0_95,development,f2e03b5,Stage 3: logging-support sweep at logger share 0.95,
+run_oracle_validation_20260927,development,67c3b4a,Goal 1 follow-up: validation of the Stage 1 oracle bounds (same class; learning rate past the old edge; 3x and 9x budget; tail_81k: 27x refits of the scale-fixed class for still-rising worlds at e7beafa),30 biased worlds x 2 classes; 252 fits + tail; true-reward oracle only; summaries_20260927/followup/oracle_validation_*

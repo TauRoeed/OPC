@@ -61,6 +61,28 @@ python -m training.analyze_recoverability stage2 artifacts/full_study/run_oracle
 
 The 0.8 tables repeat the Stage 2 25k cells of ml and kuairand; the trials are bit-identical.
 
+## Follow-up (`followup/`): oracle validation, per-dataset views, target-gap decomposition
+
+```bash
+python -m training.analyze_recoverability followup artifacts/full_study/run_oracle_repair_20260927 \
+  --candidates artifacts/full_study/run_oracle_validation_20260927 \
+  --runs artifacts/full_study/run_stage2_ml artifacts/full_study/run_stage2_kuairand artifacts/full_study/run_stage2_anime \
+  --out artifacts/full_study/summaries_20260927/followup
+```
+
+- **Oracle validation:**
+  - `oracle_validation_by_world.csv` and `oracle_validation_summary.csv` compare the Stage 1 and validated greedy
+    repair bounds and recoverability. The rule is unchanged: the best stochastic value, and its greedy value.
+    The best greedy candidate is shown as a sensitivity.
+  - `oracle_validation_candidates.csv` has every validation fit.
+- **Per dataset:** `stage1_by_dataset.csv` and `stage2_by_dataset.csv`. The latter has each arm's gain (greedy and
+  stochastic), OPC's and DM-only's fractions of the oracle repair, and OPC − DM-only and OPC − no-propensity with
+  the two seeds' range.
+- **Gap decomposition:**
+  - `gap_decomposition*.csv` and `gap_decomposition.png` hold the greedy decomposition of the target gap:
+    V_target_best (the ceiling) − V_logger = structural gap + learning gap + learned repair.
+  - The tables use the Stage 1 bounds; `gap_decomposition_validated_bound.csv` repeats it on the validated bounds.
+
 ## Notes
 
 All runs are development runs: seeds 100/101 and the paired random sampler (no TPE warm
