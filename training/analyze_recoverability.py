@@ -1,6 +1,8 @@
 """Recoverability tables for the representation-bias study (development runs).
 
-Stage 1 (structural): from ``training.oracle_repair`` rows, per condition (dataset, bias, seed):
+Stage 1 (structural): from ``training.oracle_repair`` rows, per condition (dataset, bias, seed). The learner's class
+(``repair``) is the linear repair with a learnable logit scale; both oracle fits (scale fixed and scale learned) are
+policies in it, so its bound is the better of the two (value and greedy value separately):
   V_logger, V_logger_greedy        the biased logger's exact true value and its ranking's (greedy) value
   V_clean, V_clean_greedy          the matched no-bias reference: the same dataset and seed with bias ``none``
                                    (its greedy value is the ceiling: each user's truly best item)
@@ -25,11 +27,14 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from utils.representation_bias import bias_label, parse_bias
+
 MIN_LOSS = 1e-3  # CTR points / 100: below this a ratio is not reported
-CLASSES = ("linear", "linear+scale", "scale")
-BIAS_ORDER = ("none", "medium", "high", "high/none/none", "none/high/none", "none/none/high")
-BIAS_NAMES = {"none": "no bias", "medium": "combined medium", "high": "combined high", "high/none/none": "warp only (high)",
-              "none/high/none": "group only (high)", "none/none/high": "vector only (high)"}
+CLASSES = ("repair", "linear", "linear+scale", "scale")
+_CONFIGS = (("none", "no bias"), ("medium", "combined medium"), ("high", "combined high"),
+            ("high/none/none", "warp only (high)"), ("none/high/none", "group only (high)"), ("none/none/high", "vector only (high)"))
+BIAS_ORDER = tuple(bias_label(parse_bias(c)) for c, _ in _CONFIGS)  # the labels the runners record
+BIAS_NAMES = {bias_label(parse_bias(c)): name for c, name in _CONFIGS}
 
 
 def load_oracle(root) -> pd.DataFrame:
@@ -50,7 +55,11 @@ def _ratio(num, den):
 def derive(rows: pd.DataFrame) -> pd.DataFrame:
     """Adds the clean reference (bias none of the same dataset and seed) and the derived quantities."""
     df = rows.copy()
-    clean = df[df["bias"] == "none"].set_index(["dataset", "seed"])[["logger_value", "logger_greedy"]]
+    df["bias"] = [bias_label(parse_bias(b)) for b in df["bias"]]
+    if {"oracle_linear_value", "oracle_linear+scale_value"} <= set(df.columns):  # the learner's class: best of both fits
+        df["oracle_repair_value"] = df[["oracle_linear_value", "oracle_linear+scale_value"]].max(axis=1)
+        df["oracle_repair_greedy"] = df[["oracle_linear_greedy", "oracle_linear+scale_greedy"]].max(axis=1)
+    clean = df[df["bias"] == bias_label(parse_bias("none"))].set_index(["dataset", "seed"])[["logger_value", "logger_greedy"]]
     clean = clean.rename(columns={"logger_value": "V_clean", "logger_greedy": "V_clean_greedy"})
     df = df.join(clean, on=["dataset", "seed"])
     df["V_logger"], df["V_logger_greedy"], df["ceiling"] = df["logger_value"], df["logger_greedy"], df["logger_ceiling"]
@@ -66,7 +75,7 @@ def derive(rows: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def summary(df: pd.DataFrame, cls: str = "linear+scale") -> pd.DataFrame:
+def summary(df: pd.DataFrame, cls: str = "repair") -> pd.DataFrame:
     """Per bias configuration: means over datasets and seeds (CTR in %), and the per-dataset greedy recoverability."""
     cols = {"V_logger": "V_logger %", "V_logger_greedy": "V_logger greedy %", "V_clean": "V_clean %",
             "ceiling": "ceiling %", f"oracle_{cls}_value": "V_oracle %", f"oracle_{cls}_greedy": "V_oracle greedy %",
@@ -82,20 +91,60 @@ def summary(df: pd.DataFrame, cls: str = "linear+scale") -> pd.DataFrame:
     out = out.join(per_ds.add_prefix("rec. greedy "))
     out["n"] = g.size()
     order = [b for b in BIAS_ORDER if b in out.index] + [b for b in out.index if b not in BIAS_ORDER]
-    return out.loc[order]
+    out = out.loc[order]
+    out.insert(0, "bias type", [BIAS_NAMES.get(b, b) for b in out.index])
+    return out
 
 
-def learned_recovery(learned: pd.DataFrame, oracle: pd.DataFrame, cls: str = "linear+scale") -> pd.DataFrame:
+def learned_recovery(learned: pd.DataFrame, oracle: pd.DataFrame, cls: str = "repair") -> pd.DataFrame:
     """``learned``: one row per (dataset, bias, seed, method, train_size) with columns V_method and V_method_greedy
     (true stochastic and greedy CTR of the selected policy). Joins the oracle rows of the same world."""
     o = derive(oracle)[["dataset", "bias", "seed", "V_logger", "V_logger_greedy", f"oracle_{cls}_value",
                         f"oracle_{cls}_greedy"]]
+    learned = learned.assign(bias=[bias_label(parse_bias(b)) for b in learned["bias"]])
     m = learned.merge(o, on=["dataset", "bias", "seed"], how="left", validate="many_to_one")
     m["learned_gain"] = m["V_method"] - m["V_logger"]
     m["learned_gain_greedy"] = m["V_method_greedy"] - m["V_logger_greedy"]
     m["fraction_of_oracle_repair"] = _ratio(m["learned_gain"], m[f"oracle_{cls}_value"] - m["V_logger"])
     m["fraction_of_oracle_repair_greedy"] = _ratio(m["learned_gain_greedy"], m[f"oracle_{cls}_greedy"] - m["V_logger_greedy"])
     return m
+
+
+def _tags(folder: str) -> dict:
+    return dict(part.split("=", 1) for part in folder.split("__") if "=" in part)
+
+
+def load_learned(*run_dirs) -> pd.DataFrame:
+    """One row per (condition, method, train size) of study runs: the selected policy's true stochastic and greedy
+    CTR (V_method, V_method_greedy), its learned logit scale, the tempered logger's value in the same cell, and the
+    selected trial's diagnostics (raw-weight ESS, share of weights > 10, largest weight, selection-estimate error of
+    the DR point estimate and of the lower bound) and the true selection regret over the arm's trials (development
+    diagnostic)."""
+    out = []
+    for run in run_dirs:
+        for cond in sorted(Path(run).glob("dataset=*")):
+            if not (cond / "summary_metrics.csv").exists():
+                continue
+            tags = _tags(cond.name)
+            s = pd.read_csv(cond / "summary_metrics.csv")
+            t = pd.read_csv(cond / "trials_long.csv")
+            s = s[s["train_size"] > 0]
+            temp = s[s["method"] == "tempered_logger"].set_index("train_size")["policy_rewards"]
+            for _, r in s.iterrows():
+                g = t[(t["method"] == r["method"]) & (t["train_size"] == r["train_size"])]
+                best = g[g["is_best_in_run"].astype(bool)].iloc[0]
+                assert abs(float(best["actual_reward"]) - float(r["policy_rewards"])) < 1e-9
+                out.append(dict(
+                    run=Path(run).name, dataset=tags["dataset"], bias=tags["bias"], seed=int(tags["seed"]),
+                    method=r["method"], train_size=int(r["train_size"]), V_method=float(r["policy_rewards"]),
+                    V_method_greedy=float(r["policy_rewards_greedy"]), logit_scale=float(best.get("logit_scale", np.nan)),
+                    V_tempered=float(temp.get(r["train_size"], np.nan)),
+                    ess_raw=float(best.get("ess_raw", np.nan)), w_share_gt10=float(best.get("diag_w_share_gt10", np.nan)),
+                    w_max=float(best.get("diag_w_max", np.nan)),
+                    sel_error_point=float(best["r_hat"] - best["actual_reward"]),
+                    sel_error_lower=float(best["value"] - best["actual_reward"]),
+                    regret=float(g["actual_reward"].max() - best["actual_reward"]), n_trials=len(g)))
+    return pd.DataFrame(out)
 
 
 if __name__ == "__main__":
