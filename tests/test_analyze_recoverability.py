@@ -151,3 +151,111 @@ def test_cli_writes_tables(tmp_path):
     assert list(got.index) == ["none", "w-high.g-none.v-none", "w-none.g-none.v-high"]
     assert got.loc["w-high.g-none.v-none", "recoverability greedy"] == pytest.approx(0.875)
     assert len(pd.read_csv(tmp_path / "out" / "stage1_oracle_rows.csv")) == 3
+
+
+def _candidates():
+    """Validation candidates for the toy warp world: a better linear fit (value and greedy), and a linear+scale fit
+    with a higher greedy value but a lower stochastic value (the selection rule keeps the Stage 1 one)."""
+    base = dict(dataset="ml", bias="high/none/none", seed=0, logit_scale=1.0)
+    return pd.DataFrame([dict(base, cls="linear", lr=0.1, steps=3000, value=0.31, greedy=0.295),
+                         dict(base, cls="linear", lr=0.1, steps=9000, value=0.305, greedy=0.296),
+                         dict(base, cls="linear+scale", lr=3e-3, steps=9000, value=0.29, greedy=0.299)])
+
+
+def test_validated_oracle_pools_candidates_with_the_stage1_rule():
+    from training.analyze_recoverability import oracle_validation_table, validated_oracle
+
+    oracle = _rows().assign(**{f"oracle_{c}_{k}": v for c in ("linear", "linear+scale") for k, v in (("lr", 0.01), ("logit_scale", 1.0))})
+    v = validated_oracle(oracle, _candidates()).set_index("bias")
+    w = v.loc["w-high.g-none.v-none"]
+    # linear: the 3000-step candidate has the best stochastic value; its greedy value comes with it
+    assert w["oracle_linear_value"] == pytest.approx(0.31) and w["oracle_linear_greedy"] == pytest.approx(0.295)
+    assert (w["oracle_linear_lr"], w["oracle_linear_steps"]) == (0.1, 3000)
+    assert w["oracle_linear_greedy_max"] == pytest.approx(0.296)  # the best greedy value over all candidates
+    # linear+scale: the Stage 1 fit keeps the best value, so its greedy value stays; the sensitivity sees 0.299
+    assert w["oracle_linear+scale_value"] == pytest.approx(0.30) and w["oracle_linear+scale_greedy"] == pytest.approx(0.29)
+    assert w["oracle_linear+scale_greedy_max"] == pytest.approx(0.299) and w["stage1_oracle_linear_value"] == pytest.approx(0.30)
+    # worlds without candidates keep their Stage 1 bound
+    vec = v.loc["w-none.g-none.v-high"]
+    assert vec["oracle_linear_value"] == pytest.approx(0.20) and vec["oracle_linear_steps"] == 3000
+    t = oracle_validation_table(validated_oracle(oracle, _candidates())).set_index("bias")
+    assert t.loc["w-high.g-none.v-none", "old bound greedy"] == pytest.approx(0.29)
+    assert t.loc["w-high.g-none.v-none", "new bound greedy"] == pytest.approx(0.295)
+    assert t.loc["w-high.g-none.v-none", "change"] == pytest.approx((0.295 - 0.22) / 0.08 - (0.29 - 0.22) / 0.08)
+    assert t.loc["w-high.g-none.v-none", "recoverability greedy, best greedy candidate"] == pytest.approx((0.299 - 0.22) / 0.08)
+    assert t.loc["w-none.g-none.v-high", "change"] == pytest.approx(0.0) and "none" not in t.index
+
+
+def test_per_dataset_tables_and_gap_decomposition():
+    from training.analyze_recoverability import gap_decomposition, gap_summary, stage1_by_dataset, stage2_by_dataset
+
+    s1 = stage1_by_dataset(derive(_rows())).set_index("bias")
+    assert s1.loc["w-high.g-none.v-none", "logger ranking loss %"] == pytest.approx(8.0)
+    assert s1.loc["w-high.g-none.v-none", "oracle repair gain %"] == pytest.approx(7.0)
+    assert s1.loc["w-high.g-none.v-none", "structural recoverability"] == pytest.approx(0.875)
+    rows = _stage2_rows()
+    s2 = stage2_by_dataset(rows).set_index("dataset")
+    ml = s2.loc["ml"]
+    assert ml["OPC-DM"] == pytest.approx(1.5) and ml["OPC-DM min"] == pytest.approx(1.0) and ml["OPC-DM max"] == pytest.approx(2.0)
+    assert ml["OPC gain %"] == pytest.approx(3.5) and ml["tempered gain %"] == pytest.approx(0.0)
+    assert ml["OPC fraction greedy"] == pytest.approx(0.7) and ml["n"] == 2
+    # decomposition: the ceiling is the target, and the four parts add up
+    oracle = _rows().assign(dataset="ml", logger_ceiling=0.30)
+    learned = pd.DataFrame([dict(dataset="ml", bias="high/none/none", seed=0, method="opc", train_size=5000,
+                                 V_method=0.25, V_method_greedy=0.26)])
+    g = gap_decomposition(learned, oracle).iloc[0]
+    assert g["V_target_best"] == pytest.approx(0.30) and g["V_logger"] == pytest.approx(0.22)
+    assert g["V_oracle_repair"] == pytest.approx(0.29) and g["V_OPC"] == pytest.approx(0.26)
+    assert g["structural_gap"] == pytest.approx(0.01) and g["learning_gap"] == pytest.approx(0.03)
+    assert g["learned_repair_gain"] == pytest.approx(0.04) and g["representation_loss"] == pytest.approx(0.08)
+    assert g["structural_gap"] + g["learning_gap"] + g["learned_repair_gain"] == pytest.approx(g["representation_loss"])
+    assert g["structural_gap share"] + g["learning_gap share"] + g["learned_repair_gain share"] == pytest.approx(1.0)
+    s = gap_summary(gap_decomposition(learned, oracle)).iloc[0]
+    assert s["learning_gap %"] == pytest.approx(3.0) and s["bias type"] == "warp only (high)"
+
+
+def test_followup_cli_writes_the_tables(tmp_path):
+    from test_reproducibility import _toy_embeddings
+
+    from training.analyze_recoverability import main
+    from training.oracle_repair import main as oracle_main
+    from training.run_full_study import _condition_run_key, _finalize_summary_df, _run_condition
+    from utils.representation_bias import resolve_bias_configs
+
+    _toy_embeddings(tmp_path)
+    common = ["--datasets", "toy", "--seeds", "0", "--steps", "40", "--fit-users", "400", "--batch-users", "128",
+              "--emb-dir", str(tmp_path)]
+    oracle_main(common + ["--bias-configs", "none", "high/none/none", "--classes", "linear", "linear+scale",
+                          "--lrs", "0.01", "--out", str(tmp_path / "oracle")])
+    (bias,) = resolve_bias_configs(["high/none/none"])
+    run = tmp_path / "run_toy"
+    cond = run / _condition_run_key("toy", bias, 0.05, 0, {}, "1000", reward_data="train", crossfit_folds=2)
+    cond.mkdir(parents=True)
+    opc, nop, _, _, meta, extra = _run_condition(
+        dataset_name="toy", emb_dir=tmp_path, bias=bias, ctr=0.05, seed=0, train_sizes=[1000], n_trials=2, batch_size=None,
+        val_size=1000, val_frac=0.15, val_min=1000, val_max=None, policy_reward_mode="exact", policy_reward_mc_sim=8,
+        slim=True, shared_regression_size=2000, run_dir=cond, return_extra=True,
+        methods=("opc", "no_propensity", "dm", "tempered_logger"), sampler="random", reward_data="train", crossfit_folds=2,
+        learn_logit_scale=True)
+    _finalize_summary_df(opc, nop, meta, extra=extra).to_csv(cond / "summary_metrics.csv", index=False)
+    cand = pd.DataFrame([dict(dataset="toy", bias=bias, seed=0, cls="linear", lr=0.1, steps=120, value=0.0, greedy=0.0,
+                              logit_scale=1.0)])
+    (tmp_path / "val" / "toy").mkdir(parents=True)
+    cand.to_csv(tmp_path / "val" / "toy" / "oracle_candidates.csv", index=False)
+    main(["followup", str(tmp_path / "oracle"), "--candidates", str(tmp_path / "val"), "--use-validated",
+          "--runs", str(run), "--out", str(tmp_path / "out")])
+    for name in ("oracle_validation_by_world", "oracle_validation_candidates", "stage1_by_dataset", "stage2_by_dataset",
+                 "gap_decomposition_rows", "gap_decomposition", "gap_decomposition_by_dataset"):
+        assert (tmp_path / "out" / f"{name}.csv").exists(), name
+    assert (tmp_path / "out" / "gap_decomposition.png").stat().st_size > 1000
+    v = pd.read_csv(tmp_path / "out" / "oracle_validation_by_world.csv")
+    assert (v["change"] == 0).all()  # the weak candidate cannot lower the bound
+    g = pd.read_csv(tmp_path / "out" / "gap_decomposition_rows.csv")
+    np.testing.assert_allclose(g["structural_gap"] + g["learning_gap"] + g["learned_repair_gain"], g["representation_loss"])
+    s = pd.read_csv(tmp_path / "out" / "oracle_validation_summary.csv")
+    assert set(s["dataset"]) == {"toy", "all"} and (s["change"] == 0).all()
+    # default: the tables stay on the Stage 1 bounds, plus the decomposition on the validated ones as a sensitivity
+    main(["followup", str(tmp_path / "oracle"), "--candidates", str(tmp_path / "val"), "--runs", str(run), "--out", str(tmp_path / "out2")])
+    assert (tmp_path / "out2" / "gap_decomposition_validated_bound.csv").exists()
+    pd.testing.assert_frame_equal(pd.read_csv(tmp_path / "out2" / "gap_decomposition.csv"),
+                                  pd.read_csv(tmp_path / "out" / "gap_decomposition.csv"))  # nothing to lift here

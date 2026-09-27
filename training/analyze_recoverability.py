@@ -174,15 +174,23 @@ def mean_ci(x) -> tuple[float, float, float, int]:
     return mean, mean - half, mean + half, n
 
 
+DATASET_ORDER = ("ml", "kuairand", "anime")
+
+
 def _ordered(df: pd.DataFrame) -> pd.DataFrame:
-    """The study's bias order, then train size and arm (rows keep their order otherwise), with the bias name."""
+    """The study's bias order, then dataset, train size and arm (rows keep their order otherwise), with the bias name."""
     df = df.copy()
     df["_o"] = df["bias"].map({b: i for i, b in enumerate(BIAS_ORDER)}).fillna(len(BIAS_ORDER))
-    sort = ["_o", "train_size"]
+    sort = ["_o"]
+    if "dataset" in df:
+        df["_d"] = df["dataset"].map({d: i for i, d in enumerate(DATASET_ORDER)}).fillna(len(DATASET_ORDER))
+        sort.append("_d")
+    if "train_size" in df:
+        sort.append("train_size")
     if "method" in df:
         df["_m"] = df["method"].map({a: i for i, a in enumerate(ARMS)}).fillna(len(ARMS))
         sort.append("_m")
-    df = df.sort_values(sort, kind="stable").drop(columns=[c for c in ("_o", "_m") if c in df])
+    df = df.sort_values(sort, kind="stable").drop(columns=[c for c in ("_o", "_d", "_m") if c in df])
     df.insert(df.columns.get_loc("bias") + 1, "bias type", df["bias"].map(lambda b: BIAS_NAMES.get(b, b)))
     return df.reset_index(drop=True)
 
@@ -252,12 +260,193 @@ def paired_runs(a: pd.DataFrame, b: pd.DataFrame, method: str = "opc") -> pd.Dat
     return _ordered(pd.DataFrame(rows))
 
 
+REPAIR = ("linear", "linear+scale")
+_WORLD = ["dataset", "bias", "seed"]
+
+
+def _canonical(df: pd.DataFrame) -> pd.DataFrame:
+    return df.assign(bias=[bias_label(parse_bias(b)) for b in df["bias"]])
+
+
+def validated_oracle(oracle: pd.DataFrame, candidates: pd.DataFrame, base_steps: int = 3000) -> pd.DataFrame:
+    """Stage 1 rows with each repair class re-taken over the validation candidates (``training.oracle_validation``)
+    as well. The rule is Stage 1's: per class, the candidate with the best exact stochastic value, and that
+    candidate's greedy value. The Stage 1 winner is pooled with the candidates, so a bound can only rise. The
+    Stage 1 values are kept as ``stage1_oracle_{cls}_{value,greedy}``. The new winner's rate and budget are
+    ``oracle_{cls}_{lr,steps}``, and ``oracle_{cls}_greedy_max`` is the best greedy value over every candidate of
+    the class (a sensitivity: the ranking bound without the stochastic selection rule)."""
+    out = _canonical(oracle)
+    cand = _canonical(candidates)
+    for cls in REPAIR:
+        s1 = out[_WORLD + [f"oracle_{cls}_{k}" for k in ("value", "greedy", "logit_scale", "lr")]]
+        s1 = s1.rename(columns=lambda c: c.replace(f"oracle_{cls}_", "")).assign(steps=base_steps)
+        pool = pd.concat([s1, cand.loc[cand["cls"] == cls, _WORLD + ["value", "greedy", "logit_scale", "lr", "steps"]]],
+                         ignore_index=True)
+        best = pool.loc[pool.groupby(_WORLD)["value"].idxmax()].set_index(_WORLD)
+        idx = pd.MultiIndex.from_frame(out[_WORLD])
+        for k in ("value", "greedy"):
+            out[f"stage1_oracle_{cls}_{k}"] = out[f"oracle_{cls}_{k}"]
+        for k in ("value", "greedy", "logit_scale", "lr", "steps"):
+            out[f"oracle_{cls}_{k}"] = best[k].reindex(idx).to_numpy()
+        out[f"oracle_{cls}_greedy_max"] = pool.groupby(_WORLD)["greedy"].max().reindex(idx).to_numpy()
+        out[f"oracle_{cls}_candidates"] = pool.groupby(_WORLD).size().reindex(idx).to_numpy()
+    return out
+
+
+def oracle_validation_table(validated: pd.DataFrame) -> pd.DataFrame:
+    """Per world: the greedy repair bound and structural recoverability under Stage 1's search and the widened one
+    (same rule), their changes, the sensitivity without the selection rule, and the winning rates and budgets."""
+    new = derive(validated)
+    old = derive(validated.assign(**{f"oracle_{c}_{k}": validated[f"stage1_oracle_{c}_{k}"] for c in REPAIR
+                                     for k in ("value", "greedy")}))
+    rows = new[_WORLD + ["V_logger_greedy", "ceiling", "representation_loss_greedy"]].copy()
+    rows["old bound greedy"] = old["oracle_repair_greedy"].to_numpy()
+    rows["new bound greedy"] = new["oracle_repair_greedy"].to_numpy()
+    rows["old recoverability greedy"] = old["recoverability_repair_greedy"].to_numpy()
+    rows["new recoverability greedy"] = new["recoverability_repair_greedy"].to_numpy()
+    rows["change"] = rows["new recoverability greedy"] - rows["old recoverability greedy"]
+    gmax = validated[[f"oracle_{c}_greedy_max" for c in REPAIR]].max(axis=1).to_numpy()
+    rows["recoverability greedy, best greedy candidate"] = _ratio(gmax - new["V_logger_greedy"], new["representation_loss_greedy"])
+    rows["old bound value"] = old["oracle_repair_value"].to_numpy()
+    rows["new bound value"] = new["oracle_repair_value"].to_numpy()
+    for c in REPAIR:
+        rows[f"{c} lr"] = validated[f"oracle_{c}_lr"].to_numpy()
+        rows[f"{c} steps"] = validated[f"oracle_{c}_steps"].to_numpy()
+    return _ordered(rows[rows["bias"] != "none"])
+
+
+def oracle_validation_summary(table: pd.DataFrame) -> pd.DataFrame:
+    """``oracle_validation_table`` averaged per bias (over datasets and seeds) and per dataset × bias (over seeds)."""
+    cols = {"old recoverability greedy": "mean", "new recoverability greedy": "mean", "change": "mean",
+            "recoverability greedy, best greedy candidate": "mean"}
+    parts = []
+    for keys in (["bias"], ["dataset", "bias"]):
+        g = table.groupby(keys).agg(cols).join(table.groupby(keys)["change"].agg(max_change="max", n="size"))
+        parts.append(g.reset_index().assign(dataset=lambda f: f["dataset"] if "dataset" in f else "all"))
+    out = pd.concat(parts, ignore_index=True)
+    out = _ordered(out)
+    return out[["bias", "bias type", "dataset", "n", *cols, "max_change"]]
+
+
+def stage1_by_dataset(d: pd.DataFrame, cls: str = "repair") -> pd.DataFrame:
+    """Per dataset × bias (``derive`` rows; CTR points, mean over the seeds): the logger's ranking loss (ceiling minus
+    its greedy value), the oracle repair's ranking gain and the structural recoverability (greedy), with its range."""
+    x = d[d["bias"] != "none"]
+    g = x.groupby(["dataset", "bias"])
+    out = pd.DataFrame({
+        "n": g.size(), "logger ranking loss %": 100 * g["representation_loss_greedy"].mean(),
+        "oracle repair gain %": 100 * g[f"gain_{cls}_greedy"].mean(),
+        "structural recoverability": g[f"recoverability_{cls}_greedy"].mean(),
+        "recoverability min": g[f"recoverability_{cls}_greedy"].min(), "recoverability max": g[f"recoverability_{cls}_greedy"].max(),
+    }).reset_index()
+    return _ordered(out)
+
+
+_DIFFS = {"OPC-DM greedy": ("V_method_greedy", "opc", "dm"), "OPC-no-prop greedy": ("V_method_greedy", "opc", "no_propensity"),
+          "OPC-DM": ("V_method", "opc", "dm"), "OPC-no-prop": ("V_method", "opc", "no_propensity")}
+
+
+def stage2_by_dataset(m: pd.DataFrame) -> pd.DataFrame:
+    """Per dataset × bias × train size (``learned_recovery`` rows; CTR points, mean over the seeds):
+      - each arm's true gain over the logger, greedy (ranking; the tempered logger's is 0) and stochastic;
+      - OPC's and DM-only's fraction of the oracle ranking repair;
+      - OPC minus DM-only and minus no-propensity, greedy and stochastic, with the seeds' min and max."""
+    keys = ["dataset", "bias", "train_size"]
+    piv = lambda col: m.pivot_table(index=keys + ["seed"], columns="method", values=col)
+    gain_g, gain_s, frac, vg, vs = (piv(c) for c in ("learned_gain_greedy", "learned_gain", "fraction_of_oracle_repair_greedy",
+                                                      "V_method_greedy", "V_method"))
+    per_seed = pd.DataFrame({
+        "OPC gain greedy %": 100 * gain_g["opc"], "DM gain greedy %": 100 * gain_g["dm"],
+        "no-prop gain greedy %": 100 * gain_g["no_propensity"],
+        "OPC gain %": 100 * gain_s["opc"], "DM gain %": 100 * gain_s["dm"], "no-prop gain %": 100 * gain_s["no_propensity"],
+        "tempered gain %": 100 * gain_s["tempered_logger"],
+        "OPC fraction greedy": frac["opc"], "DM fraction greedy": frac["dm"],
+        **{k: 100 * ((vg if col == "V_method_greedy" else vs)[a] - (vg if col == "V_method_greedy" else vs)[b])
+           for k, (col, a, b) in _DIFFS.items()},
+    })
+    g = per_seed.groupby(level=keys)
+    out = g.mean().join(g.min()[list(_DIFFS)].add_suffix(" min")).join(g.max()[list(_DIFFS)].add_suffix(" max"))
+    out.insert(0, "n", g.size())
+    return _ordered(out.reset_index())
+
+
+GAP_COLUMNS = ("V_target_best", "V_logger", "V_oracle_repair", "V_OPC", "representation_loss",
+               "structurally_recoverable_gain", "learned_repair_gain", "structural_gap", "learning_gap")
+
+
+def gap_decomposition(learned: pd.DataFrame, oracle: pd.DataFrame, method: str = "opc") -> pd.DataFrame:
+    """Greedy (ranking) decomposition of the target gap, one row per condition × train size. V_target_best is the
+    ceiling: each user's truly best item, the clean ranking's greedy value, the same for every bias configuration of
+    a dataset and seed. V_logger is the logger's greedy value, V_oracle_repair the repair class's greedy bound
+    (``derive``), and V_OPC the selected policy's greedy value. representation_loss = V_target_best − V_logger =
+    structural_gap (V_target_best − V_oracle_repair) + learning_gap (V_oracle_repair − V_OPC) + learned_repair_gain
+    (V_OPC − V_logger). The shares divide by the representation loss (NaN below MIN_LOSS)."""
+    o = derive(oracle)[_WORLD + ["ceiling", "V_logger_greedy", "oracle_repair_greedy"]]
+    x = _canonical(learned[learned["method"] == method]).merge(o, on=_WORLD, how="inner", validate="many_to_one")
+    out = x[_WORLD + ["train_size"]].copy()
+    out["V_target_best"], out["V_logger"] = x["ceiling"], x["V_logger_greedy"]
+    out["V_oracle_repair"], out["V_OPC"] = x["oracle_repair_greedy"], x["V_method_greedy"]
+    out["representation_loss"] = out["V_target_best"] - out["V_logger"]
+    out["structurally_recoverable_gain"] = out["V_oracle_repair"] - out["V_logger"]
+    out["learned_repair_gain"] = out["V_OPC"] - out["V_logger"]
+    out["structural_gap"] = out["V_target_best"] - out["V_oracle_repair"]
+    out["learning_gap"] = out["V_oracle_repair"] - out["V_OPC"]
+    for part in ("structural_gap", "learning_gap", "learned_repair_gain"):
+        out[f"{part} share"] = _ratio(out[part], out["representation_loss"])
+    return out
+
+
+def gap_summary(gaps: pd.DataFrame, by_dataset: bool = False) -> pd.DataFrame:
+    """Means of ``gap_decomposition`` rows per bias × train size (and dataset), values in CTR points."""
+    keys = (["dataset"] if by_dataset else []) + ["bias", "train_size"]
+    g = gaps.groupby(keys)
+    out = pd.DataFrame({"n": g.size()})
+    for c in GAP_COLUMNS:
+        out[f"{c} %"] = 100 * g[c].mean()
+    for part in ("structural_gap", "learning_gap", "learned_repair_gain"):
+        out[f"{part} share"] = g[f"{part} share"].mean()
+    out["min learning_gap %"] = 100 * g["learning_gap"].min()  # negative would mean OPC beat the class bound
+    return _ordered(out.reset_index())
+
+
+def gap_figure(summary: pd.DataFrame, path) -> None:
+    """Stacked bars of the representation loss per bias (rows) and train size (panels): recovered by OPC, expressible
+    but not learned (learning gap), not expressible by the repair class (structural gap)."""
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    s = summary[summary["bias"] != "none"]
+    sizes = sorted(s["train_size"].unique())
+    fig, axes = plt.subplots(1, len(sizes), figsize=(4.2 * len(sizes), 3.2), sharey=True, squeeze=False)
+    parts = (("learned_repair_gain %", "learned by OPC", "#2b6cb0"), ("learning_gap %", "learning gap", "#90cdf4"),
+             ("structural_gap %", "structural gap", "#a0aec0"))
+    for ax, size in zip(axes[0], sizes):
+        t = s[s["train_size"] == size].iloc[::-1]
+        left = pd.Series(0.0, index=t.index)
+        for col, label, color in parts:
+            ax.barh(t["bias type"], t[col], left=left, color=color, label=label, edgecolor="white", linewidth=0.8)
+            left = left + t[col]
+        ax.set_title(f"train {int(size):,}", fontsize=10)
+        ax.set_xlabel("greedy CTR points below the target best")
+        ax.grid(axis="x", alpha=0.3)
+    axes[0][0].legend(loc="lower right", fontsize=8, frameon=False)
+    fig.suptitle("Representation loss = learned + learning gap + structural gap (greedy, mean over datasets × seeds)", fontsize=10)
+    fig.tight_layout()
+    fig.savefig(path, dpi=160)
+    plt.close(fig)
+
+
 def main(argv=None) -> None:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    ap.add_argument("stage", choices=["stage1", "stage2"])
+    ap.add_argument("stage", choices=["stage1", "stage2", "followup"])
     ap.add_argument("oracle_root")
     ap.add_argument("--runs", nargs="*", default=[], help="stage2: study run folders (the four arms)")
     ap.add_argument("--su", default=None, help="stage2: the shrink:100 robustness run (OPC only), paired with --runs")
+    ap.add_argument("--candidates", default=None, help="followup: the oracle validation folder (oracle_candidates.csv)")
+    ap.add_argument("--use-validated", action="store_true",
+                    help="followup: build the per-dataset and gap tables on the validated bounds (default: Stage 1's)")
     ap.add_argument("--out", default=None, help="folder for the CSV tables (default: print only)")
     a = ap.parse_args(argv)
     pd.set_option("display.width", 250, "display.max_columns", 40)
@@ -265,7 +454,32 @@ def main(argv=None) -> None:
     out = Path(a.out) if a.out else None
     if out:
         out.mkdir(parents=True, exist_ok=True)
-    if a.stage == "stage1":
+    if a.stage == "followup":
+        tables = {}
+        if a.candidates:
+            cand = pd.concat([pd.read_csv(p) for p in sorted(glob.glob(str(Path(a.candidates) / "**" / "oracle_candidates.csv"),
+                                                                        recursive=True))], ignore_index=True)
+            validated = validated_oracle(oracle, cand)
+            tables["oracle_validation_by_world"] = oracle_validation_table(validated)
+            tables["oracle_validation_summary"] = oracle_validation_summary(tables["oracle_validation_by_world"])
+            tables["oracle_validation_candidates"] = _ordered(_canonical(cand))
+        learned = load_learned(*a.runs)
+        base = validated if (a.candidates and a.use_validated) else oracle
+        m = learned_recovery(learned, base)
+        tables["stage1_by_dataset"] = stage1_by_dataset(derive(base))
+        tables["stage2_by_dataset"] = stage2_by_dataset(m)
+        gaps = gap_decomposition(learned, base)
+        tables["gap_decomposition_rows"] = _ordered(gaps)
+        tables["gap_decomposition"] = gap_summary(gaps)
+        tables["gap_decomposition_by_dataset"] = gap_summary(gaps, by_dataset=True)
+        if a.candidates and not a.use_validated:  # sensitivity: the same decomposition on the validated bounds
+            tables["gap_decomposition_validated_bound"] = gap_summary(gap_decomposition(learned, validated))
+        if out:
+            gap_figure(tables["gap_decomposition"], out / "gap_decomposition.png")
+        for name in ("oracle_validation_by_world", "stage1_by_dataset", "gap_decomposition"):
+            if name in tables:
+                print(f"\n===== {name}\n{tables[name].round(4).to_string()}")
+    elif a.stage == "stage1":
         tables = {"stage1_oracle_rows": derive(oracle).round(6), "stage1_recoverability_by_bias": summary(derive(oracle)).round(4)}
         for cls in CLASSES:
             print(f"\n===== class {cls}")
