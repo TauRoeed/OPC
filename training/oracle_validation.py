@@ -115,6 +115,8 @@ def main(argv=None):
     ap.add_argument("--batch-users", type=int, default=DEFAULT_BATCH_USERS)
     ap.add_argument("--emb-dir", default="BPR/embeddings")
     ap.add_argument("--out", required=True)
+    ap.add_argument("--refit", nargs=3, metavar=("CLASS", "LR", "STEPS"), default=None,
+                    help="only refit one class at one rate and budget for the selected worlds (a budget-tail check)")
     add_world_arguments(ap, bias_default=("medium", "high", "high/none/none", "none/high/none", "none/none/high"))
     args = ap.parse_args(argv)
     enable_determinism(True)
@@ -140,8 +142,16 @@ def main(argv=None):
                 t0 = time.time()
                 seed_everything(seed)
                 dataset, _, _, label = build_condition_world(ds, Path(args.emb_dir), bias, args.ctr, seed, world_options=world_options)
-                rows = validate_world(dataset, stage1=stage1.loc[(ds, bias, seed)].to_dict(), seed=seed, steps=args.steps,
-                                      fit_users=args.fit_users, budget_factor=args.budget_factor, batch_users=args.batch_users)
+                row1 = stage1.loc[(ds, bias, seed)].to_dict()
+                if args.refit:
+                    cls, lr, n = args.refit[0], float(args.refit[1]), int(args.refit[2])
+                    if cls not in REPAIR_CLASSES:
+                        raise ValueError(f"--refit class must be one of {REPAIR_CLASSES}, got {cls!r}")
+                    rows = [dict(_fit(dataset, cls, lr, n, seed=seed, fit_users=args.fit_users, batch_users=args.batch_users),
+                                 stage1_lr=float(row1[f"oracle_{cls}_lr"]))]
+                else:
+                    rows = validate_world(dataset, stage1=row1, seed=seed, steps=args.steps, fit_users=args.fit_users,
+                                          budget_factor=args.budget_factor, batch_users=args.batch_users)
                 frame = pd.DataFrame(rows).assign(dataset=ds, bias=bias, bias_label=label, seed=seed,
                                                   world_seconds=time.time() - t0, commit=_git_commit())
                 frame.to_csv(path, mode="a", header=not path.exists(), index=False)

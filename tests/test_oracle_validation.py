@@ -72,3 +72,21 @@ def test_cli_writes_candidates_and_skips_done(world, tmp_path):
     main(argv)  # already done: nothing appended
     assert len(pd.read_csv(tmp_path / "v" / "oracle_candidates.csv")) == len(rows)
     assert (tmp_path / "v" / "validation_settings.json").exists()
+
+
+def test_cli_refit_one_budget(world, tmp_path):
+    """--refit: one class at one rate and budget per world (the budget-tail check), the same fit as the sweep's."""
+    from training.oracle_repair import main as oracle_main
+    from training.oracle_validation import _fit
+
+    tmp, d = world
+    common = ["--datasets", "toy", "--bias-configs", "high/none/none", "--seeds", "0", "--fit-users", "400",
+              "--batch-users", "128", "--emb-dir", str(tmp)]
+    oracle_main(common + ["--steps", "40", "--classes", "linear", "linear+scale", "--lrs", "0.01", "--out", str(tmp_path / "s1")])
+    main(common + ["--stage1", str(tmp_path / "s1"), "--refit", "linear", "0.03", "90", "--out", str(tmp_path / "tail")])
+    rows = pd.read_csv(tmp_path / "tail" / "oracle_candidates.csv")
+    assert len(rows) == 1 and (rows.cls.item(), rows.lr.item(), rows.steps.item(), rows.stage1_lr.item()) == ("linear", 0.03, 90, 0.01)
+    ref = _fit(d, "linear", 0.03, 90, seed=0, fit_users=400, batch_users=128)
+    assert rows.value.item() == pytest.approx(ref["value"], rel=1e-12) and rows.greedy.item() == pytest.approx(ref["greedy"], rel=1e-12)
+    with pytest.raises(ValueError):
+        main(common + ["--stage1", str(tmp_path / "s1"), "--refit", "scale", "0.03", "90", "--out", str(tmp_path / "bad")])
