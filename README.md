@@ -292,9 +292,15 @@ runs ~5× slower per epoch than 4096.
 - `--policy-reward-mode mc --policy-reward-mc-sim 8` — faster approximate reward eval.
 - `--num-gpus` / `--max-workers` — parallel only; OOM backoff on by default.
 - `--memory-cap` (default) / `--no-memory-cap` — parallel/H1: run only as many workers as
-  fit in free GPU memory (RAM without a GPU), from each condition's estimated peak
-  (≈ 6 × largest Optuna batch × catalog × 4 bytes + dense q̂ + 1.5 GB); conditions are
-  grouped by size. `--max-workers` stays the upper bound; results are unchanged.
+  fit in free GPU memory (RAM without a GPU). A condition's peak is estimated as
+  1.4 × (6 × largest Optuna batch × catalog × 4 bytes + dense q̂ copies) + 1.5 GiB per process.
+  The dense q̂ (users × catalog × 4 bytes) counts twice with cross-fitting, once without, and
+  not at all above the dense-materialize limit. Each device takes floor(0.75 × free / peak)
+  workers, and conditions are grouped by estimate. The `[memory]` log line shows, per device
+  and dataset, the free memory, the estimated peak and the workers chosen. `--max-workers`
+  stays the upper bound; results are unchanged. The calibration is anime at ≈ 12.5 GB per
+  worker, which gives 2 workers on a 48 GB card: under WSL2 an oversubscribed card spills into
+  shared memory silently, with no OOM.
 
 ### Reproducibility
 
