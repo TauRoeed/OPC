@@ -1,0 +1,7 @@
+bias,bias type,V_logger %,V_logger greedy %,V_clean %,ceiling %,V_oracle %,V_oracle greedy %,loss %,loss greedy %,gain %,gain greedy %,recoverability,recoverability greedy,recoverability greedy min,recoverability greedy max,rec. greedy anime,rec. greedy kuairand,rec. greedy ml,n
+none,no bias,23.9681,29.9432,23.9681,29.9432,29.9404,29.9409,0.0,0.0,5.9723,-0.0023,,,,,,,,6
+medium,combined medium,15.4822,19.3963,23.9681,29.9432,26.3751,26.4012,8.4859,10.5469,10.8929,7.0049,1.3272,0.6685,0.546,0.7447,0.5561,0.713,0.7366,6
+high,combined high,9.8248,12.3398,23.9681,29.9432,24.4086,24.4261,14.1433,17.6034,14.5838,12.0863,1.0386,0.6894,0.5901,0.7731,0.5955,0.7522,0.7205,6
+w-high.g-none.v-none,warp only (high),18.1775,22.6741,23.9681,29.9432,29.8945,29.895,5.7906,7.2691,11.717,7.2209,2.1033,0.9937,0.9863,0.9993,0.9928,0.9942,0.9943,6
+w-none.g-high.v-none,group only (high),19.2559,24.0565,23.9681,29.9432,28.0418,28.0442,4.7121,5.8867,8.7859,3.9877,1.9469,0.6797,0.5379,0.7919,0.5635,0.7008,0.7746,6
+w-none.g-none.v-high,vector only (high),18.4265,23.0016,23.9681,29.9432,26.448,26.466,5.5416,6.9416,8.0215,3.4644,1.4774,0.4988,0.3049,0.6223,0.3079,0.5762,0.6121,6

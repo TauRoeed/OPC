@@ -1,0 +1,38 @@
+run,stage,code,purpose,notes
+run_20260503_192442,development,pre-2026-09,early study run,older world and protocol; not comparable with the current grid
+run_demo_ml,development,pre-2026-09,demo (kl loss),older protocol
+run_baseline_step4,development,2026-09-26,baseline before weight tuning,external q_hat; legacy SNDR
+run_tune_weights_none,development,2026-09-26,training/selection weight tuning,external q_hat; legacy SNDR; picks in weight_tuning_picks.csv
+run_tune_weights_clip_10,development,2026-09-26,training/selection weight tuning,external q_hat; legacy SNDR
+run_tune_weights_clip_100,development,2026-09-26,training/selection weight tuning,external q_hat; legacy SNDR
+run_tune_weights_clip_1000,development,2026-09-26,training/selection weight tuning,external q_hat; legacy SNDR
+run_tune_weights_shrink_100,development,2026-09-26,training/selection weight tuning,external q_hat; legacy SNDR
+run_tune_weights_shrink_10000,development,2026-09-26,training/selection weight tuning,external q_hat; legacy SNDR
+run_tune_kl_clip_100,development,2026-09-26,kl loss check,external q_hat
+run_logger_explore,development,2026-09-26,Test 2: logger sharpness; external 50k q_hat vs budget-fair cf5 on the same splits,four arms; validation by the fraction rule
+run_logger_explore_budget,development,2026-09-26,budget-fair q_hat (in-sample and cf5) x logger share 0.8/0.9/0.95/off,four arms; validation 20000; legacy SNDR reference for the objective comparison (lgs 0.8 cf5)
+run_qhat_concat,development,bbbc9c2,misspecified q_hat (concat features) paired with run_logger_explore_budget cf5 0.8,four arms; legacy SNDR
+run_retune_dr_train_shrink_100,development,b584edc,independent re-tuning (TPE): dr x shrink:100,before the short-batch fix (last batch upweighted)
+run_retune_dr_train_none,development,b584edc,independent re-tuning (TPE): dr x none,before the short-batch fix
+run_retune_dr_train_clip_10,development,b584edc,independent re-tuning (TPE): dr x clip:10,before the short-batch fix
+run_retune_dr_train_shrink_10000,development,b584edc,independent re-tuning (TPE): dr x shrink:10000,before the short-batch fix
+run_retune_sndr_global_train_shrink_100,development,b584edc,independent re-tuning (TPE): global SNDR x shrink:100,before the short-batch fix
+run_gradcmp_dr_shrink_100_log_trick,development,3bed8de,paired (random sampler): dr shrink:100 log trick,also the dr arm of the three-objective replay
+run_gradcmp_dr_shrink_100_direct,development,3bed8de,paired (random sampler): dr shrink:100 direct gradient,
+run_gradcmp_dr_clip_10_log_trick,development,3bed8de,paired (random sampler): dr clip:10 log trick,
+run_gradcmp_dr_clip_10_direct,development,3bed8de,paired (random sampler): dr clip:10 direct gradient,
+run_gradcmp_dr_none_log_trick,development,3bed8de,paired (random sampler): dr none log trick,control: identical gradient to direct
+run_gradcmp_dr_none_direct,development,3bed8de,paired (random sampler): dr none direct gradient,control
+run_replay_sndr_batch_shrink_100,development,3bed8de,paired (random sampler): legacy SNDR shrink:100 log trick,three-objective replay
+run_replay_sndr_global_shrink_100,development,3bed8de,paired (random sampler): global SNDR shrink:100 log trick,three-objective replay
+run_final_check_dr_none_direct,development,d40aaef,reproducibility check: one condition of gradcmp_dr_none_direct,bit-identical (60/60 trials)
+run_final_check_dr_shrink_100_direct,development,d40aaef,reproducibility check: one condition of gradcmp_dr_shrink_100_direct,bit-identical (60/60 trials)
+run_final_dr_harmonic_0_05_direct,development,d40aaef,final bounded comparison: dr harmonic:0.05 direct gradient (random sampler),paired with gradcmp_dr_none_direct and gradcmp_dr_shrink_100_direct
+run_final_dr_harmonic_0_1_direct,development,d40aaef,final bounded comparison: dr harmonic:0.1 direct gradient (random sampler),
+run_final_dr_harmonic_0_2_direct,development,d40aaef,final bounded comparison: dr harmonic:0.2 direct gradient (random sampler),
+run_oracle_repair_20260927,development,af34cf0,Stage 1: oracle repair bound (the learner's linear repair class trained on the true click model),ml/kuairand/anime x seeds 100/101 x six bias configurations; logger share 0.8; summaries_20260927/stage1_*
+run_stage2_ml,development,5b66e18,Stage 2: learned recovery; four arms (OPC dr/direct/harmonic:0.1; DM-only; no-propensity; tempered logger); paired random sampler,6 workers; 12 conditions x 5k/25k/100k x 20 trials; cf5 train q_hat; val 20000
+run_stage2_kuairand,development,5b66e18,Stage 2: learned recovery (as run_stage2_ml),4 workers
+run_stage2_anime_stopped_20260927T1608,development,5b66e18,Stage 2 anime first attempt; stopped (4 workers oversubscribed the GPU: shared-memory spill),partial and incomplete; no condition finished; not for analysis
+run_stage2_anime,development,f2e03b5,Stage 2: learned recovery (as run_stage2_ml); relaunched with the memory-aware worker cap,planner chose 2 workers (12.5 GiB/worker estimate); f2e03b5 changes scheduling only
+run_stage2_su_shrink_100,development,f2e03b5,Stage 2 robustness slice: OPC with shrink:100 training weights (Su et al. shrinkage); single-bias high x 25k x ml/kuairand,OPC only; pairs trial by trial with the run_stage2_ml/kuairand OPC 25k cells (tests/test_replay_mode.py)
