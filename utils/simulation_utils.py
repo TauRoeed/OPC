@@ -648,7 +648,7 @@ def get_train_data(n_actions, train_size, sim_data, idx, emb_x):
 # Evaluation (kept compatible)
 # ----------------------------
 def _estimator_weight_kwargs(weights) -> dict:
-    """lambda_ (clip) or shrink_lambda for the OPE estimators from an importance-weight spec."""
+    """lambda_ (clip), shrink_lambda or harmonic_lambda for the OPE estimators from an importance-weight spec."""
     from utils.importance_weights import parse_weight_spec
 
     mode, param = parse_weight_spec("none" if weights is None else weights)
@@ -658,12 +658,16 @@ def _estimator_weight_kwargs(weights) -> dict:
         return {"lambda_": param}
     if mode == "shrink":
         return {"shrink_lambda": param}
+    if mode == "harmonic":
+        return {"harmonic_lambda": param}
+    if mode != "none":
+        raise ValueError(f"no post-hoc estimator form for weight mode {mode!r}")
     return {}
 
 
 def eval_policy(model, test_data, original_policy_prob, policy, weights=None):
-    """DM, DR, SNIPW and SNDR estimates on ``test_data``; ``weights`` (none, clip:M, shrink:lambda)
-    transforms the importance weights of the three weighted estimators."""
+    """DM, DR, SNIPW and SNDR estimates on ``test_data``; ``weights`` (none, clip:M, shrink:lambda,
+    harmonic:lambda) transforms the importance weights of the three weighted estimators."""
     t0 = time.time()
 
     wkw = _estimator_weight_kwargs(weights)

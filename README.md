@@ -256,7 +256,8 @@ runs ~5× slower per epoch than 4096.
 - `--policy-transform {linear,linear+mlp,mlp}` — how the learned policy corrects the biased vectors: `linear`
   (default) = (I + D) x + b per side, starting exactly at the logger; `mlp` = x + MLP(LayerNorm(x)) (older);
   `linear+mlp` = (I + D) x + b + MLP(x), no LayerNorm or dropout.
-- `--train-weights`, `--select-weights` — importance-weight transform (`none`, `clip:M`, `shrink:λ`) in the OPC
+- `--train-weights`, `--select-weights` — importance-weight transform (`none`, `clip:M`, `shrink:λ` of Su et al.
+  2020, `harmonic:λ` of Metelli et al. 2021 = w / (1 − λ + λw), trained with `--opc-gradient direct`) in the OPC
   training losses and in selection + post-hoc estimates; `--log-select-weights` logs other selection transforms
   per trial (tuning). `--train-weights none --select-weights clip:1` reproduces older runs.
 - `--methods opc no_propensity dm tempered_logger` — adds the DM-only and tempered-logger baselines (same

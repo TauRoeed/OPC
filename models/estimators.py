@@ -14,13 +14,22 @@ from sklearn.utils import check_scalar
 from utils.saito_helpers import check_array, check_ope_inputs, estimate_confidence_interval_by_bootstrap, estimate_bias_in_ope, estimate_high_probability_upper_bound_bias
 
 def _transformed_iw(iw, estimator):
-    """Importance weights after the estimator's shrinkage (``shrink_lambda``) and clip (``lambda_``)."""
+    """Importance weights after the estimator's shrinkage (``shrink_lambda``), harmonic correction
+    (``harmonic_lambda``: Metelli et al. 2021, w / (1 - h + h w)) and clip (``lambda_``)."""
     if isinstance(iw, np.ndarray):
         lam = float(getattr(estimator, "shrink_lambda", np.inf))
         if np.isfinite(lam):
             iw = (lam * iw) / (lam + iw * iw)
+        h = float(getattr(estimator, "harmonic_lambda", 0.0))
+        if h > 0.0:
+            iw = iw / (1.0 - h + h * iw)
         iw = np.minimum(iw, estimator.lambda_)
     return iw
+
+
+def _check_harmonic_lambda(value) -> None:
+    if not 0.0 <= float(value) <= 1.0:
+        raise ValueError("`harmonic_lambda` must be in [0, 1] (0 = off)")
 
 
 @dataclass
@@ -94,6 +103,7 @@ class InverseProbabilityWeighting(BaseOffPolicyEstimator):
     use_estimated_pscore: bool = False
     estimator_name: str = "ipw"
     shrink_lambda: float = np.inf  # Su et al. (2020) shrinkage lam*w/(w^2+lam); inf = off
+    harmonic_lambda: float = 0.0  # Metelli et al. (2021) harmonic correction w/(1-h+h*w); 0 = off
 
     def __post_init__(self) -> None:
         """Initialize Class."""
@@ -107,6 +117,7 @@ class InverseProbabilityWeighting(BaseOffPolicyEstimator):
             raise ValueError("`lambda_` must not be nan")
         if not self.shrink_lambda > 0:
             raise ValueError("`shrink_lambda` must be > 0 (inf = no shrinkage)")
+        _check_harmonic_lambda(self.harmonic_lambda)
         if not isinstance(self.use_estimated_pscore, bool):
             raise TypeError(
                 f"`use_estimated_pscore` must be a bool, but {type(self.use_estimated_pscore)} is given"
@@ -738,6 +749,7 @@ class DoublyRobust(BaseOffPolicyEstimator):
     use_estimated_pscore: bool = False
     estimator_name: str = "dr"
     shrink_lambda: float = np.inf  # Su et al. (2020) shrinkage lam*w/(w^2+lam); inf = off
+    harmonic_lambda: float = 0.0  # Metelli et al. (2021) harmonic correction w/(1-h+h*w); 0 = off
 
     def __post_init__(self) -> None:
         """Initialize Class."""
@@ -751,6 +763,7 @@ class DoublyRobust(BaseOffPolicyEstimator):
             raise ValueError("`lambda_` must not be nan")
         if not self.shrink_lambda > 0:
             raise ValueError("`shrink_lambda` must be > 0 (inf = no shrinkage)")
+        _check_harmonic_lambda(self.harmonic_lambda)
         if not isinstance(self.use_estimated_pscore, bool):
             raise TypeError(
                 f"`use_estimated_pscore` must be a bool, but {type(self.use_estimated_pscore)} is given"

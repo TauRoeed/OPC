@@ -222,6 +222,12 @@ def _condition_run_key(dataset_name: str, bias: str, ctr: float, seed: int, worl
     return key
 
 
+def _weight_spec_fields(role: str, label: str) -> dict:
+    """``{role}_weight_mode`` and ``{role}_weight_param`` of a weight spec (the param is None for none / dm)."""
+    mode, param = parse_weight_spec(label)
+    return {f"{role}_weight_mode": mode, f"{role}_weight_param": None if mode in ("none", "dm") else float(param)}
+
+
 def _wants_popularity(world_options: dict) -> bool:
     """True when the world weighs BPR's item bias (truth or logger)."""
     logger = world_options.get("logger_pop_strength")
@@ -329,6 +335,10 @@ def _run_condition(
     if str(opc_gradient) not in OPC_GRADIENTS:
         raise ValueError(f"opc_gradient must be one of {OPC_GRADIENTS}, got {opc_gradient!r}")
     opc_log_trick = str(opc_gradient) == "log-trick"
+    train_mode = parse_weight_spec(DEFAULT_TRAIN_WEIGHTS if train_weights is None else train_weights)[0]
+    if train_mode == "harmonic" and opc_log_trick and "opc" in _normalize_study_methods(methods):
+        raise ValueError("harmonic training weights are optimized by their direct gradient (Metelli et al. 2021): "
+                         "use opc_gradient='direct' (--opc-gradient direct)")
     reward_data = str(reward_data).lower()
     if reward_data not in REWARD_DATA_MODES:
         raise ValueError(f"reward_data must be one of {REWARD_DATA_MODES}, got {reward_data!r}")
@@ -670,6 +680,8 @@ def _run_condition(
         "no_prop_policy_loss_types": list(noprop_policy_loss_types),
         "train_weights": train_label,
         "select_weights": select_label,
+        **_weight_spec_fields("train", train_label),
+        **_weight_spec_fields("select", select_label),
         "log_select_weights": [weight_spec_label(w) for w in (log_select_weights or ())],
         "policy_transform": str(policy_transform),
         "learn_logit_scale": bool(learn_logit_scale),
@@ -737,6 +749,10 @@ def _finalize_summary_df(opc_df, noprop_df, meta: dict, *, extra: dict | None = 
     summary_df["reward_features"] = meta.get("reward_features")  # None unless reward_model=regression
     for k in ("train_weights", "select_weights", "policy_transform", "learn_logit_scale"):
         summary_df[k] = meta.get(k)
+    for role in ("train", "select"):
+        fields = _weight_spec_fields(role, meta[f"{role}_weights"]) if meta.get(f"{role}_weights") else {}
+        for k, v in fields.items():
+            summary_df[k] = v
     summary_df["reward_data"] = meta.get("reward_data", "external")
     summary_df["crossfit_folds"] = int(meta.get("crossfit_folds", 0) or 0)
     summary_df["post_temper"] = bool(meta.get("post_temper", False))
@@ -783,15 +799,18 @@ def main():
         "--train-weights",
         type=weight_spec_label,
         default=DEFAULT_TRAIN_WEIGHTS,
-        help="Importance-weight transform in the OPC training losses sndr / ipw / kl: none, clip:M "
-        "or shrink:lambda (default %(default)s; crm / kl_crm keep their own searched clip).",
+        help="Importance-weight transform in the OPC training losses sndr / dr / ipw / kl: none, clip:M, "
+        "shrink:lambda (Su et al. 2020) or harmonic:lambda (Metelli et al. 2021, w / (1 - lambda + lambda w), "
+        "lambda in [0, 1], at most 1 / lambda; needs --opc-gradient direct) (default %(default)s; crm / kl_crm "
+        "keep their own searched clip). Recorded as train_weights, train_weight_mode and train_weight_param.",
     )
     parser.add_argument(
         "--select-weights",
         type=weight_spec_label,
         default=DEFAULT_SELECT_WEIGHTS,
         help="Importance-weight transform of the DR selection score and the post-hoc DR / SNIPW / "
-        "SNDR estimates (default %(default)s; clip:1 = the older selection).",
+        "SNDR estimates: none, clip:M, shrink:lambda or harmonic:lambda (default %(default)s; clip:1 = the "
+        "older selection).",
     )
     parser.add_argument(
         "--policy-transform",

@@ -453,15 +453,16 @@ def main():
         "--train-weights",
         type=weight_spec_label,
         default=DEFAULT_TRAIN_WEIGHTS,
-        help="Importance-weight transform in the OPC training losses sndr / ipw / kl: none, clip:M "
-        "or shrink:lambda (default %(default)s; crm / kl_crm keep their own searched clip).",
+        help="Importance-weight transform in the OPC training losses sndr / dr / ipw / kl: none, clip:M, "
+        "shrink:lambda (Su et al. 2020) or harmonic:lambda (Metelli et al. 2021, w / (1 - lambda + lambda w); "
+        "needs --opc-gradient direct) (default %(default)s; crm / kl_crm keep their own searched clip).",
     )
     parser.add_argument(
         "--select-weights",
         type=weight_spec_label,
         default=DEFAULT_SELECT_WEIGHTS,
-        help="Importance-weight transform of the DR selection score and the post-hoc estimates "
-        "(default %(default)s; clip:1 = the older selection).",
+        help="Importance-weight transform of the DR selection score and the post-hoc estimates: none, "
+        "clip:M, shrink:lambda or harmonic:lambda (default %(default)s; clip:1 = the older selection).",
     )
     parser.add_argument(
         "--policy-transform",

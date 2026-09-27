@@ -130,13 +130,32 @@ Optuna). Other ablations: `--policy-losses ipw`, hurt-logging knobs,
 
 **Importance-weight transforms.** Wherever inverse propensities are used, the weight
 w = π_e/π_b goes through one transform (`utils/importance_weights.py`): `none`, `clip:M`
-(`min(w, M)`) or `shrink:λ` (Su et al. 2020, `λw / (w² + λ)`: at most √λ/2, falling back toward
-0 past w = √λ). Two settings, not searched by Optuna:
+(`min(w, M)`), `shrink:λ` (Su et al. 2020, `λw / (w² + λ)`: at most √λ/2, falling back toward
+0 past w = √λ) or `harmonic:λ`.
 
-- `--train-weights` (default `DEFAULT_TRAIN_WEIGHTS`): the `sndr`, `ipw` and `kl` training losses.
+The harmonic transform comes from Metelli, Russo and Restelli (NeurIPS 2021), Definition 4.1: the
+power-mean correction ((1 − λ) w^s + λ)^(1/s) with s = −1, which is `w / (1 − λ + λw)` for λ in
+[0, 1]. It is the weighted harmonic mean of w and 1, with weights 1 − λ and λ:
+- λ = 0 gives raw IS, and λ = 1 gives the constant 1.
+- It is increasing and differentiable in w, and never exceeds 1/λ.
+- Its derivative (1 − λ)/(1 − λ + λw)² is positive and bounded.
+
+Their DR-λ estimator puts the corrected weight in the DR correction term, and their off-policy
+learning ascends the estimate by its direct gradient. OPC does the same with `--policy-losses dr
+--train-weights harmonic:λ --opc-gradient direct`; the study runner refuses harmonic training
+weights under the log trick. The paper chooses λ from the sample size, a confidence level and the
+2-Rényi divergence (λ*₂ = √(2 log(1/δ) / (3 I₂ n)), or a data-driven root, their Eq. (3)). Here λ is
+fixed per run.
+
+Two settings, not searched by Optuna:
+
+- `--train-weights` (default `DEFAULT_TRAIN_WEIGHTS`): the `sndr`, `dr`, `ipw` and `kl` training losses.
   `crm` / `kl_crm` keep their own clip `crm_M`, which Optuna searches.
 - `--select-weights` (default `DEFAULT_SELECT_WEIGHTS`): the DR selection score and the post-hoc
   DR / SNIPW / SNDR estimates.
+
+Both are recorded in `run_meta.json` and the summaries as the label (`train_weights`,
+`select_weights`) and as `{train,select}_weight_mode` and `{train,select}_weight_param`.
 
 `--train-weights none --select-weights clip:1` reproduces the older runs (unclipped training,
 selection clipped at 1). Trials also log the ESS of the raw weights (`ess_raw`) next to the

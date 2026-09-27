@@ -1,9 +1,12 @@
 """Importance-weight transforms shared by training losses, trial selection and post-hoc estimates.
 
-A spec is ``none`` (raw weights w = pi_e / pi_b), ``clip:M`` (``min(w, M)``) or ``shrink:lam``
+A spec is ``none`` (raw weights w = pi_e / pi_b), ``clip:M`` (``min(w, M)``), ``shrink:lam``
 (Su et al. 2020: ``lam * w / (w**2 + lam)``, at most sqrt(lam) / 2, and falling back toward 0
-past w = sqrt(lam)). ``dm`` sets every weight to 0: the DR estimate becomes the direct method
-(DM-only trial selection; not a training transform).
+past w = sqrt(lam)) or ``harmonic:lam`` (Metelli, Russo and Restelli 2021, the power-mean
+correction with s = -1: ``w / (1 - lam + lam * w)``, lam in [0, 1]; the weighted harmonic mean of w
+and 1, increasing and differentiable in w, at most 1 / lam; lam = 0 is raw IS, lam = 1 gives 1).
+``dm`` sets every weight to 0: the DR estimate becomes the direct method (DM-only trial selection;
+not a training transform).
 """
 
 from __future__ import annotations
@@ -12,11 +15,11 @@ import math
 
 import numpy as np
 
-WEIGHT_MODES = ("none", "clip", "shrink", "dm")
+WEIGHT_MODES = ("none", "clip", "shrink", "harmonic", "dm")
 
 
 def parse_weight_spec(spec) -> tuple[str, float]:
-    """``'none' | 'clip:M' | 'shrink:lam' | 'dm'`` (or a (mode, param) pair) -> (mode, param)."""
+    """``'none' | 'clip:M' | 'shrink:lam' | 'harmonic:lam' | 'dm'`` (or a (mode, param) pair) -> (mode, param)."""
     if isinstance(spec, (tuple, list)):
         mode, param = str(spec[0]).lower(), float(spec[1])
         if mode == "dm":
@@ -31,12 +34,16 @@ def parse_weight_spec(spec) -> tuple[str, float]:
                 raise ValueError(f"weight spec {spec!r}: 'dm' takes no parameter")
             return "dm", 0.0
         if not value:
-            raise ValueError(f"weight spec {spec!r}: use none, clip:M or shrink:lambda")
+            raise ValueError(f"weight spec {spec!r}: use none, clip:M, shrink:lambda or harmonic:lambda")
         param = float(value)
     if mode in ("none", "raw"):
         return "none", math.inf
     if mode not in WEIGHT_MODES:
         raise ValueError(f"weight spec {spec!r}: mode must be one of {WEIGHT_MODES}")
+    if mode == "harmonic":  # Metelli et al. 2021: lam in [0, 1]; lam = 0 leaves every weight unchanged
+        if not 0.0 <= param <= 1.0:
+            raise ValueError(f"weight spec {spec!r}: the harmonic parameter lambda must be in [0, 1]")
+        return ("none", math.inf) if param == 0.0 else ("harmonic", param)
     if not param > 0:
         raise ValueError(f"weight spec {spec!r}: the parameter must be > 0")
     if mode == "clip" and math.isinf(param):
@@ -60,6 +67,8 @@ def transform_weights(iw, spec) -> np.ndarray:
         return np.minimum(iw, param)
     if mode == "shrink":
         return (param * iw) / (param + iw * iw)
+    if mode == "harmonic":
+        return iw / (1.0 - param + param * iw)
     if mode == "dm":
         return np.zeros_like(iw)
     return iw

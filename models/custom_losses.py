@@ -65,6 +65,17 @@ def shrink_importance_weights(pi_e_at_action, pscore, shrink_lambda, use_iw: boo
     return (lam * iw) / (lam + iw * iw)
 
 
+def harmonic_importance_weights(pi_e_at_action, pscore, harmonic_lambda, use_iw: bool, log_eps=1e-10):
+    """Metelli, Russo and Restelli (2021), power-mean correction with s = -1: ŵ = w / (1 - λ + λ w),
+    λ in [0, 1]. Increasing and differentiable in w, at most 1 / λ; its gradient
+    (1 - λ) / (1 - λ + λ w)^2 * grad w is at most 1 / (4 λ) times the score."""
+    iw = importance_weights(pi_e_at_action, pscore, use_iw, log_eps)
+    if not use_iw:
+        return iw
+    lam = float(harmonic_lambda)
+    return iw / (1.0 - lam + lam * iw)
+
+
 def transform_importance_weights(
     pi_e_at_action,
     pscore,
@@ -73,9 +84,10 @@ def transform_importance_weights(
     iw_mode: str = "clip",
     clip_m: float = 10.0,
     shrink_lambda: float = 10.0,
+    harmonic_lambda: float = 0.1,
     log_eps: float = 1e-10,
 ):
-    """Apply raw / clip / Su-shrink transform to IPS weights."""
+    """Apply raw / clip / Su-shrink / Metelli-harmonic transform to IPS weights."""
     mode = str(iw_mode).lower()
     if mode == "dm":
         raise ValueError("weights 'dm' (all zero) are for DM-only selection; train DM-only with the 'dm' loss")
@@ -85,6 +97,8 @@ def transform_importance_weights(
         return shrink_importance_weights(
             pi_e_at_action, pscore, shrink_lambda, use_iw, log_eps
         )
+    if mode == "harmonic":
+        return harmonic_importance_weights(pi_e_at_action, pscore, harmonic_lambda, use_iw, log_eps)
     # default: clip
     return clipped_importance_weights(
         pi_e_at_action, pscore, clip_m, use_iw, log_eps
@@ -218,7 +232,8 @@ def dr_sndr_surrogate(
     pi_a = policy_prob[idx, actions].squeeze()
     log_p = torch.log(policy_prob.clamp(min=log_eps))
 
-    wkw = dict(use_iw=use_iw, iw_mode=iw_mode, clip_m=iw_param, shrink_lambda=iw_param, log_eps=log_eps)
+    wkw = dict(use_iw=use_iw, iw_mode=iw_mode, clip_m=iw_param, shrink_lambda=iw_param, harmonic_lambda=iw_param,
+               log_eps=log_eps)
     if use_log_trick:
         pi_coef = policy_prob.detach()
         iw = transform_importance_weights(pi_a.detach(), pscore, **wkw).detach()
@@ -293,7 +308,7 @@ class _BanditPolicyLossBase(nn.Module):
     def _prepare_iw(self, pi_e_at_position, pscore):
         iw = transform_importance_weights(
             pi_e_at_position, pscore, use_iw=self._use_iw(), iw_mode=self.iw_mode,
-            clip_m=self.iw_param, shrink_lambda=self.iw_param, log_eps=self.log_eps,
+            clip_m=self.iw_param, shrink_lambda=self.iw_param, harmonic_lambda=self.iw_param, log_eps=self.log_eps,
         )
         iw_val = iw.detach()
         iw_grad = grad_importance_weights(iw, self.use_log_trick)
