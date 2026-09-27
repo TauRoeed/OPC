@@ -2,13 +2,13 @@
 
 Each worker runs one condition. Its peak memory is its training steps, which hold several
 (batch × catalog) fp32 matrices at once (logits, softmax, q_hat rows, their products and
-gradients), plus the dense (users × catalog) q_hat matrices it keeps on the device, plus
-the allocator's reserve and the process's own context. We estimate that peak per condition
-from the largest batch the Optuna search can pick and the condition's reward-model budget,
-then cap how many workers run concurrently so they fit in free GPU memory (or in RAM on a
-CPU-only machine): per device, floor(SAFETY_FRACTION × free / peak), at least one and at
-most --max-workers. Scheduling only: results are unchanged because every condition seeds
-itself.
+gradients), plus the dense (users × catalog) q_hat matrices it keeps on the device, plus the
+process's own context. We estimate that peak per condition from the largest batch the Optuna
+search can pick and the condition's reward-model budget, then cap how many workers run
+concurrently so they fit in the free memory each GPU reports at launch (or in RAM on a
+CPU-only machine): per device, floor(SAFETY_FRACTION × free / peak), at least one and at most
+--max-workers, over however many devices there are. Scheduling only: results are unchanged
+because every condition seeds itself.
 """
 
 from __future__ import annotations
@@ -24,26 +24,22 @@ from training.trainer_trials import _qhat_materialize_limit_bytes, batch_schedul
 
 BYTES_F32 = 4
 GIB = 1024**3
-# Live (batch × catalog) fp32 matrices per training step; calibrated on measured peaks
-# (ml 10M train, batch 327,680: ~20.5 GB; msd 1M train, batch 16,384: ~16.7 GB).
+# (batch × catalog) fp32 matrices per training step, allocator reserve included: calibrated on
+# measured peaks (ml 10M train, batch 327,680: ~20.5 GB; msd 1M train, batch 16,384: ~16.7 GB),
+# so the batch term needs no further margin.
 PEAK_BATCH_MATRICES = 6
-# Margin on the live tensors (training step + dense q_hat copies):
-#   ALLOCATOR_RESERVE multiplies them: PyTorch's caching allocator keeps freed blocks for reuse
-#     (Optuna varies the batch size per trial, which fragments the pool), and each train size's
-#     q_hat lookup is built while the previous size's two are still referenced (the per-size
-#     rebinding in trainer_trials), so a third dense copy exists transiently;
-#   CONTEXT_BYTES is per process: CUDA context and kernels, embeddings, sampler blocks.
-# Calibration (RTX 6000 Ada, 48 GB, WSL2, 2026-09-27): anime (73,417 users × 10,803 items, train
-# 100k, batch 8,192, 5-fold cross-fitting) holds 2.0 GiB of training-step matrices and two dense
-# q_hat copies of 3.0 GiB each, 7.9 GiB live; it was observed at ≈ 12.5 GB per worker (4 workers
-# demanded ~50 GB and spilled into shared memory): 1.4 × 7.9 + 1.5 ≈ 12.5 GiB.
-ALLOCATOR_RESERVE = 1.4
-CONTEXT_BYTES = int(1.5 * GIB)
+CONTEXT_BYTES = int(1.5 * GIB)  # per process: CUDA context and kernels, embeddings, sampler blocks
+# Calibration of the dense q_hat term (RTX 6000 Ada, 48 GB, WSL2, 2026-09-27): anime (73,417 users
+# × 10,803 items, train 100k, batch 8,192, 5-fold cross-fitting) was observed at ≈ 12.5 GB per worker
+# (4 workers demanded ~50 GB and spilled into shared memory; with 2 workers the 1 s peak was 23.2 GB
+# in all, ≈ 10.9 GiB each). Its training step is 2.0 GiB and one dense q_hat 3.0 GiB; the estimate,
+# 2.0 + 3 × 3.0 + 1.5 = 12.3 GiB, counts the third copy each train size's refit holds transiently
+# (dense_qhat_copies).
 # Share of the queried free memory the planner assigns. The query is a snapshot at launch, and
 # under Windows / WSL2 the driver does not raise an out-of-memory error when dedicated memory runs
 # out: it spills into shared system memory, silently and much slower (all workers on the device
-# slow down). With the calibration above, ~47 GiB free admits 2 anime workers: 3 would leave under
-# 10 GB of headroom, and 4 spilled.
+# slow down). With the calibration above, ~47 GiB free admits 2 anime workers: 3 would need 37 GiB
+# (79% of it), and 4 spilled.
 SAFETY_FRACTION = 0.75
 
 
@@ -56,34 +52,46 @@ def catalog_shape(emb_dir: str | Path, dataset: str) -> tuple[int, int]:
 
 
 def max_train_batch(cfg: dict) -> int:
-    """Largest training batch the condition can use (Optuna choices and --batch-size)."""
+    """Largest training batch the condition can use, as the trainer picks them: the Optuna batch
+    choices per train size (``optuna_batch_sizes`` when given, which replaces the schedule's choices;
+    otherwise batch_schedule's default and choices), and ``batch_size`` when set."""
     sizes = [int(x) for x in cfg.get("optuna_batch_sizes") or []]
-    for ts in cfg.get("train_sizes") or []:
-        default, choices = batch_schedule(int(ts))
-        sizes += [default, *choices]
+    if not sizes:
+        for ts in cfg.get("train_sizes") or []:
+            default, choices = batch_schedule(int(ts))
+            sizes += [default, *choices]
     if cfg.get("batch_size"):
         sizes.append(int(cfg["batch_size"]))
     return max(sizes) if sizes else 1024
 
 
 def dense_qhat_copies(cfg: dict, shape: tuple[int, int]) -> int:
-    """Dense (users × catalog) fp32 q_hat matrices a worker keeps on its device (trainer_trials):
-    the shared lookup's copy, plus, with cross-fitting (``crossfit_folds``, which needs train-mode
-    reward data), the out-of-fold matrix built next to it. Zero when q_hat is larger than the
-    dense-materialize limit (the same test as fit_shared_regression_bundle): it then stays in
-    linear form and its rows are built per batch (counted in the training step). The fold models
-    are never materialized."""
+    """Dense (users × catalog) fp32 q_hat matrices on a worker's device at its peak (trainer_trials):
+      - the shared lookup's copy;
+      - with cross-fitting (``crossfit_folds``, which needs train-mode reward data), the out-of-fold
+        matrix built next to it;
+      - with q_hat refit on each train size's rows (``reward_data`` "train"), one more: each size's
+        lookup is built while the previous one's are still referenced (the per-size rebinding in
+        regression_trainer_trial), and the block freed after it stays cached through the size's trials.
+    Zero when q_hat is larger than the dense-materialize limit (the same test as
+    fit_shared_regression_bundle): it then stays in linear form and its rows are built per batch
+    (counted in the training step). The fold models are never materialized. Missing keys mean what
+    they mean to the worker: external reward data, no cross-fitting."""
     n_users, n_actions = shape
     if n_users * n_actions * BYTES_F32 > _qhat_materialize_limit_bytes():
         return 0
-    return 2 if int(cfg.get("crossfit_folds", 0) or 0) > 0 else 1  # the worker's own default: no cross-fitting
+    steady = 2 if int(cfg.get("crossfit_folds", 0) or 0) > 0 else 1
+    refit = 1 if str(cfg.get("reward_data", "external")) == "train" else 0
+    return steady + refit
 
 
 def estimate_worker_peak_bytes(cfg: dict, shape: tuple[int, int]) -> int:
+    """A worker's peak device memory: the training step (scales with the largest batch the condition
+    can pick and the catalog) + its dense q_hat copies + the per-process context."""
     n_users, n_actions = shape
     train_step = PEAK_BATCH_MATRICES * max_train_batch(cfg) * n_actions * BYTES_F32
     dense_qhat = dense_qhat_copies(cfg, shape) * n_users * n_actions * BYTES_F32
-    return int(ALLOCATOR_RESERVE * (train_step + dense_qhat) + CONTEXT_BYTES)
+    return int(train_step + dense_qhat + CONTEXT_BYTES)
 
 
 def _cuda_free_bytes_worker(num_gpus: int, queue) -> None:

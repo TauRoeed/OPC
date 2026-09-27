@@ -4,8 +4,8 @@ import pytest
 
 import training.memory_budget as mb
 from training.memory_budget import (
-    ALLOCATOR_RESERVE,
     CONTEXT_BYTES,
+    PEAK_BATCH_MATRICES,
     SAFETY_FRACTION,
     catalog_shape,
     dense_qhat_copies,
@@ -25,44 +25,61 @@ KUAIRAND_SHAPE = (27_111, 7_579)
 # The Stage 2 study budget: train sizes 5k/25k/100k (batch up to 8,192), reward model fit on each size's own
 # training rows and cross-fitted by user in 5 folds.
 STAGE2 = {"train_sizes": [5_000, 25_000, 100_000], "reward_data": "train", "crossfit_folds": 5}
+MSD_1M = {"train_sizes": [1_000_000]}  # q_hat too large to materialize: the training step is the whole peak
+BIG_WORKSTATION = [95 * GB] * 4  # four 96 GB cards, ~1 GB each in use
 
 
-def test_max_batch_follows_optuna_schedule():
+def test_max_batch_follows_the_trainers_choices():
     assert max_train_batch({"train_sizes": [5_000]}) == 2048
     assert max_train_batch({"train_sizes": [5_000, 10_000_000]}) == 327_680
-    assert max_train_batch({"train_sizes": [5_000], "optuna_batch_sizes": [65_536]}) == 65_536
     assert max_train_batch(STAGE2) == 8_192
+    assert max_train_batch(MSD_1M) == 32_768  # the schedule's choices at 1M: 8,192 / 16,384 / 32,768
+    # --optuna-batch-sizes replaces the schedule's choices (trainer_trials: cli_optuna_batches)
+    assert max_train_batch({"train_sizes": [5_000], "optuna_batch_sizes": [65_536]}) == 65_536
+    assert max_train_batch(dict(MSD_1M, optuna_batch_sizes=[4_096, 8_192])) == 8_192
+    assert max_train_batch(dict(MSD_1M, optuna_batch_sizes=[8_192], batch_size=16_384)) == 16_384
 
 
 def test_estimates_cover_measured_peaks():
-    # Measured on an RTX 6000 Ada: ml 10M train ~20.5 GB, msd 1M train ~16.7 GB, anime (Stage 2) ≈ 12.5 GB.
+    # Measured on an RTX 6000 Ada: ml 10M train ~20.5 GB, msd 1M train (batch 16,384) ~16.7 GB, anime Stage 2 with
+    # 2 workers at most 23,192 MiB in all (1 s samples; 777 MiB idle), ≈ 10.9 GiB each; the 4-worker spill ≈ 12.5 GB each.
     assert estimate_worker_peak_bytes({"train_sizes": [10_000_000]}, ML_SHAPE) > 20.5 * GB
-    assert estimate_worker_peak_bytes({"train_sizes": [1_000_000]}, MSD_SHAPE) > 16.7 * GB
-    assert estimate_worker_peak_bytes(STAGE2, ANIME_SHAPE) >= 12.5 * GB
+    assert estimate_worker_peak_bytes(dict(MSD_1M, optuna_batch_sizes=[16_384]), MSD_SHAPE) > 16.7 * GB
+    anime = estimate_worker_peak_bytes(STAGE2, ANIME_SHAPE)
+    assert 2 * anime > (23_192 - 777) * 1024**2 and anime > 12.5e9
     small = estimate_worker_peak_bytes({"train_sizes": [5_000]}, ML_SHAPE)
     assert small < 2 * GB
 
 
 def test_dense_qhat_copies_follow_the_reward_budget(monkeypatch):
-    assert dense_qhat_copies(STAGE2, ANIME_SHAPE) == 2  # shared lookup + out-of-fold matrix
-    assert dense_qhat_copies(dict(STAGE2, crossfit_folds=0), ANIME_SHAPE) == 1
+    assert dense_qhat_copies(STAGE2, ANIME_SHAPE) == 3  # shared lookup + out-of-fold matrix + the refit's transient copy
+    assert dense_qhat_copies(dict(STAGE2, crossfit_folds=0), ANIME_SHAPE) == 2
     assert dense_qhat_copies({"reward_data": "external", "crossfit_folds": 0}, ANIME_SHAPE) == 1
-    assert dense_qhat_copies({"train_sizes": [5_000]}, ANIME_SHAPE) == 1  # the worker's default: no cross-fitting
+    assert dense_qhat_copies({"train_sizes": [5_000]}, ANIME_SHAPE) == 1  # the worker's defaults: external, no cross-fitting
     assert dense_qhat_copies(STAGE2, MSD_SHAPE) == 0  # above the dense limit: q_hat stays in linear form
     monkeypatch.setenv("OPC_QHAT_MATERIALIZE_MAX_GB", "2")  # the trainer's limit: anime's 2.95 GiB q_hat now lazy
     assert dense_qhat_copies(STAGE2, ANIME_SHAPE) == 0
 
 
 def test_anime_estimate_is_the_calibrated_peak():
-    """Training step at batch 8,192 plus two dense q_hat copies (7.9 GiB live), with the allocator reserve and the
-    per-process context: ≈ 12.5 GiB, the observed per-worker peak (4 workers demanded ~50 GB and spilled)."""
-    live = 6 * 8_192 * 10_803 * 4 + 2 * 73_417 * 10_803 * 4
+    """Training step at batch 8,192 plus three dense q_hat copies plus the per-process context: 12.3 GiB."""
+    q_hat = 73_417 * 10_803 * 4
     peak = estimate_worker_peak_bytes(STAGE2, ANIME_SHAPE)
-    assert peak == int(ALLOCATOR_RESERVE * live + CONTEXT_BYTES)
-    assert 12.5 * GB <= peak <= 13.0 * GB
-    # without cross-fitting one q_hat copy fewer; with a lazy q_hat none
-    one = estimate_worker_peak_bytes(dict(STAGE2, crossfit_folds=0), ANIME_SHAPE)
-    assert abs((peak - one) - ALLOCATOR_RESERVE * 73_417 * 10_803 * 4) <= 1
+    assert peak == 6 * 8_192 * 10_803 * 4 + 3 * q_hat + CONTEXT_BYTES
+    assert 12.3 * GB <= peak <= 12.4 * GB
+    assert peak - estimate_worker_peak_bytes(dict(STAGE2, crossfit_folds=0), ANIME_SHAPE) == q_hat
+
+
+def test_batch_dominated_conditions_are_sized_by_their_batch():
+    """With a lazy q_hat the estimate is the batch term alone (its constant is calibrated on measured peaks, allocator
+    included): no further margin, and restricting the batch choices lets more workers fit."""
+    default = estimate_worker_peak_bytes(MSD_1M, MSD_SHAPE)
+    assert default == PEAK_BATCH_MATRICES * 32_768 * 42_053 * 4 + CONTEXT_BYTES  # 32.3 GiB
+    small = dict(MSD_1M, optuna_batch_sizes=[8_192])
+    assert estimate_worker_peak_bytes(small, MSD_SHAPE) == PEAK_BATCH_MATRICES * 8_192 * 42_053 * 4 + CONTEXT_BYTES
+    assert _workers(MSD_SHAPE, 47 * GB, cfg=MSD_1M) == 1
+    assert _workers(MSD_SHAPE, 47 * GB, cfg=small) == 3
+    assert _workers(MSD_SHAPE, 95 * GB, cfg=MSD_1M, max_workers=64) == 2
 
 
 def _workers(shape, free_bytes, max_workers=4, n_configs=6, cfg=STAGE2):
@@ -94,10 +111,11 @@ def test_anime_on_a_larger_card():
 
 
 def test_budget_changes_the_count():
-    """The count follows the configured reward-model budget, not the dataset: without cross-fitting anime holds
-    one q_hat copy (more workers fit), and with a lazy q_hat none."""
-    assert _workers(ANIME_SHAPE, 47 * GB, max_workers=8, cfg=dict(STAGE2, crossfit_folds=0)) == 4
+    """The count follows the configured reward-model budget, not the dataset: without cross-fitting anime holds one
+    q_hat copy fewer, and with the external reward model (no refit per size) one fewer again."""
     assert _workers(ANIME_SHAPE, 47 * GB, max_workers=8) == 2
+    assert _workers(ANIME_SHAPE, 47 * GB, max_workers=8, cfg=dict(STAGE2, crossfit_folds=0)) == 3
+    assert _workers(ANIME_SHAPE, 47 * GB, max_workers=8, cfg=dict(STAGE2, crossfit_folds=0, reward_data="external")) == 5
 
 
 def test_stage2_plan_mixes_datasets(monkeypatch):
@@ -110,10 +128,28 @@ def test_stage2_plan_mixes_datasets(monkeypatch):
     text = describe_plan(plan, "gpu", [47 * GB], 4, n_slots=1)
     assert "gpu 0: 47.0 free, 35.2 usable (GiB; safety fraction 0.75); requested --max-workers 4" in text
     anime = next(line for line in text.splitlines() if "anime" in line)
-    assert "2 dense q_hat copies" in anime and "est. peak 12.5 GiB/worker" in anime
+    assert "3 dense q_hat copies" in anime and "est. peak 12.3 GiB/worker" in anime
     assert "fit per device [2]" in anime and "12 condition(s) -> 2 concurrent worker(s) (per device [2])" in anime
     kuairand = next(line for line in text.splitlines() if "kuairand" in line)
     assert "fit per device [6]" in kuairand and "-> 4 concurrent worker(s)" in kuairand
+
+
+def test_a_four_gpu_96gb_workstation(monkeypatch):
+    """The same code on four 96 GB cards: every device takes floor(0.75 × free / peak) workers, and --max-workers
+    caps the total."""
+    shapes = {"anime": ANIME_SHAPE, "kuairand": KUAIRAND_SHAPE, "msd": MSD_SHAPE}
+    monkeypatch.setattr(mb, "catalog_shape", lambda emb_dir, ds: shapes[ds])
+    cfgs = ([dict(STAGE2, run_key=f"anime{i}", dataset_name="anime", emb_dir="e") for i in range(40)]
+            + [dict(STAGE2, run_key=f"kuairand{i}", dataset_name="kuairand", emb_dir="e") for i in range(60)]
+            + [dict(MSD_1M, run_key=f"msd{i}", dataset_name="msd", emb_dir="e") for i in range(20)])
+    plan = plan_worker_groups(cfgs, max_workers=64, capacities=BIG_WORKSTATION, n_slots=4)
+    got = {g[0]["dataset_name"]: w for w, g in plan}
+    assert got == {"kuairand": 52, "anime": 20, "msd": 8}  # 13, 5 and 2 per card
+    text = describe_plan(plan, "gpu", BIG_WORKSTATION, 64, n_slots=4)
+    assert "gpu 3: 95.0 free, 71.2 usable" in text and "(per device [5, 5, 5, 5])" in text
+    capped = plan_worker_groups(cfgs[40:100], max_workers=32, capacities=BIG_WORKSTATION, n_slots=4)
+    assert [w for w, _ in capped] == [32]
+    assert workers_per_device(32, 4) == [8, 8, 8, 8]
 
 
 def test_workers_fit_round_robin_over_devices():
@@ -182,7 +218,7 @@ def test_parallel_runner_uses_the_plan(monkeypatch, capsys):
     assert failures == []
     assert calls == [(4, ["kuairand"] * 6), (2, ["anime"] * 6)]
     out = capsys.readouterr().out
-    assert "anime (73,417 × 10,803; 2 dense q_hat copies): est. peak 12.5 GiB/worker" in out
+    assert "anime (73,417 × 10,803; 3 dense q_hat copies): est. peak 12.3 GiB/worker" in out
     # two cards, --num-gpus 3: slot 2 falls back to device 0, which then hosts 3 of the 4 kuairand workers
     monkeypatch.setattr(par, "device_capacities", lambda num_gpus: ("gpu", [47 * GB, 47 * GB]))
     calls.clear()
@@ -200,11 +236,18 @@ def _dense_held(lookup) -> int:
     return int(lookup.q_hat_all is not None)
 
 
-@pytest.mark.parametrize("folds,limit_gb", [(2, None), (0, None), (2, "0"), (0, "0")])
-def test_copies_are_what_the_trainer_holds(tmp_path, monkeypatch, folds, limit_gb):
-    """The planner's dense q_hat count is what the training loss's lookup holds in a real (toy) study run:
-    two with cross-fitting (the shared lookup and the out-of-fold matrix), one without, none when q_hat is
-    above the dense-materialize limit."""
+@pytest.mark.parametrize(
+    "reward_data,folds,limit_gb,steady,peak",
+    [("train", 2, None, 2, 3), ("train", 0, None, 1, 2), ("external", 0, None, 1, 1), ("train", 2, "0", 0, 0)],
+)
+def test_copies_are_what_the_trainer_holds(tmp_path, monkeypatch, reward_data, folds, limit_gb, steady, peak):
+    """The planner's dense q_hat count is what a real (toy) study run holds. During training, the loss's lookup holds
+    two with cross-fitting (the shared lookup and the out-of-fold matrix), one without, none above the dense limit.
+    At its peak, while the next train size's lookup is built, the run holds one more when q_hat is refit per size.
+    On CUDA each holder is its own device copy."""
+    import gc
+    import weakref
+
     from test_reproducibility import _toy_embeddings
 
     import training.trainer_trials as tt
@@ -219,13 +262,29 @@ def test_copies_are_what_the_trainer_holds(tmp_path, monkeypatch, folds, limit_g
         held.append(_dense_held(scores))
         return real_train(model, loader, scores, **kw)
 
+    live, alive_at_build = weakref.WeakSet(), []
+
+    def track(cls, dense):
+        real_init = cls.__init__
+
+        def init(self, *a, **kw):
+            real_init(self, *a, **kw)
+            if dense(self):
+                live.add(self)
+            gc.collect()  # count only what is still referenced
+            alive_at_build.append(len(live))
+
+        monkeypatch.setattr(cls, "__init__", init)
+
     monkeypatch.setattr(tt, "train", spy)
+    track(tt.RegressionScoresLookup, lambda s: s.q_hat_all is not None)
+    track(tt.CrossFitScoresLookup, lambda s: s._dense is not None)
     run_dir = tmp_path / "run"
     run_dir.mkdir()
     _run_condition(dataset_name="toy", emb_dir=tmp_path, bias="medium", ctr=0.05, seed=0, train_sizes=[1000, 2000],
                    n_trials=1, batch_size=None, val_size=1000, val_frac=0.15, val_min=1000, val_max=None,
                    policy_reward_mode="exact", policy_reward_mc_sim=8, slim=True, shared_regression_size=2000,
-                   methods=("opc", "dm"), run_dir=run_dir, reward_data="train", crossfit_folds=folds)
-    cfg = {"train_sizes": [1000, 2000], "reward_data": "train", "crossfit_folds": folds}
-    assert len(held) == 4  # two arms × two train sizes × one trial
-    assert set(held) == {dense_qhat_copies(cfg, catalog_shape(tmp_path, "toy"))}
+                   methods=("opc", "dm"), run_dir=run_dir, reward_data=reward_data, crossfit_folds=folds)
+    cfg = {"train_sizes": [1000, 2000], "reward_data": reward_data, "crossfit_folds": folds}
+    assert len(held) == 4 and set(held) == {steady}  # two arms × two train sizes × one trial
+    assert max(alive_at_build) == peak == dense_qhat_copies(cfg, catalog_shape(tmp_path, "toy"))

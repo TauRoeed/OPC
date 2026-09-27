@@ -292,15 +292,23 @@ runs ~5× slower per epoch than 4096.
 - `--policy-reward-mode mc --policy-reward-mc-sim 8` — faster approximate reward eval.
 - `--num-gpus` / `--max-workers` — parallel only; OOM backoff on by default.
 - `--memory-cap` (default) / `--no-memory-cap` — parallel/H1: run only as many workers as
-  fit in free GPU memory (RAM without a GPU). A condition's peak is estimated as
-  1.4 × (6 × largest Optuna batch × catalog × 4 bytes + dense q̂ copies) + 1.5 GiB per process.
-  The dense q̂ (users × catalog × 4 bytes) counts twice with cross-fitting, once without, and
-  not at all above the dense-materialize limit. Each device takes floor(0.75 × free / peak)
-  workers, and conditions are grouped by estimate. The `[memory]` log line shows, per device
-  and dataset, the free memory, the estimated peak and the workers chosen. `--max-workers`
-  stays the upper bound; results are unchanged. The calibration is anime at ≈ 12.5 GB per
-  worker, which gives 2 workers on a 48 GB card: under WSL2 an oversubscribed card spills into
-  shared memory silently, with no OOM.
+  fit in the free memory each GPU reports at launch (RAM without a GPU). A condition's peak is
+  estimated from its own budget:
+  - the training step, 6 × largest batch × catalog × 4 bytes. The batch is the largest of the
+    condition's Optuna choices (`--optuna-batch-sizes` replaces the schedule's), so smaller
+    batches admit more workers;
+  - the dense q̂ copies, users × catalog × 4 bytes each. There is one for the shared lookup, one
+    more with cross-fitting, and one more when q̂ is refit per train size (the next size's lookup
+    is built while the previous one is still held). None are counted above the
+    dense-materialize limit;
+  - 1.5 GiB per process.
+
+  Each device takes floor(0.75 × free / peak) workers, over however many GPUs there are, and
+  conditions are grouped by estimate. The `[memory]` log line shows, per device and dataset, the
+  free memory, the estimated peak and the workers chosen. `--max-workers` stays the upper
+  bound; results are unchanged. The calibration is anime at ≈ 12.5 GB per worker, which gives 2
+  workers on a 48 GB card: under WSL2 an oversubscribed card spills into shared memory silently,
+  with no OOM.
 
 ### Reproducibility
 
