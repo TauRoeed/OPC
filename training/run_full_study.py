@@ -589,12 +589,13 @@ def _run_condition(
     # Opt-in baselines: the same splits, reward model, selection weights and search budget.
     extra = {}
     extra_log_paths = {}
-    for label in (m for m in BASELINE_METHODS if m in methods):
-        extra_log_paths[label] = {"trials": run_dir / f"{label}_trials_long.csv", "runs": run_dir / f"{label}_runs_long.csv"}
+    # (the loop variable is not `label`: that name holds the bias label written to run_meta.json below)
+    for method in (m for m in BASELINE_METHODS if m in methods):
+        extra_log_paths[method] = {"trials": run_dir / f"{method}_trials_long.csv", "runs": run_dir / f"{method}_runs_long.csv"}
         arm = {"dm": dict(policy_loss_types=("dm",), select_estimator="dm", learn_logit_scale=bool(learn_logit_scale),
                           post_temper=bool(post_temper)),
-               "tempered_logger": dict(policy_loss_types=("sndr",), temper_only=True)}[label]
-        extra[label] = regression_trainer_trial(
+               "tempered_logger": dict(policy_loss_types=("sndr",), temper_only=True)}[method]
+        extra[method] = regression_trainer_trial(
             train_sizes=train_sizes,
             dataset=dataset,
             batch_size=batch_size,
@@ -605,9 +606,9 @@ def _run_condition(
             n_trials=n_trials,
             prev_best_params=None,
             propensity_mode="logged",
-            log_paths=extra_log_paths[label],
+            log_paths=extra_log_paths[method],
             slim=slim,
-            method_label=label,
+            method_label=method,
             policy_reward_mode=policy_reward_mode,
             policy_reward_mc_sim=policy_reward_mc_sim,
             split_cache=split_cache,
