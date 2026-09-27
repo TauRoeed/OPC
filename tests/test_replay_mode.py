@@ -198,3 +198,37 @@ def test_random_sampler_pairs_the_arms_that_share_a_search_space(tmp_path):
     tpe, meta_tpe = trials("tpe", methods=("opc", "dm"))
     assert meta_tpe["paired_arms"] is False
     assert not tpe["dm"][PARAMS].equals(tpe["opc"][PARAMS])  # TPE: each arm's own stream, as before
+
+
+def test_a_single_size_run_reproduces_that_size_of_a_multi_size_run(tmp_path):
+    """Each train size's logged split, reward model and cross-fit folds, and each trial's seed and (random)
+    configuration, derive from the condition seed and the train size alone. So a run of one size, with all arms
+    or OPC alone, reproduces that size's trials of a run over several sizes: a one-size slice (e.g. the 25k
+    shrink:100 robustness run) pairs with the main runs trial by trial."""
+    from test_reproducibility import _toy_embeddings
+
+    from training.run_full_study import _run_condition
+
+    _toy_embeddings(tmp_path)
+    kw = dict(dataset_name="toy", emb_dir=tmp_path, bias="high/none/none", ctr=0.05, seed=0, n_trials=3, batch_size=None,
+              val_size=1000, val_frac=0.15, val_min=1000, val_max=None, policy_reward_mode="exact",
+              policy_reward_mc_sim=8, slim=True, shared_regression_size=2000, sampler="random", reward_data="train",
+              crossfit_folds=2, learn_logit_scale=True)
+    arms = ("opc", "no_propensity", "dm", "tempered_logger")
+
+    def trials(name, sizes, methods):
+        run_dir = tmp_path / name
+        run_dir.mkdir()
+        _run_condition(**kw, train_sizes=sizes, methods=methods, run_dir=run_dir)
+        t = pd.read_csv(run_dir / "trials_long.csv")
+        return t[t["train_size"] == 1500].set_index(["method", "trial_number"]).sort_index()
+
+    cols = ["value", "r_hat", "actual_reward", "actual_reward_greedy", "logit_scale"]
+    many = trials("many", [1000, 1500], arms)
+    one = trials("one", [1500], arms)
+    assert set(many.index.get_level_values("method")) == set(arms) and len(many) == 12
+    pd.testing.assert_frame_equal(one[cols], many[cols])
+    trained = many.drop("tempered_logger", level="method")
+    pd.testing.assert_frame_equal(one.drop("tempered_logger", level="method")[PARAMS], trained[PARAMS])
+    opc_alone = trials("opc_alone", [1500], ("opc",))
+    pd.testing.assert_frame_equal(opc_alone[cols + PARAMS], many.loc[["opc"]][cols + PARAMS])
