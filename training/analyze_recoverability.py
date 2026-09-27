@@ -17,15 +17,24 @@ rankings only and are the primary structural measure.
 
 Stage 2 (learned): ``learned_recovery`` joins learned runs to the oracle rows: learned_gain = V_method - V_logger
 and fraction_of_oracle_repair = learned_gain / (V_oracle - V_logger) (NaN when the denominator is below MIN_LOSS).
+``stage2_tables`` summarizes them (fractions per arm, paired arm differences with 95% t-intervals over the
+dataset × seed conditions, selection diagnostics) and ``paired_runs`` compares two runs of one arm condition by
+condition (e.g. the shrink:100 robustness slice against the main harmonic:0.1 run).
+
+CLI (writes CSV tables):
+  python -m training.analyze_recoverability stage1 ORACLE_ROOT --out DIR
+  python -m training.analyze_recoverability stage2 ORACLE_ROOT --runs RUN [RUN ...] [--su RUN] --out DIR
 """
 
 from __future__ import annotations
 
+import argparse
 import glob
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from scipy import stats
 
 from utils.representation_bias import bias_label, parse_bias
 
@@ -147,11 +156,135 @@ def load_learned(*run_dirs) -> pd.DataFrame:
     return pd.DataFrame(out)
 
 
-if __name__ == "__main__":
-    import sys
+ARMS = ("opc", "dm", "no_propensity", "tempered_logger")
+_KEYS = ["dataset", "bias", "seed", "train_size"]
 
-    df = derive(load_oracle(sys.argv[1]))
+
+def mean_ci(x) -> tuple[float, float, float, int]:
+    """Mean and 95% t-interval over paired conditions (the interval is NaN below two)."""
+    x = np.asarray(x, dtype=float)
+    x = x[np.isfinite(x)]
+    n = len(x)
+    if n == 0:
+        return np.nan, np.nan, np.nan, 0
+    mean = float(x.mean())
+    if n < 2:
+        return mean, np.nan, np.nan, n
+    half = float(stats.t.ppf(0.975, n - 1) * x.std(ddof=1) / np.sqrt(n))
+    return mean, mean - half, mean + half, n
+
+
+def _ordered(df: pd.DataFrame) -> pd.DataFrame:
+    """The study's bias order, then train size and arm (rows keep their order otherwise), with the bias name."""
+    df = df.copy()
+    df["_o"] = df["bias"].map({b: i for i, b in enumerate(BIAS_ORDER)}).fillna(len(BIAS_ORDER))
+    sort = ["_o", "train_size"]
+    if "method" in df:
+        df["_m"] = df["method"].map({a: i for i, a in enumerate(ARMS)}).fillna(len(ARMS))
+        sort.append("_m")
+    df = df.sort_values(sort, kind="stable").drop(columns=[c for c in ("_o", "_m") if c in df])
+    df.insert(df.columns.get_loc("bias") + 1, "bias type", df["bias"].map(lambda b: BIAS_NAMES.get(b, b)))
+    return df.reset_index(drop=True)
+
+
+def stage2_tables(m: pd.DataFrame) -> dict[str, pd.DataFrame]:
+    """Stage 2 summaries from ``learned_recovery`` rows (CTR values and differences in points):
+      fractions    per bias × train size × arm, means over the dataset × seed conditions: the fraction of the
+                   oracle repair recovered (greedy and stochastic), the learned gain, the true CTR, and the
+                   greedy fraction per dataset;
+      paired       per bias × train size: OPC minus each other arm in true CTR (stochastic and greedy), mean and
+                   95% t-interval over the paired conditions (the arms share configurations and seeds);
+      diagnostics  per bias × train size × arm, means: the selected trial's raw-weight ESS, share of weights
+                   above 10, largest weight, learned logit scale, selection-estimate errors (DR point and
+                   lower bound minus the truth) and the true selection regret over the arm's trials."""
+    g = m.groupby(["bias", "train_size", "method"])
+    fractions = pd.DataFrame({
+        "n": g.size(),
+        "fraction greedy": g["fraction_of_oracle_repair_greedy"].mean(),
+        "fraction": g["fraction_of_oracle_repair"].mean(),
+        "gain greedy %": 100 * g["learned_gain_greedy"].mean(),
+        "gain %": 100 * g["learned_gain"].mean(),
+        "V greedy %": 100 * g["V_method_greedy"].mean(),
+        "V %": 100 * g["V_method"].mean(),
+    })
+    per_ds = m.pivot_table(index=["bias", "train_size", "method"], columns="dataset",
+                           values="fraction_of_oracle_repair_greedy", aggfunc="mean")
+    fractions = fractions.join(per_ds.add_prefix("fraction greedy ")).reset_index()
+
+    rows = []
+    for measure, col in (("stochastic", "V_method"), ("greedy", "V_method_greedy")):
+        wide = m.pivot_table(index=_KEYS, columns="method", values=col)
+        for (bias, size), cell in wide.groupby(level=["bias", "train_size"]):
+            for other in ARMS[1:]:
+                if "opc" not in cell or other not in cell:
+                    continue
+                mean, lo, hi, n = mean_ci(100 * (cell["opc"] - cell[other]))
+                rows.append(dict(bias=bias, train_size=size, contrast=f"opc - {other}", measure=measure,
+                                 mean=mean, ci_low=lo, ci_high=hi, n=n))
+    paired = pd.DataFrame(rows)
+
+    d = m.groupby(["bias", "train_size", "method"])
+    diagnostics = pd.DataFrame({
+        "n": d.size(), "ess_raw": d["ess_raw"].mean(), "w>10 %": 100 * d["w_share_gt10"].mean(),
+        "w_max": d["w_max"].mean(), "logit_scale": d["logit_scale"].mean(),
+        "sel error point %": 100 * d["sel_error_point"].mean(), "sel error lower %": 100 * d["sel_error_lower"].mean(),
+        "regret %": 100 * d["regret"].mean(), "n_trials": d["n_trials"].mean(),
+    }).reset_index()
+    return {"fractions": _ordered(fractions), "paired": _ordered(paired), "diagnostics": _ordered(diagnostics)}
+
+
+def paired_runs(a: pd.DataFrame, b: pd.DataFrame, method: str = "opc") -> pd.DataFrame:
+    """``a`` minus ``b`` for one arm, condition by condition (``learned_recovery`` rows of two runs that share
+    worlds, configurations and seeds): per bias × train size, mean and 95% t-interval of the difference in true
+    CTR (stochastic, greedy; points), in the fraction of the oracle repair (greedy), and in the raw-weight ESS."""
+    cols = ["V_method", "V_method_greedy", "fraction_of_oracle_repair_greedy", "ess_raw", "w_share_gt10"]
+    x = a[a["method"] == method].set_index(_KEYS)[cols]
+    y = b[b["method"] == method].set_index(_KEYS)[cols]
+    both = x.join(y, lsuffix="_a", rsuffix="_b", how="inner")
+    rows = []
+    for (bias, size), cell in both.groupby(level=["bias", "train_size"]):
+        for measure, col, scale in (("V %", "V_method", 100), ("V greedy %", "V_method_greedy", 100),
+                                    ("fraction greedy", "fraction_of_oracle_repair_greedy", 1),
+                                    ("ess_raw", "ess_raw", 1), ("w>10 %", "w_share_gt10", 100)):
+            mean, lo, hi, n = mean_ci(scale * (cell[f"{col}_a"] - cell[f"{col}_b"]))
+            rows.append(dict(bias=bias, train_size=size, measure=measure, a=scale * cell[f"{col}_a"].mean(),
+                             b=scale * cell[f"{col}_b"].mean(), diff=mean, ci_low=lo, ci_high=hi, n=n))
+    return _ordered(pd.DataFrame(rows))
+
+
+def main(argv=None) -> None:
+    ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    ap.add_argument("stage", choices=["stage1", "stage2"])
+    ap.add_argument("oracle_root")
+    ap.add_argument("--runs", nargs="*", default=[], help="stage2: study run folders (the four arms)")
+    ap.add_argument("--su", default=None, help="stage2: the shrink:100 robustness run (OPC only), paired with --runs")
+    ap.add_argument("--out", default=None, help="folder for the CSV tables (default: print only)")
+    a = ap.parse_args(argv)
     pd.set_option("display.width", 250, "display.max_columns", 40)
-    for cls in CLASSES:
-        print(f"\n===== class {cls}")
-        print(summary(df, cls).round(3).to_string())
+    oracle = load_oracle(a.oracle_root)
+    out = Path(a.out) if a.out else None
+    if out:
+        out.mkdir(parents=True, exist_ok=True)
+    if a.stage == "stage1":
+        tables = {"stage1_oracle_rows": derive(oracle).round(6), "stage1_recoverability_by_bias": summary(derive(oracle)).round(4)}
+        for cls in CLASSES:
+            print(f"\n===== class {cls}")
+            print(summary(derive(oracle), cls).round(3).to_string())
+    else:
+        m = learned_recovery(load_learned(*a.runs), oracle)
+        tables = {f"stage2_{k}": v for k, v in stage2_tables(m).items()}
+        tables["stage2_learned_rows"] = m
+        if a.su:
+            su = learned_recovery(load_learned(a.su), oracle)
+            tables["stage2_su_harmonic_minus_shrink100"] = paired_runs(m, su)
+        for name, t in tables.items():
+            if name != "stage2_learned_rows":
+                print(f"\n===== {name}\n{t.round(3).to_string()}")
+    if out:
+        for name, t in tables.items():
+            t.to_csv(out / f"{name}.csv", index=name == "stage1_recoverability_by_bias")
+        print(f"\nwrote {len(tables)} tables to {out}")
+
+
+if __name__ == "__main__":
+    main()

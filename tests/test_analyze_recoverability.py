@@ -83,3 +83,71 @@ def test_load_learned_reads_a_study_condition(tmp_path):
     m = learned_recovery(rows, oracle)
     assert m["fraction_of_oracle_repair"].notna().all()
     np.testing.assert_allclose(m["learned_gain"], m["V_method"] - 0.1)
+
+
+def _stage2_rows():
+    """Two datasets × two seeds of one warp cell with the four arms; OPC beats DM by 1, 2, 3 and 4 points."""
+    rows = []
+    for i, (ds, seed) in enumerate((("ml", 0), ("ml", 1), ("kuairand", 0), ("kuairand", 1))):
+        base = dict(dataset=ds, bias="w-high.g-none.v-none", seed=seed, train_size=5000, n_trials=20)
+        for method, v in (("tempered_logger", 0.20), ("no_propensity", 0.21), ("dm", 0.22), ("opc", 0.23 + 0.01 * i)):
+            rows.append(dict(base, method=method, V_method=v, V_method_greedy=v + 0.01, learned_gain=v - 0.2,
+                             learned_gain_greedy=v - 0.19, fraction_of_oracle_repair=(v - 0.2) / 0.1,
+                             fraction_of_oracle_repair_greedy=(v - 0.2) / 0.05, ess_raw=1000.0 + i, w_share_gt10=0.02,
+                             w_max=50.0, logit_scale=1.5, sel_error_point=0.01, sel_error_lower=-0.005, regret=0.001))
+    return pd.DataFrame(rows)
+
+
+def test_mean_ci():
+    from training.analyze_recoverability import mean_ci
+
+    mean, lo, hi, n = mean_ci([1, 2, 3, 4, np.nan])
+    assert (mean, n) == (2.5, 4)
+    half = 3.182446305284263 * np.std([1, 2, 3, 4], ddof=1) / 2  # t(0.975, 3)
+    assert lo == pytest.approx(2.5 - half) and hi == pytest.approx(2.5 + half)
+    assert mean_ci([0.5])[0] == 0.5 and np.isnan(mean_ci([0.5])[1]) and mean_ci([])[3] == 0
+
+
+def test_stage2_tables():
+    from training.analyze_recoverability import stage2_tables
+
+    t = stage2_tables(_stage2_rows())
+    f = t["fractions"]
+    assert list(f["method"]) == ["opc", "dm", "no_propensity", "tempered_logger"]  # the study's arm order
+    assert f["bias type"].eq("warp only (high)").all() and (f["n"] == 4).all()
+    opc = f[f["method"] == "opc"].iloc[0]
+    assert opc["V %"] == pytest.approx(24.5) and opc["fraction"] == pytest.approx(0.45)
+    assert opc["fraction greedy ml"] == pytest.approx(0.7) and opc["fraction greedy kuairand"] == pytest.approx(1.1)
+    p = t["paired"].set_index(["contrast", "measure"])
+    assert p.loc[("opc - dm", "stochastic"), "mean"] == pytest.approx(2.5) and p.loc[("opc - dm", "stochastic"), "n"] == 4
+    assert p.loc[("opc - dm", "stochastic"), "ci_low"] == pytest.approx(2.5 - 3.182446305284263 * np.std([1, 2, 3, 4], ddof=1) / 2)
+    assert p.loc[("opc - tempered_logger", "greedy"), "mean"] == pytest.approx(4.5)
+    assert list(t["paired"]["measure"])[:3] == ["stochastic"] * 3
+    d = t["diagnostics"].set_index("method")
+    assert d.loc["opc", "ess_raw"] == pytest.approx(1001.5) and d.loc["opc", "w>10 %"] == pytest.approx(2.0)
+    assert d.loc["dm", "sel error lower %"] == pytest.approx(-0.5)
+
+
+def test_paired_runs_matches_conditions():
+    from training.analyze_recoverability import paired_runs
+
+    a = _stage2_rows()
+    b = a.assign(V_method=a["V_method"] - 0.002, ess_raw=a["ess_raw"] + 10)
+    b = pd.concat([b, b.assign(dataset="anime")])  # a condition missing from ``a`` is not paired
+    r = paired_runs(a, b).set_index("measure")
+    assert r.loc["V %", "diff"] == pytest.approx(0.2) and r.loc["V %", "n"] == 4
+    assert r.loc["V %", "ci_low"] == pytest.approx(0.2) and r.loc["V greedy %", "diff"] == pytest.approx(0.0)
+    assert r.loc["ess_raw", "diff"] == pytest.approx(-10.0) and r.loc["V %", "a"] == pytest.approx(24.5)
+
+
+def test_cli_writes_tables(tmp_path):
+    from training.analyze_recoverability import main
+
+    root = tmp_path / "oracle" / "ml"
+    root.mkdir(parents=True)
+    _rows().to_csv(root / "oracle_repair.csv", index=False)
+    main(["stage1", str(tmp_path / "oracle"), "--out", str(tmp_path / "out")])
+    got = pd.read_csv(tmp_path / "out" / "stage1_recoverability_by_bias.csv", index_col=0)
+    assert list(got.index) == ["none", "w-high.g-none.v-none", "w-none.g-none.v-high"]
+    assert got.loc["w-high.g-none.v-none", "recoverability greedy"] == pytest.approx(0.875)
+    assert len(pd.read_csv(tmp_path / "out" / "stage1_oracle_rows.csv")) == 3
