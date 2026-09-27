@@ -1,0 +1,19 @@
+bias,bias type,train_size,contrast,measure,mean,ci_low,ci_high,n
+w-high.g-none.v-none,warp only (high),25000,opc - dm,stochastic,1.0403561017365859,0.24292829787825554,1.8377839055949163,4
+w-high.g-none.v-none,warp only (high),25000,opc - no_propensity,stochastic,2.3180105102099,0.6481706786594905,3.987850341760309,4
+w-high.g-none.v-none,warp only (high),25000,opc - tempered_logger,stochastic,2.946237338516119,0.9917557374523405,4.900718939579898,4
+w-high.g-none.v-none,warp only (high),25000,opc - dm,greedy,1.0533140641794907,0.2347769034741073,1.8718512248848742,4
+w-high.g-none.v-none,warp only (high),25000,opc - no_propensity,greedy,2.32950389374883,0.6198901257186451,4.039117661779015,4
+w-high.g-none.v-none,warp only (high),25000,opc - tempered_logger,greedy,2.96989848193395,0.9912110491309185,4.948585914736981,4
+w-none.g-high.v-none,group only (high),25000,opc - dm,stochastic,0.5215340524605525,0.03368311131217683,1.0093849936089283,4
+w-none.g-high.v-none,group only (high),25000,opc - no_propensity,stochastic,0.9924486534576837,-0.20360545728600687,2.1885027642013744,4
+w-none.g-high.v-none,group only (high),25000,opc - tempered_logger,stochastic,1.1056765332350789,0.321695060831103,1.8896580056390548,4
+w-none.g-high.v-none,group only (high),25000,opc - dm,greedy,0.5107369921944854,0.01464406283752373,1.0068299215514471,4
+w-none.g-high.v-none,group only (high),25000,opc - no_propensity,greedy,0.9978938532831195,-0.23518975032015998,2.230977456886399,4
+w-none.g-high.v-none,group only (high),25000,opc - tempered_logger,greedy,1.1061683454572728,0.3064981424746208,1.9058385484399247,4
+w-none.g-none.v-high,vector only (high),25000,opc - dm,stochastic,0.3216246459547323,0.041086436281510375,0.6021628556279541,4
+w-none.g-none.v-high,vector only (high),25000,opc - no_propensity,stochastic,1.0632550464368826,0.3008828617041386,1.8256272311696267,4
+w-none.g-none.v-high,vector only (high),25000,opc - tempered_logger,stochastic,1.388726756629302,0.8682170189460954,1.9092364943125086,4
+w-none.g-none.v-high,vector only (high),25000,opc - dm,greedy,0.31827161393255876,0.030949061378022502,0.605594166487095,4
+w-none.g-none.v-high,vector only (high),25000,opc - no_propensity,greedy,1.0605895293635959,0.3001766967067978,1.821002362020394,4
+w-none.g-none.v-high,vector only (high),25000,opc - tempered_logger,greedy,1.275588176258502,0.7608801958358218,1.7902961566811821,4

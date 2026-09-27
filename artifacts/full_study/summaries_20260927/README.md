@@ -45,8 +45,21 @@ python -m training.analyze_recoverability stage2 artifacts/full_study/run_oracle
 
 ## Stage 3: logging support
 
-These tables are written per logger share (`stage3_lgs_*/`). The commands are in
-`docs/representation_repair_dev_20260927.md`.
+The same four tables are written per logger greedy share, in `stage3_lgs_0_6/`, `stage3_lgs_0_8/` and
+`stage3_lgs_0_95/`. They cover ml and kuairand × seeds 100/101 × 25k × warp / group / vector high. Each
+share is joined to its own oracle bound:
+- 0.6: `run_oracle_repair_stage3_lgs_0_6`;
+- 0.8: `run_oracle_repair_20260927`;
+- 0.95: `run_oracle_repair_stage3_lgs_0_95`.
+
+For example:
+
+```bash
+python -m training.analyze_recoverability stage2 artifacts/full_study/run_oracle_repair_stage3_lgs_0_6 \
+  --runs artifacts/full_study/run_stage3_lgs_0_6 --out artifacts/full_study/summaries_20260927/stage3_lgs_0_6
+```
+
+The 0.8 tables repeat the Stage 2 25k cells of ml and kuairand; the trials are bit-identical.
 
 ## Notes
 

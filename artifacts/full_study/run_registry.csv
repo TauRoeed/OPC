@@ -36,3 +36,8 @@ run_stage2_kuairand,development,5b66e18,Stage 2: learned recovery (as run_stage2
 run_stage2_anime_stopped_20260927T1608,development,5b66e18,Stage 2 anime first attempt; stopped (4 workers oversubscribed the GPU: shared-memory spill),partial and incomplete; no condition finished; not for analysis
 run_stage2_anime,development,f2e03b5,Stage 2: learned recovery (as run_stage2_ml); relaunched with the memory-aware worker cap,planner chose 2 workers (12.5 GiB/worker estimate); f2e03b5 changes scheduling only
 run_stage2_su_shrink_100,development,f2e03b5,Stage 2 robustness slice: OPC with shrink:100 training weights (Su et al. shrinkage); single-bias high x 25k x ml/kuairand,OPC only; pairs trial by trial with the run_stage2_ml/kuairand OPC 25k cells (tests/test_replay_mode.py)
+run_oracle_repair_stage3_lgs_0_6,development,f2e03b5,Stage 3: oracle repair bound at logger share 0.6,ml/kuairand x seeds 100/101 x warp/group/vector high; Stage 1 settings
+run_oracle_repair_stage3_lgs_0_95,development,f2e03b5,Stage 3: oracle repair bound at logger share 0.95,as lgs 0.6
+run_stage3_lgs_0_6,development,f2e03b5,Stage 3: logging-support sweep at logger share 0.6; four arms; 25k,ml/kuairand x seeds 100/101 x warp/group/vector high
+run_stage3_lgs_0_8,development,f2e03b5,Stage 3: logging-support sweep at logger share 0.8 (repeats the Stage 2 25k cells),bit-identical to the run_stage2_ml/kuairand 25k trials (48/48 trial tables)
+run_stage3_lgs_0_95,development,f2e03b5,Stage 3: logging-support sweep at logger share 0.95,
