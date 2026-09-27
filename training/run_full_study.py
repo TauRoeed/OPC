@@ -229,6 +229,40 @@ def _condition_run_key(dataset_name: str, bias: str, ctr: float, seed: int, worl
     return key
 
 
+def build_condition_world(dataset_name: str, emb_dir: Path, bias: str, ctr: float, seed: int, *,
+                          world_options: dict | None = None, logging_uniform_mix: float = 0.0):
+    """The simulated world of one condition, exactly as ``_run_condition`` builds it (call after
+    ``seed_everything(seed)``, as it does). Returns ``(dataset, params, levels, label)``; the oracle
+    repair bound (``training.oracle_repair``) uses the same worlds."""
+    levels = parse_bias(bias)
+    label = bias_label(levels)
+    world_options = dict(world_options or {})
+    user_path, item_path, user_meta_path, item_meta_path = _dataset_paths(emb_dir, dataset_name)
+    emb_x = np.load(user_path)
+    emb_a = np.load(item_path)
+    item_bias = _load_item_bias(emb_dir, dataset_name, world_options)
+    metadata_x = metadata_a = None
+    if world_options.get("group_source") == "metadata":
+        metadata_x = _load_optional_array(user_meta_path)
+        metadata_a = _load_optional_array(item_meta_path)
+    params = {
+        "bias": label,
+        "ctr": float(ctr),
+        "logging_uniform_mix": float(np.clip(logging_uniform_mix, 0.0, 1.0)),
+        **world_options,
+    }
+    dataset = generate_dataset(
+        params=params,
+        seed=seed,
+        emb_a=emb_a,
+        emb_x=emb_x,
+        metadata_a=metadata_a,
+        metadata_x=metadata_x,
+        item_bias=item_bias,
+    )
+    return dataset, params, levels, label
+
+
 def _weight_spec_fields(role: str, label: str) -> dict:
     """``{role}_weight_mode`` and ``{role}_weight_param`` of a weight spec (the param is None for none / dm)."""
     mode, param = parse_weight_spec(label)
@@ -381,44 +415,17 @@ def _run_condition(
     enable_determinism(deterministic)
     cpu_threads = pin_cpu_threads(cpu_threads)
     seed_everything(seed)
-    levels = parse_bias(bias)
-    label = bias_label(levels)
     world_options = dict(world_options or {})
     train_label = weight_spec_label(train_weights)
     select_label = weight_spec_label(
         ("clip", dr_score_clip_m) if dr_score_clip_m is not None
         else (DEFAULT_SELECT_WEIGHTS if select_weights is None else select_weights)
     )
-    user_path, item_path, user_meta_path, item_meta_path = _dataset_paths(
-        emb_dir, dataset_name
-    )
-
-    emb_x = np.load(user_path)
-    emb_a = np.load(item_path)
-    item_bias = _load_item_bias(emb_dir, dataset_name, world_options)
     bpr_status = bpr_artifact_status(emb_dir, dataset_name)
     if bpr_status["status"] != "ok":
         print(f"WARNING {dataset_name}: {bpr_status['message']}", flush=True)
-    metadata_x = metadata_a = None
-    if world_options.get("group_source") == "metadata":
-        metadata_x = _load_optional_array(user_meta_path)
-        metadata_a = _load_optional_array(item_meta_path)
-
-    params = {
-        "bias": label,
-        "ctr": float(ctr),
-        "logging_uniform_mix": float(np.clip(logging_uniform_mix, 0.0, 1.0)),
-        **world_options,
-    }
-
-    dataset = generate_dataset(
-        params=params,
-        seed=seed,
-        emb_a=emb_a,
-        emb_x=emb_x,
-        metadata_a=metadata_a,
-        metadata_x=metadata_x,
-        item_bias=item_bias,
+    dataset, params, levels, label = build_condition_world(
+        dataset_name, emb_dir, bias, ctr, seed, world_options=world_options, logging_uniform_mix=logging_uniform_mix
     )
     world = dataset["world"]
     if record_uniform_value:
