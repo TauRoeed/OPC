@@ -91,7 +91,7 @@ Relevant code: `AnalyticRewardModel` and `fit_shared_regression_bundle` in
 Supported policy-loss names (`VALID_POLICY_LOSSES` / `--policy-losses`):
 
 ```text
-sndr (study default, provisional), dr, kl_crm, kl, ipw, crm, naive, dm
+dr (working development default), sndr, kl_crm, kl, ipw, crm, naive, dm
 ```
 
 If more than one name is passed, Optuna treats `policy_loss` as a categorical.
@@ -100,20 +100,25 @@ If more than one name is passed, Optuna treats `policy_loss` as a categorical.
 
 OPC uses logged propensities (`propensity_mode="logged"`) and IW / DR-style
 losses: the reward model's value of the policy plus the weighted correction w·(r − q̂), no KL and no
-CRM, with the log trick fixed on. The full-study default is legacy `sndr` (`--sn-scope batch`),
-provisionally.
+CRM.
 
-**Three objective variants under comparison.** The legacy SNDR loss divides the correction by the
-minibatch mean weight, so its objective changes with the batch size, which Optuna searches: tuning
-the batch size also tunes which objective is optimized. Two variants remove that dependence, and
-each is also a different objective, not only a fix: `dr` (no self-normalization; per-example
-additive) and `sndr --sn-scope global` (the correction divided by the full-data mean weight,
-computed at the start of every epoch and held fixed; not exact SNDR, see section 3.4). The three are
-method variants in a controlled comparison: paired runs that replay the same trial configurations
-and seeds under each objective, and independent re-tuning of each. All of these are development runs.
-The default will be chosen, and frozen, after that comparison; confirmatory results then use fresh
-seeds and conditions. `--policy-losses sndr` (the default) reproduces the OPC arm of the runs before
-2026-09-27 exactly.
+**Working development default (since 2026-09-28).** OPC trains `dr` with the direct gradient
+(`--opc-gradient direct`), so the named estimate is the objective being optimized. Its weights are
+`harmonic:0.1` (Metelli et al. 2021), and selection keeps `clip:10`. This is the working method for
+development runs, not the final paper choice. It was chosen as an established smooth, monotone and
+differentiable OPL correction; `harmonic:0.2` was not chosen merely because the best development
+result sat at the edge of the small λ set. The prespecified standard smooth-weight comparison is
+`shrink:100` (Su et al. 2020), and raw DR (`none`) is the unregularized reference. The evidence is in
+section 9 and in `docs/decision_record_opc_objective_weighting.md`.
+
+The objective variants remain available for reproducibility and diagnostics:
+- **Legacy SNDR** (`sndr --sn-scope batch`) divides the correction by the minibatch mean weight, so
+  its objective changes with the batch size.
+- **`sndr --sn-scope global`** divides by a full-data mean weight held fixed for each epoch. It is not
+  exact SNDR (section 3.4).
+- **The previous defaults** are reproduced by `--policy-losses sndr --sn-scope batch --opc-gradient
+  log-trick --train-weights shrink:100`. That configuration reproduces the OPC arm of the runs before
+  2026-09-28, and the H1 runner keeps it.
 
 Legacy / ablation: `--policy-losses kl_crm` restores the unified loss
 
@@ -149,7 +154,8 @@ fixed per run.
 
 Two settings, not searched by Optuna:
 
-- `--train-weights` (default `DEFAULT_TRAIN_WEIGHTS`): the `sndr`, `dr`, `ipw` and `kl` training losses.
+- `--train-weights` (full-study default `STUDY_TRAIN_WEIGHTS` = `harmonic:0.1`; the trainer API and H1
+  fall back to `DEFAULT_TRAIN_WEIGHTS` = `shrink:100`): the `sndr`, `dr`, `ipw` and `kl` training losses.
   `crm` / `kl_crm` keep their own clip `crm_M`, which Optuna searches.
 - `--select-weights` (default `DEFAULT_SELECT_WEIGHTS`): the DR selection score and the post-hoc
   DR / SNIPW / SNDR estimates.
@@ -245,8 +251,8 @@ DM_i = sum over actions a [q(x_i, a) * pi_theta(a | x_i)]
 
 ### 3.3 SNDR log-trick surrogate
 
-The default OPC path (`sndr`) and `kl_crm` both use a policy-gradient
-surrogate (`use_log_trick=True`).
+The legacy OPC path (`sndr` with `--opc-gradient log-trick`, the default before 2026-09-28) and
+`kl_crm` both use a policy-gradient surrogate (`use_log_trick=True`).
 Probabilities used as coefficients are detached (treated as constants), while
 gradients flow through log policy probabilities.
 
@@ -566,12 +572,12 @@ selection only when `--optuna-selection actual_reward`.
 
 CLI `--policy-losses` accepts any of:
 
-### 6.1 `sndr` (full-study default, provisional) and `dr`
+### 6.1 `dr` (working development default) and `sndr`
 
-`sndr`: the negative SNDR surrogate of section 3.3, no KL, no CRM, self-normalized per minibatch
-(`--sn-scope batch`, legacy) or by the full-data mean weight held fixed for each epoch
-(`--sn-scope global`). `dr`: the same without the division by the mean weight. Section 3.4 derives
-what each variant optimizes.
+`dr`: DM(q̂) plus the weighted correction, without self-normalization, no KL, no CRM. `sndr`: the same,
+self-normalized per minibatch (`--sn-scope batch`, legacy; the default before 2026-09-28) or by the
+full-data mean weight held fixed for each epoch (`--sn-scope global`). Section 3.4 derives what each
+variant optimizes.
 
 ### 6.2 `kl`
 
@@ -615,8 +621,8 @@ name, but the no-propensity arm always uses it.
 Full-study defaults:
 
 ```text
-OPC:           dr, propensity_mode=logged, use_log_trick fixed True,
-               --train-weights / --select-weights (DEFAULT_TRAIN_WEIGHTS / DEFAULT_SELECT_WEIGHTS)
+OPC:           dr, propensity_mode=logged, direct gradient (--opc-gradient direct),
+               --train-weights harmonic:0.1 / --select-weights clip:10 (working development defaults)
 no-propensity: naive, propensity_mode=uniform, use_log_trick fixed False
 ```
 
@@ -658,7 +664,7 @@ heavier importance weights; see [representation_bias.md](representation_bias.md)
 Full study:
 
 ```text
-OPC:           use_log_trick fixed by --opc-gradient (log-trick, the default, or direct)
+OPC:           use_log_trick fixed by --opc-gradient (direct, the default since 2026-09-28, or log-trick)
 no-propensity: use_log_trick fixed False
 dm:            use_log_trick fixed False
 ```
@@ -783,12 +789,13 @@ On these development conditions:
   (+0.5 to +1.1).
 
 **What exists, and what is retained.** Every option above is implemented, tested and recorded in
-the run metadata, and the CLI defaults are unchanged (provisional): legacy `sndr`, log trick,
-`shrink:100` training weights, `clip:10` selection weights.
+the run metadata. Since 2026-09-28 the working development defaults are `dr`, the direct gradient,
+`harmonic:0.1` training weights and `clip:10` selection weights. They are not the final paper choice.
+The standard comparison is `shrink:100` with the direct gradient; the reference is raw DR.
 - **Out of the main future grid, unless there is a specific scientific reason:** the log-trick form
   of transformed weights (the arctan-saturated objective for `shrink:λ`), `clip:10` and
   `shrink:10000` as training weights, and legacy and global SNDR. They stay available for
   reproducibility and appendix diagnostics.
 - **Raw DR** (`dr`, `none`) remains the unregularized baseline.
-- **The main method's weighting** is decided at the scientific reassessment, among the direct-gradient
-  candidates compared above.
+- **The final paper method's weighting and λ** stay open for the scientific reassessment, among the
+  direct-gradient candidates compared above.

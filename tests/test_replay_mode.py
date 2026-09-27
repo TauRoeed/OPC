@@ -58,8 +58,12 @@ def toy_runs(tmp_path_factory):
               policy_reward_mc_sim=8, slim=True, shared_regression_size=2000, methods=("opc",))
     runs = {}
     for name, extra in (("dr_random", dict(policy_loss_types=("dr",), sampler="random")),
-                        ("legacy_random", dict(policy_loss_types=("sndr",), sampler="random")),
-                        ("global_random", dict(policy_loss_types=("sndr",), sn_scope="global", sampler="random")),
+                        # the SNDR variants in their historical configuration (log trick, shrink:100): with the
+                        # working harmonic weights they train almost the same policies as dr on this toy world
+                        ("legacy_random", dict(policy_loss_types=("sndr",), sampler="random", opc_gradient="log-trick",
+                                               train_weights="shrink:100")),
+                        ("global_random", dict(policy_loss_types=("sndr",), sn_scope="global", sampler="random",
+                                               opc_gradient="log-trick", train_weights="shrink:100")),
                         ("dr_tpe", dict(policy_loss_types=("dr",)))):
         run_dir = tmp / name
         run_dir.mkdir()

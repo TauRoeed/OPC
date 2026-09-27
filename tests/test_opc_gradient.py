@@ -148,13 +148,13 @@ def test_cli(module, monkeypatch, capsys, tmp_path):
 
     def parse(self, args=None, namespace=None):
         seen["default"] = real_parse(self, [], namespace)
-        seen["set"] = real_parse(self, ["--opc-gradient", "direct"], namespace)
+        seen["set"] = real_parse(self, ["--opc-gradient", "log-trick"], namespace)
         raise Parsed
 
     monkeypatch.setattr(argparse.ArgumentParser, "parse_args", parse)
     with pytest.raises(Parsed):
         main()
-    assert seen["default"].opc_gradient == "log-trick" and seen["set"].opc_gradient == "direct"
+    assert seen["default"].opc_gradient == "direct" and seen["set"].opc_gradient == "log-trick"  # direct since 2026-09-28
 
 
 def test_parallel_runner_forwards_the_gradient(monkeypatch, tmp_path):
@@ -163,11 +163,11 @@ def test_parallel_runner_forwards_the_gradient(monkeypatch, tmp_path):
     captured = {}
     monkeypatch.setattr(par, "_run_with_memory_cap", lambda configs, **kw: captured.setdefault("configs", list(configs)) and [])
     monkeypatch.setattr(sys, "argv", ["run_full_study_parallel", "--datasets", "ml", "--seeds", "7", "--bias-configs",
-                                      "medium", "--train-sizes", "5000", "--opc-gradient", "direct", "--out-dir",
+                                      "medium", "--train-sizes", "5000", "--opc-gradient", "log-trick", "--out-dir",
                                       str(tmp_path), "--run-tag", "t", "--no-skip-completed"])
     par.main()
     (config,) = captured["configs"]
-    assert config["opc_gradient"] == "direct"
+    assert config["opc_gradient"] == "log-trick"  # a non-default value is forwarded
 
     class Called(Exception):
         pass
@@ -179,4 +179,4 @@ def test_parallel_runner_forwards_the_gradient(monkeypatch, tmp_path):
     monkeypatch.setattr(par, "_run_condition", fake_condition)
     with pytest.raises(Called):
         par._execute_run(config)
-    assert captured["kwargs"]["opc_gradient"] == "direct"
+    assert captured["kwargs"]["opc_gradient"] == "log-trick"

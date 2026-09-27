@@ -75,6 +75,9 @@ from training.run_full_study import (
     OPC_GRADIENTS,
     REWARD_DATA_MODES,
     RUN_STAGES,
+    STUDY_OPC_GRADIENT,
+    STUDY_POLICY_LOSSES,
+    STUDY_TRAIN_WEIGHTS,
     VALID_STUDY_METHODS,
     _collect_existing_summaries,
     _condition_run_key,
@@ -88,7 +91,6 @@ from training.run_full_study import (
 )
 from training.trainer_trials import (
     DEFAULT_SELECT_WEIGHTS,
-    DEFAULT_TRAIN_WEIGHTS,
     DEFAULT_QHAT_ACTION_CHUNK,
     DEFAULT_QHAT_USER_CHUNK,
     VALID_OPTUNA_SELECTION,
@@ -402,7 +404,7 @@ def _execute_run(config: dict):
         sn_scope=str(config.get("sn_scope", "batch")),
         sampler=str(config.get("sampler", "tpe")),
         stage=str(config.get("stage", "development")),
-        opc_gradient=str(config.get("opc_gradient", "log-trick")),
+        opc_gradient=str(config.get("opc_gradient", STUDY_OPC_GRADIENT)),
     )
 
     summary_df = _finalize_summary_df(
@@ -452,10 +454,11 @@ def main():
     parser.add_argument(
         "--train-weights",
         type=weight_spec_label,
-        default=DEFAULT_TRAIN_WEIGHTS,
+        default=STUDY_TRAIN_WEIGHTS,
         help="Importance-weight transform in the OPC training losses sndr / dr / ipw / kl: none, clip:M, "
         "shrink:lambda (Su et al. 2020) or harmonic:lambda (Metelli et al. 2021, w / (1 - lambda + lambda w); "
-        "needs --opc-gradient direct) (default %(default)s; crm / kl_crm keep their own searched clip).",
+        "needs --opc-gradient direct). Default %(default)s: the working development default, not the final "
+        "paper choice; shrink:100 is the standard comparison, none (raw DR) the reference.",
     )
     parser.add_argument(
         "--select-weights",
@@ -550,11 +553,10 @@ def main():
     parser.add_argument(
         "--policy-losses",
         nargs="+",
-        default=["sndr"],
-        help="OPC training loss: sndr with --sn-scope batch (default: legacy minibatch-normalized SNDR), "
-        "sndr with --sn-scope global (epoch-refreshed, stop-gradient full-data normalizer) or dr (no "
-        "self-normalization). The three are under a controlled comparison; the default stays the legacy "
-        "one until it decides. No-prop stays naive.",
+        default=list(STUDY_POLICY_LOSSES),
+        help="OPC training loss: dr (default; the working development default, not the final paper choice), "
+        "or sndr with --sn-scope batch (legacy, the default before 2026-09-28) / global, kept for "
+        "reproducibility. No-prop stays naive.",
     )
     parser.add_argument(
         "--sn-scope",
@@ -582,10 +584,10 @@ def main():
     parser.add_argument(
         "--opc-gradient",
         choices=list(OPC_GRADIENTS),
-        default="log-trick",
-        help="How OPC's training loss is differentiated: log-trick (default; the exact gradient of "
-        "DM + H(w)(r - q_hat), H(w) = int_0^w g(t)/t dt) or direct (pathwise: the exact gradient of the "
-        "transformed estimate DM + g(w)(r - q_hat)). Identical for --train-weights none.",
+        default=STUDY_OPC_GRADIENT,
+        help="How OPC's training loss is differentiated: direct (default; the exact gradient of the named "
+        "estimate DM + g(w)(r - q_hat)) or log-trick (the gradient of DM + H(w)(r - q_hat), H(w) = "
+        "int_0^w g(t)/t dt; the default before 2026-09-28). Identical for --train-weights none.",
     )
     parser.add_argument(
         "--no-log-trick",

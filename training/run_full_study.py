@@ -12,7 +12,6 @@ from training.trainer_trials import (
     VALID_POLICY_LOSSES,
     VALID_REWARD_MODELS,
     DEFAULT_SELECT_WEIGHTS,
-    DEFAULT_TRAIN_WEIGHTS,
     LazyRegressionSplitCache,
     DEFAULT_QHAT_ACTION_CHUNK,
     DEFAULT_QHAT_USER_CHUNK,
@@ -42,6 +41,14 @@ RUN_STAGES = ("development", "confirmatory")
 # H(w) = int_0^w g(t)/t dt) or 'direct' (pathwise through g(w): the exact gradient of the transformed
 # estimate DM + g(w)(r - q_hat) itself). The two coincide for raw weights.
 OPC_GRADIENTS = ("log-trick", "direct")
+# Working development defaults since 2026-09-28 (docs/decision_record_opc_objective_weighting.md): OPC trains DR,
+# differentiated directly, with Metelli et al.'s harmonic weights at lambda = 0.1; selection keeps clip:10. This is
+# the working method for development runs, not the final paper choice. Standard alternatives: shrink:100 (Su et al.
+# 2020, the prespecified smooth-weight comparison) and none (raw DR, the unregularized reference). The previous
+# defaults are reproduced by --policy-losses sndr --sn-scope batch --opc-gradient log-trick --train-weights shrink:100.
+STUDY_POLICY_LOSSES = ("dr",)
+STUDY_OPC_GRADIENT = "direct"
+STUDY_TRAIN_WEIGHTS = "harmonic:0.1"
 # Study defaults (2026-09-26): the reward model shares the policy's budget (fit on each train size's
 # own training rows, cross-fitted by user in 5 folds), and the validation split is fixed at 20,000
 # logged rows (DR standard error ~0.5-0.6 CTR points for OPC's selected policy, vs ~1.1 at 5,000).
@@ -281,7 +288,7 @@ def _run_condition(
     policy_reward_mc_sim: int,
     run_dir: Path,
     slim: bool = False,
-    policy_loss_types: tuple[str, ...] = ("sndr",),
+    policy_loss_types: tuple[str, ...] = STUDY_POLICY_LOSSES,
     search_use_log_trick: bool = True,
     shared_regression_size: int = 50_000,
     qhat_user_chunk: int = DEFAULT_QHAT_USER_CHUNK,
@@ -313,7 +320,7 @@ def _run_condition(
     sn_scope: str = "batch",
     sampler: str = "tpe",
     stage: str = "development",
-    opc_gradient: str = "log-trick",
+    opc_gradient: str = STUDY_OPC_GRADIENT,
 ):
     """One condition. ``methods`` may add the opt-in baselines (``BASELINE_METHODS``); their
     summaries and trials come back as a 6th item ``{method: (summary_df, trials_df)}`` when
@@ -328,14 +335,17 @@ def _run_condition(
     ``sampler``: Optuna's ``tpe`` (default) or ``random`` (seeded random search without warm starts:
     the same trial configurations and seeds in every run of the grid, the paired comparison of
     objectives). ``stage``: ``development`` (default) or ``confirmatory``, recorded with the results.
-    ``opc_gradient``: ``log-trick`` (default) or ``direct``, how OPC's loss is differentiated
-    (``OPC_GRADIENTS``); the other arms are fixed (no-propensity and DM direct, tempered untrained)."""
+    ``opc_gradient``: ``direct`` (default) or ``log-trick``, how OPC's loss is differentiated
+    (``OPC_GRADIENTS``); the other arms are fixed (no-propensity and DM direct, tempered untrained).
+    Defaults are the working development method (``STUDY_POLICY_LOSSES``, ``STUDY_OPC_GRADIENT``,
+    ``STUDY_TRAIN_WEIGHTS``); ``train_weights=None`` means ``STUDY_TRAIN_WEIGHTS``."""
     if str(stage) not in RUN_STAGES:
         raise ValueError(f"stage must be one of {RUN_STAGES}, got {stage!r}")
     if str(opc_gradient) not in OPC_GRADIENTS:
         raise ValueError(f"opc_gradient must be one of {OPC_GRADIENTS}, got {opc_gradient!r}")
     opc_log_trick = str(opc_gradient) == "log-trick"
-    train_mode = parse_weight_spec(DEFAULT_TRAIN_WEIGHTS if train_weights is None else train_weights)[0]
+    train_weights = STUDY_TRAIN_WEIGHTS if train_weights is None else train_weights  # explicit for every trainer
+    train_mode = parse_weight_spec(train_weights)[0]
     if train_mode == "harmonic" and opc_log_trick and "opc" in _normalize_study_methods(methods):
         raise ValueError("harmonic training weights are optimized by their direct gradient (Metelli et al. 2021): "
                          "use opc_gradient='direct' (--opc-gradient direct)")
@@ -374,7 +384,7 @@ def _run_condition(
     levels = parse_bias(bias)
     label = bias_label(levels)
     world_options = dict(world_options or {})
-    train_label = weight_spec_label(DEFAULT_TRAIN_WEIGHTS if train_weights is None else train_weights)
+    train_label = weight_spec_label(train_weights)
     select_label = weight_spec_label(
         ("clip", dr_score_clip_m) if dr_score_clip_m is not None
         else (DEFAULT_SELECT_WEIGHTS if select_weights is None else select_weights)
@@ -798,11 +808,13 @@ def main():
     parser.add_argument(
         "--train-weights",
         type=weight_spec_label,
-        default=DEFAULT_TRAIN_WEIGHTS,
+        default=STUDY_TRAIN_WEIGHTS,
         help="Importance-weight transform in the OPC training losses sndr / dr / ipw / kl: none, clip:M, "
         "shrink:lambda (Su et al. 2020) or harmonic:lambda (Metelli et al. 2021, w / (1 - lambda + lambda w), "
-        "lambda in [0, 1], at most 1 / lambda; needs --opc-gradient direct) (default %(default)s; crm / kl_crm "
-        "keep their own searched clip). Recorded as train_weights, train_weight_mode and train_weight_param.",
+        "lambda in [0, 1], at most 1 / lambda; needs --opc-gradient direct). Default %(default)s: the working "
+        "development default, not the final paper choice; shrink:100 is the standard smooth-weight comparison "
+        "and none (raw DR) the unregularized reference (crm / kl_crm keep their own searched clip). Recorded "
+        "as train_weights, train_weight_mode and train_weight_param.",
     )
     parser.add_argument(
         "--select-weights",
@@ -940,14 +952,13 @@ def main():
     parser.add_argument(
         "--policy-losses",
         nargs="+",
-        default=["sndr"],
+        default=list(STUDY_POLICY_LOSSES),
         choices=list(VALID_POLICY_LOSSES),
-        help="OPC training loss. Three objective variants are under a controlled comparison (development "
-        "runs): sndr with --sn-scope batch (default: the legacy minibatch-normalized SNDR, whose objective "
-        "depends on the batch size), sndr with --sn-scope global (epoch-refreshed, stop-gradient full-data "
-        "normalizer) and dr (no self-normalization). The default stays the legacy one until that comparison "
-        "decides. DR selection uses a fixed weight transform (--select-weights). Multiple values = Optuna "
-        "categorical over losses. No-propensity stays naive.",
+        help="OPC training loss. Default dr (DM + weighted correction, no self-normalization): the working "
+        "development default since 2026-09-28, not the final paper choice. sndr with --sn-scope batch (legacy "
+        "minibatch-normalized SNDR, the default before 2026-09-28) and --sn-scope global remain for "
+        "reproducibility and diagnostics (docs/training_losses.md 3.4, 9). DR selection uses a fixed weight "
+        "transform (--select-weights). Multiple values = Optuna categorical over losses. No-propensity stays naive.",
     )
     parser.add_argument(
         "--sn-scope",
@@ -978,12 +989,12 @@ def main():
     parser.add_argument(
         "--opc-gradient",
         choices=list(OPC_GRADIENTS),
-        default="log-trick",
-        help="How OPC's training loss is differentiated: log-trick (default: the transformed weight is a "
-        "detached coefficient on grad log pi, the exact gradient of DM + H(w)(r - q_hat) with "
-        "H(w) = int_0^w g(t)/t dt) or direct (pathwise through the transformed weight g(w): the exact "
-        "gradient of the transformed estimate DM + g(w)(r - q_hat)). The two coincide for --train-weights "
-        "none. docs/training_losses.md 3.4.",
+        default=STUDY_OPC_GRADIENT,
+        help="How OPC's training loss is differentiated: direct (default: pathwise through the transformed "
+        "weight g(w), the exact gradient of the named estimate DM + g(w)(r - q_hat)) or log-trick (the "
+        "transformed weight as a detached coefficient on grad log pi: the exact gradient of DM + H(w)(r - q_hat) "
+        "with H(w) = int_0^w g(t)/t dt; the default before 2026-09-28, kept for reproducibility). The two "
+        "coincide for --train-weights none. docs/training_losses.md 3.4.",
     )
     parser.add_argument(
         "--no-log-trick",

@@ -1,8 +1,9 @@
 # Decision record: OPC training objective and importance weighting (2026-09-27)
 
-Status: the development work on this component is closed. The final choice of the main method's
-weighting is left to the scientific reassessment. All evidence comes from development runs; the frozen
-protocol will be evaluated on fresh confirmatory seeds and conditions.
+Status: the development work on this component is closed. Working development defaults were set on
+2026-09-28 (see the update below). The final paper choice is left to the scientific reassessment.
+All evidence comes from development runs; the frozen protocol will be evaluated on fresh confirmatory
+seeds and conditions.
 
 ## Question
 
@@ -63,8 +64,9 @@ artifacts/full_study/run_registry.csv.
    (arctan) surrogate for transformed weights, `clip:10` and `shrink:10000` training weights, and legacy
    and global SNDR.
 4. **Raw DR remains the unregularized baseline.**
-5. **The CLI defaults are unchanged and provisional** (legacy `sndr`, log trick, `shrink:100`, selection
-   `clip:10`) until the reassessment freezes the component. No new default is promoted.
+5. **Working development defaults (updated 2026-09-28, see below).** The full-study runners default to
+   `dr`, the direct gradient and `harmonic:0.1`, with selection kept at `clip:10`. Before 2026-09-28 the
+   defaults were legacy `sndr`, the log trick and `shrink:100`.
 
 ## Left open for the reassessment
 
@@ -76,10 +78,33 @@ artifacts/full_study/run_registry.csv.
   - The effect of λ is monotone, with its best value at the edge of the prespecified set. The paper's own
     rule chooses λ from n, δ and the 2-Rényi divergence, and would give a smaller λ here.
   - Whether to adopt harmonic, and at which λ, is not decided here.
-- **The objective.** The paired evidence favors `dr` over legacy and global SNDR. The CLI default stays
-  legacy SNDR until the reassessment.
-- **Gradient form.** The direct gradient makes the named objective the optimized one, at no measured
-  cost. The CLI default stays on the log trick until the reassessment.
+- **The objective and gradient form** are the working defaults since 2026-09-28 (`dr`, direct). Freezing
+  them for the paper is part of the protocol freeze before confirmatory runs.
+
+## Update 2026-09-28: working development defaults
+
+On the user's decision, the full-study runners (`run_full_study`, `run_full_study_parallel`) use these
+working defaults for development runs:
+- **OPC objective:** `dr`.
+- **Gradient:** `direct`.
+- **Training weights:** `harmonic:0.1`.
+- **Selection weights:** `clip:10`, unchanged.
+
+These are the working method, not the final paper choice. `harmonic:0.1` was picked because it is an
+established smooth, monotone, differentiable OPL correction, and its asymptotic cap is 10 (1/λ).
+`harmonic:0.2` was not picked merely because the best development result sat at the edge of the small λ
+set.
+
+The alternatives keep defined roles:
+- **Standard comparison:** Su et al. `shrink:100` with the direct gradient, the prespecified smooth-weight
+  comparison.
+- **Reference:** raw DR (`none`), the unregularized reference.
+- **Reproducibility only, not main candidates:** legacy and global SNDR, log-trick variants of transformed
+  weights, `clip:10` training weights and `shrink:10000`.
+
+The previous defaults are reproduced by `--policy-losses sndr --sn-scope batch --opc-gradient log-trick
+--train-weights shrink:100`. The H1 runner (`run_h1_study`) keeps those settings explicitly; aligning H1
+is not part of this change.
 
 ## Provenance
 

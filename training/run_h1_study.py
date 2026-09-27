@@ -71,6 +71,7 @@ def _execute_h1_cell(config: dict) -> None:
         deterministic=bool(config.get("deterministic", True)),
         cpu_threads=int(config.get("cpu_threads", DEFAULT_CPU_THREADS)),
         policy_loss_types=tuple(config["policy_loss_types"]),
+        opc_gradient="log-trick",  # H1 keeps its own settings (sndr, log trick, shrink:100); not the study's working defaults
         logging_uniform_mix=log_mix,
         reward_model="oracle",
         q_error=q_err,

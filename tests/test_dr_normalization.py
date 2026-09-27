@@ -164,8 +164,8 @@ def test_trainer_wiring_and_defaults(monkeypatch, capsys):
         with pytest.raises(SystemExit):
             main()
         text = " ".join(capsys.readouterr().out.split())
-        assert "--sn-scope" in text and "default stays the legacy" in text
-    # the provisional default: legacy minibatch SNDR, until the controlled comparison decides
+        assert "--sn-scope" in text and "working development default" in text
+    # the working development default since 2026-09-28: dr (legacy SNDR stays available)
     real_parse, seen = argparse.ArgumentParser.parse_args, {}
 
     class Parsed(Exception):
@@ -179,7 +179,7 @@ def test_trainer_wiring_and_defaults(monkeypatch, capsys):
     for module in ("run_full_study", "run_full_study_parallel"):
         with pytest.raises(Parsed):
             __import__(f"training.{module}", fromlist=["main"]).main()
-        assert list(seen["args"].policy_losses) == ["sndr"] and seen["args"].sn_scope == "batch"
+        assert list(seen["args"].policy_losses) == ["dr"] and seen["args"].sn_scope == "batch"
 
 
 def test_study_runs_the_dr_and_global_losses(tmp_path):

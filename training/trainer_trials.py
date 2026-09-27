@@ -164,6 +164,8 @@ POST_TEMPER_GRID = (0.25, 0.5, 0.71, 1.0, 1.41, 2.0, 2.83, 4.0, 5.66, 8.0, 16.0)
 # shrink:10 to shrink:1000) picks trials worth >= 99.7% of the best trial's gain, while clip:100
 # gets 93.5% and raw weights 77%; the training transform moves the true value by at most ~0.2
 # points (shrink:100 best, clip:100 significantly worse). To be re-tuned on the sharpened logger.
+# Trainer-API fallbacks (and the H1 runner's defaults). The full-study runners pass their own working default,
+# run_full_study.STUDY_TRAIN_WEIGHTS (harmonic:0.1, since 2026-09-28); selection keeps clip:10 everywhere.
 DEFAULT_TRAIN_WEIGHTS = "shrink:100"
 DEFAULT_SELECT_WEIGHTS = "clip:10"
 VALID_OPTUNA_SELECTION = ("ci_low", "r_hat", "actual_reward")
