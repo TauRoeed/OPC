@@ -5,7 +5,10 @@ Offline policy comparison experiments with matrix-factorization embeddings.
 **Loss / Optuna details:** [`docs/training_losses.md`](docs/training_losses.md)  
 **Research notes:** [`docs/research_workplan.md`](docs/research_workplan.md)  
 **Simulator:** [`docs/representation_bias.md`](docs/representation_bias.md)  
-**Representation repair (development results, 2026-09-27):** [`docs/representation_repair_dev_20260927.md`](docs/representation_repair_dev_20260927.md) · follow-up: [`docs/representation_repair_followup_20260927.md`](docs/representation_repair_followup_20260927.md)
+**Experimental report (all representation-repair results, figures):** [`docs/representation_repair_experimental_report_20260928.md`](docs/representation_repair_experimental_report_20260928.md) (figures and tables: `artifacts/full_study/report_20260928/`)  
+**Code handoff since c072f9b (for Roee):** [`docs/roee_handoff_20260928.md`](docs/roee_handoff_20260928.md)  
+**Representation repair, stage write-ups:** [`docs/representation_repair_dev_20260927.md`](docs/representation_repair_dev_20260927.md) · follow-up: [`docs/representation_repair_followup_20260927.md`](docs/representation_repair_followup_20260927.md)  
+**Objective and weighting decision record:** [`docs/decision_record_opc_objective_weighting.md`](docs/decision_record_opc_objective_weighting.md)
 
 Main flow:
 1. Fit/generate BPR artifacts (user/item factors + metadata arrays).
