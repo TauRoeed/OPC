@@ -1,0 +1,433 @@
+bias,bias type,train_size,contrast,measure,mean,ci_low,ci_high,n,dataset,interval
+none,no bias,5000,opc - dm,stochastic,0.7071086724541514,0.42967385728974183,0.984543487618561,2,ml,seed range
+none,no bias,5000,opc - no_propensity,stochastic,-0.778876668868303,-0.8795318544374375,-0.6782214832991684,2,ml,seed range
+none,no bias,5000,opc - tempered_logger,stochastic,-1.42584527429441,-1.5099426156500617,-1.3417479329387583,2,ml,seed range
+none,no bias,5000,opc - dm,greedy,0.6546096660392714,0.33399468785844655,0.9752246442200962,2,ml,seed range
+none,no bias,5000,opc - no_propensity,greedy,-0.8766542354598172,-0.9478375741925005,-0.805470896727134,2,ml,seed range
+none,no bias,5000,opc - tempered_logger,greedy,-1.4302726031609398,-1.5008881820999187,-1.3596570242219608,2,ml,seed range
+none,no bias,25000,opc - dm,stochastic,-0.09409840119583013,-0.0959165743804502,-0.09228022801121005,2,ml,seed range
+none,no bias,25000,opc - no_propensity,stochastic,-0.16080573474178683,-0.1791233838612627,-0.14248808562231097,2,ml,seed range
+none,no bias,25000,opc - tempered_logger,stochastic,-0.7610847078566019,-0.9421318858627625,-0.5800375298504412,2,ml,seed range
+none,no bias,25000,opc - dm,greedy,-0.10398181805872375,-0.1230436214342101,-0.0849200146832374,2,ml,seed range
+none,no bias,25000,opc - no_propensity,greedy,-0.1594941531779248,-0.16974923890062943,-0.1492390674552202,2,ml,seed range
+none,no bias,25000,opc - tempered_logger,greedy,-0.7824696124187874,-0.9574938861383275,-0.6074453386992473,2,ml,seed range
+none,no bias,100000,opc - dm,stochastic,-0.28047552500755357,-0.2917826851171479,-0.26916836489795926,2,ml,seed range
+none,no bias,100000,opc - no_propensity,stochastic,0.2402035246274553,0.1954984957135919,0.2849085535413187,2,ml,seed range
+none,no bias,100000,opc - tempered_logger,stochastic,-0.4104058736313754,-0.42333547856998055,-0.3974762686927702,2,ml,seed range
+none,no bias,100000,opc - dm,greedy,-0.1728726319872559,-0.2614492468014318,-0.08429601717308,2,ml,seed range
+none,no bias,100000,opc - no_propensity,greedy,0.37363768701871025,0.30713358304678695,0.44014179099063355,2,ml,seed range
+none,no bias,100000,opc - tempered_logger,greedy,-0.341739143821293,-0.42081425312049947,-0.26266403452208653,2,ml,seed range
+none,no bias,5000,opc - dm,stochastic,-0.34798611487870945,-0.7620217208274604,0.06604949107004154,2,kuairand,seed range
+none,no bias,5000,opc - no_propensity,stochastic,-0.8071204372836149,-1.1877877509841095,-0.4264531235831204,2,kuairand,seed range
+none,no bias,5000,opc - tempered_logger,stochastic,-1.4360060919922646,-1.7089570458336922,-1.163055138150837,2,kuairand,seed range
+none,no bias,5000,opc - dm,greedy,0.2802724364700304,0.1622708330265732,0.39827403991348764,2,kuairand,seed range
+none,no bias,5000,opc - no_propensity,greedy,-0.2694349435043486,-0.5005862278459172,-0.03828365916277998,2,kuairand,seed range
+none,no bias,5000,opc - tempered_logger,greedy,-0.5744646493974714,-0.820185887431929,-0.3287434113630139,2,kuairand,seed range
+none,no bias,25000,opc - dm,stochastic,-0.11186707113640393,-0.3104326779092892,0.08669853563648133,2,kuairand,seed range
+none,no bias,25000,opc - no_propensity,stochastic,-0.2800877979069444,-0.36928766036650185,-0.19088793544738691,2,kuairand,seed range
+none,no bias,25000,opc - tempered_logger,stochastic,-0.51036539604295,-0.5708284204562708,-0.4499023716296291,2,kuairand,seed range
+none,no bias,25000,opc - dm,greedy,0.12028139784009129,-0.03352890000020703,0.2740916956803896,2,kuairand,seed range
+none,no bias,25000,opc - no_propensity,greedy,-0.03648513089895555,-0.07276684130392841,-0.0002034204939826978,2,kuairand,seed range
+none,no bias,25000,opc - tempered_logger,greedy,-0.3052497311904212,-0.3142550990187398,-0.2962443633621026,2,kuairand,seed range
+none,no bias,100000,opc - dm,stochastic,-0.1770196336311619,-0.18172662149831265,-0.17231264576401117,2,kuairand,seed range
+none,no bias,100000,opc - no_propensity,stochastic,-0.07173414502176512,-0.07550123473540893,-0.0679670553081213,2,kuairand,seed range
+none,no bias,100000,opc - tempered_logger,stochastic,-0.3208229393010492,-0.3236630425662079,-0.3179828360358905,2,kuairand,seed range
+none,no bias,100000,opc - dm,greedy,-0.16426659984581093,-0.18457904641331346,-0.1439541532783084,2,kuairand,seed range
+none,no bias,100000,opc - no_propensity,greedy,-0.0383359307128156,-0.06376634532053171,-0.01290551610509949,2,kuairand,seed range
+none,no bias,100000,opc - tempered_logger,greedy,-0.2683626487968077,-0.2767590795481334,-0.25996621804548203,2,kuairand,seed range
+none,no bias,5000,opc - dm,stochastic,0.713536631095324,0.5772299958119342,0.8498432663787137,2,anime,seed range
+none,no bias,5000,opc - no_propensity,stochastic,-0.6429676214674496,-1.0963675166673792,-0.18956772626751994,2,anime,seed range
+none,no bias,5000,opc - tempered_logger,stochastic,-1.507998483118722,-1.8247749042306471,-1.191222062006797,2,anime,seed range
+none,no bias,5000,opc - dm,greedy,1.3550382683103879,0.8879761749921333,1.8221003616286424,2,anime,seed range
+none,no bias,5000,opc - no_propensity,greedy,-0.09045115173106355,-0.30944877044719044,0.12854646698506333,2,anime,seed range
+none,no bias,5000,opc - tempered_logger,greedy,-0.5790887292953739,-0.784195496946738,-0.3739819616440099,2,anime,seed range
+none,no bias,25000,opc - dm,stochastic,-0.17246657192976356,-0.22795288917074052,-0.11698025468878659,2,anime,seed range
+none,no bias,25000,opc - no_propensity,stochastic,-0.3789160040228612,-0.38752157260659725,-0.3703104354391251,2,anime,seed range
+none,no bias,25000,opc - tempered_logger,stochastic,-0.45013994730452866,-0.6992595751180608,-0.20102031949099652,2,anime,seed range
+none,no bias,25000,opc - dm,greedy,0.252413544333005,0.2112625623733877,0.2935645262926223,2,anime,seed range
+none,no bias,25000,opc - no_propensity,greedy,0.061594182406193854,-0.017329614979394448,0.14051797979178215,2,anime,seed range
+none,no bias,25000,opc - tempered_logger,greedy,-0.27381366008304153,-0.3108132140833608,-0.23681410608272224,2,anime,seed range
+none,no bias,100000,opc - dm,stochastic,-0.3066981987613099,-0.3722484128220127,-0.24114798470060705,2,anime,seed range
+none,no bias,100000,opc - no_propensity,stochastic,-0.14498903823318976,-0.18713172772096276,-0.10284634874541676,2,anime,seed range
+none,no bias,100000,opc - tempered_logger,stochastic,-0.44245938807316865,-0.5632424978304906,-0.32167627831584666,2,anime,seed range
+none,no bias,100000,opc - dm,greedy,-0.3075529631056839,-0.3326695033231908,-0.28243642288817705,2,anime,seed range
+none,no bias,100000,opc - no_propensity,greedy,-0.11955188615692669,-0.12570409473526278,-0.1133996775785906,2,anime,seed range
+none,no bias,100000,opc - tempered_logger,greedy,-0.45061972486204194,-0.4967222302055152,-0.40451721951856867,2,anime,seed range
+none,no bias,5000,opc - dm,stochastic,0.3575530628902553,-0.3106907734975392,1.0257968992780495,6,all,95% t
+none,no bias,5000,opc - no_propensity,stochastic,-0.7429882425397891,-1.1499829139972235,-0.3359935710823545,6,all,95% t
+none,no bias,5000,opc - tempered_logger,stochastic,-1.4566166164684655,-1.7428134372810549,-1.1704197956558766,6,all,95% t
+none,no bias,5000,opc - dm,greedy,0.7633067902732297,0.123185893684574,1.4034276868618851,6,all,95% t
+none,no bias,5000,opc - no_propensity,greedy,-0.4121801102317431,-0.8554743748812799,0.0311141544177935,6,all,95% t
+none,no bias,5000,opc - tempered_logger,greedy,-0.861275327284595,-1.3724191403793111,-0.3501315141898786,6,all,95% t
+none,no bias,25000,opc - dm,stochastic,-0.1261440147539992,-0.268321234743557,0.0160332052355587,6,all,95% t
+none,no bias,25000,opc - no_propensity,stochastic,-0.2732698455571974,-0.3924110291542348,-0.15412866196016,6,all,95% t
+none,no bias,25000,opc - tempered_logger,stochastic,-0.5738633504013602,-0.8333824435914616,-0.3143442572112587,6,all,95% t
+none,no bias,25000,opc - dm,greedy,0.0895710413714575,-0.1102497493584749,0.2893918321013899,6,all,95% t
+none,no bias,25000,opc - no_propensity,greedy,-0.0447950338902288,-0.1638846701184159,0.0742946023379582,6,all,95% t
+none,no bias,25000,opc - tempered_logger,greedy,-0.4538443345640834,-0.7466120766521718,-0.1610765924759949,6,all,95% t
+none,no bias,100000,opc - dm,stochastic,-0.2547311191333418,-0.3328397754302032,-0.1766224628364803,6,all,95% t
+none,no bias,100000,opc - no_propensity,stochastic,0.0078267804575001,-0.1884713309663784,0.2041248918813787,6,all,95% t
+none,no bias,100000,opc - tempered_logger,stochastic,-0.3912294003351977,-0.4912580009204538,-0.2912007997499417,6,all,95% t
+none,no bias,100000,opc - dm,greedy,-0.2148973983129169,-0.3129033722856746,-0.1168914243401591,6,all,95% t
+none,no bias,100000,opc - no_propensity,greedy,0.0719166233829893,-0.1807850098807686,0.3246182566467472,6,all,95% t
+none,no bias,100000,opc - tempered_logger,greedy,-0.3535738391600476,-0.459077826787161,-0.2480698515329341,6,all,95% t
+w-high.g-none.v-none,warp,5000,opc - dm,stochastic,1.0796093949272305,0.00336349744780029,2.155855292406661,2,ml,seed range
+w-high.g-none.v-none,warp,5000,opc - no_propensity,stochastic,1.8006239225779943,1.386839281931851,2.2144085632241377,2,ml,seed range
+w-high.g-none.v-none,warp,5000,opc - tempered_logger,stochastic,1.8835561515259738,1.5853661146304598,2.1817461884214877,2,ml,seed range
+w-high.g-none.v-none,warp,5000,opc - dm,greedy,1.1485097835547853,0.08019098890748033,2.2168285782020902,2,ml,seed range
+w-high.g-none.v-none,warp,5000,opc - no_propensity,greedy,1.8083879535425842,1.3526985951506088,2.2640773119345594,2,ml,seed range
+w-high.g-none.v-none,warp,5000,opc - tempered_logger,greedy,2.1459271424065642,1.7525116758187602,2.5393426089943687,2,ml,seed range
+w-high.g-none.v-none,warp,25000,opc - dm,stochastic,0.8963618566853169,0.3273622688503425,1.4653614445202912,2,ml,seed range
+w-high.g-none.v-none,warp,25000,opc - no_propensity,stochastic,3.0083600471503855,2.2919853094204607,3.72473478488031,2,ml,seed range
+w-high.g-none.v-none,warp,25000,opc - tempered_logger,stochastic,3.700448713599369,2.820471193654761,4.580426233543977,2,ml,seed range
+w-high.g-none.v-none,warp,25000,opc - dm,greedy,0.922676537509709,0.33255193850051934,1.5128011365188987,2,ml,seed range
+w-high.g-none.v-none,warp,25000,opc - no_propensity,greedy,3.0262136342381285,2.280721707230149,3.771705561246108,2,ml,seed range
+w-high.g-none.v-none,warp,25000,opc - tempered_logger,greedy,3.7281539446784127,2.8352950058687987,4.621012883488026,2,ml,seed range
+w-high.g-none.v-none,warp,100000,opc - dm,stochastic,0.9484350962530419,0.6816387458104645,1.2152314466956193,2,ml,seed range
+w-high.g-none.v-none,warp,100000,opc - no_propensity,stochastic,3.5763997703752466,3.3650182221307805,3.7877813186197122,2,ml,seed range
+w-high.g-none.v-none,warp,100000,opc - tempered_logger,stochastic,4.220669364208305,3.754644937223289,4.686693791193322,2,ml,seed range
+w-high.g-none.v-none,warp,100000,opc - dm,greedy,0.9465269184974201,0.6603505466087511,1.232703290386089,2,ml,seed range
+w-high.g-none.v-none,warp,100000,opc - no_propensity,greedy,3.581334793958474,3.394663392609848,3.7680061953071,2,ml,seed range
+w-high.g-none.v-none,warp,100000,opc - tempered_logger,greedy,4.239798419718728,3.791841407693608,4.687755431743848,2,ml,seed range
+w-high.g-none.v-none,warp,5000,opc - dm,stochastic,1.077061137787709,-0.04982597348242024,2.2039482490578384,2,kuairand,seed range
+w-high.g-none.v-none,warp,5000,opc - no_propensity,stochastic,0.9623660234546638,0.7150739378934068,1.2096581090159209,2,kuairand,seed range
+w-high.g-none.v-none,warp,5000,opc - tempered_logger,stochastic,1.276723302105251,0.9433755824021506,1.6100710218083514,2,kuairand,seed range
+w-high.g-none.v-none,warp,5000,opc - dm,greedy,1.2313972179119395,0.2873393508617317,2.175455084962147,2,kuairand,seed range
+w-high.g-none.v-none,warp,5000,opc - no_propensity,greedy,1.0288005560793096,0.6703626683937369,1.3872384437648821,2,kuairand,seed range
+w-high.g-none.v-none,warp,5000,opc - tempered_logger,greedy,1.4774088515942458,0.8376749580344789,2.117142745154013,2,kuairand,seed range
+w-high.g-none.v-none,warp,25000,opc - dm,stochastic,1.1843503467878547,1.0771829863184423,1.291517707257267,2,kuairand,seed range
+w-high.g-none.v-none,warp,25000,opc - no_propensity,stochastic,1.627660973269414,1.1969370494845977,2.0583848970542302,2,kuairand,seed range
+w-high.g-none.v-none,warp,25000,opc - tempered_logger,stochastic,2.1920259634328696,1.5995649195393091,2.7844870073264305,2,kuairand,seed range
+w-high.g-none.v-none,warp,25000,opc - dm,greedy,1.1839515908492722,1.0633560657168528,1.3045471159816913,2,kuairand,seed range
+w-high.g-none.v-none,warp,25000,opc - no_propensity,greedy,1.6327941532595314,1.1800876037359909,2.085500702783072,2,kuairand,seed range
+w-high.g-none.v-none,warp,25000,opc - tempered_logger,greedy,2.211643019189487,1.6014447082790817,2.821841330099892,2,kuairand,seed range
+w-high.g-none.v-none,warp,100000,opc - dm,stochastic,1.1613920979505532,1.0758524467616604,1.246931749139446,2,kuairand,seed range
+w-high.g-none.v-none,warp,100000,opc - no_propensity,stochastic,1.7939406820558237,1.436184108336469,2.1516972557751783,2,kuairand,seed range
+w-high.g-none.v-none,warp,100000,opc - tempered_logger,stochastic,2.5462960353039494,2.1045584447579593,2.9880336258499396,2,kuairand,seed range
+w-high.g-none.v-none,warp,100000,opc - dm,greedy,1.1643697255451695,1.0539753197338297,1.2747641313565095,2,kuairand,seed range
+w-high.g-none.v-none,warp,100000,opc - no_propensity,greedy,1.8067512652235247,1.4366129032590713,2.176889627187978,2,kuairand,seed range
+w-high.g-none.v-none,warp,100000,opc - tempered_logger,greedy,2.5512865116409893,2.0422798564043,3.0602931668776785,2,kuairand,seed range
+w-high.g-none.v-none,warp,5000,opc - dm,stochastic,1.126367855104926,0.9776292681708321,1.2751064420390201,2,anime,seed range
+w-high.g-none.v-none,warp,5000,opc - no_propensity,stochastic,1.537498939844155,1.2627888096770818,1.812209070011228,2,anime,seed range
+w-high.g-none.v-none,warp,5000,opc - tempered_logger,stochastic,1.8862086032032293,1.7488728870520802,2.0235443193543783,2,anime,seed range
+w-high.g-none.v-none,warp,5000,opc - dm,greedy,1.25408096222802,1.1905426005161508,1.3176193239398892,2,anime,seed range
+w-high.g-none.v-none,warp,5000,opc - no_propensity,greedy,1.5867102924385397,1.3305533718009799,1.8428672130760992,2,anime,seed range
+w-high.g-none.v-none,warp,5000,opc - tempered_logger,greedy,2.134617146675259,2.1028973122080794,2.1663369811424387,2,anime,seed range
+w-high.g-none.v-none,warp,25000,opc - dm,stochastic,0.7711461409906056,0.7700614836604613,0.7722307983207499,2,anime,seed range
+w-high.g-none.v-none,warp,25000,opc - no_propensity,stochastic,2.487141800113915,2.4050369735037407,2.569246626724089,2,anime,seed range
+w-high.g-none.v-none,warp,25000,opc - tempered_logger,stochastic,3.3349286560600406,3.320216827654951,3.34964048446513,2,anime,seed range
+w-high.g-none.v-none,warp,25000,opc - dm,greedy,0.8027166295737104,0.7952291618406715,0.8102040973067492,2,anime,seed range
+w-high.g-none.v-none,warp,25000,opc - no_propensity,greedy,2.5266402648086093,2.4452368381168292,2.608043691500389,2,anime,seed range
+w-high.g-none.v-none,warp,25000,opc - tempered_logger,greedy,3.179407990415349,2.9570828404581584,3.40173314037254,2,anime,seed range
+w-high.g-none.v-none,warp,100000,opc - dm,stochastic,1.1421299943583956,0.7497946568473829,1.5344653318694084,2,anime,seed range
+w-high.g-none.v-none,warp,100000,opc - no_propensity,stochastic,3.040898012572521,2.821960984649732,3.2598350404953096,2,anime,seed range
+w-high.g-none.v-none,warp,100000,opc - tempered_logger,stochastic,3.92235029463549,3.6626342458243726,4.182066343446608,2,anime,seed range
+w-high.g-none.v-none,warp,100000,opc - dm,greedy,1.1513951468630448,0.7407597323070197,1.56203056141907,2,anime,seed range
+w-high.g-none.v-none,warp,100000,opc - no_propensity,greedy,3.0673715156193353,2.8220715248053194,3.312671506433351,2,anime,seed range
+w-high.g-none.v-none,warp,100000,opc - tempered_logger,greedy,3.954054285714274,3.6798004326278084,4.22830813880074,2,anime,seed range
+w-high.g-none.v-none,warp,5000,opc - dm,stochastic,1.0943461292732888,0.055066898969879,2.1336253595766985,6,all,95% t
+w-high.g-none.v-none,warp,5000,opc - no_propensity,stochastic,1.4334962952922707,0.8880320996157681,1.9789604909687732,6,all,95% t
+w-high.g-none.v-none,warp,5000,opc - tempered_logger,stochastic,1.6821626856114846,1.2293343042100962,2.1349910670128733,6,all,95% t
+w-high.g-none.v-none,warp,5000,opc - dm,greedy,1.2113293212315817,0.2627035519977884,2.159955090465375,6,all,95% t
+w-high.g-none.v-none,warp,5000,opc - no_propensity,greedy,1.4746329340201445,0.9097022690385148,2.0395635990017738,6,all,95% t
+w-high.g-none.v-none,warp,5000,opc - tempered_logger,greedy,1.9193177135586896,1.30451304608812,2.5341223810292592,6,all,95% t
+w-high.g-none.v-none,warp,25000,opc - dm,stochastic,0.9506194481545924,0.5179101477638383,1.3833287485453467,6,all,95% t
+w-high.g-none.v-none,warp,25000,opc - no_propensity,stochastic,2.3743876068445715,1.5146974390615684,3.2340777746275746,6,all,95% t
+w-high.g-none.v-none,warp,25000,opc - tempered_logger,stochastic,3.07580111103076,2.055314184564501,4.096288037497018,6,all,95% t
+w-high.g-none.v-none,warp,25000,opc - dm,greedy,0.969781585977564,0.5300969764355279,1.4094661955196,6,all,95% t
+w-high.g-none.v-none,warp,25000,opc - no_propensity,greedy,2.395216017435424,1.5136787422742248,3.276753292596622,6,all,95% t
+w-high.g-none.v-none,warp,25000,opc - tempered_logger,greedy,3.0397349847610826,2.011902256889547,4.067567712632618,6,all,95% t
+w-high.g-none.v-none,warp,100000,opc - dm,stochastic,1.0839857295206636,0.7454417496625685,1.4225297093787588,6,all,95% t
+w-high.g-none.v-none,warp,100000,opc - no_propensity,stochastic,2.803746155001197,1.890424288350132,3.717068021652264,6,all,95% t
+w-high.g-none.v-none,warp,100000,opc - tempered_logger,stochastic,3.5631052313825813,2.6069980973321494,4.519212365433013,6,all,95% t
+w-high.g-none.v-none,warp,100000,opc - dm,greedy,1.087430596968545,0.7284252912472471,1.4464359026898428,6,all,95% t
+w-high.g-none.v-none,warp,100000,opc - no_propensity,greedy,2.8184858582671115,1.9037270177804868,3.733244698753736,6,all,95% t
+w-high.g-none.v-none,warp,100000,opc - tempered_logger,greedy,3.581713072357997,2.6043370589797794,4.559089085736215,6,all,95% t
+w-none.g-high.v-none,group,5000,opc - dm,stochastic,0.39328855382994576,0.20719827508622057,0.579378832573671,2,ml,seed range
+w-none.g-high.v-none,group,5000,opc - no_propensity,stochastic,0.7671982053711655,0.19327706834761094,1.3411193423947199,2,ml,seed range
+w-none.g-high.v-none,group,5000,opc - tempered_logger,stochastic,0.4245281775487539,0.060610995294699266,0.7884453598028085,2,ml,seed range
+w-none.g-high.v-none,group,5000,opc - dm,greedy,0.48813883039593997,0.23805324445842768,0.7382244163334523,2,ml,seed range
+w-none.g-high.v-none,group,5000,opc - no_propensity,greedy,0.8253652264193709,0.21370495085369923,1.4370255019850426,2,ml,seed range
+w-none.g-high.v-none,group,5000,opc - tempered_logger,greedy,0.7256878829783555,0.22449848679425843,1.2268772791624527,2,ml,seed range
+w-none.g-high.v-none,group,25000,opc - dm,stochastic,0.37071912310927824,0.23076272628079764,0.5106755199377588,2,ml,seed range
+w-none.g-high.v-none,group,25000,opc - no_propensity,stochastic,1.6296702020521248,1.4699345796657992,1.7894058244384503,2,ml,seed range
+w-none.g-high.v-none,group,25000,opc - tempered_logger,stochastic,1.5000774110445827,1.3181626753033275,1.6819921467858379,2,ml,seed range
+w-none.g-high.v-none,group,25000,opc - dm,greedy,0.36373422133238464,0.21021016614123922,0.5172582765235301,2,ml,seed range
+w-none.g-high.v-none,group,25000,opc - no_propensity,greedy,1.6492398668347243,1.4450216869827393,1.8534580466867094,2,ml,seed range
+w-none.g-high.v-none,group,25000,opc - tempered_logger,greedy,1.508273307674765,1.3083682527460088,1.7081783626035212,2,ml,seed range
+w-none.g-high.v-none,group,100000,opc - dm,stochastic,0.45736174713364997,0.3608407592791685,0.5538827349881315,2,ml,seed range
+w-none.g-high.v-none,group,100000,opc - no_propensity,stochastic,2.193416963967096,2.0904912430944695,2.2963426848397224,2,ml,seed range
+w-none.g-high.v-none,group,100000,opc - tempered_logger,stochastic,1.9867493479602856,1.9485667553988006,2.0249319405217707,2,ml,seed range
+w-none.g-high.v-none,group,100000,opc - dm,greedy,0.4282550925263723,0.3532447820964124,0.5032654029563322,2,ml,seed range
+w-none.g-high.v-none,group,100000,opc - no_propensity,greedy,2.173969425302602,2.0775677029208515,2.2703711476843527,2,ml,seed range
+w-none.g-high.v-none,group,100000,opc - tempered_logger,greedy,1.8900112617897271,1.8894636613704137,1.8905588622090408,2,ml,seed range
+w-none.g-high.v-none,group,5000,opc - dm,stochastic,0.32164910295126026,0.22087580404935858,0.42242240185316193,2,kuairand,seed range
+w-none.g-high.v-none,group,5000,opc - no_propensity,stochastic,0.03107990825911844,-0.09404734263370185,0.15620715915193872,2,kuairand,seed range
+w-none.g-high.v-none,group,5000,opc - tempered_logger,stochastic,0.17956276796212423,0.024552680892631074,0.3345728550316174,2,kuairand,seed range
+w-none.g-high.v-none,group,5000,opc - dm,greedy,0.38846628868381416,0.32188509525575837,0.45504748211186996,2,kuairand,seed range
+w-none.g-high.v-none,group,5000,opc - no_propensity,greedy,-0.020685178853208086,-0.16734545070868911,0.12597509300227294,2,kuairand,seed range
+w-none.g-high.v-none,group,5000,opc - tempered_logger,greedy,0.3677163959158819,0.10047837443254992,0.6349544173992139,2,kuairand,seed range
+w-none.g-high.v-none,group,25000,opc - dm,stochastic,0.6723489818118267,0.39681892582281164,0.9478790378008417,2,kuairand,seed range
+w-none.g-high.v-none,group,25000,opc - no_propensity,stochastic,0.3552271048632427,0.25590730694385333,0.4545469027826321,2,kuairand,seed range
+w-none.g-high.v-none,group,25000,opc - tempered_logger,stochastic,0.711275655425575,0.5701385163584594,0.8524127944926907,2,kuairand,seed range
+w-none.g-high.v-none,group,25000,opc - dm,greedy,0.6577397630565862,0.37665269487132114,0.9388268312418513,2,kuairand,seed range
+w-none.g-high.v-none,group,25000,opc - no_propensity,greedy,0.3465478397315147,0.24377567565858071,0.4493200038044487,2,kuairand,seed range
+w-none.g-high.v-none,group,25000,opc - tempered_logger,greedy,0.7040633832397808,0.5795769334335621,0.8285498330459995,2,kuairand,seed range
+w-none.g-high.v-none,group,100000,opc - dm,stochastic,0.4746360077894224,0.338499262171843,0.6107727534070018,2,kuairand,seed range
+w-none.g-high.v-none,group,100000,opc - no_propensity,stochastic,0.6763585223883817,0.5294717002093108,0.8232453445674526,2,kuairand,seed range
+w-none.g-high.v-none,group,100000,opc - tempered_logger,stochastic,0.9516677627834452,0.8823806213377583,1.0209549042291322,2,kuairand,seed range
+w-none.g-high.v-none,group,100000,opc - dm,greedy,0.46573410019636885,0.33437993974745894,0.5970882606452788,2,kuairand,seed range
+w-none.g-high.v-none,group,100000,opc - no_propensity,greedy,0.6819425130049878,0.540930384558147,0.8229546414518285,2,kuairand,seed range
+w-none.g-high.v-none,group,100000,opc - tempered_logger,greedy,0.9848147054356354,0.9289225218320707,1.0407068890392002,2,kuairand,seed range
+w-none.g-high.v-none,group,5000,opc - dm,stochastic,1.5631682877365993,1.1541120367132591,1.9722245387599395,2,anime,seed range
+w-none.g-high.v-none,group,5000,opc - no_propensity,stochastic,0.29987701204192,0.28509947194304,0.31465455214080007,2,anime,seed range
+w-none.g-high.v-none,group,5000,opc - tempered_logger,stochastic,0.3974768800206391,0.014575235082900373,0.7803785249583778,2,anime,seed range
+w-none.g-high.v-none,group,5000,opc - dm,greedy,1.6406807211495553,1.3140342557432905,1.9673271865558202,2,anime,seed range
+w-none.g-high.v-none,group,5000,opc - no_propensity,greedy,0.2772721648513457,0.2017313003636112,0.3528130293390802,2,anime,seed range
+w-none.g-high.v-none,group,5000,opc - tempered_logger,greedy,0.5335933907798157,0.4498923735570398,0.6172944080025916,2,anime,seed range
+w-none.g-high.v-none,group,25000,opc - dm,stochastic,0.5110267514550709,0.23476466748749147,0.7872888354226504,2,anime,seed range
+w-none.g-high.v-none,group,25000,opc - no_propensity,stochastic,1.0654914524153056,0.9400922989231009,1.1908906059075104,2,anime,seed range
+w-none.g-high.v-none,group,25000,opc - tempered_logger,stochastic,1.3523763708633854,1.2229714781171714,1.4817812636095995,2,anime,seed range
+w-none.g-high.v-none,group,25000,opc - dm,greedy,0.5020937998116413,0.1970925817538105,0.8070950178694719,2,anime,seed range
+w-none.g-high.v-none,group,25000,opc - no_propensity,greedy,1.06932782965561,0.9440624610778298,1.1945931982333902,2,anime,seed range
+w-none.g-high.v-none,group,25000,opc - tempered_logger,greedy,1.1925321605061963,0.89564282683183,1.4894214941805624,2,anime,seed range
+w-none.g-high.v-none,group,100000,opc - dm,stochastic,0.41435144647608,0.33924947966113006,0.48945341329103,2,anime,seed range
+w-none.g-high.v-none,group,100000,opc - no_propensity,stochastic,1.3402940505135659,1.2705240177143002,1.4100640833128315,2,anime,seed range
+w-none.g-high.v-none,group,100000,opc - tempered_logger,stochastic,1.8722444237525657,1.7456481616655695,1.998840685839562,2,anime,seed range
+w-none.g-high.v-none,group,100000,opc - dm,greedy,0.49938611062983473,0.4864317156630188,0.5123405055966507,2,anime,seed range
+w-none.g-high.v-none,group,100000,opc - no_propensity,greedy,1.43844340370744,1.4157411777880602,1.46114562962682,2,anime,seed range
+w-none.g-high.v-none,group,100000,opc - tempered_logger,greedy,1.8091577677614405,1.6070416746218008,2.0112738609010803,2,anime,seed range
+w-none.g-high.v-none,group,5000,opc - dm,stochastic,0.7593686481726017,0.0372169875219741,1.4815203088232294,6,all,95% t
+w-none.g-high.v-none,group,5000,opc - no_propensity,stochastic,0.3660517085574012,-0.1577268172606177,0.8898302343754203,6,all,95% t
+w-none.g-high.v-none,group,5000,opc - tempered_logger,stochastic,0.3338559418438391,-0.0526744256727821,0.7203863093604603,6,all,95% t
+w-none.g-high.v-none,group,5000,opc - dm,greedy,0.8390952800764365,0.1296737119309361,1.548516848221937,6,all,95% t
+w-none.g-high.v-none,group,5000,opc - no_propensity,greedy,0.3606507374725028,-0.221638563709406,0.9429400386544116,6,all,95% t
+w-none.g-high.v-none,group,5000,opc - tempered_logger,greedy,0.5423325565580177,0.1258246878447691,0.9588404252712664,6,all,95% t
+w-none.g-high.v-none,group,25000,opc - dm,stochastic,0.5180316187920586,0.2085714066859634,0.8274918308981538,6,all,95% t
+w-none.g-high.v-none,group,25000,opc - no_propensity,stochastic,1.0167962531102244,0.3988704841040289,1.6347220221164198,6,all,95% t
+w-none.g-high.v-none,group,25000,opc - tempered_logger,stochastic,1.1879098124445144,0.7570343542008393,1.6187852706881896,6,all,95% t
+w-none.g-high.v-none,group,25000,opc - dm,greedy,0.5078559280668707,0.1834633356367091,0.8322485204970324,6,all,95% t
+w-none.g-high.v-none,group,25000,opc - no_propensity,greedy,1.0217051787406162,0.385133149091437,1.6582772083897952,6,all,95% t
+w-none.g-high.v-none,group,25000,opc - tempered_logger,greedy,1.134956283806914,0.6789881727506244,1.5909243948632037,6,all,95% t
+w-none.g-high.v-none,group,100000,opc - dm,stochastic,0.4487830671330508,0.3238740813445807,0.5736920529215208,6,all,95% t
+w-none.g-high.v-none,group,100000,opc - no_propensity,stochastic,1.4033565122896812,0.6781863800123652,2.128526644566997,6,all,95% t
+w-none.g-high.v-none,group,100000,opc - tempered_logger,stochastic,1.603553844832099,1.0617871840027466,2.1453205056614517,6,all,95% t
+w-none.g-high.v-none,group,100000,opc - dm,greedy,0.4644584344508586,0.3583034045699484,0.5706134643317687,6,all,95% t
+w-none.g-high.v-none,group,100000,opc - no_propensity,greedy,1.4314517806716769,0.7219095458392296,2.140994015504124,6,all,95% t
+w-none.g-high.v-none,group,100000,opc - tempered_logger,greedy,1.5613279116622678,1.0709842279524326,2.051671595372103,6,all,95% t
+w-none.g-none.v-high,vector,5000,opc - dm,stochastic,0.5261411161179536,0.32356126483295833,0.7287209674029488,2,ml,seed range
+w-none.g-none.v-high,vector,5000,opc - no_propensity,stochastic,0.3850549089205235,0.07062376361322842,0.6994860542278186,2,ml,seed range
+w-none.g-none.v-high,vector,5000,opc - tempered_logger,stochastic,0.49855155936859435,0.4177023875277297,0.579400731209459,2,ml,seed range
+w-none.g-none.v-high,vector,5000,opc - dm,greedy,0.7420581444774657,0.722676812730122,0.7614394762248095,2,ml,seed range
+w-none.g-none.v-high,vector,5000,opc - no_propensity,greedy,0.48286879981663533,0.34580954015888954,0.6199280594743811,2,ml,seed range
+w-none.g-none.v-high,vector,5000,opc - tempered_logger,greedy,0.6942082842631301,0.6714063164491219,0.7170102520771382,2,ml,seed range
+w-none.g-none.v-high,vector,25000,opc - dm,stochastic,0.22862576713545135,0.06966449187519042,0.3875870423957123,2,ml,seed range
+w-none.g-none.v-high,vector,25000,opc - no_propensity,stochastic,1.437049483985961,1.3024033566248012,1.571695611347121,2,ml,seed range
+w-none.g-none.v-high,vector,25000,opc - tempered_logger,stochastic,1.655704915083711,1.6393973659992316,1.6720124641681906,2,ml,seed range
+w-none.g-none.v-high,vector,25000,opc - dm,greedy,0.22579641891652957,0.06287351980801825,0.3887193180250409,2,ml,seed range
+w-none.g-none.v-high,vector,25000,opc - no_propensity,greedy,1.4300669043537149,1.2808649146193396,1.5792688940880901,2,ml,seed range
+w-none.g-none.v-high,vector,25000,opc - tempered_logger,greedy,1.511172632379859,1.444481091147118,1.5778641736126002,2,ml,seed range
+w-none.g-none.v-high,vector,100000,opc - dm,stochastic,0.28096766565412074,0.27183977832319073,0.29009555298505074,2,ml,seed range
+w-none.g-none.v-high,vector,100000,opc - no_propensity,stochastic,1.6786693107756754,1.6102829675636698,1.747055653987681,2,ml,seed range
+w-none.g-none.v-high,vector,100000,opc - tempered_logger,stochastic,1.7601372171985152,1.7370808188379105,1.78319361555912,2,ml,seed range
+w-none.g-none.v-high,vector,100000,opc - dm,greedy,0.33704531717498043,0.3341249310577804,0.33996570329218045,2,ml,seed range
+w-none.g-none.v-high,vector,100000,opc - no_propensity,greedy,1.7336031936556209,1.6878461300972314,1.7793602572140106,2,ml,seed range
+w-none.g-none.v-high,vector,100000,opc - tempered_logger,greedy,1.7983348918980706,1.7590048134243197,1.8376649703718217,2,ml,seed range
+w-none.g-none.v-high,vector,5000,opc - dm,stochastic,-0.05309180480246034,-0.3067387909074293,0.2005551813025086,2,kuairand,seed range
+w-none.g-none.v-high,vector,5000,opc - no_propensity,stochastic,0.022643743493462598,-0.20678337069865438,0.2520708576855796,2,kuairand,seed range
+w-none.g-none.v-high,vector,5000,opc - tempered_logger,stochastic,0.22834646603602515,0.17751468762473022,0.2791782444473201,2,kuairand,seed range
+w-none.g-none.v-high,vector,5000,opc - dm,greedy,-0.037910843926888815,-0.22875695140376906,0.15293526354999143,2,kuairand,seed range
+w-none.g-none.v-high,vector,5000,opc - no_propensity,greedy,-0.030215770802903552,-0.27403447240004764,0.21360293079424053,2,kuairand,seed range
+w-none.g-none.v-high,vector,5000,opc - tempered_logger,greedy,0.41978080188983247,0.2749065083936131,0.5646550953860519,2,kuairand,seed range
+w-none.g-none.v-high,vector,25000,opc - dm,stochastic,0.4146235247740132,0.35092018309414996,0.47832686645387645,2,kuairand,seed range
+w-none.g-none.v-high,vector,25000,opc - no_propensity,stochastic,0.6894606088878041,0.4732510261756473,0.905670191599961,2,kuairand,seed range
+w-none.g-none.v-high,vector,25000,opc - tempered_logger,stochastic,1.1217485981748931,0.9887683881745268,1.2547288081752594,2,kuairand,seed range
+w-none.g-none.v-high,vector,25000,opc - dm,greedy,0.410746808948588,0.33822424149455854,0.48326937640261747,2,kuairand,seed range
+w-none.g-none.v-high,vector,25000,opc - no_propensity,greedy,0.6911121543734772,0.4737073545942161,0.9085169541527383,2,kuairand,seed range
+w-none.g-none.v-high,vector,25000,opc - tempered_logger,greedy,1.0400037201371448,0.8362921713396698,1.2437152689346198,2,kuairand,seed range
+w-none.g-none.v-high,vector,100000,opc - dm,stochastic,0.3692750520840851,0.3109798577109607,0.42757024645720954,2,kuairand,seed range
+w-none.g-none.v-high,vector,100000,opc - no_propensity,stochastic,0.9962155667063044,0.798785672423119,1.1936454609894898,2,kuairand,seed range
+w-none.g-none.v-high,vector,100000,opc - tempered_logger,stochastic,1.3745788654815447,1.174278789555011,1.5748789414080782,2,kuairand,seed range
+w-none.g-none.v-high,vector,100000,opc - dm,greedy,0.3433654193365998,0.27867223283792875,0.40805860583527087,2,kuairand,seed range
+w-none.g-none.v-high,vector,100000,opc - no_propensity,greedy,0.9958558276988966,0.7956474874432629,1.1960641679545303,2,kuairand,seed range
+w-none.g-none.v-high,vector,100000,opc - tempered_logger,greedy,1.3792166307034863,1.1670196356848128,1.59141362572216,2,kuairand,seed range
+w-none.g-none.v-high,vector,5000,opc - dm,stochastic,1.2016900104188946,0.9954051741921793,1.40797484664561,2,anime,seed range
+w-none.g-none.v-high,vector,5000,opc - no_propensity,stochastic,-0.06878612160269998,-0.09109012983102016,-0.046482113374379797,2,anime,seed range
+w-none.g-none.v-high,vector,5000,opc - tempered_logger,stochastic,-0.18798341722214423,-0.4412831248819499,0.0653162904376614,2,anime,seed range
+w-none.g-none.v-high,vector,5000,opc - dm,greedy,1.2276517706651155,1.064678288427681,1.3906252529025498,2,anime,seed range
+w-none.g-none.v-high,vector,5000,opc - no_propensity,greedy,-0.14282059246226164,-0.1540941920316813,-0.131546992892842,2,anime,seed range
+w-none.g-none.v-high,vector,5000,opc - tempered_logger,greedy,-0.10646662294820919,-0.17730002900968878,-0.0356332168867296,2,anime,seed range
+w-none.g-none.v-high,vector,25000,opc - dm,stochastic,0.128079238285414,0.11189908207528965,0.14425939449553837,2,anime,seed range
+w-none.g-none.v-high,vector,25000,opc - no_propensity,stochastic,0.14863161784468837,0.05817987958418869,0.23908335610518805,2,anime,seed range
+w-none.g-none.v-high,vector,25000,opc - tempered_logger,stochastic,0.13795559211922936,-0.04247329185536053,0.31838447609381926,2,anime,seed range
+w-none.g-none.v-high,vector,25000,opc - dm,greedy,0.12186977240859487,0.10346214793308939,0.14027739688410035,2,anime,seed range
+w-none.g-none.v-high,vector,25000,opc - no_propensity,greedy,0.14604688326074478,0.03177964621914886,0.2603141203023407,2,anime,seed range
+w-none.g-none.v-high,vector,25000,opc - tempered_logger,greedy,0.15262691599002565,-0.04796099103810958,0.3532148230181609,2,anime,seed range
+w-none.g-none.v-high,vector,100000,opc - dm,stochastic,0.10780863933276957,0.02173741032081844,0.1938798683447207,2,anime,seed range
+w-none.g-none.v-high,vector,100000,opc - no_propensity,stochastic,0.6949414277790639,0.5463284689543574,0.8435543866037704,2,anime,seed range
+w-none.g-none.v-high,vector,100000,opc - tempered_logger,stochastic,0.6629578989196999,0.5610926280227191,0.7648231698166807,2,anime,seed range
+w-none.g-none.v-high,vector,100000,opc - dm,greedy,0.08543283813806507,0.013358036854910216,0.15750763942121992,2,anime,seed range
+w-none.g-none.v-high,vector,100000,opc - no_propensity,greedy,0.6879585658314091,0.5497615870820788,0.8261555445807395,2,anime,seed range
+w-none.g-none.v-high,vector,100000,opc - tempered_logger,greedy,0.6679997640941404,0.5578632588299604,0.7781362693583205,2,anime,seed range
+w-none.g-none.v-high,vector,5000,opc - dm,stochastic,0.5582464405781293,-0.0841294459026807,1.2006223270589396,6,all,95% t
+w-none.g-none.v-high,vector,5000,opc - no_propensity,stochastic,0.112970843603762,-0.2301323658663498,0.4560740530738739,6,all,95% t
+w-none.g-none.v-high,vector,5000,opc - tempered_logger,stochastic,0.1796382027274917,-0.191396341460148,0.5506727469151316,6,all,95% t
+w-none.g-none.v-high,vector,5000,opc - dm,greedy,0.6439330237385642,0.0217936571305583,1.26607239034657,6,all,95% t
+w-none.g-none.v-high,vector,5000,opc - no_propensity,greedy,0.10327747885049,-0.260762758707497,0.4673177164084771,6,all,95% t
+w-none.g-none.v-high,vector,5000,opc - tempered_logger,greedy,0.3358408210682511,-0.0610817072409119,0.7327633493774142,6,all,95% t
+w-none.g-none.v-high,vector,25000,opc - dm,stochastic,0.2571095100649594,0.0791883517415959,0.435030668388323,6,all,95% t
+w-none.g-none.v-high,vector,25000,opc - no_propensity,stochastic,0.7583805702394845,0.1251636203075654,1.3915975201714037,6,all,95% t
+w-none.g-none.v-high,vector,25000,opc - tempered_logger,stochastic,0.9718030351259443,0.233903869091649,1.70970220116024,6,all,95% t
+w-none.g-none.v-high,vector,25000,opc - dm,greedy,0.2528043334245708,0.0710835940630085,0.4345250727861331,6,all,95% t
+w-none.g-none.v-high,vector,25000,opc - no_propensity,greedy,0.7557419806626456,0.121479085178046,1.3900048761472452,6,all,95% t
+w-none.g-none.v-high,vector,25000,opc - tempered_logger,greedy,0.90126775616901,0.2250935140426622,1.5774419982953576,6,all,95% t
+w-none.g-none.v-high,vector,100000,opc - dm,stochastic,0.2526837856903252,0.1099108321972604,0.3954567391833899,6,all,95% t
+w-none.g-none.v-high,vector,100000,opc - no_propensity,stochastic,1.1232754350870149,0.620501495961098,1.6260493742129314,6,all,95% t
+w-none.g-none.v-high,vector,100000,opc - tempered_logger,stochastic,1.26589132719992,0.7223489246803786,1.8094337297194607,6,all,95% t
+w-none.g-none.v-high,vector,100000,opc - dm,greedy,0.2552811915498817,0.1029413307695046,0.4076210523302589,6,all,95% t
+w-none.g-none.v-high,vector,100000,opc - no_propensity,greedy,1.1391391957286423,0.6086779647675131,1.6696004266897717,6,all,95% t
+w-none.g-none.v-high,vector,100000,opc - tempered_logger,greedy,1.281850428898566,0.7218986788501166,1.8418021789470156,6,all,95% t
+medium,combined medium,5000,opc - dm,stochastic,0.33882785396588544,-0.40195135096854906,1.07960705890032,2,ml,seed range
+medium,combined medium,5000,opc - no_propensity,stochastic,1.0491244380491704,0.8272838520858111,1.2709650240125296,2,ml,seed range
+medium,combined medium,5000,opc - tempered_logger,stochastic,1.9601744496418356,1.7579622001978907,2.1623866990857805,2,ml,seed range
+medium,combined medium,5000,opc - dm,greedy,0.4878548709719891,-0.2515202486195911,1.2272299905635693,2,ml,seed range
+medium,combined medium,5000,opc - no_propensity,greedy,1.090319139618079,0.8587596510780976,1.3218786281580601,2,ml,seed range
+medium,combined medium,5000,opc - tempered_logger,greedy,1.97376539333773,1.6214781635220388,2.326052623153421,2,ml,seed range
+medium,combined medium,25000,opc - dm,stochastic,0.7096518426507396,0.4037705959480997,1.0155330893533794,2,ml,seed range
+medium,combined medium,25000,opc - no_propensity,stochastic,3.46300391202565,3.3005693618805205,3.62543846217078,2,ml,seed range
+medium,combined medium,25000,opc - tempered_logger,stochastic,4.305641157832969,4.102796494659278,4.508485821006661,2,ml,seed range
+medium,combined medium,25000,opc - dm,greedy,0.72248566170761,0.4338334286537904,1.0111378947614296,2,ml,seed range
+medium,combined medium,25000,opc - no_propensity,greedy,3.474101359598515,3.3292154934469105,3.6189872257501197,2,ml,seed range
+medium,combined medium,25000,opc - tempered_logger,greedy,4.224320279374901,4.112591437389401,4.3360491213604,2,ml,seed range
+medium,combined medium,100000,opc - dm,stochastic,0.6536835957498557,0.5878637023525507,0.7195034891471608,2,ml,seed range
+medium,combined medium,100000,opc - no_propensity,stochastic,3.360327488755126,3.03067844232211,3.6899765351881415,2,ml,seed range
+medium,combined medium,100000,opc - tempered_logger,stochastic,4.39408723046278,4.231511447741551,4.556663013184009,2,ml,seed range
+medium,combined medium,100000,opc - dm,greedy,0.6447636537276952,0.5696107067324402,0.7199166007229502,2,ml,seed range
+medium,combined medium,100000,opc - no_propensity,greedy,3.37394079794345,3.0677087376848404,3.6801728582020603,2,ml,seed range
+medium,combined medium,100000,opc - tempered_logger,greedy,4.407387825563012,4.252644183495483,4.56213146763054,2,ml,seed range
+medium,combined medium,5000,opc - dm,stochastic,0.3442375142701959,0.22285773160919953,0.46561729693119225,2,kuairand,seed range
+medium,combined medium,5000,opc - no_propensity,stochastic,1.0405255296010911,0.2948398667905,1.7862111924116824,2,kuairand,seed range
+medium,combined medium,5000,opc - tempered_logger,stochastic,1.6784199783056606,0.9506764652792293,2.4061634913320917,2,kuairand,seed range
+medium,combined medium,5000,opc - dm,greedy,0.36203482894565514,0.18609319023298043,0.5379764676583298,2,kuairand,seed range
+medium,combined medium,5000,opc - no_propensity,greedy,0.9629570952750605,0.19528483622019976,1.7306293543299212,2,kuairand,seed range
+medium,combined medium,5000,opc - tempered_logger,greedy,1.8596731264146154,1.0573781564976792,2.6619680963315515,2,kuairand,seed range
+medium,combined medium,25000,opc - dm,stochastic,0.708797256387686,0.6466349804988808,0.7709595322764912,2,kuairand,seed range
+medium,combined medium,25000,opc - no_propensity,stochastic,1.6100923767807558,1.3561161333509208,1.8640686202105905,2,kuairand,seed range
+medium,combined medium,25000,opc - tempered_logger,stochastic,2.4398540925968812,2.3287493119021008,2.5509588732916617,2,kuairand,seed range
+medium,combined medium,25000,opc - dm,greedy,0.6914207602067096,0.6183665360775498,0.7644749843358695,2,kuairand,seed range
+medium,combined medium,25000,opc - no_propensity,greedy,1.6070083297891045,1.33737318720015,1.876643472378059,2,kuairand,seed range
+medium,combined medium,25000,opc - tempered_logger,greedy,2.3780750416663845,2.189686229089549,2.56646385424322,2,kuairand,seed range
+medium,combined medium,100000,opc - dm,stochastic,1.0404773411693005,1.0289811205387411,1.0519735617998598,2,kuairand,seed range
+medium,combined medium,100000,opc - no_propensity,stochastic,2.068366673775861,1.8697538126045603,2.2669795349471613,2,kuairand,seed range
+medium,combined medium,100000,opc - tempered_logger,stochastic,2.931628799348532,2.6984479737587526,3.1648096249383113,2,kuairand,seed range
+medium,combined medium,100000,opc - dm,greedy,1.0365214372150002,1.02162393595438,1.0514189384756207,2,kuairand,seed range
+medium,combined medium,100000,opc - no_propensity,greedy,2.08681856577894,1.8767937578271998,2.296843373730681,2,kuairand,seed range
+medium,combined medium,100000,opc - tempered_logger,greedy,2.912091072160751,2.6342080617486108,3.189974082572891,2,kuairand,seed range
+medium,combined medium,5000,opc - dm,stochastic,1.3486028589443393,0.7466484766082693,1.9505572412804095,2,anime,seed range
+medium,combined medium,5000,opc - no_propensity,stochastic,0.5033859756909759,0.48119663852720096,0.5255753128547508,2,anime,seed range
+medium,combined medium,5000,opc - tempered_logger,stochastic,1.3866086433269198,0.9657742178360906,1.807443068817749,2,anime,seed range
+medium,combined medium,5000,opc - dm,greedy,1.4956622646215543,0.7497200699648598,2.2416044592782485,2,anime,seed range
+medium,combined medium,5000,opc - no_propensity,greedy,0.5453819860929299,0.518907990359771,0.5718559818260888,2,anime,seed range
+medium,combined medium,5000,opc - tempered_logger,greedy,1.2632997794645953,1.1852787423064197,1.3413208166227708,2,anime,seed range
+medium,combined medium,25000,opc - dm,stochastic,0.8595662487213704,0.2990286015640303,1.4201038958787104,2,anime,seed range
+medium,combined medium,25000,opc - no_propensity,stochastic,2.004291800359111,1.6239260922877419,2.3846575084304793,2,anime,seed range
+medium,combined medium,25000,opc - tempered_logger,stochastic,2.5887109410152154,2.157198977375352,3.020222904655079,2,anime,seed range
+medium,combined medium,25000,opc - dm,greedy,0.8523396797954343,0.29182207316365005,1.4128572864272186,2,anime,seed range
+medium,combined medium,25000,opc - no_propensity,greedy,1.9968014872873447,1.6064050751666699,2.3871978994080196,2,anime,seed range
+medium,combined medium,25000,opc - tempered_logger,greedy,2.5786592608445096,2.1222530768308987,3.0350654448581205,2,anime,seed range
+medium,combined medium,100000,opc - dm,stochastic,0.6386486678966241,0.5647109189222288,0.7125864168710194,2,anime,seed range
+medium,combined medium,100000,opc - no_propensity,stochastic,2.58761019928153,2.3253259149989605,2.8498944835641,2,anime,seed range
+medium,combined medium,100000,opc - tempered_logger,stochastic,3.1940143830210888,2.8589857217964587,3.5290430442457192,2,anime,seed range
+medium,combined medium,100000,opc - dm,greedy,0.6688828137697154,0.6351098330673599,0.7026557944720707,2,anime,seed range
+medium,combined medium,100000,opc - no_propensity,greedy,2.6288488078891907,2.393179714077831,2.86451790170055,2,anime,seed range
+medium,combined medium,100000,opc - tempered_logger,greedy,3.25371425441415,2.9363693559083694,3.571059152919931,2,anime,seed range
+medium,combined medium,5000,opc - dm,stochastic,0.6772227423934737,-0.1628444198863753,1.5172899046733228,6,all,95% t
+medium,combined medium,5000,opc - no_propensity,stochastic,0.8643453144470792,0.2702397290888718,1.4584508998052863,6,all,95% t
+medium,combined medium,5000,opc - tempered_logger,stochastic,1.6750676904248054,1.0411850208345872,2.3089503600150234,6,all,95% t
+medium,combined medium,5000,opc - dm,greedy,0.7818506548463996,-0.1345336233182059,1.6982349330110051,6,all,95% t
+medium,combined medium,5000,opc - no_propensity,greedy,0.8662194069953565,0.2702889400612667,1.4621498739294465,6,all,95% t
+medium,combined medium,5000,opc - tempered_logger,greedy,1.6989127664056467,1.0139544520727126,2.383871080738581,6,all,95% t
+medium,combined medium,25000,opc - dm,stochastic,0.7593384492532653,0.3257811761518685,1.192895722354662,6,all,95% t
+medium,combined medium,25000,opc - no_propensity,stochastic,2.3591293630551724,1.3879455126915876,3.330313213418757,6,all,95% t
+medium,combined medium,25000,opc - tempered_logger,stochastic,3.111402063815022,2.085296006422149,4.137508121207895,6,all,95% t
+medium,combined medium,25000,opc - dm,greedy,0.7554153672365848,0.3266025497484247,1.184228184724745,6,all,95% t
+medium,combined medium,25000,opc - no_propensity,greedy,2.359303725558321,1.377930590743106,3.340676860373536,6,all,95% t
+medium,combined medium,25000,opc - tempered_logger,greedy,3.0603515272952646,2.051881076361034,4.068821978229495,6,all,95% t
+medium,combined medium,100000,opc - dm,stochastic,0.7776032016052601,0.553801651865904,1.0014047513446165,6,all,95% t
+medium,combined medium,100000,opc - no_propensity,stochastic,2.6721014539375054,1.9880503105126128,3.356152597362398,6,all,95% t
+medium,combined medium,100000,opc - tempered_logger,stochastic,3.5065768042774668,2.718735443977005,4.2944181645779285,6,all,95% t
+medium,combined medium,100000,opc - dm,greedy,0.7833893015708037,0.5699482305512658,0.9968303725903416,6,all,95% t
+medium,combined medium,100000,opc - no_propensity,greedy,2.696536057203861,2.0233764409261807,3.369695673481541,6,all,95% t
+medium,combined medium,100000,opc - tempered_logger,greedy,3.5243977173793044,2.730776533716434,4.318018901042176,6,all,95% t
+high,combined high,5000,opc - dm,stochastic,0.6025431401973043,-0.8972494906423711,2.1023357710369797,2,ml,seed range
+high,combined high,5000,opc - no_propensity,stochastic,1.9724307037813242,1.5455013079966786,2.39936009956597,2,ml,seed range
+high,combined high,5000,opc - tempered_logger,stochastic,3.384249253717534,2.692740243020368,4.0757582644147,2,ml,seed range
+high,combined high,5000,opc - dm,greedy,0.715626747513695,-0.8549264222200592,2.2861799172474493,2,ml,seed range
+high,combined high,5000,opc - no_propensity,greedy,2.012127225280481,1.5486853678430113,2.4755690827179504,2,ml,seed range
+high,combined high,5000,opc - tempered_logger,greedy,3.36121053704895,2.89938957623658,3.8230314978613205,2,ml,seed range
+high,combined high,25000,opc - dm,stochastic,0.449619649098737,-0.04897867262772804,0.948217970825202,2,ml,seed range
+high,combined high,25000,opc - no_propensity,stochastic,3.935303692397726,2.9908585534823007,4.879748831313151,2,ml,seed range
+high,combined high,25000,opc - tempered_logger,stochastic,4.978694157902121,4.20268098896943,5.7547073268348115,2,ml,seed range
+high,combined high,25000,opc - dm,greedy,0.44392731864069807,-0.028393327094411447,0.9162479643758076,2,ml,seed range
+high,combined high,25000,opc - no_propensity,greedy,3.917890543816239,3.020549150213789,4.815231937418689,2,ml,seed range
+high,combined high,25000,opc - tempered_logger,greedy,4.804456758333914,3.9284596473693285,5.680453869298499,2,ml,seed range
+high,combined high,100000,opc - dm,stochastic,0.4010362797375197,0.22532962648441068,0.5767429329906287,2,ml,seed range
+high,combined high,100000,opc - no_propensity,stochastic,4.8996637508100696,3.89387447599526,5.90545302562488,2,ml,seed range
+high,combined high,100000,opc - tempered_logger,stochastic,5.798204287194078,4.920040802156859,6.676367772231298,2,ml,seed range
+high,combined high,100000,opc - dm,greedy,0.3932229536824358,0.21001350788880935,0.5764323994760623,2,ml,seed range
+high,combined high,100000,opc - no_propensity,greedy,4.907427233170765,3.928433958008559,5.886420508332971,2,ml,seed range
+high,combined high,100000,opc - tempered_logger,greedy,5.716761663632705,4.8405202174817585,6.593003109783652,2,ml,seed range
+high,combined high,5000,opc - dm,stochastic,-1.7870745511519348,-2.348044288687459,-1.2261048136164105,2,kuairand,seed range
+high,combined high,5000,opc - no_propensity,stochastic,2.4122753430292145,1.536203283456189,3.2883474026022403,2,kuairand,seed range
+high,combined high,5000,opc - tempered_logger,stochastic,4.182300652375895,3.1332432156731898,5.2313580890786,2,kuairand,seed range
+high,combined high,5000,opc - dm,greedy,-1.732742458282968,-2.3365826372944487,-1.1289022792714876,2,kuairand,seed range
+high,combined high,5000,opc - no_propensity,greedy,2.3220398812504457,1.3596017610614908,3.2844780014394006,2,kuairand,seed range
+high,combined high,5000,opc - tempered_logger,greedy,4.316049327289537,3.170188359816331,5.461910294762743,2,kuairand,seed range
+high,combined high,25000,opc - dm,stochastic,0.72117936165466,0.3620030199526697,1.0803557033566502,2,kuairand,seed range
+high,combined high,25000,opc - no_propensity,stochastic,4.433731026131019,4.297464495092629,4.569997557169408,2,kuairand,seed range
+high,combined high,25000,opc - tempered_logger,stochastic,6.131238222467414,6.086936856067529,6.175539588867299,2,kuairand,seed range
+high,combined high,25000,opc - dm,greedy,0.7100734953743957,0.35813470528422986,1.0620122854645615,2,kuairand,seed range
+high,combined high,25000,opc - no_propensity,greedy,4.4223532684567015,4.263359870638491,4.581346666274911,2,kuairand,seed range
+high,combined high,25000,opc - tempered_logger,greedy,6.148952835083845,6.1149783243818,6.182927345785891,2,kuairand,seed range
+high,combined high,100000,opc - dm,stochastic,0.6388432280382772,0.40743643597401236,0.870250020102542,2,kuairand,seed range
+high,combined high,100000,opc - no_propensity,stochastic,5.032760371800626,4.944422718139122,5.121098025462131,2,kuairand,seed range
+high,combined high,100000,opc - tempered_logger,stochastic,6.582448221945127,6.508779815545221,6.656116628345032,2,kuairand,seed range
+high,combined high,100000,opc - dm,greedy,0.6226908088792851,0.38256476153817887,0.8628168562203914,2,kuairand,seed range
+high,combined high,100000,opc - no_propensity,greedy,5.023264434996346,4.942032893932422,5.104495976060269,2,kuairand,seed range
+high,combined high,100000,opc - tempered_logger,greedy,6.580554366394921,6.503079610321142,6.658029122468701,2,kuairand,seed range
+high,combined high,5000,opc - dm,stochastic,-0.9219919625032755,-1.297104704942151,-0.5468792200644002,2,anime,seed range
+high,combined high,5000,opc - no_propensity,stochastic,1.1495242508120138,0.9586899702186985,1.3403585314053292,2,anime,seed range
+high,combined high,5000,opc - tempered_logger,stochastic,1.8378964423373194,1.7939078620122604,1.8818850226623787,2,anime,seed range
+high,combined high,5000,opc - dm,greedy,-0.7637218655683953,-1.2099271510846499,-0.3175165800521407,2,anime,seed range
+high,combined high,5000,opc - no_propensity,greedy,1.2296560624607293,0.9703373165025786,1.4889748084188803,2,anime,seed range
+high,combined high,5000,opc - tempered_logger,greedy,2.0049312239003996,1.892476843175779,2.1173856046250203,2,anime,seed range
+high,combined high,25000,opc - dm,stochastic,-0.0149684677217099,-0.11481964229181074,0.08488270684839094,2,anime,seed range
+high,combined high,25000,opc - no_propensity,stochastic,3.228960075798979,2.7911092886551483,3.6668108629428096,2,anime,seed range
+high,combined high,25000,opc - tempered_logger,stochastic,4.155492139576429,3.7694113711065085,4.54157290804635,2,anime,seed range
+high,combined high,25000,opc - dm,greedy,-0.006507003235164954,-0.11888788754954027,0.10587388107921036,2,anime,seed range
+high,combined high,25000,opc - no_propensity,greedy,3.17543137532003,2.7410157088469997,3.60984704179306,2,anime,seed range
+high,combined high,25000,opc - tempered_logger,greedy,4.084685634652055,3.7027613107513195,4.46660995855279,2,anime,seed range
+high,combined high,100000,opc - dm,stochastic,0.3505722318579499,0.15441491101770843,0.5467295526981913,2,anime,seed range
+high,combined high,100000,opc - no_propensity,stochastic,4.2705905688588395,4.2535468296918095,4.28763430802587,2,anime,seed range
+high,combined high,100000,opc - tempered_logger,stochastic,5.193798663706519,5.15820010612255,5.229397221290489,2,anime,seed range
+high,combined high,100000,opc - dm,greedy,0.3627113750005545,0.15923213946880954,0.5661906105322995,2,anime,seed range
+high,combined high,100000,opc - no_propensity,greedy,4.285094572842345,4.259065734541531,4.31112341114316,2,anime,seed range
+high,combined high,100000,opc - tempered_logger,greedy,5.21877474988298,5.19625168659502,5.241297813170941,2,anime,seed range
+high,combined high,5000,opc - dm,stochastic,-0.7021744578193019,-2.277361693484427,0.8730127778458232,6,all,95% t
+high,combined high,5000,opc - no_propensity,stochastic,1.8447434325408507,0.9523121250560954,2.737174740025606,6,all,95% t
+high,combined high,5000,opc - tempered_logger,stochastic,3.1348154494769163,1.7390924665669385,4.530538432386894,6,all,95% t
+high,combined high,5000,opc - dm,greedy,-0.5936125254458893,-2.2289849631622447,1.0417599122704664,6,all,95% t
+high,combined high,5000,opc - no_propensity,greedy,1.8546077229972184,0.953758698158149,2.755456747836288,6,all,95% t
+high,combined high,5000,opc - tempered_logger,greedy,3.227397029412962,1.861289055628217,4.593505003197707,6,all,95% t
+high,combined high,25000,opc - dm,stochastic,0.385276847677229,-0.1558677697803185,0.9264214651347766,6,all,95% t
+high,combined high,25000,opc - no_propensity,stochastic,3.865998264775908,2.966857906731999,4.7651386228198165,6,all,95% t
+high,combined high,25000,opc - tempered_logger,stochastic,5.088474839981989,3.9932176405500206,6.1837320394139565,6,all,95% t
+high,combined high,25000,opc - dm,greedy,0.3824979369266429,-0.1409511877993415,0.9059470616526276,6,all,95% t
+high,combined high,25000,opc - no_propensity,greedy,3.838558395864323,2.94658380003544,4.730532991693206,6,all,95% t
+high,combined high,25000,opc - tempered_logger,greedy,5.012698409356605,3.842205898376244,6.183190920336966,6,all,95% t
+high,combined high,100000,opc - dm,stochastic,0.4634839132112489,0.1895838087133309,0.737384017709167,6,all,95% t
+high,combined high,100000,opc - no_propensity,stochastic,4.734338230489846,3.962833490360069,5.505842970619623,6,all,95% t
+high,combined high,100000,opc - tempered_logger,stochastic,5.858150390948576,4.980774621525551,6.735526160371601,6,all,95% t
+high,combined high,100000,opc - dm,greedy,0.4595417125207584,0.1834607936565678,0.735622631384949,6,all,95% t
+high,combined high,100000,opc - no_propensity,greedy,4.7385954136698185,3.9874142371718646,5.489776590167772,6,all,95% t
+high,combined high,100000,opc - tempered_logger,greedy,5.838696926636868,4.967265166846859,6.710128686426877,6,all,95% t
