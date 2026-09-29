@@ -1,11 +1,19 @@
-numpy
-pandas
-scipy
-scikit-learn
-matplotlib
-tqdm
-optuna
-h5py
+# Direct dependencies of the code, scripts and tests, pinned to the tested environment
+# (project venv, Python 3.10.12). The pins have Linux wheels for Python 3.10-3.13 and were
+# also tested on Python 3.12 with the Dockerfile's install steps.
+#
+# torch stays unpinned on its own line on purpose: the Dockerfile first installs
+# torch==${TORCH_VERSION} (default 2.11.0) from the CPU or CUDA index, then drops exactly
+# this line (grep -v '^torch$'). A local venv gets torch from PyPI (tested: 2.12.1, CUDA 13.0).
+numpy==2.2.6
+pandas==2.3.3
+scipy==1.15.3
+scikit-learn==1.7.2
+matplotlib==3.10.9
+tqdm==4.68.3
+optuna==4.9.0
+h5py==3.16.0
 torch
-plotly
-pytest
+plotly==6.8.0
+threadpoolctl==3.6.0
+pytest==9.1.1
