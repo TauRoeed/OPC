@@ -61,6 +61,29 @@ def oracle_bounds(summaries: Path = SUMMARIES) -> pd.DataFrame:
     return b
 
 
+def best_single_item_table(pairs, emb_dir: Path = Path("BPR/embeddings")) -> pd.DataFrame:
+    """Per (dataset, seed): the true value of recommending one item to every user, maximised over items.
+
+    The best a policy without personalisation can do; it depends on the clean world only (not on the bias)."""
+    from training.run_full_study import build_condition_world
+    from utils.simulation_utils import _normalized_prior, env_reward_block
+
+    rows = []
+    for dataset, seed in sorted(set(pairs)):
+        ds, *_ = build_condition_world(dataset, emb_dir, "none", 0.05, int(seed), world_options={})
+        prior = _normalized_prior(ds)
+        n_users, n_items = int(ds["n_users"]), int(ds["n_actions"])
+        item_value = np.zeros(n_items, dtype=np.float64)
+        for u0 in range(0, n_users, 2048):
+            users = np.arange(u0, min(n_users, u0 + 2048), dtype=np.int64)
+            for a0 in range(0, n_items, 4096):
+                a1 = min(n_items, a0 + 4096)
+                item_value[a0:a1] += prior[users] @ env_reward_block(ds["env"], users, a0, a1)
+        rows.append({"dataset": dataset, "seed": int(seed), "best_single_item": float(item_value.max()),
+                     "best_item": int(item_value.argmax())})
+    return pd.DataFrame(rows)
+
+
 def load_conditions(run_dirs, train_size: int = 25_000) -> pd.DataFrame:
     frames = []
     for rd in run_dirs:
@@ -104,7 +127,7 @@ def summary_table(t: pd.DataFrame) -> pd.DataFrame:
     for (bias, arm, rho), g in t.groupby(["bias", "arm", t["rho"].fillna(-1)]):
         r = {"bias": bias, "arm": arm, "rho": None if rho < 0 else rho, "n_conditions": len(g)}
         for col in ("gain_greedy", "gain", "frac_mismatch", "frac_opc_oracle", "policy_rewards_greedy", "policy_rewards",
-                    "exploration_cost_expected", "exploration_cost_realised", "collection_reward_sum"):
+                    "exploration_cost_expected", "exploration_cost_realised", "collection_reward_sum", "best_item_gain"):
             if col in g:
                 m, lo, hi, n = _ci(g[col])
                 r[col], r[col + "_lo"], r[col + "_hi"] = m, lo, hi
@@ -161,6 +184,9 @@ def fig_rho_curve(s: pd.DataFrame, out: Path) -> None:
                                alpha=0.12, linewidth=0, label="OPC 95% CI")
                 data.append(g.assign(panel=bias))
         ax.axhline(0, color="black", linewidth=0.8, label="logger (greedy)")
+        if "best_item_gain" in sb and sb["best_item_gain"].notna().any():
+            ax.axhline(100 * float(sb["best_item_gain"].dropna().iloc[0]), color="#7F7F7F", linestyle=(0, (4, 3)),
+                       linewidth=1.0, label="best single item (no personalisation)")
         ax.set_title(BIAS_NAMES.get(bias, bias))
         ax.set_xlim(-0.012, 0.262)
         ax.set_xticks([0, 0.05, 0.10, 0.15, 0.25])
@@ -205,10 +231,16 @@ def main():
     ap.add_argument("--runs", nargs="+", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--train-size", type=int, default=25_000)
+    ap.add_argument("--best-item", action="store_true", help="also compute each world's best single-item value")
     args = ap.parse_args()
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     t = condition_table(load_conditions(args.runs, args.train_size), oracle_bounds())
+    if args.best_item:
+        bi = best_single_item_table(zip(t["dataset"], t["seed"]))
+        bi.to_csv(out / "table_best_single_item.csv", index=False)
+        t = t.merge(bi, on=["dataset", "seed"], how="left")
+        t["best_item_gain"] = t["best_single_item"] - t["V_logger_greedy"]
     t.to_csv(out / "table_conditions.csv", index=False)
     s = summary_table(t)
     s.to_csv(out / "table_summary.csv", index=False)
