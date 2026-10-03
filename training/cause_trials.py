@@ -177,8 +177,12 @@ def cause_trainer_trial(
                 optuna.logging.set_verbosity(optuna.logging.WARNING)
                 study = optuna.create_study(direction="minimize",
                                             sampler=optuna_sampler(seed, *labels_seed, kind=str(sampler)))
+                t_study = time.time()
                 study.optimize(objective, n_trials=n_trials, show_progress_bar=False)
                 trials_df = pd.DataFrame(trial_rows)
+                print(f"[cause] N={n} rho={rho:g} {variant}: {len(trials_df)} trials in {time.time() - t_study:.0f}s; "
+                      f"finite {int(trials_df['finite'].sum())}; best {preds[0]} val NLL "
+                      f"{trials_df[f'{preds[0]}_val_nll'].min():.4f}", flush=True)
                 for p in preds:
                     label = cause_method_label(p, rho)
                     finite = trials_df[trials_df[f"{p}_val_nll"] < DIVERGED_NLL]
