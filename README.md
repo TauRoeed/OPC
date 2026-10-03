@@ -9,7 +9,8 @@ Offline policy comparison experiments with matrix-factorization embeddings.
 **Code handoff since c072f9b (for Roee):** [`docs/roee_handoff_20260928.md`](docs/roee_handoff_20260928.md)  
 **Representation repair, stage write-ups:** [`docs/representation_repair_dev_20260927.md`](docs/representation_repair_dev_20260927.md) · follow-up: [`docs/representation_repair_followup_20260927.md`](docs/representation_repair_followup_20260927.md)  
 **Objective and weighting decision record:** [`docs/decision_record_opc_objective_weighting.md`](docs/decision_record_opc_objective_weighting.md)  
-**Code Atlas (PDF snapshot of the published page, code at 603cc2c):** [`docs/opc_code_atlas.pdf`](docs/opc_code_atlas.pdf)
+**Code Atlas (PDF snapshot of the published page, code at 603cc2c):** [`docs/opc_code_atlas.pdf`](docs/opc_code_atlas.pdf)  
+**CausE baseline (specification, OPC mapping, budget protocol):** [`docs/cause_baseline.md`](docs/cause_baseline.md)
 
 Main flow:
 1. Fit/generate BPR artifacts (user/item factors + metadata arrays).
