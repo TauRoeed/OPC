@@ -89,6 +89,7 @@ from training.run_full_study import (
     _resolve_val_size_configs,
     _run_condition,
 )
+from training.cause_trials import add_cause_arguments, cause_options_from_args
 from training.trainer_trials import (
     DEFAULT_SELECT_WEIGHTS,
     DEFAULT_QHAT_ACTION_CHUNK,
@@ -405,6 +406,7 @@ def _execute_run(config: dict):
         sampler=str(config.get("sampler", "tpe")),
         stage=str(config.get("stage", "development")),
         opc_gradient=str(config.get("opc_gradient", STUDY_OPC_GRADIENT)),
+        cause_options=config.get("cause_options"),
     )
 
     summary_df = _finalize_summary_df(
@@ -433,6 +435,7 @@ def main():
     )
     parser.add_argument("--datasets", nargs="+", default=list(DEFAULT_DATASETS), help="Default: " + " ".join(DEFAULT_DATASETS) + ".")
     add_world_arguments(parser)
+    add_cause_arguments(parser)
     parser.add_argument(
         "--logging-uniform-mix",
         type=float,
@@ -805,6 +808,7 @@ def main():
             "sampler": str(args.sampler),
             "stage": str(args.stage),
             "opc_gradient": str(args.opc_gradient),
+            "cause_options": cause_options_from_args(args),
         }
         run_configs.append(cfg)
 
@@ -877,6 +881,7 @@ def main():
                     "sampler": str(args.sampler),
                     "stage": str(args.stage),
                     "opc_gradient": str(args.opc_gradient),
+                    "cause_options": cause_options_from_args(args),
                     "val_min": args.val_min,
                     "val_max": args.val_max,
                     "policy_reward_mode": args.policy_reward_mode,
