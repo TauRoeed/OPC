@@ -588,9 +588,17 @@ def create_simulation_data_from_pi(dataset: dict, policy: np.ndarray, n_samples:
 
 
 def create_simulation_data_from_policy(dataset: dict, policy, n_samples: int, random_state: int = 12345, chunk_size: int = 100000):
-    """Scalable sampler that uses a policy object with sample_actions(users)."""
+    """Scalable sampler that uses a policy object with sample_actions(users).
+
+    The policy must draw its actions from its own random stream: users and rewards come from
+    ``default_rng(random_state)``, and a policy generator in the same state would reuse each user's uniform
+    for that user's action. Such a policy is rejected."""
     t0 = time.time()
     rng = np.random.default_rng(random_state)
+    policy_rng = getattr(policy, "rng", None)
+    if isinstance(policy_rng, np.random.Generator) and policy_rng.bit_generator.state == rng.bit_generator.state:
+        raise ValueError("the policy's RNG is in the same state as the simulation's (random_state): "
+                         "its action draws would repeat the user draws; seed it independently")
 
     simulation_data = {
         "actions": np.zeros(n_samples, dtype=np.int32),

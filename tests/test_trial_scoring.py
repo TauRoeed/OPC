@@ -172,7 +172,8 @@ def test_cpu_and_gpu_agree(setup):
     for (name, cpu), (_, gpu) in zip(_lookups(ds, split, "cpu"), _lookups(ds, split, "cuda")):
         c = _split_dr_vec_and_ess(split["val_data"], trial_x, trial_a, cpu, ds, dr_clip_m=1.0)
         g = _split_dr_vec_and_ess(split["val_data"], trial_x, trial_a, gpu, ds, dr_clip_m=1.0)
-        np.testing.assert_allclose(g[0], c[0], rtol=1e-5, atol=1e-7, err_msg=name)
+        # float32 accumulation differs between the devices; same tolerance as the numpy-reference test above
+        np.testing.assert_allclose(g[0], c[0], rtol=1e-4, atol=1e-6, err_msg=name)
 
 
 def test_scoring_device_follows_lookup_and_env(monkeypatch):
