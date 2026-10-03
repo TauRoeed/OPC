@@ -181,3 +181,25 @@ def test_prediction_metrics():
     assert m["nll"] == pytest.approx(float(np.mean(-(y * np.log(p) + (1 - y) * np.log(1 - p)))))
     assert m["mse"] == pytest.approx(float(np.mean((p - y) ** 2)))
     assert m["auc"] == pytest.approx(0.5)
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="needs a GPU")
+@pytest.mark.parametrize("optimizer,l2_pen,variant", [("momentum_decay", 0.0, "prod"), ("sgd", 1e-3, "prod"),
+                                                      ("momentum_decay", 1e-4, "avg")])
+def test_cuda_graph_training_is_bit_identical_to_eager(optimizer, l2_pen, variant):
+    rng = np.random.default_rng(1)
+    n_users, n_items, n = 50, 20, 1300  # two full batches of 512 and a partial one per epoch
+    users = rng.integers(0, n_users, n); items = rng.integers(0, n_items, n)
+    treat = rng.random(n) < 0.2
+    labels = (rng.random(n) < 0.3).astype(np.float32)
+    layout = C.CausELayout(variant, n_items)
+    models = []
+    for graph in (False, True):
+        m = C.CausEModel.for_layout(layout, n_users, 8, generator=torch.Generator().manual_seed(4))
+        with torch.no_grad():
+            m.alpha.fill_(0.5)
+        C.fit_cause(m, users, layout.train_rows(items, treat), labels, epochs=4, batch_size=512, optimizer=optimizer,
+                    lr=0.3, l2_pen=l2_pen, cf_pen=1.0, seed=2, device="cuda", cuda_graph=graph)
+        models.append(m)
+    for a, b in zip(models[0].parameters(), models[1].parameters()):
+        assert torch.equal(a, b)

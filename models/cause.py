@@ -190,24 +190,31 @@ class CausEOptimizer:
         self.step_count = 0
         self.buffers = {n: torch.zeros_like(p) for n, p in model.named_parameters()} if kind != "sgd" else {}
 
-    def current_lr(self) -> float:
+    def lr_at(self, step: int) -> float:
         if self.kind == "sgd":
             return self.lr
-        return self.lr * max(0.0, 1.0 - float(self.step_count) / float(self.total_steps))
+        return self.lr * max(0.0, 1.0 - float(step) / float(self.total_steps))
+
+    def current_lr(self) -> float:
+        return self.lr_at(self.step_count)
 
     @torch.no_grad()
-    def step(self) -> None:
-        lr_t = self.current_lr()
+    def apply(self, lr_value) -> None:
+        """One update with learning rate ``lr_value`` (a float or a 0-d tensor; the same float32 arithmetic either
+        way, so eager steps and CUDA-graph replays agree bit for bit)."""
         named = [(n, p) for n, p in self.model.named_parameters() if p.grad is not None]
         params = [p for _, p in named]
         grads = [p.grad for _, p in named]
         if self.kind == "sgd":
-            torch._foreach_add_(params, grads, alpha=-lr_t)
+            torch._foreach_sub_(params, torch._foreach_mul(grads, lr_value))
         else:
             bufs = [self.buffers[n] for n, _ in named]
             torch._foreach_mul_(bufs, self.momentum)
             torch._foreach_add_(bufs, grads)
-            torch._foreach_add_(params, bufs, alpha=-lr_t)
+            torch._foreach_sub_(params, torch._foreach_mul(bufs, lr_value))
+
+    def step(self) -> None:
+        self.apply(self.current_lr())
         self.step_count += 1
 
 
@@ -271,34 +278,79 @@ def fit_cause(
     seed: int = 0,
     reshuffle: bool = False,
     device: torch.device | str = "cpu",
+    cuda_graph: bool | None = None,
 ) -> dict:
-    """Train on (user, item-row, label) interactions. Returns training diagnostics."""
+    """Train on (user, item-row, label) interactions. Returns training diagnostics.
+
+    On CUDA (``cuda_graph`` None or True) the full-batch step (forward, backward, update) is captured once as a
+    CUDA graph and replayed; partial batches run eagerly. Both paths run the same operations, so they agree bit
+    for bit (tests/test_cause_objective.py); the graph removes the per-kernel launch overhead of tiny batches."""
     device = torch.device(device)
     model.to(device)
     users_t = torch.as_tensor(np.asarray(users, dtype=np.int64), device=device)
     rows_t = torch.as_tensor(np.asarray(rows, dtype=np.int64), device=device)
     labels_t = torch.as_tensor(np.asarray(labels, dtype=np.float32), device=device)
-    total = n_steps(len(users_t), batch_size, epochs)
+    n = len(users_t)
+    batch_size = int(batch_size)
+    total = n_steps(n, batch_size, epochs)
     opt = CausEOptimizer(model, kind=optimizer, lr=lr, total_steps=total, momentum=momentum)
-    for p in model.parameters():
+    params = list(model.parameters())
+    for p in params:
         p.grad = torch.zeros_like(p)
-    grads = [p.grad for p in model.parameters()]
+    grads = [p.grad for p in params]
+
+    def step(u, r, y, lr_value):
+        torch._foreach_zero_(grads)
+        loss, ce = model.loss(u, r, y, l2_pen=l2_pen, cf_pen=cf_pen, symmetric=symmetric)
+        loss.backward()
+        opt.apply(lr_value)
+        return loss.detach(), ce.detach()
+
+    use_graph = (device.type == "cuda") and (cuda_graph is None or bool(cuda_graph)) and n >= batch_size
+    graph = static_out = None
+    if use_graph:
+        su = torch.zeros(batch_size, dtype=torch.long, device=device)
+        sr = torch.zeros(batch_size, dtype=torch.long, device=device)
+        sy = torch.zeros(batch_size, dtype=torch.float32, device=device)
+        lr_buf = torch.zeros((), dtype=torch.float32, device=device)
     last_loss = last_ce = float("nan")
     finite = True
-    n = len(users_t)
     rng = np.random.default_rng(int(seed))
     order = torch.as_tensor(rng.permutation(n), device=device)  # the epoch_batches order, uploaded once
+    k = 0
     for _ in range(int(epochs)):
         if reshuffle:
             order = torch.as_tensor(rng.permutation(n), device=device)
         u_ep, r_ep, y_ep = users_t[order], rows_t[order], labels_t[order]
-        for s in range(0, n, int(batch_size)):
-            u, r, y = u_ep[s:s + batch_size], r_ep[s:s + batch_size], y_ep[s:s + batch_size]
-            torch._foreach_zero_(grads)
-            loss, ce = model.loss(u, r, y, l2_pen=l2_pen, cf_pen=cf_pen, symmetric=symmetric)
-            loss.backward()
-            opt.step()
-            last_loss, last_ce = loss.detach(), ce.detach()
+        for s in range(0, n, batch_size):
+            e = min(n, s + batch_size)
+            lr_value = opt.lr_at(k)
+            if use_graph and e - s == batch_size:
+                su.copy_(u_ep[s:e])
+                sr.copy_(r_ep[s:e])
+                sy.copy_(y_ep[s:e])
+                lr_buf.fill_(lr_value)
+                if graph is None:
+                    # warm up on a side stream (autograd and library state), undo it, then capture one step
+                    snapshot = [x.detach().clone() for x in params + list(opt.buffers.values())]
+                    side = torch.cuda.Stream(device=device)
+                    side.wait_stream(torch.cuda.current_stream(device))
+                    with torch.cuda.stream(side):
+                        for _w in range(2):
+                            step(su, sr, sy, lr_buf)
+                    torch.cuda.current_stream(device).wait_stream(side)
+                    with torch.no_grad():
+                        for x, v in zip(params + list(opt.buffers.values()), snapshot):
+                            x.copy_(v)
+                    graph = torch.cuda.CUDAGraph()
+                    with torch.cuda.graph(graph):
+                        static_out = step(su, sr, sy, lr_buf)
+                graph.replay()
+                last_loss, last_ce = static_out
+            else:
+                last_loss, last_ce = step(u_ep[s:e], r_ep[s:e], y_ep[s:e], lr_value)
+            k += 1
+    opt.step_count = k
     if total:
         last_loss, last_ce = float(last_loss), float(last_ce)
         finite = bool(np.isfinite(last_loss)) and all(bool(torch.isfinite(p).all()) for p in model.parameters())
