@@ -10,7 +10,8 @@ code (`~/code/CausE/repro/runs/_results.jsonl`, audit commit f536ea6). The split
 | `compare_ml100k_s0/port_vs_tf.{csv,md}` | each configuration matched to its TF run; agreement within 0.5 lift point and 0.005 AUC |
 | `ml100k_avg_emul_configs.json`, `ml100k_s0_avg_emul.csv` | CausE-avg with the TF rounding artifact emulated (`emulate_tf_pooled_rounding`) |
 | `ml100k_fig1_configs.json`, `ml100k_fig1_port.csv`, `compare_ml100k_fig1/` | Fig. 1 protocol: randomized share 0–15% of all events; seeds 0, 1 |
-| `ml10m_configs.json`, `ml10m_s0_port.csv` | ML-10M: the released default (1 epoch) and the README configuration (10 epochs) |
+| `ml10m_configs.json`, `ml10m_s0_port.csv`, `compare_ml10m_s0/` | ML-10M: the released default (1 epoch) and the README configuration (10 epochs); seeds 0, 1 |
+| `ml10m_avg_nost_configs.json`, `ml10m_s0_avg_nost.csv` | ML-10M CausE-avg with 0% randomized rows (TF: 15.24 / 18.05 / 0.813) |
 
 Rebuild one file, for example:
 
