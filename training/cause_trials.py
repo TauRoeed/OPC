@@ -6,7 +6,10 @@ For each train size N and randomized share rho (docs/cause_baseline.md §4):
 * model: models/cause.py, from scratch, CausE-prod (prediction with the control rows = prod-C, or the
   treatment rows = prod-T, from one trained model) and CausE-avg;
 * search: ``n_trials`` seeded Optuna trials per variant over lr, epochs, L2 and the tie strength. The
-  configurations and trial seeds do not depend on rho, so with ``sampler='random'`` the rho curve is paired;
+  configurations and trial seeds do not depend on rho, so with ``sampler='random'`` the rho curve is paired.
+  Every trial of a study trains on the same seeded batch order (its own initial values). With the random
+  sampler the configurations are drawn up front and trials sharing an epoch count train together
+  (``fit_cause_batch``: trial k equals its own single-model run);
 * selection: validation NLL of each prediction on the warm validation rows shared with every arm;
 * outcomes: the exact true value of the greedy (argmax) policy and of the softmax over CausE's logits
   (the softmax is a convention, not part of the paper), plus collection rewards and diagnostics.
@@ -22,9 +25,9 @@ import pandas as pd
 import torch
 
 from models.cause import (CAUSE_OPTIMIZERS, CAUSE_PREDICTIONS, CAUSE_TIES, CAUSE_VARIANTS, CausELayout, CausEModel,
-                          fit_cause, predict_logits, prediction_metrics)
+                          fit_cause, fit_cause_batch, predict_logits, prediction_metrics)
 from utils.budget_split import CAUSE_RHOS, build_budget_split, simulate_uniform_pool, uniform_pool_seed
-from utils.seeding import derive_seed, optuna_sampler, seed_everything
+from utils.seeding import derive_seed, optuna_sampler
 from utils.simulation_utils import calc_greedy_reward, calc_reward, calc_uniform_reward, ensure_exact_env_q_cache
 
 CAUSE_EPOCHS = (1, 3, 10, 30, 100, 300)
@@ -32,6 +35,17 @@ CAUSE_L2 = (0.0, 1e-6, 1e-5, 1e-4, 1e-3)
 CAUSE_CF_PEN = (0.0, 0.1, 1.0, 10.0, 100.0)
 CAUSE_LR_RANGE = (1e-3, 1.0)
 DIVERGED_NLL = 1e9
+
+
+def _distributions():
+    from optuna.distributions import CategoricalDistribution, FloatDistribution
+
+    # insertion order = the order of the suggest_* calls of the sequential search
+    return {"lr": FloatDistribution(*CAUSE_LR_RANGE, log=True), "epochs": CategoricalDistribution(list(CAUSE_EPOCHS)),
+            "l2_pen": CategoricalDistribution(list(CAUSE_L2)), "cf_pen": CategoricalDistribution(list(CAUSE_CF_PEN))}
+
+
+CAUSE_DISTRIBUTIONS = _distributions()
 CAUSE_DEFAULTS = {"rhos": list(CAUSE_RHOS), "variants": list(CAUSE_VARIANTS), "dim": 32,
                   "optimizer": "momentum_decay", "tie": "one_way", "batch_size": 512, "n_trials": None, "device": "auto"}
 
@@ -140,25 +154,12 @@ def cause_trainer_trial(
                 pred_rows = {p: layout.prediction_rows(CAUSE_PREDICTIONS[p][1]) for p in preds}
                 labels_seed = ("cause", variant, n)  # no rho: the same configurations and seeds at every rho
                 trial_rows = []
+                order_seed = derive_seed(seed, *labels_seed, "order")  # one batch order for every trial of the study
 
-                def objective(trial):
-                    t0 = time.time()
-                    lr = trial.suggest_float("lr", *CAUSE_LR_RANGE, log=True)
-                    epochs = trial.suggest_categorical("epochs", list(CAUSE_EPOCHS))
-                    l2_pen = trial.suggest_categorical("l2_pen", list(CAUSE_L2))
-                    cf_pen = trial.suggest_categorical("cf_pen", list(CAUSE_CF_PEN))
-                    trial_seed = derive_seed(seed, *labels_seed, "trial", trial.number)
-                    seed_everything(trial_seed)
-                    gen = torch.Generator().manual_seed(derive_seed(trial_seed, "init"))
-                    model = CausEModel.for_layout(layout, n_users, int(opts["dim"]), generator=gen)
-                    info = fit_cause(model, users, rows, labels, epochs=int(epochs), batch_size=int(opts["batch_size"]),
-                                     optimizer=str(opts["optimizer"]), lr=lr, l2_pen=float(l2_pen), cf_pen=float(cf_pen),
-                                     symmetric=symmetric, seed=derive_seed(trial_seed, "order"), device=device)
-                    rec = {"train_size": n, "rho": rho, "variant": variant, "trial": trial.number, "lr": lr,
-                           "epochs": int(epochs), "l2_pen": float(l2_pen), "cf_pen": float(cf_pen),
-                           "steps": info["steps"], "finite": info["finite"], **_diagnostics(model, layout)}
+                def evaluate(model, rec):
+                    """Validation metrics and exact true values of every prediction of a trained trial."""
                     for p in preds:
-                        if info["finite"]:
+                        if rec["finite"]:
                             z = predict_logits(model, val_users, pred_rows[p][val_actions])
                             m = prediction_metrics(z, val_labels)
                             m["nll"] = m["nll"] if np.isfinite(m["nll"]) else DIVERGED_NLL
@@ -168,20 +169,71 @@ def cause_trainer_trial(
                             v_soft = v_greedy = np.nan
                         rec.update({f"{p}_val_nll": m["nll"], f"{p}_val_mse": m["mse"], f"{p}_val_auc": m["auc"],
                                     f"{p}_value": v_soft, f"{p}_value_greedy": v_greedy})
-                    rec["seconds"] = time.time() - t0
-                    trial_rows.append(rec)
-                    del model
-                    if torch.cuda.is_available():
-                        torch.cuda.empty_cache()
-                    # Optuna follows the first prediction (prod-C for prod, avg for avg); each prediction is
-                    # selected separately below from the same trials
-                    return float(rec[f"{preds[0]}_val_nll"])
+                    return rec
+
+                def new_model(number):
+                    trial_seed = derive_seed(seed, *labels_seed, "trial", number)
+                    gen = torch.Generator().manual_seed(derive_seed(trial_seed, "init"))
+                    return CausEModel.for_layout(layout, n_users, int(opts["dim"]), generator=gen)
+
+                def record(number, params, info_steps, finite, model):
+                    rec = {"train_size": n, "rho": rho, "variant": variant, "trial": number, "lr": params["lr"],
+                           "epochs": int(params["epochs"]), "l2_pen": float(params["l2_pen"]),
+                           "cf_pen": float(params["cf_pen"]), "steps": int(info_steps), "finite": bool(finite),
+                           **_diagnostics(model, layout)}
+                    return evaluate(model, rec)
 
                 optuna.logging.set_verbosity(optuna.logging.WARNING)
                 study = optuna.create_study(direction="minimize",
                                             sampler=optuna_sampler(seed, *labels_seed, kind=str(sampler)))
                 t_study = time.time()
-                study.optimize(objective, n_trials=n_trials, show_progress_bar=False)
+                if str(sampler) == "random":
+                    # configurations do not depend on results: draw them all, then train the trials that share an
+                    # epoch count together (models/cause.py fit_cause_batch; trial k equals its own fit_cause)
+                    asked = [study.ask(CAUSE_DISTRIBUTIONS) for _ in range(n_trials)]
+                    by_epochs: dict[int, list] = {}
+                    for tr in asked:
+                        by_epochs.setdefault(int(tr.params["epochs"]), []).append(tr)
+                    done = {}
+                    for epochs, group in sorted(by_epochs.items()):
+                        t0 = time.time()
+                        models = [new_model(tr.number) for tr in group]
+                        info = fit_cause_batch(models, users, rows, labels, epochs=epochs,
+                                               batch_size=int(opts["batch_size"]), optimizer=str(opts["optimizer"]),
+                                               lrs=[tr.params["lr"] for tr in group],
+                                               l2_pens=[tr.params["l2_pen"] for tr in group],
+                                               cf_pens=[tr.params["cf_pen"] for tr in group], symmetric=symmetric,
+                                               order_seed=order_seed, device=device)
+                        for i, tr in enumerate(group):
+                            rec = record(tr.number, tr.params, info["steps"], info["finite"][i], models[i])
+                            rec["seconds"] = (time.time() - t0) / len(group)
+                            done[tr.number] = rec
+                        del models
+                    for tr in asked:  # tell in trial order, as a sequential search would
+                        trial_rows.append(done[tr.number])
+                        study.tell(tr, float(done[tr.number][f"{preds[0]}_val_nll"]))
+                else:
+                    def objective(trial):
+                        t0 = time.time()
+                        params = {"lr": trial.suggest_float("lr", *CAUSE_LR_RANGE, log=True),
+                                  "epochs": trial.suggest_categorical("epochs", list(CAUSE_EPOCHS)),
+                                  "l2_pen": trial.suggest_categorical("l2_pen", list(CAUSE_L2)),
+                                  "cf_pen": trial.suggest_categorical("cf_pen", list(CAUSE_CF_PEN))}
+                        model = new_model(trial.number)
+                        info = fit_cause(model, users, rows, labels, epochs=int(params["epochs"]),
+                                         batch_size=int(opts["batch_size"]), optimizer=str(opts["optimizer"]),
+                                         lr=params["lr"], l2_pen=float(params["l2_pen"]), cf_pen=float(params["cf_pen"]),
+                                         symmetric=symmetric, seed=order_seed, device=device)
+                        rec = record(trial.number, params, info["steps"], info["finite"], model)
+                        rec["seconds"] = time.time() - t0
+                        trial_rows.append(rec)
+                        # Optuna follows the first prediction (prod-C for prod, avg for avg); each prediction is
+                        # selected separately below from the same trials
+                        return float(rec[f"{preds[0]}_val_nll"])
+
+                    study.optimize(objective, n_trials=n_trials, show_progress_bar=False)
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
                 trials_df = pd.DataFrame(trial_rows)
                 print(f"[cause] N={n} rho={rho:g} {variant}: {len(trials_df)} trials in {time.time() - t_study:.0f}s; "
                       f"finite {int(trials_df['finite'].sum())}; best {preds[0]} val NLL "

@@ -156,7 +156,8 @@ class CausEModel(nn.Module):
 
     def loss(self, users, rows, labels, *, l2_pen: float = 0.0, cf_pen: float = 1.0, symmetric: bool = False):
         """(total, mean cross-entropy) for one minibatch."""
-        ce = F.binary_cross_entropy_with_logits(self.logits(users, rows), labels)
+        # per-row cross-entropy, then the mean: TF's reduce_mean(sigmoid_cross_entropy_with_logits(...))
+        ce = F.binary_cross_entropy_with_logits(self.logits(users, rows), labels, reduction="none").mean()
         total = ce
         if l2_pen:
             total = total + float(l2_pen) * self.l2()
@@ -384,3 +385,208 @@ def prediction_metrics(logits: np.ndarray, labels: np.ndarray) -> dict:
 
         auc = float(roc_auc_score(y.astype(int), z))
     return {"nll": nll, "mse": mse, "auc": auc}
+
+
+class CausEBatchModel(nn.Module):
+    """K independent CausE models trained together on the same batches (one model per search trial).
+
+    Parameters are stacked along a leading trial axis and flattened, so ``F.embedding`` gathers every trial's
+    rows at once: users at k * n_users + u, item rows at k * n_rows + r. Trial k computes exactly
+    ``CausEModel`` with its own initial values, learning rate, L2 and tie strength; the trials share no
+    parameters, so summing their losses gives each trial its own gradient."""
+
+    def __init__(self, models: list[CausEModel]):
+        super().__init__()
+        first = models[0]
+        self.K = len(models)
+        self.variant, self.tie_offset, self.pooled_row = first.variant, first.tie_offset, first.pooled_row
+        self.emulate_tf_pooled_rounding = first.emulate_tf_pooled_rounding
+        self.n_users, self.n_rows, self.dim = first.user_emb.shape[0], first.item_emb.shape[0], first.dim
+        cat = lambda name: torch.cat([getattr(m, name).detach().reshape(1, -1) for m in models]).reshape(-1, *getattr(first, name).shape[1:])
+        self.user_emb = nn.Parameter(cat("user_emb").clone())
+        self.item_emb = nn.Parameter(cat("item_emb").clone())
+        self.user_bias = nn.Parameter(cat("user_bias").clone())
+        self.item_bias = nn.Parameter(cat("item_bias").clone())
+        self.global_bias = nn.Parameter(torch.cat([m.global_bias.detach() for m in models]).clone())
+        self.alpha = nn.Parameter(torch.stack([m.alpha.detach() for m in models]).clone())
+
+    def _offsets(self, idx: torch.Tensor, n: int) -> torch.Tensor:
+        return torch.arange(self.K, device=idx.device)[:, None] * n + idx[None, :]
+
+    def logits(self, users: torch.Tensor, rows: torch.Tensor) -> torch.Tensor:
+        uo, ro = self._offsets(users, self.n_users), self._offsets(rows, self.n_rows)
+        emb = (F.embedding(uo, self.user_emb) * F.embedding(ro, self.item_emb)).sum(dim=-1)
+        b_u = F.embedding(uo, self.user_bias[:, None])[..., 0]
+        b_i = F.embedding(ro, self.item_bias[:, None])[..., 0]
+        return self.alpha[:, None] * emb + b_u + b_i + self.global_bias[:, None]
+
+    def tie(self, rows: torch.Tensor, *, symmetric: bool = False) -> torch.Tensor:
+        ro = self._offsets(rows, self.n_rows)
+        p = F.embedding(ro, self.item_emb)
+        if self.variant == "prod":
+            targets = torch.where(rows < self.tie_offset, rows + self.tie_offset, rows)
+            t = F.embedding(self._offsets(targets, self.n_rows), self.item_emb)
+            t = t if symmetric else t.detach()
+            return (p - t).abs().sum(dim=-1).mean(dim=-1)
+        c = self.item_emb[torch.arange(self.K, device=rows.device) * self.n_rows + self.pooled_row]
+        c = c if symmetric else c.detach()
+        if self.emulate_tf_pooled_rounding:
+            c_hat = c / torch.sqrt(torch.clamp((c * c).sum(dim=-1, keepdim=True), min=TF_NORMALIZE_EPS))
+        else:
+            c_hat = _tf_l2_normalize(c, dim=-1)
+        return (_tf_l2_normalize(p, dim=-1) - c_hat[:, None, :]).abs().sum(dim=-1).mean(dim=-1)
+
+    def l2(self) -> torch.Tensor:
+        k = self.K
+        return 0.5 * (self.user_emb.reshape(k, -1).pow(2).sum(1) + self.item_emb.reshape(k, -1).pow(2).sum(1)
+                      + self.item_bias.reshape(k, -1).pow(2).sum(1) + self.user_bias.reshape(k, -1).pow(2).sum(1))
+
+    def loss(self, users, rows, labels, *, l2_pen: torch.Tensor, cf_pen: torch.Tensor, symmetric: bool = False,
+             use_l2: bool = True, use_tie: bool = True):
+        """(sum over trials of each trial's loss, per-trial mean cross-entropy [K])."""
+        z = self.logits(users, rows)
+        ce = F.binary_cross_entropy_with_logits(z, labels[None, :].expand_as(z), reduction="none").mean(dim=1)
+        total = ce
+        if use_l2:
+            total = total + l2_pen * self.l2()
+        if use_tie:
+            total = total + cf_pen * self.tie(rows, symmetric=symmetric)
+        return total.sum(), ce
+
+    @torch.no_grad()
+    def trial_model(self, k: int, template: CausEModel) -> CausEModel:
+        """Trial k's parameters in a ``CausEModel`` (for prediction and evaluation)."""
+        m = template
+        m.user_emb.copy_(self.user_emb[k * self.n_users:(k + 1) * self.n_users])
+        m.item_emb.copy_(self.item_emb[k * self.n_rows:(k + 1) * self.n_rows])
+        m.user_bias.copy_(self.user_bias[k * self.n_users:(k + 1) * self.n_users])
+        m.item_bias.copy_(self.item_bias[k * self.n_rows:(k + 1) * self.n_rows])
+        m.global_bias.copy_(self.global_bias[k:k + 1])
+        m.alpha.copy_(self.alpha[k])
+        return m
+
+    @torch.no_grad()
+    def trial_finite(self) -> torch.Tensor:
+        k = self.K
+        ok = torch.ones(k, dtype=torch.bool, device=self.alpha.device)
+        for p in (self.user_emb, self.item_emb, self.user_bias, self.item_bias):
+            ok &= torch.isfinite(p.reshape(k, -1)).all(dim=1)
+        return ok & torch.isfinite(self.alpha) & torch.isfinite(self.global_bias)
+
+
+class CausEBatchOptimizer:
+    """``CausEOptimizer`` per trial: lr_k (decayed per step for ``momentum_decay``), the same float32 arithmetic."""
+
+    def __init__(self, model: CausEBatchModel, *, kind: str, lrs: torch.Tensor, total_steps: int, momentum: float = 0.9):
+        if kind not in CAUSE_OPTIMIZERS:
+            raise ValueError(f"optimizer must be one of {CAUSE_OPTIMIZERS}, got {kind!r}")
+        self.model, self.kind, self.lrs = model, kind, lrs
+        self.total_steps, self.momentum = max(1, int(total_steps)), float(momentum)
+        self.buffers = [torch.zeros_like(p) for p in model.parameters()] if kind != "sgd" else []
+
+    def factor_at(self, step: int) -> float:
+        return 1.0 if self.kind == "sgd" else max(0.0, 1.0 - float(step) / float(self.total_steps))
+
+    @torch.no_grad()
+    def apply(self, lr_vec: torch.Tensor) -> None:
+        k = self.model.K
+        params = list(self.model.parameters())
+        for i, p in enumerate(params):
+            if p.grad is None:
+                continue
+            src = p.grad if self.kind == "sgd" else self.buffers[i].mul_(self.momentum).add_(p.grad)
+            shape = (k, -1)
+            p.view(shape).sub_(src.view(shape) * lr_vec[:, None])
+
+
+def fit_cause_batch(
+    models: list[CausEModel],
+    users: np.ndarray,
+    rows: np.ndarray,
+    labels: np.ndarray,
+    *,
+    epochs: int,
+    lrs,
+    l2_pens,
+    cf_pens,
+    batch_size: int = 512,
+    optimizer: str = "momentum_decay",
+    symmetric: bool = False,
+    momentum: float = 0.9,
+    order_seed: int = 0,
+    device: torch.device | str = "cpu",
+    cuda_graph: bool | None = None,
+) -> dict:
+    """Train K models (same data, same epochs, one batch order) together; trial k equals ``fit_cause`` on
+    ``models[k]`` with lr ``lrs[k]``, L2 ``l2_pens[k]``, tie ``cf_pens[k]`` and order seed ``order_seed``.
+    The trained values are copied back into ``models``. Returns per-trial diagnostics."""
+    device = torch.device(device)
+    batch_model = CausEBatchModel([m.to(device) for m in models]).to(device)
+    k = batch_model.K
+    lrs_t = torch.as_tensor(np.asarray(lrs, dtype=np.float32), device=device)
+    l2_t = torch.as_tensor(np.asarray(l2_pens, dtype=np.float32), device=device)
+    cf_t = torch.as_tensor(np.asarray(cf_pens, dtype=np.float32), device=device)
+    use_l2, use_tie = bool((l2_t != 0).any()), bool((cf_t != 0).any())
+    users_t = torch.as_tensor(np.asarray(users, dtype=np.int64), device=device)
+    rows_t = torch.as_tensor(np.asarray(rows, dtype=np.int64), device=device)
+    labels_t = torch.as_tensor(np.asarray(labels, dtype=np.float32), device=device)
+    n = len(users_t)
+    batch_size = int(batch_size)
+    total = n_steps(n, batch_size, epochs)
+    opt = CausEBatchOptimizer(batch_model, kind=optimizer, lrs=lrs_t, total_steps=total, momentum=momentum)
+    params = list(batch_model.parameters())
+    for p in params:
+        p.grad = torch.zeros_like(p)
+    grads = [p.grad for p in params]
+    lr_buf = torch.zeros(k, dtype=torch.float32, device=device)
+    # lr of every trial at every step, as the single-trial path rounds it: float32(lr_k * factor(step)) from doubles
+    factors = np.array([opt.factor_at(s) for s in range(total)], dtype=np.float64)
+    schedule = torch.as_tensor((factors[:, None] * np.asarray(lrs, dtype=np.float64)[None, :]).astype(np.float32),
+                               device=device)
+
+    def step(u, r, y, lr_vec):
+        torch._foreach_zero_(grads)
+        loss, _ce = batch_model.loss(u, r, y, l2_pen=l2_t, cf_pen=cf_t, symmetric=symmetric, use_l2=use_l2,
+                                     use_tie=use_tie)
+        loss.backward()
+        opt.apply(lr_vec)
+
+    use_graph = device.type == "cuda" and (cuda_graph is None or bool(cuda_graph)) and n >= batch_size
+    graph = None
+    if use_graph:
+        su = torch.zeros(batch_size, dtype=torch.long, device=device)
+        sr = torch.zeros(batch_size, dtype=torch.long, device=device)
+        sy = torch.zeros(batch_size, dtype=torch.float32, device=device)
+    order = torch.as_tensor(np.random.default_rng(int(order_seed)).permutation(n), device=device)
+    u_ep, r_ep, y_ep = users_t[order], rows_t[order], labels_t[order]
+    step_i = 0
+    for _ in range(int(epochs)):
+        for s in range(0, n, batch_size):
+            e = min(n, s + batch_size)
+            lr_buf.copy_(schedule[step_i])
+            if use_graph and e - s == batch_size:
+                su.copy_(u_ep[s:e])
+                sr.copy_(r_ep[s:e])
+                sy.copy_(y_ep[s:e])
+                if graph is None:
+                    snapshot = [x.detach().clone() for x in params + opt.buffers]
+                    side = torch.cuda.Stream(device=device)
+                    side.wait_stream(torch.cuda.current_stream(device))
+                    with torch.cuda.stream(side):
+                        for _w in range(2):
+                            step(su, sr, sy, lr_buf)
+                    torch.cuda.current_stream(device).wait_stream(side)
+                    with torch.no_grad():
+                        for x, v in zip(params + opt.buffers, snapshot):
+                            x.copy_(v)
+                    graph = torch.cuda.CUDAGraph()
+                    with torch.cuda.graph(graph):
+                        step(su, sr, sy, lr_buf)
+                graph.replay()
+            else:
+                step(u_ep[s:e], r_ep[s:e], y_ep[s:e], lr_buf)
+            step_i += 1
+    finite = batch_model.trial_finite().cpu().numpy()
+    for i, m in enumerate(models):
+        batch_model.trial_model(i, m)
+    return {"steps": int(total), "finite": finite, "alpha": batch_model.alpha.detach().cpu().numpy()}
