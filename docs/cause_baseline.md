@@ -323,6 +323,9 @@ Our exact-tie CausE-avg differs from TF beyond seed noise:
   (15.85 vs 15.72). The gap then grows with the randomized share.
 * **The decline of CausE-avg with more randomized data that the audit reports (15.7 → 13.6) is produced by the released code's
   rounding artifact, not by the CausE objective.** The exact objective is flat to rising (15.9 → 16.7).
+* ML-10M confirms the attribution. With 0% randomized rows (no pooled rows, so no artifact), our CausE-avg gets 15.33 / 15.12 MSE lift
+  (seeds 0, 1), 18.03 / 17.92 NLL lift, AUC 0.813 and α ≈ −3. The audit's TF run gets 15.24 / 18.05 / 0.813 with α = −3. With the 10%
+  randomized rows, the two differ (§10.5).
 
 ### 10.3 Fig. 1 protocol (ML-100K; the randomized share injected into training; 2 seeds)
 | share of all events | 0% | 1% | 2.5% | 5% | 7.5% | 10% | 15% |
@@ -343,4 +346,19 @@ implementations at most levels, so it is not compared here.
 * **CausE-avg** differs only through the released code's floating-point artifact on the pooled row. Our port implements the exact
   objective.
 * **The released optimizer's instability** reproduces too: the same configurations diverge.
-* **Pending:** ML-10M (Table 2, the README configuration and the released defaults) is running. Netflix is not available (A9).
+* **ML-10M** (Table 2 setting) reproduces in the same way (§10.5).
+* **Netflix** is not available (A9).
+
+### 10.5 ML-10M (split seed 0; ours: seeds 0 and 1; TF: the audit's single run)
+| method | configuration | ours MSE / NLL lift, AUC | TF MSE / NLL lift, AUC | agrees |
+|---|---|---|---|---|
+| CausE-prod-C | 1 ep (released default) | 4.80 / 5.29, 0.750 | 4.86 / 5.46, 0.750 | yes |
+| CausE-prod-C | 10 ep (README) | 13.05 / 15.24, 0.796 | 12.96 / 15.31, 0.796 | yes |
+| CausE-prod-T | 1 ep | 2.34 / 2.90, 0.799 | 2.39 / 3.03, 0.799 | yes |
+| CausE-prod-T | 10 ep | 12.36 / 14.90, 0.813 | 12.15 / 14.87, 0.813 | yes |
+| SP2V-blend | 10 ep | 14.14 / 16.69, 0.805 | 13.93 / 16.71, 0.806 | yes |
+| CausE-avg | 1 ep | 8.80 / 9.47, 0.774 | 10.52 / 11.95, 0.782 | no (§10.2) |
+| CausE-avg | 10 ep | 15.86 / 18.49, 0.818 | 15.19 / 17.85, 0.817 | no (§10.2) |
+
+The paper reports, for comparison: CausE-prod-C +15.48, CausE-prod-T +7.46, CausE-avg +12.67 and SP2V-blend +4.37 (v6 Table 2). These
+are the numbers that neither the audit's TF runs nor the port reproduce.
