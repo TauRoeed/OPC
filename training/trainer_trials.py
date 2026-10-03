@@ -1396,8 +1396,12 @@ def _uniform_policy_reward(
 
 
 def _simulate_from_embedding_policy(dataset, our_x, our_a, n_samples, random_state):
-    """Sample logged bandit data without materializing dense pi (n_users x n_actions)."""
-    rng = int(random_state) % (2**31 - 1)
+    """Sample logged bandit data without materializing dense pi (n_users x n_actions).
+
+    The logger's action draws use their own stream: ``create_simulation_data_from_policy`` draws the users
+    from ``default_rng(random_state)``, and a policy seeded with the same integer reused each user's uniform
+    for its action (actions nearly fixed per user; present from 69fffab to the 2026-10-03 fix)."""
+    rng = derive_seed(int(random_state), "logging_policy_actions")
     logging_policy = Policy(
         n_users=int(dataset["n_users"]),
         n_items=int(dataset["n_actions"]),
