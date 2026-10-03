@@ -1,7 +1,10 @@
 # CausE as a prior-work baseline in OPC: specification and design
 
-*Status: design note (2026-10-03), before implementation. Development stage only. Nothing here changes the
-OPC method; CausE is added as a separate arm.*
+*Status (2026-10-03):*
+* *The design was approved with the defaults of §3.*
+* *The implementation is on the local branch `cause-baseline`; its code is not pushed (§8).*
+* *Development stage only. CausE is a separate arm and does not change the OPC method.*
+* *Separately, a seeding bug in OPC's log simulator was found and fixed (§9).*
 
 ## 1. Sources
 
@@ -134,6 +137,8 @@ The paper also lists SP2V-no, blend and test, WSP2V (IPS-weighted, weights cappe
 | A8 | Validation rows and the budget N | **Not part of N** (OPC's existing convention): 20k warm rows per condition, identical for every arm, used only for selection | count them in N |
 | A9 | Netflix | Requires Kaggle credentials and is not on this machine. Reproduce on **ML-100K** (Fig. 1 protocol and the code's default dataset) and **ML-10M** (Table 2) | you provide the Netflix data |
 
+**Decision (2026-10-03):** use the proposed defaults A1–A9.
+
 ## 4. Mapping into OPC (the controlled-mismatch simulator)
 
 ### 4.1 Data roles
@@ -209,11 +214,133 @@ Every run is `--stage development` until the comparison is frozen.
   continuous ρ search.
 
 ## 7. Milestones and ETAs (wall clock)
+
+Code milestones are committed on the local branch only. Documentation and results may be pushed to `CRM`.
 | milestone | content | ETA |
 |---|---|---|
 | M1 | this note | done at commit |
-| M2 | budget split, CausE core, unit tests and TF numerical match; commit and push | +4 h |
-| M3 | study-runner arm, determinism and bit-identity tests, smoke run; commit and push | +3 h |
-| M4 | ML-100K reproduction (then ML-10M in the background); commit and push | +2 h |
+| M2 | budget split, CausE core, unit tests and TF numerical match; local commit | done (`5c011a9`, `b2f05d8`, `e497180`) |
+| M3 | study-runner arm, determinism and bit-identity tests, smoke run; local commit | done (`5a01501`); smoke run in progress |
+| M4 | ML-100K reproduction (then ML-10M in the background); local commit | in progress |
 | M5 | bounded comparison at 25k: 3 datasets × 5 biases × seeds 100/101, OPC / DM / tempered / CausE × 6 ρ | +6–8 h of compute |
 | M6 | analysis, figures and report; stop | +2 h |
+
+## 8. Implementation and validation status (local branch `cause-baseline`)
+
+| piece | where | validation |
+|---|---|---|
+| CausE objective, variants, optimizers | `models/cause.py` | `tests/test_cause_tf_reference.py`: **11 cases from the authors' unmodified TF 1.9 graph match to < 5e-6** in every parameter and per-step loss. They cover prod and avg, plain SGD and momentum with decay, the one-way and symmetric tie, and L2. `tests/test_cause_objective.py`: hand-calculated losses and gradient properties |
+| fixed-budget data | `utils/budget_split.py` | `tests/test_budget_split.py`: N_c + N_t = N; χ² uniformity; independence of the user draw; the world's user prior; true q; exact nested prefixes; collection rewards |
+| study arm | `training/cause_trials.py` with `--methods ... cause` | `tests/test_cause_trials.py`: the labels and budget metadata; CausE's warm rows are a prefix of OPC's training split; **OPC's outputs are bit-identical with and without `cause`**; determinism |
+| CausE's own protocol | `training/cause_protocol.py` | `tests/test_cause_protocol.py`: the reconstructed ML-100K split (all files, including the Fig. 1 levels) is **identical row for row** to the audit's; the bootstrap metrics follow `src/utils.py` |
+| TF fixture generator | `scripts/cause_reference/make_tf_fixture.py` | runs only in the audit's Python 3.6 / TF 1.9 environment and refuses to run if `src/` differs from `957e556` |
+
+### 8.1 Where the port differs from the released code
+1. **The CausE-avg pooled row's self-tie.**
+   * Randomized rows are mapped to the pooled row, so their tie compares the pooled vector with itself.
+   * TF normalizes the pooled vector twice, once as batch rows (axis 1) and once alone (axis 0). The two kernels round differently
+     (|difference| ≈ 1e-8, nonzero in every coordinate), so `abs()` passes a full ±1 subgradient. In the released code the pooled
+     treatment vector is therefore pushed every step in a direction set by rounding.
+   * The port uses the exact 0, which is mathematically the same objective.
+   * Injecting TF's signs reproduces TF to < 5e-6, so this is the only difference.
+   * Expected impact is small: the audit's CausE-avg performs the same with 0% randomized data, where this term never fires.
+2. **Batch order.** The port uses a seeded full permutation, replayed every epoch, where TF uses a 10k-row shuffle buffer followed by
+   `cache()`. Both replay one order per run; they differ in distribution only.
+3. **Random streams.** The Xavier initialization has the same distribution as TF's but a different random stream, so single runs
+   differ at the seed level.
+4. **Dense updates.** Every update is dense, as in TF. The released graph's L2 term exists even at `l2_pen` = 0, so TF densifies
+   every embedding gradient; momentum is therefore applied to every row, verified against TF.
+
+## 9. Separate finding: the OPC log simulator's RNG streams were coupled (fixed locally)
+* **The bug.** `_simulate_from_embedding_policy` seeded the logging policy's generator with the same integer as the simulation's.
+  Since `69fffab` (2026-09-24), `Policy.sample_actions` draws one uniform per row. Each logged action therefore reused the uniform
+  that drew its user.
+* **Evidence** (ml, no bias, 25k rows):
+  * 95% of users with ≥ 2 rows always got the same action, against 3.8% with independent streams;
+  * corr(user index, action index) = +0.72;
+  * the logged rows' mean q still matched V(π0) within noise.
+* **Consequence.** The recorded pscore π0(a|u) was not the per-user sampling probability.
+* **Fix** (local commit `5c011a9`):
+  * the policy seed is `derive_seed(random_state, "logging_policy_actions")`;
+  * `create_simulation_data_from_policy` rejects a policy whose generator is in the simulation's state;
+  * `tests/test_logging_rng_independence.py` fails on the old code.
+* **Scope.**
+  * Affected: every learned result logged from `69fffab` until the fix (the development Stages 2–3, the weighting study, the paired
+    runs behind the objective decision).
+  * Not affected: exact values and the Stage-1 oracle bounds.
+  * The CausE comparison runs on the fixed simulator, and re-runs OPC, DM-only and the tempered logger in the same runs.
+
+## 10. Reproduction of CausE's own protocol (MovieLens, released recipe)
+
+**Setup.**
+* Data: the audit's reconstructed SKEW split (deviations D1–D6), ported to `training/cause_protocol.py` and identical to the audit's
+  files row for row. ML-100K, split seed 0.
+* Recipe: the released one, i.e. plain SGD at lr 1.0, batch 512, d = 50, tie 1 unless stated.
+* Seeds: ours 0, 1, 2; TF is the audit's single run of the unmodified code.
+* Metrics: computed as `src/utils.py` does (30 bootstraps; lift over the released "average predictor").
+* Agreement: within 0.5 lift point and 0.005 AUC.
+* Files: `artifacts/cause_repro/`.
+
+### 10.1 ML-100K, every configuration the audit ran in TF
+
+**Stable configurations (ours, mean ± sd over 3 seeds, vs TF):**
+| method | configuration | ours MSE lift | TF MSE lift | ours AUC | TF AUC | agrees |
+|---|---|---|---|---|---|---|
+| CausE-prod-C | 1 ep (released default) | 0.06 ± 0.28 | 0.22 | 0.7464 | 0.7466 | yes |
+| CausE-prod-C | 10 ep (README) | 8.20 ± 0.16 | 8.20 | 0.7540 | 0.7541 | yes |
+| CausE-prod-C | 100 ep (validation-selected), tie 0.1 / 1 / 10 | 15.44 ± 0.09 | 15.37 | 0.7764 | 0.7764 | yes |
+| CausE-prod-T | 1 ep | −0.36 ± 0.28 | −0.19 | 0.7212 | 0.7213 | yes |
+| CausE-prod-T | 10 ep | 5.75 ± 0.15 | 5.75 | 0.7244 | 0.7244 | yes |
+| CausE-prod-T | 100 ep, tie 0.1 / 1 / 10 / 100 | 12.40–12.50 | 12.44–12.52 | 0.7481–0.7489 | 0.7480–0.7489 | yes |
+| SP2V-no / blend / test | 10 ep | 6.87 / 8.59 / 2.56 | 6.52 / 8.76 / 2.64 | 0.7460 / 0.7589 / 0.7289 | 0.7461 / 0.7590 / 0.7284 | yes |
+| SP2V-test | 200 ep, L2 1e-5 | 12.05 ± 0.08 | 12.16 | 0.7429 | 0.7429 | yes |
+
+**Unstable configurations.** These are configurations where the released optimizer diverges in some runs:
+* prod with tie 0 at 100 ep;
+* prod at 200–300 ep;
+* SP2V-no at 100 ep;
+* SP2V-blend at 100 ep with L2 1e-5;
+* (prod with tie 100 at 100 ep is chaotic: L1 chattering).
+
+Per seed, the converged runs land on TF's numbers, and the others diverge with |α| ≈ 22:
+* SP2V-no at 100 ep: 14.31 against TF 14.00 (the other two seeds −7.2 and −12.0);
+* prod-C with tie 0 at 100 ep: 15.58 against TF 15.35.
+
+TF diverges as well at 200–300 epochs. The audit reports the same instability (SP2V diverged in 2 of 5 replicates).
+
+### 10.2 CausE-avg: the released code's rounding artifact (§8.1)
+Our exact-tie CausE-avg differs from TF beyond seed noise:
+
+| epochs | ours, exact tie | ours, TF rounding emulated | TF |
+|---|---|---|---|
+| 10 | 8.67 ± 0.65 | 9.50 ± 0.27 | 9.82 |
+| 100 | 17.07 ± 0.02 | 15.01 ± 0.07 | 15.92 |
+| 300 | 18.01 ± 0.04 | 15.08 ± 0.11 | 16.75 |
+
+* Emulating the artifact (`emulate_tf_pooled_rounding`) moves our result past TF. TF lies between the exact and the emulated versions,
+  as expected for an artifact whose strength depends on kernel rounding.
+* The Fig. 1 protocol (§10.3) shows it directly. At 0% randomized rows, where the pooled self-tie never fires, our CausE-avg equals TF
+  (15.85 vs 15.72). The gap then grows with the randomized share.
+* **The decline of CausE-avg with more randomized data that the audit reports (15.7 → 13.6) is produced by the released code's
+  rounding artifact, not by the CausE objective.** The exact objective is flat to rising (15.9 → 16.7).
+
+### 10.3 Fig. 1 protocol (ML-100K; the randomized share injected into training; 2 seeds)
+| share of all events | 0% | 1% | 2.5% | 5% | 7.5% | 10% | 15% |
+|---|---|---|---|---|---|---|---|
+| CausE-prod-C, ours | 13.03 | 12.80 | 13.29 | 13.10 | 13.96 | 13.97 | 14.40 |
+| CausE-prod-C, TF | 12.87 | 12.99 | 13.83 | 13.80 | 13.80 | 13.96 | 14.79 |
+| CausE-prod-T, ours | 6.62 | 6.86 | 8.12 | 9.29 | 10.99 | 11.86 | 13.39 |
+| CausE-prod-T, TF | 6.44 | 6.99 | 8.34 | 9.81 | 10.92 | 11.86 | 13.46 |
+| CausE-avg, ours (exact) | 15.85 | 15.91 | 16.16 | 16.35 | 16.76 | 16.65 | 16.74 |
+| CausE-avg, TF | 15.72 | 16.11 | 16.21 | 16.11 | 15.82 | 15.30 | 13.57 |
+
+All values are MSE lift %; prod uses 100 ep, avg 300 ep. SP2V-blend at the fixed configuration (L2 1e-5, 100 ep) diverges in both
+implementations at most levels, so it is not compared here.
+
+### 10.4 Reading
+* **CausE-prod-C and prod-T** reproduce the original implementation quantitatively, at the selected configurations and along the
+  whole Fig. 1 dose-response.
+* **CausE-avg** differs only through the released code's floating-point artifact on the pooled row. Our port implements the exact
+  objective.
+* **The released optimizer's instability** reproduces too: the same configurations diverge.
+* **Pending:** ML-10M (Table 2, the README configuration and the released defaults) is running. Netflix is not available (A9).

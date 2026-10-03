@@ -1,0 +1,3 @@
+[{"method": "avg", "epochs": 10, "lr": 1.0, "dim": 50, "optimizer": "sgd", "l2_pen": 0.0, "cf_pen": 1.0, "emulate_tf_pooled_rounding": true},
+ {"method": "avg", "epochs": 100, "lr": 1.0, "dim": 50, "optimizer": "sgd", "l2_pen": 0.0, "cf_pen": 1.0, "emulate_tf_pooled_rounding": true},
+ {"method": "avg", "epochs": 300, "lr": 1.0, "dim": 50, "optimizer": "sgd", "l2_pen": 0.0, "cf_pen": 1.0, "emulate_tf_pooled_rounding": true}]
