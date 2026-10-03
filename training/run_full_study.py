@@ -4,6 +4,7 @@ from datetime import datetime
 from pathlib import Path
 
 import numpy as np
+import torch
 import pandas as pd
 
 from training.metrics_utils import add_paired_method_pct_columns
@@ -463,6 +464,8 @@ def _run_condition(
     )
     first_train = int(min(train_sizes)) if len(train_sizes) > 0 else 10_000
     first_split = split_cache[(first_train, 0)]
+    # CausE uses no reward model: a CausE-only run skips the q_hat fits (the splits are built the same way)
+    needs_qhat = bool(set(methods) - set(PRIOR_WORK_METHODS))
     shared_regression_bundle = fit_shared_regression_bundle(
         dataset,
         first_split["reg_data"],
@@ -472,9 +475,9 @@ def _run_condition(
         action_chunk=int(qhat_action_chunk),
         q_error=float(q_error),
         q_bad_value=q_bad_value,
-    )
+    ) if needs_qhat else {}
     size_bundles = None
-    if reward_data == "train":  # each size's own training rows fit its q_hat; every arm shares it
+    if reward_data == "train" and needs_qhat:  # each size's own training rows fit its q_hat; every arm shares it
         size_bundles = {
             int(n): fit_shared_regression_bundle(
                 dataset,
@@ -489,7 +492,7 @@ def _run_condition(
             for n in train_sizes
         }
     size_crossfit = None
-    if crossfit_folds:
+    if crossfit_folds and needs_qhat:
         user_fold = np.random.default_rng(derive_seed(seed, "crossfit", "user_fold")).integers(
             0, crossfit_folds, int(dataset["n_users"])
         )
@@ -672,7 +675,8 @@ def _run_condition(
         extra.update(cause_trainer_trial(
             train_sizes=train_sizes, dataset=dataset, split_cache=split_cache, condition_seed=int(seed), seed=int(seed),
             n_trials=int(n_trials), log_constants=cause_constants, options=cause_options, sampler=str(sampler),
-            stage=str(stage), device=_training_device(require_cuda=require_cuda), run_idx=LOGGED_RUN_IDX,
+            stage=str(stage), run_idx=LOGGED_RUN_IDX,
+            device=torch.device("cpu") if cause_meta.get("device") == "cpu" else _training_device(require_cuda=require_cuda),
         ))
 
     # Unified long logs for post-hoc analysis.

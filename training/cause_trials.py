@@ -33,7 +33,7 @@ CAUSE_CF_PEN = (0.0, 0.1, 1.0, 10.0, 100.0)
 CAUSE_LR_RANGE = (1e-3, 1.0)
 DIVERGED_NLL = 1e9
 CAUSE_DEFAULTS = {"rhos": list(CAUSE_RHOS), "variants": list(CAUSE_VARIANTS), "dim": 32,
-                  "optimizer": "momentum_decay", "tie": "one_way", "batch_size": 512, "n_trials": None}
+                  "optimizer": "momentum_decay", "tie": "one_way", "batch_size": 512, "n_trials": None, "device": "auto"}
 
 
 def cause_method_label(prediction: str, rho: float) -> str:
@@ -53,12 +53,15 @@ def add_cause_arguments(parser) -> None:
                    help="one_way (released) or symmetric (the paper's eq. 18).")
     g.add_argument("--cause-batch-size", type=int, default=CAUSE_DEFAULTS["batch_size"])
     g.add_argument("--cause-trials", type=int, default=None, help="Trials per variant (default: --n-trials).")
+    g.add_argument("--cause-device", default="auto", choices=["auto", "cpu"],
+                   help="Where CausE trains: auto (the GPU when there is one) or cpu (many runs in parallel on the "
+                        "cores; exact evaluation still uses the GPU).")
 
 
 def cause_options_from_args(args) -> dict:
     return {"rhos": [float(r) for r in args.cause_rhos], "variants": list(args.cause_variants),
             "dim": int(args.cause_dim), "optimizer": str(args.cause_optimizer), "tie": str(args.cause_tie),
-            "batch_size": int(args.cause_batch_size), "n_trials": args.cause_trials}
+            "batch_size": int(args.cause_batch_size), "n_trials": args.cause_trials, "device": str(args.cause_device)}
 
 
 def _exact_values(dataset: dict, model: CausEModel, rows: np.ndarray) -> tuple[float, float]:
@@ -203,6 +206,7 @@ def cause_trainer_trial(
                         "oracle_selected_value_greedy": float(oracle[f"{p}_value_greedy"]),
                         "oracle_selected_value": float(oracle[f"{p}_value"]),
                         "cause_dim": int(opts["dim"]), "cause_optimizer": str(opts["optimizer"]),
+                        "cause_train_device": str(torch.device(device).type),
                         "cause_tie": str(opts["tie"]), "cause_batch_size": int(opts["batch_size"]),
                         "cause_sampler": str(sampler), "stage": str(stage),
                         **{k: v for k, v in meta.items() if k != "rho"},

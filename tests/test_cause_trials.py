@@ -108,3 +108,20 @@ def test_skip_completed_recognises_cause_labels(tmp_path):
     assert _summary_has_methods(path, ("opc", "cause"))
     pd.DataFrame({"method": ["opc"]}).to_csv(path, index=False)
     assert not _summary_has_methods(path, ("opc", "cause"))
+
+
+def test_a_cause_only_run_gives_the_same_cause_results(runs, tmp_path):
+    """The split M5 layout: CausE alone (no q_hat fits) reproduces the CausE rows of the combined run."""
+    root, with_cause, *_ = runs
+    alone = _run(root, "alone", ("cause",))
+    assert set(alone[5]) == set(with_cause[5])
+    for label, (summary, trials) in with_cause[5].items():
+        pd.testing.assert_frame_equal(summary, alone[5][label][0])
+        pd.testing.assert_frame_equal(trials.drop(columns=["seconds"]), alone[5][label][1].drop(columns=["seconds"]))
+
+
+def test_cause_trains_on_the_cpu_when_asked(runs):
+    root, *_ = runs
+    out = _run(root, "cpu", ("cause",), cause_options={**OPTIONS, "rhos": [0.25], "variants": ["avg"], "device": "cpu"})
+    (summary, _trials), = out[5].values()
+    assert (summary["cause_train_device"] == "cpu").all() and out[4]["cause"]["device"] == "cpu"
