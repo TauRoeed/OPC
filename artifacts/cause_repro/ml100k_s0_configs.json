@@ -1,0 +1,173 @@
+[
+ {
+  "method": "prod",
+  "epochs": 1,
+  "lr": 1.0,
+  "dim": 50,
+  "optimizer": "sgd",
+  "l2_pen": 0.0,
+  "cf_pen": 1.0
+ },
+ {
+  "method": "prod",
+  "epochs": 10,
+  "lr": 1.0,
+  "dim": 50,
+  "optimizer": "sgd",
+  "l2_pen": 0.0,
+  "cf_pen": 1.0
+ },
+ {
+  "method": "prod",
+  "epochs": 100,
+  "lr": 1.0,
+  "dim": 50,
+  "optimizer": "sgd",
+  "l2_pen": 0.0,
+  "cf_pen": 1.0
+ },
+ {
+  "method": "prod",
+  "epochs": 200,
+  "lr": 1.0,
+  "dim": 50,
+  "optimizer": "sgd",
+  "l2_pen": 0.0,
+  "cf_pen": 1.0
+ },
+ {
+  "method": "prod",
+  "epochs": 300,
+  "lr": 1.0,
+  "dim": 50,
+  "optimizer": "sgd",
+  "l2_pen": 0.0,
+  "cf_pen": 1.0
+ },
+ {
+  "method": "prod",
+  "epochs": 100,
+  "cf_pen": 0.0,
+  "lr": 1.0,
+  "dim": 50,
+  "optimizer": "sgd",
+  "l2_pen": 0.0
+ },
+ {
+  "method": "prod",
+  "epochs": 100,
+  "cf_pen": 0.1,
+  "lr": 1.0,
+  "dim": 50,
+  "optimizer": "sgd",
+  "l2_pen": 0.0
+ },
+ {
+  "method": "prod",
+  "epochs": 100,
+  "cf_pen": 10.0,
+  "lr": 1.0,
+  "dim": 50,
+  "optimizer": "sgd",
+  "l2_pen": 0.0
+ },
+ {
+  "method": "prod",
+  "epochs": 100,
+  "cf_pen": 100.0,
+  "lr": 1.0,
+  "dim": 50,
+  "optimizer": "sgd",
+  "l2_pen": 0.0
+ },
+ {
+  "method": "avg",
+  "epochs": 1,
+  "lr": 1.0,
+  "dim": 50,
+  "optimizer": "sgd",
+  "l2_pen": 0.0,
+  "cf_pen": 1.0
+ },
+ {
+  "method": "avg",
+  "epochs": 10,
+  "lr": 1.0,
+  "dim": 50,
+  "optimizer": "sgd",
+  "l2_pen": 0.0,
+  "cf_pen": 1.0
+ },
+ {
+  "method": "avg",
+  "epochs": 100,
+  "lr": 1.0,
+  "dim": 50,
+  "optimizer": "sgd",
+  "l2_pen": 0.0,
+  "cf_pen": 1.0
+ },
+ {
+  "method": "avg",
+  "epochs": 300,
+  "lr": 1.0,
+  "dim": 50,
+  "optimizer": "sgd",
+  "l2_pen": 0.0,
+  "cf_pen": 1.0
+ },
+ {
+  "method": "sp2v_no",
+  "epochs": 10,
+  "lr": 1.0,
+  "dim": 50,
+  "optimizer": "sgd",
+  "l2_pen": 0.0,
+  "cf_pen": 1.0
+ },
+ {
+  "method": "sp2v_no",
+  "epochs": 100,
+  "lr": 1.0,
+  "dim": 50,
+  "optimizer": "sgd",
+  "l2_pen": 0.0,
+  "cf_pen": 1.0
+ },
+ {
+  "method": "sp2v_blend",
+  "epochs": 10,
+  "lr": 1.0,
+  "dim": 50,
+  "optimizer": "sgd",
+  "l2_pen": 0.0,
+  "cf_pen": 1.0
+ },
+ {
+  "method": "sp2v_blend",
+  "epochs": 100,
+  "l2_pen": 1e-05,
+  "lr": 1.0,
+  "dim": 50,
+  "optimizer": "sgd",
+  "cf_pen": 1.0
+ },
+ {
+  "method": "sp2v_test",
+  "epochs": 10,
+  "lr": 1.0,
+  "dim": 50,
+  "optimizer": "sgd",
+  "l2_pen": 0.0,
+  "cf_pen": 1.0
+ },
+ {
+  "method": "sp2v_test",
+  "epochs": 200,
+  "l2_pen": 1e-05,
+  "lr": 1.0,
+  "dim": 50,
+  "optimizer": "sgd",
+  "cf_pen": 1.0
+ }
+]

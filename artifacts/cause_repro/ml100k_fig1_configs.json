@@ -1,0 +1,29 @@
+[
+ {
+  "method": "prod",
+  "epochs": 100,
+  "lr": 1.0,
+  "dim": 50,
+  "optimizer": "sgd",
+  "l2_pen": 0.0,
+  "cf_pen": 1.0
+ },
+ {
+  "method": "avg",
+  "epochs": 300,
+  "lr": 1.0,
+  "dim": 50,
+  "optimizer": "sgd",
+  "l2_pen": 0.0,
+  "cf_pen": 1.0
+ },
+ {
+  "method": "sp2v_blend",
+  "epochs": 100,
+  "l2_pen": 1e-05,
+  "lr": 1.0,
+  "dim": 50,
+  "optimizer": "sgd",
+  "cf_pen": 1.0
+ }
+]
