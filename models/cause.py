@@ -96,8 +96,12 @@ class CausEModel(nn.Module):
         pooled_row: int | None = None,
         alpha_init: float = ALPHA_INIT,
         generator: torch.Generator | None = None,
+        emulate_tf_pooled_rounding: bool = False,
     ):
         super().__init__()
+        # diagnostic only (docs/cause_baseline.md §8.1): normalise the pooled vector by a different formula, so the
+        # pooled rows' self-difference rounds to ±1 ulp and abs() passes ±1 subgradients, like TF's two kernels
+        self.emulate_tf_pooled_rounding = bool(emulate_tf_pooled_rounding)
         if variant not in CAUSE_VARIANTS:
             raise ValueError(f"variant must be one of {CAUSE_VARIANTS}, got {variant!r}")
         if variant == "prod" and tie_offset is None:
@@ -121,22 +125,29 @@ class CausEModel(nn.Module):
                    pooled_row=layout.pooled_row, **kw)
 
     def logits(self, users: torch.Tensor, rows: torch.Tensor) -> torch.Tensor:
-        emb = (self.user_emb[users] * self.item_emb[rows]).sum(dim=-1)
-        return self.alpha * emb + self.user_bias[users] + self.item_bias[rows] + self.global_bias
+        # F.embedding: the same lookup as indexing, with a faster deterministic backward
+        emb = (F.embedding(users, self.user_emb) * F.embedding(rows, self.item_emb)).sum(dim=-1)
+        b_u = F.embedding(users, self.user_bias[:, None])[:, 0]
+        b_i = F.embedding(rows, self.item_bias[:, None])[:, 0]
+        return self.alpha * emb + b_u + b_i + self.global_bias
 
     def tie_targets(self, rows: torch.Tensor) -> torch.Tensor:
         return torch.where(rows < self.tie_offset, rows + self.tie_offset, rows)
 
     def tie(self, rows: torch.Tensor, *, symmetric: bool = False) -> torch.Tensor:
         """The released L1 discrepancy term (before cf_pen), a mean over the batch rows."""
-        p = self.item_emb[rows]
+        p = F.embedding(rows, self.item_emb)
         if self.variant == "prod":
-            t = self.item_emb[self.tie_targets(rows)]
+            t = F.embedding(self.tie_targets(rows), self.item_emb)
             t = t if symmetric else t.detach()
             return (p - t).abs().sum(dim=-1).mean()
         c = self.item_emb[self.pooled_row]
         c = c if symmetric else c.detach()
-        return (_tf_l2_normalize(p, dim=1) - _tf_l2_normalize(c, dim=0)).abs().sum(dim=-1).mean()
+        if self.emulate_tf_pooled_rounding:
+            c_hat = c / torch.sqrt(torch.clamp((c * c).sum(), min=TF_NORMALIZE_EPS))
+        else:
+            c_hat = _tf_l2_normalize(c, dim=0)
+        return (_tf_l2_normalize(p, dim=1) - c_hat).abs().sum(dim=-1).mean()
 
     def l2(self) -> torch.Tensor:
         """tf.nn.l2_loss(U) + l2_loss(P) + l2_loss(b_items) + l2_loss(b_users) (global bias, alpha unpenalized)."""
@@ -187,15 +198,16 @@ class CausEOptimizer:
     @torch.no_grad()
     def step(self) -> None:
         lr_t = self.current_lr()
-        for name, p in self.model.named_parameters():
-            if p.grad is None:
-                continue
-            if self.kind == "sgd":
-                p.sub_(lr_t * p.grad)
-            else:
-                buf = self.buffers[name]
-                buf.mul_(self.momentum).add_(p.grad)
-                p.sub_(lr_t * buf)
+        named = [(n, p) for n, p in self.model.named_parameters() if p.grad is not None]
+        params = [p for _, p in named]
+        grads = [p.grad for _, p in named]
+        if self.kind == "sgd":
+            torch._foreach_add_(params, grads, alpha=-lr_t)
+        else:
+            bufs = [self.buffers[n] for n, _ in named]
+            torch._foreach_mul_(bufs, self.momentum)
+            torch._foreach_add_(bufs, grads)
+            torch._foreach_add_(params, bufs, alpha=-lr_t)
         self.step_count += 1
 
 
@@ -268,16 +280,25 @@ def fit_cause(
     labels_t = torch.as_tensor(np.asarray(labels, dtype=np.float32), device=device)
     total = n_steps(len(users_t), batch_size, epochs)
     opt = CausEOptimizer(model, kind=optimizer, lr=lr, total_steps=total, momentum=momentum)
+    for p in model.parameters():
+        p.grad = torch.zeros_like(p)
+    grads = [p.grad for p in model.parameters()]
     last_loss = last_ce = float("nan")
     finite = True
-    for idx in epoch_batches(len(users_t), batch_size, epochs, seed=seed, reshuffle=reshuffle):
-        ib = torch.as_tensor(idx, device=device)
-        u, r, y = users_t[ib], rows_t[ib], labels_t[ib]
-        model.zero_grad(set_to_none=False)
-        loss, ce = model.loss(u, r, y, l2_pen=l2_pen, cf_pen=cf_pen, symmetric=symmetric)
-        loss.backward()
-        opt.step()
-        last_loss, last_ce = loss.detach(), ce.detach()
+    n = len(users_t)
+    rng = np.random.default_rng(int(seed))
+    order = torch.as_tensor(rng.permutation(n), device=device)  # the epoch_batches order, uploaded once
+    for _ in range(int(epochs)):
+        if reshuffle:
+            order = torch.as_tensor(rng.permutation(n), device=device)
+        u_ep, r_ep, y_ep = users_t[order], rows_t[order], labels_t[order]
+        for s in range(0, n, int(batch_size)):
+            u, r, y = u_ep[s:s + batch_size], r_ep[s:s + batch_size], y_ep[s:s + batch_size]
+            torch._foreach_zero_(grads)
+            loss, ce = model.loss(u, r, y, l2_pen=l2_pen, cf_pen=cf_pen, symmetric=symmetric)
+            loss.backward()
+            opt.step()
+            last_loss, last_ce = loss.detach(), ce.detach()
     if total:
         last_loss, last_ce = float(last_loss), float(last_ce)
         finite = bool(np.isfinite(last_loss)) and all(bool(torch.isfinite(p).all()) for p in model.parameters())
