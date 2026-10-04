@@ -265,6 +265,11 @@ def main(argv=None) -> None:
     r.add_argument("runs", nargs="+")
     r.add_argument("--out", required=True)
     r.add_argument("--k", type=int, default=20)
+    cmp = sub.add_parser("compare", help="several runs against a reference (paired per trial and selected)")
+    cmp.add_argument("--reference", required=True, help="LABEL of the reference run")
+    cmp.add_argument("runs", nargs="+", metavar="LABEL=DIR")
+    cmp.add_argument("--method", default="opc")
+    cmp.add_argument("--out", required=True)
     p = sub.add_parser("paired")
     p.add_argument("a")
     p.add_argument("b")
@@ -273,6 +278,16 @@ def main(argv=None) -> None:
     args = ap.parse_args(argv)
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
+    if args.cmd == "compare":
+        runs = {lab: load_trials(d) for lab, d in (r.split("=", 1) for r in args.runs)}
+        table = compare_runs(runs, args.reference, args.method)
+        table.to_csv(out / f"compare_vs_{args.reference.replace(':', '')}.csv", index=False)
+        sel = pd.concat([selected_rows(t[t["method"] == args.method]).assign(run=lab) for lab, t in runs.items()])
+        sel.to_csv(out / "selected_rows.csv", index=False)
+        ph = pd.concat([posthoc_selection(t[t["method"] == args.method]).assign(run=lab) for lab, t in runs.items()])
+        ph.to_csv(out / "posthoc_selection.csv", index=False)
+        print(table.pivot_table(index="run", columns="train_size", values=["selected_gain", "trial_diff"]).round(2).to_string())
+        return
     if args.cmd == "range":
         t = load_trials(*args.runs)
         t.to_csv(out / "trials.csv", index=False)
