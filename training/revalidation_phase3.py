@@ -5,7 +5,8 @@ new counterpart paired by world:
   stage2/     analyze_recoverability stage2 (fractions, paired contrasts, diagnostics, learned rows, the robustness arm)
   followup/   the gap decomposition with the unchanged Stage 1 oracle (and the validated bounds as a sensitivity)
   stage3_lgs_<share>/   the logging-support sweep at 25k (share 0.8 = the Stage 2 rerun's 25k cells)
-  reward_model/   learned rows of the external-q̂ and misspecified-q̂ reruns and of their old counterparts
+  reward_model/   learned rows of the external-q̂ and misspecified-q̂ reruns and of the 3C mechanism checks; OPC's
+                  per-trial rows of the misspecification test (values and every selection rule's score)
   decomposition/  learned rows of the old Stage 2 configuration on the corrected logs (OPC and DM-only, ml/kuairand)
   old/            the old (buggy-log) reward-model tests and Su slice, rebuilt from their run folders
   m5/             the OPC side of the CausE M5 comparison (read only, for the Phase 5 assessment)
@@ -30,7 +31,14 @@ ROBUST = {"shrink100": ["run_reval_stage2_opc_shrink100_mlkr", "run_reval_stage2
 STAGE3 = {"0.6": ["run_reval_stage3_base_lgs_0_6", "run_reval_stage3_opc_lgs_0_6"],
           "0.95": ["run_reval_stage3_base_lgs_0_95", "run_reval_stage3_opc_lgs_0_95"]}
 REWARD_MODEL = {"external": ["run_reval_budget_external_base", "run_reval_budget_external_opc"],
-                "concat": ["run_reval_qhat_concat_base", "run_reval_qhat_concat_opc"]}
+                "concat": ["run_reval_qhat_concat_base", "run_reval_qhat_concat_opc"],
+                # 3C mechanism checks at 100k (OPC only): raw training weights; the old search space
+                "concat_raw_100k": ["run_reval_qhat_concat_opc_raw_100k"],
+                "concat_oldspace_100k": ["run_reval_qhat_concat_opc_oldspace_100k"]}
+# per-trial OPC rows of the misspecification test (3C), for the trial-level and selection analyses of the report
+TRIALS_3C = {"interaction": ["run_reval_stage2_opc_mlkr", "run_reval_stage2_opc_anime"],
+             "concat": ["run_reval_qhat_concat_opc"], "concat_raw_100k": ["run_reval_qhat_concat_opc_raw_100k"],
+             "concat_oldspace_100k": ["run_reval_qhat_concat_opc_oldspace_100k"]}
 # the old Stage 2 configuration (old search space) on the corrected logs: separates the simulator effect from the retuning
 OLDSPACE = ["run_reval_stage2_oldspace_opc_mlkr", "run_reval_stage2_oldspace_dm_mlkr"]
 # the old (buggy-log) counterparts that are not in summaries_20260927: the reward-model tests of the older pipeline
@@ -65,6 +73,24 @@ def learned_rows_matching(run_dir, oracle_root, pattern: str) -> pd.DataFrame:
 
 def _existing(names) -> list[str]:
     return [str(RUNS / n) for n in names if (RUNS / n).exists()]
+
+
+def opc_trials(names, biases=("medium", "high")) -> pd.DataFrame:
+    """OPC's trials in the runs ``names`` (combined medium / high worlds): true value, the selection scores of every
+    logged rule, the weights' ESS, the logit scale and the configuration. Resumed runs' repeated trials are dropped."""
+    out = []
+    for n in names:
+        for cond in sorted((RUNS / n).glob("dataset=*")):
+            tags = dict(part.split("=", 1) for part in cond.name.split("__") if "=" in part)
+            if tags["bias"] not in biases or not (cond / "trials_long.csv").exists():
+                continue
+            t = pd.read_csv(cond / "trials_long.csv")
+            t = t[t["method"] == "opc"].drop_duplicates(["train_size", "trial_number"], keep="last")
+            keep = ["train_size", "trial_number", "actual_reward", "is_best_in_run", "ess_raw", "logit_scale"]
+            keep += [c for c in t.columns if c.startswith(("sel_ci_low[", "sel_r_hat[", "param_"))]
+            out.append(t[[c for c in keep if c in t.columns]].assign(run=n, dataset=tags["dataset"], bias=tags["bias"],
+                                                                    seed=int(tags["seed"])))
+    return pd.concat(out, ignore_index=True) if out else pd.DataFrame()
 
 
 def _merged_dir(names, tmp: Path) -> Path:
@@ -109,8 +135,12 @@ def main(argv=None) -> None:
         rm = out / "reward_model"
         rm.mkdir(exist_ok=True)
         for setting, names in REWARD_MODEL.items():
-            if _existing(names):
-                learned_recovery(load_learned(*_existing(names)), oracle).to_csv(rm / f"learned_rows_{setting}.csv", index=False)
+            learned = load_learned(*_existing(names)) if _existing(names) else pd.DataFrame()
+            if not learned.empty:  # a run still without a finished condition is skipped
+                learned_recovery(learned, oracle).to_csv(rm / f"learned_rows_{setting}.csv", index=False)
+        trials = [opc_trials(names).assign(setting=setting) for setting, names in TRIALS_3C.items() if _existing(names)]
+        if trials:
+            pd.concat(trials, ignore_index=True).to_csv(rm / "opc_trials_misspecification.csv", index=False)
         # the old counterparts (buggy logs), rebuilt with the current loader, so that the report needs no run folder
         (out / "old").mkdir(exist_ok=True)
         for setting, (run, pattern) in OLD_REWARD_MODEL.items():

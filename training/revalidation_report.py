@@ -607,6 +607,82 @@ def fig8_decomposition(table: pd.DataFrame, out: Path) -> None:
     _save(fig, out, "fig8_simulator_vs_retuning", table)
 
 
+WORLD = ["dataset", "bias", "seed"]
+
+
+def misspec_mechanism_table(trials: pd.DataFrame, rows: dict[str, pd.DataFrame]) -> pd.DataFrame:
+    """3C: where OPC loses value under the misspecified (concat) q̂. From OPC's trials (``trials``: per trial the true
+    value and every selection rule's score; ``setting`` interaction / concat / concat_raw_100k / concat_oldspace_100k)
+    and the selected policies' learned rows per setting (``rows``): per train size, mean and 95% interval over the
+    worlds (true CTR points; ESS as is) of
+      - the selected policy, every trial (paired by configuration) and the best of the 20 trials, concat − interaction;
+      - the selection regret (best trial − pick) of the default rule (clip:10 lower bound), of the raw-weight lower
+        bound and of the median trial, under each q̂;
+      - at 100k, raw training weights and the old search space against the revalidated default, on the concat q̂;
+      - the selected policies' raw-weight ESS."""
+    out = []
+
+    def add(label, n, x):
+        m, lo, hi, k = mean_ci(x)
+        out.append(dict(quantity=label, train_size=n, worlds=k, mean=m, lo=lo, hi=hi))
+
+    t = trials.copy()
+    t["v"] = 100 * t["actual_reward"]
+    by = lambda setting: t[t["setting"] == setting]
+
+    def per_world_diff(a, b, n, how):
+        x = by(a)[by(a)["train_size"] == n].set_index(WORLD + ["trial_number"])["v"]
+        y = by(b)[by(b)["train_size"] == n].set_index(WORLD + ["trial_number"])["v"]
+        if how == "trial":
+            d = (x - y).dropna()
+            return d.groupby(level=WORLD).mean()
+        return (x.groupby(level=WORLD).max() - y.groupby(level=WORLD).max()).dropna()
+
+    def regret(setting, n, rule):
+        g = by(setting)[by(setting)["train_size"] == n]
+        if g.empty:
+            return pd.Series(dtype=float)
+        best = g.groupby(WORLD)["v"].max()
+        if rule == "default":
+            pick = g[g["is_best_in_run"].astype(bool)].groupby(WORLD)["v"].first()
+        elif rule == "median":
+            pick = g.groupby(WORLD)["v"].median()
+        else:
+            pick = g.loc[g.groupby(WORLD)[f"sel_ci_low[{rule}]"].idxmax()].set_index(WORLD)["v"]
+        return (best - pick).dropna()
+
+    sel = lambda setting: rows[setting][rows[setting]["method"] == "opc"].set_index(WORLD + ["train_size"])
+    for n in SIZES:
+        if "concat" in rows and "interaction" in rows:
+            d = (100 * (sel("concat")["V_method"] - sel("interaction")["V_method"])).dropna()
+            add("selected policy: concat − interaction q̂", n, d[d.index.get_level_values("train_size") == n])
+        add("every trial (same configuration): concat − interaction", n, per_world_diff("concat", "interaction", n, "trial"))
+        add("best of the 20 trials: concat − interaction", n, per_world_diff("concat", "interaction", n, "best"))
+        for setting in ("interaction", "concat"):
+            add(f"selection regret, default (clip:10 lower bound), {setting} q̂", n, regret(setting, n, "default"))
+            add(f"selection regret, raw-weight lower bound, {setting} q̂", n, regret(setting, n, "none"))
+            add(f"selection regret, median trial (no selection), {setting} q̂", n, regret(setting, n, "median"))
+    n = 100000
+    for alt, name in (("concat_raw_100k", "raw training weights"), ("concat_oldspace_100k", "old search space")):
+        if alt not in rows or by(alt).empty:
+            continue
+        d = (100 * (sel(alt)["V_method"] - sel("concat")["V_method"])).dropna()
+        add(f"concat q̂, {name} − revalidated default: selected policy", n, d[d.index.get_level_values("train_size") == n])
+        add(f"concat q̂, {name} − revalidated default: every trial", n, per_world_diff(alt, "concat", n, "trial"))
+        add(f"concat q̂, {name} − revalidated default: best of 20", n, per_world_diff(alt, "concat", n, "best"))
+        add(f"concat q̂, {name}: selection regret, default rule", n, regret(alt, n, "default"))
+    for setting, label in (("interaction", "interaction q̂"), ("concat", "concat q̂"),
+                           ("concat_raw_100k", "concat q̂, raw training weights"),
+                           ("concat_oldspace_100k", "concat q̂, old search space")):
+        if setting in rows:
+            r = sel(setting)
+            for n in SIZES:
+                x = r[r.index.get_level_values("train_size") == n]["ess_raw"]
+                if len(x):
+                    add(f"selected policy's raw-weight ESS, {label}", n, x)
+    return pd.DataFrame(out)
+
+
 def m5_config_table(m5: pd.DataFrame, new: pd.DataFrame) -> pd.DataFrame:
     """Phase 5: the OPC side of the CausE M5 comparison (fixed-simulator logs; the pre-revalidation configuration: old
     search space, fixed logit scale) against the corrected Stage 2 at 25k on the same worlds (the same logs and
@@ -675,6 +751,15 @@ def main(argv=None) -> None:
     rmt_old.to_csv(out / "reward_model_tests_old.csv", index=False)
     rmt_new.to_csv(out / "reward_model_tests_new.csv", index=False)
     fig5_reward_model(rmt_old, rmt_new, out)
+    # 3C: trial-level and selection analysis of OPC under the misspecified q̂
+    trials_path = new_dir / "reward_model" / "opc_trials_misspecification.csv"
+    if trials_path.exists():
+        settings = {"interaction": mh(new2_main), "concat": rm_new["concat"][1]}
+        for extra in ("concat_raw_100k", "concat_oldspace_100k"):
+            if (new_dir / "reward_model" / f"learned_rows_{extra}.csv").exists():
+                settings[extra] = load_rows(new_dir / "reward_model" / f"learned_rows_{extra}.csv")
+        misspec_mechanism_table(pd.read_csv(trials_path), settings).to_csv(out / "misspecification_mechanism.csv",
+                                                                             index=False)
     # logging support
     sup_old = {sh: load_rows(old_dir / f"stage3_lgs_{str(sh).replace('.', '_')}" / "stage2_learned_rows.csv") for sh in SHARES}
     sup_new = {sh: load_rows(new_dir / f"stage3_lgs_{str(sh).replace('.', '_')}" / "stage2_learned_rows.csv") for sh in SHARES}
