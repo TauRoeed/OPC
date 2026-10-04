@@ -80,8 +80,9 @@ def _existing(names) -> list[str]:
 
 
 def opc_trials(names, biases=("medium", "high")) -> pd.DataFrame:
-    """OPC's trials in the runs ``names`` (combined medium / high worlds): true value, the selection scores of every
-    logged rule, the weights' ESS, the logit scale and the configuration. Resumed runs' repeated trials are dropped."""
+    """OPC's trials in the runs ``names`` (combined medium / high worlds): true value, the 95% lower bound of every
+    logged selection rule, the weights' ESS, the logit scale and the configuration. Resumed runs' repeated trials are
+    dropped."""
     out = []
     for n in names:
         for cond in sorted((RUNS / n).glob("dataset=*")):
@@ -91,7 +92,7 @@ def opc_trials(names, biases=("medium", "high")) -> pd.DataFrame:
             t = pd.read_csv(cond / "trials_long.csv")
             t = t[t["method"] == "opc"].drop_duplicates(["train_size", "trial_number"], keep="last")
             keep = ["train_size", "trial_number", "actual_reward", "is_best_in_run", "ess_raw", "logit_scale"]
-            keep += [c for c in t.columns if c.startswith(("sel_ci_low[", "sel_r_hat[", "param_"))]
+            keep += [c for c in t.columns if c.startswith(("sel_ci_low[", "param_"))]
             out.append(t[[c for c in keep if c in t.columns]].assign(run=n, dataset=tags["dataset"], bias=tags["bias"],
                                                                     seed=int(tags["seed"])))
     return pd.concat(out, ignore_index=True) if out else pd.DataFrame()
@@ -144,7 +145,8 @@ def main(argv=None) -> None:
                 learned_recovery(learned, oracle).to_csv(rm / f"learned_rows_{setting}.csv", index=False)
         trials = [opc_trials(names).assign(setting=setting) for setting, names in TRIALS_3C.items() if _existing(names)]
         if trials:
-            pd.concat(trials, ignore_index=True).to_csv(rm / "opc_trials_misspecification.csv", index=False)
+            pd.concat(trials, ignore_index=True).to_csv(rm / "opc_trials_misspecification.csv", index=False,
+                                                        float_format="%.8g")
         # the old counterparts (buggy logs), rebuilt with the current loader, so that the report needs no run folder
         (out / "old").mkdir(exist_ok=True)
         for setting, (run, pattern) in OLD_REWARD_MODEL.items():

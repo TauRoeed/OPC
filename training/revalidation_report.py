@@ -543,6 +543,8 @@ def decomposition_table(old: pd.DataFrame, mid: pd.DataFrame, new: pd.DataFrame,
     total (new − old) effects, with 95% intervals over the worlds present in all three (true CTR points)."""
     out = []
     for label, (a, b, value) in DECOMPOSITION.items():
+        if any(value not in r for r in (old, mid, new)):  # e.g. rows without the selection diagnostics
+            continue
         v = {k: _per_world(r, a, b, value) for k, r in (("old", old), ("mid", mid), ("new", new))}
         common = v["old"].index.intersection(v["mid"].index).intersection(v["new"].index)
         df = pd.DataFrame({k: s.loc[common] for k, s in v.items()}).reset_index()
