@@ -8,8 +8,10 @@ Inputs (summaries written by ``training.analyze_recoverability``):
          --old-extra (rebuilt from the local old run folders by ``old_extra_rows``)
   --tuning  the Phase 2 weighting tables (tuning/weights_*.csv)
 
-Outputs (--out): fig1..fig7 as PNG and PDF, each with the plotted values in a CSV of the same name, and the old-vs-new
-delta tables (``old_new_*.csv``) with each finding's classification (training.revalidation_compare).
+Outputs (--out): fig1..fig8 as PNG and PDF, each with the plotted values in a CSV of the same name, the old-vs-new
+delta tables (``old_new_*.csv``) with each finding's classification (training.revalidation_compare), and the
+simulator-vs-retuning decomposition (``decomposition_simulator_vs_retuning.csv``) when the old configuration's rerun on
+the corrected logs is present (--new/decomposition).
 """
 from __future__ import annotations
 
@@ -229,6 +231,14 @@ def reward_model_table(settings: dict[str, tuple[pd.DataFrame, pd.DataFrame]]) -
                 d = (_per_world(r_alt, arm, None) - _per_world(r_ref, arm, None)).dropna()
                 m, lo, hi, k = mean_ci(d)
                 row.update({f"change {arm}": m, f"change {arm} lo": lo, f"change {arm} hi": hi, "worlds": k})
+                # the reward model's error on the arm's selected policy, and that policy's raw-weight support
+                for tag, rows in (("reference", r_ref), ("altered", r_alt)):
+                    a = rows[rows["method"] == arm]
+                    if "qhat_error" in a:
+                        m, lo, hi, _ = mean_ci(100 * a["qhat_error"])
+                        row.update({f"qhat error {arm} {tag}": m, f"qhat error {arm} {tag} lo": lo,
+                                    f"qhat error {arm} {tag} hi": hi})
+                    row[f"ess {arm} {tag}"] = a["ess_raw"].median() if len(a) else np.nan
             out.append(row)
     return pd.DataFrame(out)
 
@@ -320,22 +330,53 @@ def fig6_support(old_t: pd.DataFrame, new_t: pd.DataFrame, out: Path) -> None:
 
 
 def fig_verdicts(findings: pd.DataFrame, out: Path) -> None:
-    """Fig 7: every key finding, old vs new effect (points or fraction), coloured by its classification."""
+    """Fig 7: every key finding, old (grey) vs new effect (coloured by its classification), one panel per group of
+    findings with the group's own unit."""
     plt = _plt()
-    f = findings.reset_index(drop=True)
-    fig, ax = plt.subplots(figsize=(9.5, 0.32 * len(f) + 1.2))
-    for i, r in f.iterrows():
-        y = len(f) - 1 - i
-        ax.errorbar(r["old"], y + 0.15, xerr=[[r["old"] - r["old_lo"]], [r["old_hi"] - r["old"]]], fmt="s", color="#999999",
-                    markersize=3.5, capsize=2, elinewidth=0.8)
-        ax.errorbar(r["new"], y - 0.15, xerr=[[r["new"] - r["new_lo"]], [r["new_hi"] - r["new"]]], fmt="o",
-                    color=VERDICT_COLORS[r["verdict"]], markersize=4, capsize=2, elinewidth=1.0)
-    ax.set_yticks(range(len(f)), [f"{r['finding']}  [{r['verdict']}]" for _, r in f.iloc[::-1].iterrows()], fontsize=7.5)
-    ax.axvline(0, color="#444444", linewidth=0.8)
-    ax.set_xlabel("effect (CTR points; fractions for the recovery rows); grey = old, coloured = corrected")
-    ax.set_title("Old vs corrected: the key findings and their classification")
-    ax.grid(axis="y", visible=False)
-    fig.tight_layout()
+    f = findings[findings["verdict"] != "no data"].reset_index(drop=True)
+    if "group" not in f:
+        f = f.assign(group="findings")
+    groups = list(dict.fromkeys(f["group"]))
+    sizes = [int((f["group"] == g).sum()) for g in groups]
+    # two columns of panels: groups in order, the left column until it holds half the rows
+    columns, acc = ([], []), 0
+    for g, s in zip(groups, sizes):
+        columns[0 if acc < sum(sizes) / 2 else 1].append((g, s))
+        acc += s
+    rows = max(sum(s for _, s in c) for c in columns)
+    panels = max(len(c) for c in columns)
+    fig = plt.figure(figsize=(17, 0.25 * rows + 0.85 * panels + 0.8), layout="constrained")
+    outer = fig.add_gridspec(1, 2)
+    first = None
+    for k, col in enumerate(columns):
+        if not col:
+            continue
+        sub = outer[k].subgridspec(len(col), 1, height_ratios=[s + 1.8 for _, s in col])
+        for j, (g, _) in enumerate(col):
+            ax = fig.add_subplot(sub[j])
+            first = first or ax
+            fg = f[f["group"] == g].reset_index(drop=True)
+            for i, r in fg.iterrows():
+                y = len(fg) - 1 - i
+                ax.errorbar(r["old"], y + 0.17, xerr=[[r["old"] - r["old_lo"]], [r["old_hi"] - r["old"]]], fmt="s",
+                            color="#999999", markersize=3.3, capsize=2, elinewidth=0.8)
+                ax.errorbar(r["new"], y - 0.17, xerr=[[r["new"] - r["new_lo"]], [r["new_hi"] - r["new"]]], fmt="o",
+                            color=VERDICT_COLORS[r["verdict"]], markersize=3.8, capsize=2, elinewidth=1.0)
+            ax.set_yticks(range(len(fg)), [f"{r['finding']}  [{r['verdict']}]" for _, r in fg.iloc[::-1].iterrows()],
+                          fontsize=7)
+            ax.set_ylim(-0.7, len(fg) - 0.3)
+            lo, hi = ax.get_xlim()
+            if lo <= 0 <= hi:  # a zero reference only where the data reach it (not for ESS or tail shares)
+                ax.axvline(0, color="#444444", linewidth=0.8)
+            ax.set_title(g, loc="left", fontsize=8.5)
+            ax.grid(axis="y", visible=False)
+            ax.tick_params(axis="x", labelsize=7)
+    handles = [plt.Line2D([], [], marker="s", linestyle="", color="#999999", label="old (buggy logs)")]
+    handles += [plt.Line2D([], [], marker="o", linestyle="", color=c, label=f"new: {v}") for v, c in VERDICT_COLORS.items()
+                if v in set(f["verdict"])]
+    fig.legend(handles=handles, frameon=False, fontsize=7.5, ncol=len(handles), loc="outside lower center")
+    fig.suptitle("Old vs corrected: the key findings (mean and 95% CI over worlds; the new value coloured by its "
+                 "classification)", fontsize=9.5)
     _save(fig, out, "fig7_conclusions", f)
 
 
@@ -356,9 +397,9 @@ def stage2_old_new(old: pd.DataFrame, new: pd.DataFrame, by=("bias", "train_size
     return old_new_table(old, new, STAGE2_CONTRASTS, by=by)
 
 
-def finding(label: str, old: pd.Series, new: pd.Series) -> dict:
+def finding(label: str, old: pd.Series, new: pd.Series, material_abs: float | None = None) -> dict:
     """One paired finding from per-world values (old and new indexed by world): both means with 95% intervals, the
-    paired change on the common worlds, and the classification."""
+    paired change on the common worlds, and the classification (``material_abs``: see ``classify``)."""
     from training.revalidation_compare import classify
 
     common = old.index.intersection(new.index)
@@ -367,7 +408,8 @@ def finding(label: str, old: pd.Series, new: pd.Series) -> dict:
     nm, nlo, nhi, _ = mean_ci(n)
     cm, clo, chi, _ = mean_ci(n - o)
     return dict(finding=label, worlds=k, old=om, old_lo=olo, old_hi=ohi, new=nm, new_lo=nlo, new_hi=nhi,
-                change=cm, change_lo=clo, change_hi=chi, verdict=classify((om, olo, ohi), (nm, nlo, nhi), (cm, clo, chi)))
+                change=cm, change_lo=clo, change_hi=chi, change_rel=cm / abs(om) if om else np.nan,
+                verdict=classify((om, olo, ohi), (nm, nlo, nhi), (cm, clo, chi), material_abs))
 
 
 def _sel(rows, size=None, biased=None, bias=None):
@@ -381,37 +423,152 @@ def _sel(rows, size=None, biased=None, bias=None):
     return r
 
 
+FRACTION = "fraction_of_oracle_repair_greedy"
+G_RECOVERY = "Stage 2 recovery (fraction of the oracle ranking repair, greedy; biased worlds unless named)"
+G_BASELINES = "Stage 2: OPC minus each baseline (true CTR points)"
+G_NOBIAS = "No-bias control (true CTR points)"
+G_REWARD = "Reward-model tests (true CTR points; combined medium and high)"
+G_SUPPORT = "Logging support at 25k (difference in OPC's fraction of the oracle repair)"
+G_WEIGHTS = "Importance weighting (true CTR points)"
+G_SELECTION = "Selection (true CTR points; biased worlds)"
+G_ESS = "Selected OPC policy's raw-weight ESS (log10; biased worlds)"
+G_TAIL = "Selected OPC policy's share of weights above 10 (%; biased worlds)"
+
+
 def build_findings(old2, new2, rm_old, rm_new, sup_old_rows, sup_new_rows, su_old=None, su_new=None) -> pd.DataFrame:
-    """The key findings of the old report, each as a paired old-vs-new comparison (see ``finding``)."""
+    """The key findings of the old report (docs/representation_repair_experimental_report_20260928.md, sections D–J),
+    each as a paired old-vs-new comparison (see ``finding``), grouped by topic; each group has one unit."""
     F = []
-    for n in SIZES:
-        k = f"{n // 1000}k"
-        F.append(finding(f"OPC fraction of the oracle repair, biased, {k}",
-                         _per_world(_sel(old2, n, True), "opc", None, "fraction_of_oracle_repair_greedy", 1.0),
-                         _per_world(_sel(new2, n, True), "opc", None, "fraction_of_oracle_repair_greedy", 1.0)))
-    for arm, name in (("dm", "DM-only"), ("no_propensity", "no-propensity"), ("tempered_logger", "tempered logger")):
+
+    def add(group, label, old, new, material_abs=None):
+        F.append(dict(group=group, **finding(label, old.dropna(), new.dropna(), material_abs)))
+
+    def both(rows_old, rows_new, a, b=None, value="V_method", scale=100.0, **sel):
+        return (_per_world(_sel(rows_old, **sel), a, b, value, scale), _per_world(_sel(rows_new, **sel), a, b, value, scale))
+
+    def singles(rows, sizes=None):
+        r = rows[rows["bias"].isin(SINGLES)]
+        return r if sizes is None else r[r["train_size"].isin(sizes)]
+
+    k = lambda n: f"{n // 1000}k"
+    # Stage 2 recovery
+    for arm, name in (("opc", "OPC"), ("dm", "DM-only")):
         for n in SIZES:
-            F.append(finding(f"OPC − {name}, biased, {n // 1000}k",
-                             _per_world(_sel(old2, n, True), "opc", arm), _per_world(_sel(new2, n, True), "opc", arm)))
+            add(G_RECOVERY, f"{name}, {k(n)}", *both(old2, new2, arm, None, FRACTION, 1.0, size=n, biased=True))
     for n in (5000, 100000):
-        F.append(finding(f"no-bias cost: OPC − tempered logger, {n // 1000}k",
-                         _per_world(_sel(old2, n, False), "opc", "tempered_logger"),
-                         _per_world(_sel(new2, n, False), "opc", "tempered_logger")))
-    for setting, (ref_alt_old, ref_alt_new) in {"budget-fair vs external q̂": (rm_old["budget"], rm_new["budget"]),
-                                                "concat vs interaction q̂": (rm_old["concat"], rm_new["concat"])}.items():
+        add(G_RECOVERY, f"no-propensity, {k(n)}", *both(old2, new2, "no_propensity", None, FRACTION, 1.0, size=n, biased=True))
+    for n in (5000, 25000):
+        add(G_RECOVERY, f"OPC, Anime vector high, {k(n)}",
+            *both(old2[old2["dataset"] == "anime"], new2[new2["dataset"] == "anime"], "opc", None, FRACTION, 1.0, size=n,
+                  bias="w-none.g-none.v-high"))
+    # OPC vs the baselines
+    for n in SIZES:
+        add(G_BASELINES, f"OPC − DM-only, biased, {k(n)}", *both(old2, new2, "opc", "dm", size=n, biased=True))
+    for n in (25000, 100000):
+        add(G_BASELINES, f"OPC − DM-only, single-type high, {k(n)}",
+            _per_world(singles(old2, [n]), "opc", "dm"), _per_world(singles(new2, [n]), "opc", "dm"))
+    add(G_BASELINES, "OPC − DM-only, combined high, 5k", *both(old2, new2, "opc", "dm", size=5000, bias="high"))
+    for d in ("ml", "kuairand", "anime"):
+        add(G_BASELINES, f"OPC − DM-only, single-type high, 25k + 100k, {d}",
+            _per_world(singles(old2[old2["dataset"] == d], [25000, 100000]), "opc", "dm"),
+            _per_world(singles(new2[new2["dataset"] == d], [25000, 100000]), "opc", "dm"))
+    for arm, name in (("no_propensity", "no-propensity"), ("tempered_logger", "tempered logger")):
+        for n in SIZES:
+            add(G_BASELINES, f"OPC − {name}, biased, {k(n)}", *both(old2, new2, "opc", arm, size=n, biased=True))
+    # the no-bias control
+    for n in (5000, 100000):
+        add(G_NOBIAS, f"OPC − tempered logger, no bias, {k(n)}", *both(old2, new2, "opc", "tempered_logger", size=n, biased=False))
+    add(G_NOBIAS, "OPC − no-propensity, no bias, 5k", *both(old2, new2, "opc", "no_propensity", size=5000, biased=False))
+    add(G_NOBIAS, "OPC − DM-only, no bias, 100k", *both(old2, new2, "opc", "dm", size=100000, biased=False))
+    # reward-model tests: rm_*[test] = (reference-setting rows, altered-setting rows)
+    ext_old, ext_new = rm_old["budget"][0], rm_new["budget"][0]
+    add(G_REWARD, "external 50k-row q̂: OPC − DM-only, 5k", *both(ext_old, ext_new, "opc", "dm", size=5000))
+    for setting, (ra_old, ra_new), sizes in (("budget-fair − external q̂", (rm_old["budget"], rm_new["budget"]), (5000, 25000)),
+                                             ("concat − interaction q̂", (rm_old["concat"], rm_new["concat"]), SIZES)):
         for arm, name in (("dm", "DM-only"), ("opc", "OPC")):
-            for n in (5000, 25000):
+            for n in sizes:
                 ch = lambda ra: _per_world(_sel(ra[1], n), arm, None) - _per_world(_sel(ra[0], n), arm, None)
-                F.append(finding(f"{setting}: change in {name}, {n // 1000}k", ch(ref_alt_old).dropna(), ch(ref_alt_new).dropna()))
+                add(G_REWARD, f"{setting}: change in {name}, {k(n)}", ch(ra_old), ch(ra_new))
+    # logging support (single-type highs at 25k)
+    def share_gap(rows_by_share, lo, hi, biases):
+        f_lo = _per_world(rows_by_share[lo][rows_by_share[lo]["bias"].isin(biases)], "opc", None, FRACTION, 1.0)
+        f_hi = _per_world(rows_by_share[hi][rows_by_share[hi]["bias"].isin(biases)], "opc", None, FRACTION, 1.0)
+        return f_lo.droplevel("train_size") - f_hi.droplevel("train_size")
     for b in SINGLES:
-        def gap(rows_by_share):
-            f6 = _per_world(_sel(rows_by_share[0.6], bias=b), "opc", None, "fraction_of_oracle_repair_greedy", 1.0)
-            f8 = _per_world(_sel(rows_by_share[0.8], bias=b), "opc", None, "fraction_of_oracle_repair_greedy", 1.0)
-            return (f6.droplevel("train_size") - f8.droplevel("train_size")).dropna()
-        F.append(finding(f"logger share 0.6 − 0.8: OPC fraction, {LABEL[b]}", gap(sup_old_rows), gap(sup_new_rows)))
+        add(G_SUPPORT, f"share 0.6 − 0.8, {LABEL[b]}", share_gap(sup_old_rows, 0.6, 0.8, [b]), share_gap(sup_new_rows, 0.6, 0.8, [b]))
+    add(G_SUPPORT, "share 0.95 − 0.8, single-type highs", share_gap(sup_old_rows, 0.95, 0.8, SINGLES),
+        share_gap(sup_new_rows, 0.95, 0.8, SINGLES))
+    # weighting: the Su robustness slice
     if su_old is not None and su_new is not None:
-        F.append(finding("harmonic:0.1 − shrink:100, single-type high, 25k (V)", su_old, su_new))
+        add(G_WEIGHTS, "harmonic:0.1 − shrink:100 training weights, single-type high, 25k", su_old, su_new)
+    # selection and the weights of the selected policies
+    for arm, name, what in (("opc", "OPC", "DR point estimate − truth"), ("dm", "DM-only", "q̂ estimate − truth")):
+        for n in SIZES:
+            add(G_SELECTION, f"{name}: {what}, {k(n)}", *both(old2, new2, arm, None, "sel_error_point", size=n, biased=True))
+        for n in SIZES:
+            add(G_SELECTION, f"{name}: true selection regret, {k(n)}", *both(old2, new2, arm, None, "regret", size=n, biased=True))
+    lo2 = lambda rows: rows.assign(log10_ess=np.log10(rows["ess_raw"]))
+    for n in SIZES:
+        add(G_ESS, f"OPC, {k(n)}", *both(lo2(old2), lo2(new2), "opc", None, "log10_ess", 1.0, size=n, biased=True),
+            material_abs=np.log10(1.2))  # material: a 20% change of the ESS itself
+    for n in SIZES:
+        add(G_TAIL, f"OPC, {k(n)}", *both(old2, new2, "opc", None, "w_share_gt10", 100.0, size=n, biased=True))
     return pd.DataFrame(F)
+
+
+DECOMPOSITION = {"OPC": ("opc", None), "DM-only": ("dm", None), "OPC - DM-only": ("opc", "dm")}
+EFFECTS = {"simulator": ("mid", "old"), "configuration": ("new", "mid"), "total": ("new", "old")}
+
+
+def decomposition_table(old: pd.DataFrame, mid: pd.DataFrame, new: pd.DataFrame, by=("train_size",)) -> pd.DataFrame:
+    """Separates the simulator fix from the retuning, world by world: ``old`` = buggy logs with the old configuration,
+    ``mid`` = corrected logs with the old configuration, ``new`` = corrected logs with the new configuration. Per cell of
+    ``by``: each quantity's mean in the three runs and the paired simulator (mid − old), configuration (new − mid) and
+    total (new − old) effects, with 95% intervals over the worlds present in all three (true CTR points)."""
+    out = []
+    for label, (a, b) in DECOMPOSITION.items():
+        v = {k: _per_world(r, a, b) for k, r in (("old", old), ("mid", mid), ("new", new))}
+        common = v["old"].index.intersection(v["mid"].index).intersection(v["new"].index)
+        df = pd.DataFrame({k: s.loc[common] for k, s in v.items()}).reset_index()
+        for cell, g in df.groupby(list(by)):
+            rec = dict(quantity=label, **dict(zip(by, cell if isinstance(cell, tuple) else (cell,))), worlds=len(g))
+            for k in ("old", "mid", "new"):
+                m, lo, hi, _ = mean_ci(g[k])
+                rec.update({k: m, f"{k}_lo": lo, f"{k}_hi": hi})
+            for k, (x, y) in EFFECTS.items():
+                m, lo, hi, _ = mean_ci(g[x] - g[y])
+                rec.update({k: m, f"{k}_lo": lo, f"{k}_hi": hi})
+            out.append(rec)
+    return pd.DataFrame(out)
+
+
+def fig8_decomposition(table: pd.DataFrame, out: Path) -> None:
+    """Fig 8: the old-to-new change of OPC, DM-only and OPC − DM-only on the biased worlds, split into the simulator
+    effect (old configuration, buggy → corrected logs) and the configuration effect (corrected logs, old → new
+    configuration), per train size."""
+    plt = _plt()
+    colors = {"simulator": "#0072B2", "configuration": "#E69F00", "total": "#333333"}
+    fig, axes = plt.subplots(1, len(DECOMPOSITION), figsize=(12, 3.2), sharey=True)
+    for ax, q in zip(axes, DECOMPOSITION):
+        t = table[table["quantity"] == q].sort_values("train_size")
+        for i, (k, c) in enumerate(colors.items()):
+            xs = np.arange(len(t)) + (i - 1) * 0.22
+            ax.errorbar(xs, t[k], yerr=[t[k] - t[f"{k}_lo"], t[f"{k}_hi"] - t[k]], fmt="o", color=c, markersize=4.5,
+                        capsize=2.5, elinewidth=1.0, label={"simulator": "simulator fix (old configuration)",
+                                                            "configuration": "retuning (corrected logs)",
+                                                            "total": "total (old report → corrected)"}[k])
+        ax.axhline(0, color="#444444", linewidth=0.8)
+        ax.set_xticks(range(len(t)), [f"{n // 1000}k" for n in t["train_size"]])
+        ax.set_title(q.replace(" - ", " − "))
+        ax.set_xlabel("logged training rows")
+        ax.grid(axis="x", visible=False)
+    axes[0].set_ylabel("change, true CTR points\n(paired over worlds)")
+    axes[-1].legend(frameon=False, fontsize=7, loc="upper left", bbox_to_anchor=(1.01, 1.0))
+    worlds = int(table["worlds"].min()) if len(table) else 0
+    fig.suptitle(f"What changed OPC and DM-only: the simulator fix vs the retuning (biased worlds of ml and kuairand; "
+                 f"{worlds} worlds per size)", fontsize=9, y=1.03)
+    fig.tight_layout()
+    _save(fig, out, "fig8_simulator_vs_retuning", table)
 
 
 def _md_table(df: pd.DataFrame, cols, fmt=None) -> str:
@@ -488,6 +645,18 @@ def main(argv=None) -> None:
         n_s = rob.set_index(keys)["V_method"]
         su_new = (100 * (n_h - n_s)).dropna()
         su_new = su_new[su_new.index.isin(su_old.index)]
+    # simulator effect vs retuning: the old configuration rerun on the corrected logs (ml, kuairand)
+    mid_path = new_dir / "decomposition" / "learned_rows_oldspace.csv"
+    if mid_path.exists():
+        mid2 = load_rows(mid_path)
+        dec = pd.concat([decomposition_table(_sel(old2, biased=True), _sel(mid2, biased=True), _sel(new2_main, biased=True))
+                         .assign(worlds_kind="biased"),
+                         decomposition_table(_sel(old2, biased=False), _sel(mid2, biased=False), _sel(new2_main, biased=False))
+                         .assign(worlds_kind="no bias"),
+                         decomposition_table(old2, mid2, new2_main, by=("bias", "train_size")).assign(worlds_kind="per bias")],
+                        ignore_index=True)
+        dec.to_csv(out / "decomposition_simulator_vs_retuning.csv", index=False)
+        fig8_decomposition(dec[dec["worlds_kind"] == "biased"], out)
     findings = build_findings(old2, new2_main, rm_old, rm_new, sup_old, sup_new, su_old, su_new)
     findings.to_csv(out / "findings_old_vs_new.csv", index=False)
     fig_verdicts(findings, out)

@@ -8,16 +8,17 @@ t-interval over the worlds of a cell.
 
 Classification of a finding (a mean contrast over the worlds of a cell, e.g. OPC − DM-only at combined high, 25k),
 from its old and new 95% intervals and the paired interval of the change:
-  - unchanged: the same sign and the same significance (interval excluding 0 or not), and the change's interval
-    includes 0;
-  - same direction, different magnitude: significant before and after with the same sign, and the change's
-    interval excludes 0;
+  - unchanged: the same sign and the same significance (interval excluding 0 or not), and the change is not
+    material (its interval includes 0, or it is smaller than MATERIAL × the old effect);
+  - same direction, different magnitude: significant before and after with the same sign, and a material change:
+    its interval excludes 0 and it is at least MATERIAL (20%) of the old effect;
   - weakened: significant before; after, the same sign but smaller, with the interval including 0;
   - unchanged size, less precise: significant before; after, the same sign and at least as large, but the interval
     includes 0 (the effect did not shrink; the new evidence is noisier);
   - unsupported: significant before; after, the opposite sign but the interval includes 0;
   - reversed: significant after with the opposite sign of the old mean (significant or not before);
-  - new: not significant before, significant after with the old mean's sign (or the old mean 0).
+  - new: not significant before, significant after with the old mean's sign (or the old mean 0);
+  - no data: no world has both values (an input run is missing).
 """
 from __future__ import annotations
 
@@ -26,6 +27,7 @@ import pandas as pd
 from scipy import stats
 
 KEYS = ["dataset", "bias", "seed", "train_size"]
+MATERIAL = 0.2  # a significant change smaller than this fraction of the old effect leaves the finding unchanged
 
 
 def mean_ci(x) -> tuple[float, float, float, int]:
@@ -45,11 +47,14 @@ def _significant(lo, hi) -> bool:
     return bool(np.isfinite(lo) and np.isfinite(hi) and (lo > 0 or hi < 0))
 
 
-def classify(old, new, change) -> str:
-    """``old``, ``new``, ``change``: (mean, lo, hi) triples."""
+def classify(old, new, change, material_abs: float | None = None) -> str:
+    """``old``, ``new``, ``change``: (mean, lo, hi) triples. ``material_abs``: an absolute materiality threshold for
+    the change, in place of MATERIAL × the old effect (for log-scale quantities, e.g. log10(1.2) for a 20% ratio)."""
     om, olo, ohi = old
     nm, nlo, nhi = new
-    _, clo, chi = change
+    cm, clo, chi = change
+    if not (np.isfinite(om) and np.isfinite(nm)):
+        return "no data"
     old_sig, new_sig = _significant(olo, ohi), _significant(nlo, nhi)
     same_sign = np.sign(om) == np.sign(nm)
     if new_sig and not same_sign and np.sign(om) != 0:
@@ -60,7 +65,8 @@ def classify(old, new, change) -> str:
         return "unchanged size, less precise" if abs(nm) >= abs(om) else "weakened"
     if not old_sig and new_sig:
         return "new"
-    if old_sig and new_sig and _significant(clo, chi):
+    threshold = MATERIAL * abs(om) if material_abs is None else material_abs
+    if old_sig and new_sig and _significant(clo, chi) and abs(cm) >= threshold:
         return "same direction, different magnitude"
     return "unchanged"
 

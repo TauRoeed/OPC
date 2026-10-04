@@ -6,6 +6,7 @@ new counterpart paired by world:
   followup/   the gap decomposition with the unchanged Stage 1 oracle (and the validated bounds as a sensitivity)
   stage3_lgs_<share>/   the logging-support sweep at 25k (share 0.8 = the Stage 2 rerun's 25k cells)
   reward_model/   learned rows of the external-q̂ and misspecified-q̂ reruns and of their old counterparts
+  decomposition/  learned rows of the old Stage 2 configuration on the corrected logs (OPC and DM-only, ml/kuairand)
 
 Usage: python -m training.revalidation_phase3 --out artifacts/full_study/opc_revalidation_20261004/summaries
 """
@@ -28,6 +29,8 @@ STAGE3 = {"0.6": ["run_reval_stage3_base_lgs_0_6", "run_reval_stage3_opc_lgs_0_6
           "0.95": ["run_reval_stage3_base_lgs_0_95", "run_reval_stage3_opc_lgs_0_95"]}
 REWARD_MODEL = {"external": ["run_reval_budget_external_base", "run_reval_budget_external_opc"],
                 "concat": ["run_reval_qhat_concat_base", "run_reval_qhat_concat_opc"]}
+# the old Stage 2 configuration (old search space) on the corrected logs: separates the simulator effect from the retuning
+OLDSPACE = ["run_reval_stage2_oldspace_opc_mlkr", "run_reval_stage2_oldspace_dm_mlkr"]
 
 
 def _existing(names) -> list[str]:
@@ -78,6 +81,10 @@ def main(argv=None) -> None:
         for setting, names in REWARD_MODEL.items():
             if _existing(names):
                 learned_recovery(load_learned(*_existing(names)), oracle).to_csv(rm / f"learned_rows_{setting}.csv", index=False)
+        if _existing(OLDSPACE):
+            (out / "decomposition").mkdir(exist_ok=True)
+            learned_recovery(load_learned(*_existing(OLDSPACE)), oracle).to_csv(
+                out / "decomposition" / "learned_rows_oldspace.csv", index=False)
     print(f"wrote the Phase 3 summaries to {out}")
 
 

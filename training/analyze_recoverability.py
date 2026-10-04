@@ -128,7 +128,7 @@ def load_learned(*run_dirs) -> pd.DataFrame:
     CTR (V_method, V_method_greedy), its learned logit scale, the tempered logger's value in the same cell, and the
     selected trial's diagnostics (raw-weight ESS, share of weights > 10, largest weight, selection-estimate error of
     the DR point estimate and of the lower bound) and the true selection regret over the arm's trials (development
-    diagnostic)."""
+    diagnostic), and the condition's reward model's error in evaluating the selected policy (qhat_error)."""
     out = []
     for run in run_dirs:
         for cond in sorted(Path(run).glob("dataset=*")):
@@ -155,6 +155,9 @@ def load_learned(*run_dirs) -> pd.DataFrame:
                     w_max=float(best.get("diag_w_max", np.nan)),
                     sel_error_point=float(best["r_hat"] - best["actual_reward"]),
                     sel_error_lower=float(best["value"] - best["actual_reward"]),
+                    # the condition's reward model q̂ evaluating the selected policy (DM estimate on the validation
+                    # users) minus the truth: q̂'s own estimation error where it matters
+                    qhat_error=float(r.get("reg_dm", np.nan) - r["policy_rewards"]),
                     regret=float(g["actual_reward"].max() - best["actual_reward"]), n_trials=len(g)))
     return pd.DataFrame(out)
 
@@ -209,7 +212,8 @@ def stage2_tables(m: pd.DataFrame) -> dict[str, pd.DataFrame]:
                    95% t-interval over the paired conditions (the arms share configurations and seeds);
       diagnostics  per bias × train size × arm, means: the selected trial's raw-weight ESS, share of weights
                    above 10, largest weight, learned logit scale, selection-estimate errors (DR point and
-                   lower bound minus the truth) and the true selection regret over the arm's trials."""
+                   lower bound minus the truth), the reward model's error on the selected policy and the true
+                   selection regret over the arm's trials."""
     g = m.groupby(["bias", "train_size", "method"])
     fractions = pd.DataFrame({
         "n": g.size(),
@@ -242,6 +246,7 @@ def stage2_tables(m: pd.DataFrame) -> dict[str, pd.DataFrame]:
         "n": d.size(), "ess_raw": d["ess_raw"].mean(), "w>10 %": 100 * d["w_share_gt10"].mean(),
         "w_max": d["w_max"].mean(), "logit_scale": d["logit_scale"].mean(),
         "sel error point %": 100 * d["sel_error_point"].mean(), "sel error lower %": 100 * d["sel_error_lower"].mean(),
+        "qhat error %": 100 * d["qhat_error"].mean() if "qhat_error" in m else np.nan,
         "regret %": 100 * d["regret"].mean(), "n_trials": d["n_trials"].mean(),
     }).reset_index()
     return {"fractions": _ordered(fractions), "paired": _ordered(paired), "diagnostics": _ordered(diagnostics)}
