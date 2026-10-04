@@ -368,18 +368,34 @@ Preliminary results:
 
 ### 2.5 Sharpness: the learnable logit scale (`run_reval_range2_noscale_s200`, paired per trial)
 
-With the logit scale fixed at 1 (the policy can still sharpen through D), on ml in the chosen range:
+With the logit scale fixed at 1 (the policy can still sharpen through D), in the chosen range:
 
-| selected true gain (points), 5k / 25k / 100k | scale learned | scale fixed |
-|---|---|---|
-| OPC | 6.19 / 7.83 / 8.58 | 4.91 / 7.01 / 8.04 |
-| DM-only | 4.66 / 7.28 / 7.89 | 4.89 / 6.98 / 7.62 |
-| no-propensity | 4.04 / 4.80 / 5.20 | 3.40 / 4.60 / 4.88 |
+| selected true gain (points), 5k / 25k / 100k | ml, scale learned | ml, scale fixed | kuairand, scale learned | kuairand, scale fixed |
+|---|---|---|---|---|
+| OPC | 6.19 / 7.83 / 8.58 | 4.91 / 7.01 / 8.04 | 6.85 / 8.50 / 8.83 | 5.84 / 8.07 / 8.65 |
+| DM-only | 4.66 / 7.28 / 7.89 | 4.89 / 6.98 / 7.62 | 6.49 / 7.85 / 8.15 | 6.57 / 8.06 / 8.37 |
+| no-propensity | 4.04 / 4.80 / 5.20 | 3.40 / 4.60 / 4.88 | 4.90 / 5.30 / 5.30 | 4.63 / 5.30 / 5.47 |
+
+The shared setting favours OPC most. DM-only would prefer the fixed scale on kuairand (by 0.1–0.2 points) and at ml
+5k, which the report keeps in view as a sensitivity of OPC − DM.
 
 - **Per trial:** the fixed scale is worse below and at the peak (−0.2 to −1.7 points) and better only beyond it,
   where it avoids the runaway.
 - **Decision:** keep the learnable logit scale (the Stage 2 setting). The runaway is contained by the chosen range.
   The logit-scale speed (30, set on buggy logs in 2a29056) is unchanged.
+
+### 2.6 Selection (post hoc on the logged scores; preliminary)
+
+- **Data:** every trial logs its DR point estimate and 95% lower bound under 19 selection transforms. The OPC trials
+  of `run_reval_range2_*` inside the chosen range (7 conditions) are re-selected under each transform and lower-bound
+  multiplier z.
+- **Tight transforms:** all of them pick within 0.02–0.2 points of the best trial at every size: clip 1–30, Su shrink
+  10–1,000, harmonic 0.03–0.3, and even the reward-model score. The current rule (clip:10, 95% lower bound) gives
+  6.23 / 8.05 / 8.64 against the best trial's 6.25 / 8.14 / 8.75 at 5k / 25k / 100k.
+- **Raw or loose weights** (none, clip ≥ 300, shrink:100000) lose up to 1.3 points, the more so the larger z.
+- **The penalty z** (0 to 3) barely matters for tight transforms.
+- **Preliminary decision:** keep clip:10 with the 95% lower bound. Re-checked on the 2C runs (other training
+  weights).
 
 ### 2.2 Phase 3 plan (fixed before the reruns)
 
