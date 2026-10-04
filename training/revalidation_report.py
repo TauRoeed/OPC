@@ -663,15 +663,22 @@ def misspec_mechanism_table(trials: pd.DataFrame, rows: dict[str, pd.DataFrame])
             add(f"selection regret, raw-weight lower bound, {setting} q̂", n, regret(setting, n, "none"))
             add(f"selection regret, median trial (no selection), {setting} q̂", n, regret(setting, n, "median"))
     n = 100000
-    for alt, name in (("concat_raw_100k", "raw training weights"), ("concat_oldspace_100k", "old search space")):
+    for alt, ref, q, name in (("concat_raw_100k", "concat", "concat q̂", "raw training weights"),
+                              ("concat_oldspace_100k", "concat", "concat q̂", "old search space"),
+                              ("interaction_raw_100k", "interaction", "interaction q̂", "raw training weights")):
         if alt not in rows or by(alt).empty:
             continue
-        d = (100 * (sel(alt)["V_method"] - sel("concat")["V_method"])).dropna()
-        add(f"concat q̂, {name} − revalidated default: selected policy", n, d[d.index.get_level_values("train_size") == n])
-        add(f"concat q̂, {name} − revalidated default: every trial", n, per_world_diff(alt, "concat", n, "trial"))
-        add(f"concat q̂, {name} − revalidated default: best of 20", n, per_world_diff(alt, "concat", n, "best"))
-        add(f"concat q̂, {name}: selection regret, default rule", n, regret(alt, n, "default"))
+        d = (100 * (sel(alt)["V_method"] - sel(ref)["V_method"])).dropna()
+        add(f"{q}, {name} − revalidated default: selected policy", n, d[d.index.get_level_values("train_size") == n])
+        add(f"{q}, {name} − revalidated default: every trial", n, per_world_diff(alt, ref, n, "trial"))
+        add(f"{q}, {name} − revalidated default: best of 20", n, per_world_diff(alt, ref, n, "best"))
+        add(f"{q}, {name}: selection regret, default rule", n, regret(alt, n, "default"))
+    if "interaction_raw_100k" in rows and "concat_raw_100k" in rows:
+        d = (100 * (sel("concat_raw_100k")["V_method"] - sel("interaction_raw_100k")["V_method"])).dropna()
+        add("raw training weights: selected policy, concat − interaction q̂", n,
+            d[d.index.get_level_values("train_size") == n])
     for setting, label in (("interaction", "interaction q̂"), ("concat", "concat q̂"),
+                           ("interaction_raw_100k", "interaction q̂, raw training weights"),
                            ("concat_raw_100k", "concat q̂, raw training weights"),
                            ("concat_oldspace_100k", "concat q̂, old search space")):
         if setting in rows:
@@ -755,7 +762,7 @@ def main(argv=None) -> None:
     trials_path = new_dir / "reward_model" / "opc_trials_misspecification.csv"
     if trials_path.exists():
         settings = {"interaction": mh(new2_main), "concat": rm_new["concat"][1]}
-        for extra in ("concat_raw_100k", "concat_oldspace_100k"):
+        for extra in ("concat_raw_100k", "concat_oldspace_100k", "interaction_raw_100k"):
             if (new_dir / "reward_model" / f"learned_rows_{extra}.csv").exists():
                 settings[extra] = load_rows(new_dir / "reward_model" / f"learned_rows_{extra}.csv")
         misspec_mechanism_table(pd.read_csv(trials_path), settings).to_csv(out / "misspecification_mechanism.csv",

@@ -34,11 +34,13 @@ REWARD_MODEL = {"external": ["run_reval_budget_external_base", "run_reval_budget
                 "concat": ["run_reval_qhat_concat_base", "run_reval_qhat_concat_opc"],
                 # 3C mechanism checks at 100k (OPC only): raw training weights; the old search space
                 "concat_raw_100k": ["run_reval_qhat_concat_opc_raw_100k"],
-                "concat_oldspace_100k": ["run_reval_qhat_concat_opc_oldspace_100k"]}
+                "concat_oldspace_100k": ["run_reval_qhat_concat_opc_oldspace_100k"],
+                "interaction_raw_100k": ["run_reval_interaction_opc_raw_100k"]}
 # per-trial OPC rows of the misspecification test (3C), for the trial-level and selection analyses of the report
 TRIALS_3C = {"interaction": ["run_reval_stage2_opc_mlkr", "run_reval_stage2_opc_anime"],
              "concat": ["run_reval_qhat_concat_opc"], "concat_raw_100k": ["run_reval_qhat_concat_opc_raw_100k"],
-             "concat_oldspace_100k": ["run_reval_qhat_concat_opc_oldspace_100k"]}
+             "concat_oldspace_100k": ["run_reval_qhat_concat_opc_oldspace_100k"],
+             "interaction_raw_100k": ["run_reval_interaction_opc_raw_100k"]}
 # the old Stage 2 configuration (old search space) on the corrected logs: separates the simulator effect from the retuning
 OLDSPACE = ["run_reval_stage2_oldspace_opc_mlkr", "run_reval_stage2_oldspace_dm_mlkr"]
 # the old (buggy-log) counterparts that are not in summaries_20260927: the reward-model tests of the older pipeline
