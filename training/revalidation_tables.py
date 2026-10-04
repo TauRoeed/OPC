@@ -180,13 +180,17 @@ def t_reward(old: pd.DataFrame, new: pd.DataFrame) -> str:
                     continue
                 g = lambda t, c: _ci(*t[[c, f"{c} lo", f"{c} hi"]].iloc[0]) if len(t) and c in t else "—"
                 v = lambda t, c: _f(t[c].iloc[0]) if len(t) and c in t else "—"
+                e = lambda t, c: _f(t[c].iloc[0], 0, False) if len(t) and c in t else "—"
                 rows.append([setting, LABEL[b], _k(n), f"{g(o, 'OPC-DM reference')} → {g(w, 'OPC-DM reference')}",
                              f"{g(o, 'OPC-DM altered')} → {g(w, 'OPC-DM altered')}",
                              f"{g(o, 'change dm')} → {g(w, 'change dm')}", f"{g(o, 'change opc')} → {g(w, 'change opc')}",
-                             f"{v(o, 'qhat error dm altered')} → {v(w, 'qhat error dm altered')}"])
+                             f"{v(o, 'qhat error dm altered')} → {v(w, 'qhat error dm altered')}",
+                             f"{e(w, 'ess dm reference')} / {e(w, 'ess dm altered')}; "
+                             f"{e(w, 'ess opc reference')} / {e(w, 'ess opc altered')}"])
     return _table(["q̂ setting (altered)", "bias", "train", "OPC − DM, reference q̂: old → corrected",
                    "OPC − DM, altered q̂: old → corrected", "DM-only change (altered − reference)",
-                   "OPC change (altered − reference)", "DM-only: q̂ estimate − truth, altered (points)"], rows)
+                   "OPC change (altered − reference)", "DM-only: q̂ estimate − truth, altered (points)",
+                   "corrected ESS, reference / altered: DM-only; OPC"], rows)
 
 
 def coupling_by_share(phase0: Path) -> pd.DataFrame:
@@ -323,10 +327,10 @@ def main(argv=None) -> None:
               "mean [95% CI] over the paired worlds)", t_contrasts(rd(new / "stage2" / "stage2_paired.csv"))),
              ("R3. Old vs corrected, biased worlds pooled (points; fractions greedy)",
               t_pooled(rd(rep / "old_new_stage2_biased_pooled.csv")))]
-    for c in ("OPC - DM-only", "OPC - no-propensity", "OPC - tempered logger"):
-        parts.append((f"R4. Old vs corrected: {c.replace(' - ', ' − ')} per bias × size (points)", t_old_new(t2, c)))
-    for c in ("OPC fraction (greedy)", "DM-only fraction (greedy)"):
-        parts.append((f"R5. Old vs corrected: {c} of the oracle repair per bias × size", t_old_new(t2, c, d=3)))
+    for k, c in zip("abc", ("OPC - DM-only", "OPC - no-propensity", "OPC - tempered logger")):
+        parts.append((f"R4{k}. Old vs corrected: {c.replace(' - ', ' − ')} per bias × size (points)", t_old_new(t2, c)))
+    for k, c in zip("ab", ("OPC fraction (greedy)", "DM-only fraction (greedy)")):
+        parts.append((f"R5{k}. Old vs corrected: {c} of the oracle repair per bias × size", t_old_new(t2, c, d=3)))
     parts += [("R6. Structural gap, learning gap and learned repair (greedy, CTR points; mean over 3 datasets × 2 seeds)",
                t_gap(rd(old / "followup" / "gap_decomposition.csv"), rd(new / "followup" / "gap_decomposition.csv"))),
               ("R7. Corrected Stage 2 per dataset (mean of 2 seeds): fraction OPC / DM-only; OPC − DM-only / OPC − "
