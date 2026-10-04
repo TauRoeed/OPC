@@ -105,6 +105,20 @@ Seed 100, logger share 0.8, the six Stage 2 bias settings. Ranges over the six s
 | corr(user index, action index): old / fixed | +0.72 to +0.84 / −0.04 to 0.00 | +0.82 to +0.89 / −0.00 | +0.51 to +0.72 / −0.03 to −0.02 |
 | distinct logged actions (95,000 rows): old / fixed | 1,275–2,223 / 2,260–3,395 | 4,544–5,202 / 6,600–6,959 | 3,425–6,823 / 4,047–8,279 |
 
+**By logger sharpness (Stage 3 worlds).** Means over ml and kuairand × warp / group / vector high, seed 100
+(`coupling_exact_lgs{0.6,0.8,0.95}.csv`):
+
+| logger share | largest P_eff(a\|u) | TV(P_eff, π0) | mean stored pscore | mean true generating probability | users always given the same action (old / fixed) |
+|---|---|---|---|---|---|
+| 0.6 | 0.91–0.94 | 0.95–0.98 | 0.02–0.05 | 0.88–0.92 | 0.85–0.89 / 0.00–0.02 |
+| 0.8 | 0.97 | 0.85–0.89 | 0.11–0.16 | 0.96 | 0.94–0.95 / 0.01–0.08 |
+| 0.95 | 0.99 | 0.59–0.62 | 0.39–0.41 | 0.99 | 0.99 / 0.10–0.27 |
+
+The coupling removed most of the exploration the logger was supposed to perform. It did so the more the more
+exploratory the logger: the 0.6 logger's stored propensities understated the generating probability 20–40 fold,
+the 0.95 logger's about 2.5 fold. The old Stage 3 finding that the most exploratory logger recovered least is
+therefore exactly the comparison the bug distorted most (Phase 3D).
+
 **Reading.**
 - The old logs were drawn from a nearly deterministic per-user logger: one action per user, carrying 93–99% of
   that user's probability.
@@ -251,7 +265,7 @@ pass, with and without the GPU.
 
 | step | question | runs | analysis |
 |---|---|---|---|
-| 2D-R | search space: learning rate and step budget (lr, epochs, batch, lr decay), weight decay | lr 1e-4–1e-1 and epochs 5–60, 40 trials. Arms: OPC (harmonic:0.1), OPC (raw), DM-only, no-propensity, all paired. AdamW decay as a paired OPC run | true gain against the optimization budget (lr × steps); the 20-trial protocol simulated on candidate sub-ranges by resampling the logged trials |
+| 2D-R | search space: learning rate and step budget (lr, epochs, batch, lr decay), weight decay | lr 1e-4–1e-1 and epochs 5–30, 30 trials. Arms: OPC (harmonic:0.1), DM-only, no-propensity, paired; OPC (raw) and OPC with AdamW decay as paired OPC-only runs. A first design with epochs 5–60 and 40 trials was stopped after 18 minutes: about 6 GPU-hours for its first run alone. The lean design spans the same lr × steps range through the learning rate | true gain against the optimization budget (lr × steps); the 20-trial protocol simulated on candidate sub-ranges by resampling the logged trials |
 | 2C | training weights | raw; clip M ∈ {3, 10, 30, 100}; Su shrink λ ∈ {10, 100, 1000, 10⁴}; Metelli harmonic λ ∈ {0.003, 0.01, 0.03, 0.1, 0.2, 0.3, 0.5}; screened, then the leaders on the full tuning grid | selected and per-trial true value (paired), ESS, weight tails, estimate error, sensitivity by dataset, bias and size, grid edges |
 | 2A | objective family | additive DR; exact SNDR (`--sn-scope exact`, the full-data ratio's gradient); raw DR (reference) | as 2C |
 | 2B | gradient (confirmation only) | direct vs log trick at shrink:100 | per-trial paired |
@@ -286,5 +300,21 @@ Preliminary results:
   Spearman 0.96–0.98 at every size.
 - The best trials sit at the largest budgets the old range allows (lr ≤ 1e-3, 5–25 epochs).
 - The policies are under-trained in the old search space, so step 2D-R comes first.
+
+### 2.2 Phase 3 plan (fixed before the reruns)
+
+All reruns use the worlds and seeds of the old runs (100/101), so every result pairs with its old value world by
+world. They use the configuration chosen in Phase 2, the same search space for every trained arm, the paired
+random sampler and 20 trials per size.
+
+| rerun | worlds | arms | old counterpart |
+|---|---|---|---|
+| 3A Stage 2 | ml, kuairand, anime × none / warp high / group high / vector high / combined medium / combined high × 5k / 25k / 100k | new OPC default, DM-only, no-propensity, tempered logger; the OPC robustness alternative(s) as separate paired runs | `run_stage2_*` |
+| 3B reward-model budget | the three datasets × combined medium / high × three sizes; q̂ fit on 50,000 extra rows (`--reward-data external`) | OPC, DM-only, tempered logger (no-propensity does not use q̂) | `run_logger_explore(_budget)` (older pipeline) |
+| 3C misspecified q̂ | as 3B, with concat features | OPC, DM-only, tempered logger | `run_qhat_concat` (older pipeline) |
+| 3D logging support | ml, kuairand × warp / group / vector high × 25k, logger shares 0.6 and 0.95 (0.8 is 3A) | the four arms | `run_stage3_lgs_*` |
+
+The structural quantities (oracle bounds, structural gaps) are reused unchanged. Only the learned side is
+recomputed.
 
 (Phases 2–5 follow.)
