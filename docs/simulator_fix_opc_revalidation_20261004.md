@@ -355,10 +355,14 @@ Preliminary results:
 
 ### 2.4 Weight decay (`run_reval_range2_wd_s200`; OPC harmonic:0.1, AdamW decay log-uniform 1e-2–3, paired per trial)
 
-- **Per trial** (ml and kuairand): decay rescues trials beyond the peak (+1.7 to +6.6 points at log10 move > 0, where
-  it stops the logit scale's runaway). Near and below the peak it changes nothing (±0.05).
-- **Under the protocol** (chosen range, 20 trials): the selected value with decay is within ±0.1 point of the value
-  without it on ml (6.19 / 7.73 / 8.54 vs 6.19 / 7.83 / 8.58). The selection already avoids the collapsed trials.
+- **Per trial** (ml and kuairand): decay rescues trials beyond the peak (+1.2 to +6.6 points at log10 move > 0, where
+  it stops the logit scale's runaway). Near and below the peak it changes nothing (±0.1).
+- **Under the protocol** (chosen range, 20 trials), the selection already avoids the collapsed trials:
+
+  | selected gain, 5k / 25k / 100k | with decay | without |
+  |---|---|---|
+  | ml | 6.19 / 7.73 / 8.54 | 6.19 / 7.83 / 8.58 |
+  | kuairand | 6.85 / 8.26 / 8.82 | 6.85 / 8.50 / 8.83 |
 - **Decision:** no weight decay (Adam, as before). Weight decay remains a tested, available alternative
   (`--weight-decay-range`).
 
