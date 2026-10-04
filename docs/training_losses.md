@@ -116,6 +116,9 @@ The objective variants remain available for reproducibility and diagnostics:
   its objective changes with the batch size.
 - **`sndr --sn-scope global`** divides by a full-data mean weight held fixed for each epoch. It is not
   exact SNDR (section 3.4).
+- **`sndr --sn-scope exact --opc-gradient direct`** (2026-10-04) follows the gradient of the full-data
+  SNDR ratio. Its two means are refreshed every epoch (section 3.4). It is the legitimate SNDR
+  alternative compared in the revalidation (`docs/simulator_fix_opc_revalidation_20261004.md`).
 - **The previous defaults** are reproduced by `--policy-losses sndr --sn-scope batch --opc-gradient
   log-trick --train-weights shrink:100`. That configuration reproduces the OPC arm of the runs before
   f5cade9, and the H1 runner keeps it.
@@ -382,6 +385,14 @@ paired comparisons (development runs).
   - After the first step, c_e is no longer c(θ).
 
   So `global` is a stop-gradient, epoch-stale SNDR surrogate. It is not exact SNDR.
+- **`sndr --sn-scope exact`** (2026-10-04; direct gradient only) follows ∇V itself, at constants
+  refreshed at the start of every epoch. With S = c and N = c·R computed over all training rows at θ_e
+  (`training_utils.full_data_sn_constants`, with the training q̂), each row contributes
+  DM_i + g(w_i)(e_i − N/S)/S. This is DR with the self-normalized mean residual R = N/S as a baseline,
+  and the correction divided by S. Summed over the rows, its gradient at θ_e is exactly ∇V, for any
+  batch size, the short final batch included. Within the epoch, S and N are stale, as in `global`.
+  It refuses the log trick. `tests/test_sndr_exact.py` checks the direction against the literal ratio's
+  autograd for `none`, `clip:2` and `shrink:4`.
 - **Legacy `sndr`**: each batch follows its own stop-gradient ratio,
   (1/|B|) Σ_{i∈B} ∇[DM_i + H(w_i) e_i / w̄_B], where w̄_B is the batch's mean weight. That mean depends
   on which rows share the batch, so the epoch's direction, and the objective, change with the batch
@@ -502,6 +513,22 @@ No-propensity Optuna parameters:
 - `num_epochs`
 - `batch_size`
 - `lr_decay`
+
+**Search space (`trainer_trials.DEFAULT_SEARCH_SPACE`; OPC, no-propensity and DM-only share it).**
+- **Defaults** (every run before 2026-10-04):
+  - `lr` log-uniform on [1e-4, 1e-3];
+  - `num_epochs` uniform on 5–25;
+  - `lr_decay` uniform on [0.8, 1];
+  - `batch_size` from `batch_schedule` by train size (512 / 1024 / 2048 up to 25k rows, 2048 / 4096 / 8192 up to
+    100k).
+- **Overrides** (both runners): `--lr-range`, `--epochs-range` and `--lr-decay-range` replace a range.
+- **Weight decay.** `--weight-decay-range LOW HIGH` adds AdamW weight decay, log-uniform. Every trained parameter
+  starts at 0, so the decay pulls toward the logger. It needs `--sampler random`, and each trial draws its decay from
+  its own seeded stream. The other parameters, and the pairing of trials across runs and arms, are therefore
+  unchanged.
+- **Recording.** Each run records its search space in `run_meta.json` and the manifest, and each trial its
+  `param_weight_decay`, wall time (`trial_time_s`) and whether training stopped at a non-finite gradient
+  (`diverged`). A diverged trial keeps its last finite parameters.
 
 ## 5. Validation scoring and Optuna selection
 

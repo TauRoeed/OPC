@@ -150,10 +150,47 @@ from training.metrics_utils import (
 
 VALID_POLICY_LOSSES = ("kl_crm", "kl", "ipw", "sndr", "dr", "crm", "naive", "dm")
 # Scale of the correction in the sndr / kl losses: per minibatch ('batch', the form used through
-# 63a3cc1, whose objective depends on the Optuna-searched batch size) or the full-data mean weight
-# ('global', refreshed every epoch). The dr loss has no self-normalization.
-SN_SCOPES = ("batch", "global")
+# 63a3cc1, whose objective depends on the Optuna-searched batch size), the full-data mean weight
+# ('global', refreshed every epoch, no gradient through it), or 'exact' (sndr with the direct gradient
+# only: the gradient of the full-data SNDR ratio at constants refreshed every epoch). The dr loss has
+# no self-normalization.
+SN_SCOPES = ("batch", "global", "exact")
 TEMPER_SCALE_RANGE = (0.5, 64.0)  # logit scales the tempered-logger baseline searches (log-uniform)
+# Policy search space of the trained arms (OPC, no-propensity, DM-only share it; the tempered logger
+# searches only its scale). The defaults reproduce every run before 2026-10-04 bit for bit. lr and
+# weight_decay are log-uniform, num_epochs uniform over the integers, lr_decay uniform. weight_decay None
+# keeps Adam; a range switches to AdamW (decoupled decay toward the starting point, the logger: every
+# trained parameter starts at 0) and draws the decay from its own per-trial stream, so the Optuna draws
+# of the other parameters, and the pairing of trials across runs, are unchanged.
+DEFAULT_SEARCH_SPACE = {"lr": (1e-4, 1e-3), "num_epochs": (5, 25), "lr_decay": (0.8, 1.0), "weight_decay": None}
+
+
+def resolve_search_space(space: dict | None = None) -> dict:
+    """``DEFAULT_SEARCH_SPACE`` with the given ranges replaced (validated; a None range keeps the default,
+    except ``weight_decay``, whose None means no decay)."""
+    out = dict(DEFAULT_SEARCH_SPACE)
+    for key, rng in (space or {}).items():
+        if key not in out:
+            raise ValueError(f"unknown search-space key {key!r}; expected one of {sorted(out)}")
+        if rng is None:
+            if key != "weight_decay":
+                continue
+            out[key] = None
+            continue
+        lo, hi = rng
+        lo, hi = (int(lo), int(hi)) if key == "num_epochs" else (float(lo), float(hi))
+        if not lo <= hi:
+            raise ValueError(f"search range {key} needs low <= high, got {rng!r}")
+        if key in ("lr", "weight_decay") and not lo > 0.0:
+            raise ValueError(f"search range {key} is log-uniform and needs low > 0, got {rng!r}")
+        if key == "num_epochs" and lo < 1:
+            raise ValueError(f"num_epochs needs at least 1, got {rng!r}")
+        if key == "lr_decay" and not (0.0 < lo and hi <= 1.0):
+            raise ValueError(f"lr_decay must lie in (0, 1], got {rng!r}")
+        out[key] = (lo, hi)
+    return out
+
+
 # --post-temper: logit factors tried on every trained policy after training (1 = the trained policy)
 POST_TEMPER_GRID = (0.25, 0.5, 0.71, 1.0, 1.41, 2.0, 2.83, 4.0, 5.66, 8.0, 16.0)
 # Importance-weight transforms (utils.importance_weights specs) for the OPC training losses
@@ -412,6 +449,8 @@ def _policy_loss_from_name(
     name = str(loss_name).lower()
     if sn_scope not in SN_SCOPES:
         raise ValueError(f"sn_scope must be one of {SN_SCOPES}, got {sn_scope!r}")
+    if sn_scope == "exact" and name == "kl":
+        raise ValueError("sn_scope 'exact' is implemented for the sndr loss only")
     if name == "kl_crm":
         return _kl_crm_policy_loss(
             kl_gamma,
@@ -1144,6 +1183,11 @@ def _study_trials_long(
             rows[-1]["param_logit_scale"] = float(params["logit_scale"])
         if "post_scale" in attrs:  # --post-temper: the factor chosen after training
             rows[-1]["post_scale"] = float(attrs["post_scale"])
+        if "weight_decay" in attrs:  # AdamW decay drawn from the search space's weight_decay range
+            rows[-1]["param_weight_decay"] = float(attrs["weight_decay"])
+        if "trial_time_s" in attrs:  # (the reproducibility tests drop every column named *time*)
+            rows[-1]["trial_time_s"] = float(attrs["trial_time_s"])
+        rows[-1]["diverged"] = bool(attrs.get("diverged", False))
         for k, v in attrs.items():  # selection scores under other weight specs (tuning runs), diagnostics
             if k.startswith(("sel_r_hat[", "sel_ci_low[", "diag_")):
                 rows[-1][k] = float(v)
@@ -2979,6 +3023,7 @@ def regression_trainer_trial(
     sn_scope: str = "batch",
     sampler: str = "tpe",
     seed_label: str | None = None,
+    search_space: dict | None = None,
 ):
     """
     OPC / no-propensity trainer with Optuna over CF hyperparameters.
@@ -3043,7 +3088,13 @@ def regression_trainer_trial(
 
     ``reward_model``: shared q_hat source — ``regression`` (default fit),
     ``logging_score`` (env click model on biased vectors), or ``oracle`` (clean env).
+
+    ``search_space``: ranges replacing ``DEFAULT_SEARCH_SPACE`` (``resolve_search_space``): ``lr``,
+    ``num_epochs``, ``lr_decay``, and ``weight_decay`` (AdamW; off by default).
     """
+    space = resolve_search_space(search_space)
+    if space["weight_decay"] is not None and str(sampler).lower() != "random":
+        raise ValueError("a weight_decay range needs sampler='random' (its draws bypass Optuna's model)")
     if str(policy_transform).lower() not in POLICY_TRANSFORMS:
         raise ValueError(f"policy_transform must be one of {POLICY_TRANSFORMS}, got {policy_transform!r}")
     sampler = str(sampler).lower()
@@ -3298,6 +3349,7 @@ def regression_trainer_trial(
 
         # --- Define Optuna objective ---
         def objective(trial):
+            trial_t0 = time.perf_counter()
             seed_everything(derive_seed(seed, seed_label or method_label, train_size, "trial", trial.number))
             print(f"\n[Regression] Optuna Trial {trial.number}")
             if temper_only:  # tempered logger: no training, only the logit scale
@@ -3305,12 +3357,19 @@ def regression_trainer_trial(
                 lr, epochs, trial_batch_size, lr_decay = 0.0, 0, int(trial_batch_choices[0]), 1.0
             else:
                 logit_scale = 1.0
-                lr = trial.suggest_float("lr", 1e-4, 1e-3, log=True)
-                epochs = trial.suggest_int("num_epochs", 5, 25)
+                lr = trial.suggest_float("lr", *space["lr"], log=True)
+                epochs = trial.suggest_int("num_epochs", *space["num_epochs"])
                 trial_batch_size = trial.suggest_categorical(
                     "batch_size", trial_batch_choices
                 )
-                lr_decay = trial.suggest_float("lr_decay", 0.8, 1.0)
+                lr_decay = trial.suggest_float("lr_decay", *space["lr_decay"])
+            weight_decay = 0.0
+            if space["weight_decay"] is not None and not temper_only:
+                wd_lo, wd_hi = space["weight_decay"]
+                wd_rng = np.random.default_rng(derive_seed(seed, seed_label or method_label, train_size, "trial",
+                                                           trial.number, "weight_decay"))
+                weight_decay = float(np.exp(wd_rng.uniform(np.log(wd_lo), np.log(wd_hi))))
+                trial.set_user_attr("weight_decay", weight_decay)
             if _policy_loss_needs_kl(policy_loss_types) and not temper_only:
                 kl_gamma = trial.suggest_float("kl_gamma", 1e-4, 0.5, log=True)
             else:
@@ -3379,16 +3438,23 @@ def regression_trainer_trial(
                 sn_scope=sn_scope,
             )
             if not temper_only:
-                train(
-                    trial_model,
-                    final_train_loader,
-                    train_scores_t,
-                    criterion=criterion,
-                    num_epochs=epochs,
-                    lr=lr,
-                    lr_decay=lr_decay,
-                    device=str(device),
-                )
+                try:
+                    train(
+                        trial_model,
+                        final_train_loader,
+                        train_scores_t,
+                        criterion=criterion,
+                        num_epochs=epochs,
+                        lr=lr,
+                        lr_decay=lr_decay,
+                        device=str(device),
+                        weight_decay=weight_decay,
+                    )
+                except RuntimeError as e:  # a non-finite gradient (clip_grad_norm_ refuses it before the step):
+                    if "non-finite" not in str(e):  # the trial keeps its last finite parameters, flagged
+                        raise
+                    print(f"[trial {trial.number}] training stopped at a non-finite gradient: {e}", flush=True)
+                    trial.set_user_attr("diverged", True)
 
             # Evaluate validation score
             trial_model.eval()
@@ -3475,6 +3541,7 @@ def regression_trainer_trial(
                     trial.set_user_attr(f"sel_ci_low[{label}]", v_low)
             trial.set_user_attr("optuna_selection", str(optuna_selection))
             trial.set_user_attr("dr_score_clip_m", float(dr_score_clip_m))
+            trial.set_user_attr("trial_time_s", time.perf_counter() - trial_t0)  # wall time (compute accounting)
 
             return value
 
@@ -3706,6 +3773,7 @@ def no_propensity_trainer_trial(
     post_temper: bool = False,
     sampler: str = "tpe",
     seed_label: str | None = None,
+    search_space: dict | None = None,
 ):
     """
     Explicit no-propensity baseline with parity to regression trainer:
@@ -3752,6 +3820,7 @@ def no_propensity_trainer_trial(
         post_temper=post_temper,
         sampler=sampler,
         seed_label=seed_label,
+        search_space=search_space,
     )
 
 

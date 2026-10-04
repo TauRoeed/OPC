@@ -172,7 +172,7 @@ def dm_reward(scores, policy_prob):
     return (scores * policy_prob).sum(dim=1)
 
 
-DR_NORMALIZATIONS = ("none", "global", "batch")
+DR_NORMALIZATIONS = ("none", "global", "batch", "exact")
 
 
 def dr_correction(iw, rewards, q_at_action, normalizer="batch"):
@@ -182,8 +182,19 @@ def dr_correction(iw, rewards, q_at_action, normalizer="batch"):
     changes with the batch size; c carries a gradient only when ``iw`` does, i.e. not under the log
     trick), ``None`` or ``'none'`` (c = 1: plain DR, a per-example additive objective), or a number
     (c held fixed: ``--sn-scope global`` passes the full-data mean weight computed at the start of the
-    epoch, so no gradient flows through c and c is stale after the epoch's first step).
+    epoch, so no gradient flows through c and c is stale after the epoch's first step), or
+    ``('exact', S, N)``: the exact SNDR gradient (``--sn-scope exact``). With S = mean g(w) and
+    N = mean g(w)(r - q) over all training rows at the current policy, the row term
+    g(w) (r - q - N/S) / S summed over the rows has the gradient of the SNDR ratio N / S,
+    (grad N - (N/S) grad S) / S: self-normalization is DR with the self-normalized mean residual N/S as a
+    baseline and the correction divided by S. The trainer refreshes S and N at the start of every epoch.
     """
+    if isinstance(normalizer, tuple):
+        kind, mean_weight, mean_weighted_residual = normalizer
+        if kind != "exact":
+            raise ValueError(f"a tuple normalizer must be ('exact', S, N), got {normalizer!r}")
+        baseline = float(mean_weighted_residual) / float(mean_weight)
+        return iw * (rewards - q_at_action - baseline) / float(mean_weight)
     if isinstance(normalizer, str):
         if normalizer == "batch":
             return iw * (rewards - q_at_action) / iw.mean()
@@ -292,8 +303,12 @@ class _BanditPolicyLossBase(nn.Module):
         # 'none' (plain DR) or 'global' (full-data mean weight, set by the trainer every epoch)
         if normalization not in DR_NORMALIZATIONS:
             raise ValueError(f"normalization must be one of {DR_NORMALIZATIONS}, got {normalization!r}")
+        if normalization == "exact" and use_log_trick:
+            raise ValueError("normalization='exact' (the SNDR ratio's gradient) needs the direct gradient "
+                             "(use_log_trick=False)")
         self.normalization = normalization
         self.global_normalizer = None
+        self.sn_constants = None  # (S, N) for normalization='exact', set by the trainer every epoch
         # importance-weight transform for the IW / SNDR terms (utils.importance_weights spec)
         self.iw_mode, self.iw_param = parse_weight_spec(weights)
         self.propensity_mode = str(propensity_mode).lower()
@@ -324,11 +339,28 @@ class _BanditPolicyLossBase(nn.Module):
             raise ValueError(f"global normalizer must be a positive number, got {value!r}")
         self.global_normalizer = float(value)
 
+    @property
+    def needs_sn_constants(self) -> bool:
+        return self.normalization == "exact"
+
+    def set_sn_constants(self, mean_weight: float, mean_weighted_residual: float) -> None:
+        """S = mean g(w) and N = mean g(w)(r - q_hat) over all training rows under the current policy
+        (``--sn-scope exact``)."""
+        if not (np.isfinite(float(mean_weight)) and float(mean_weight) > 0.0):
+            raise ValueError(f"the mean weight S must be a positive number, got {mean_weight!r}")
+        if not np.isfinite(float(mean_weighted_residual)):
+            raise ValueError(f"the mean weighted residual N must be finite, got {mean_weighted_residual!r}")
+        self.sn_constants = (float(mean_weight), float(mean_weighted_residual))
+
     def _normalizer(self):
         if self.normalization == "global":
             if self.global_normalizer is None:
                 raise RuntimeError("normalization='global' needs set_global_normalizer() before the first batch")
             return self.global_normalizer
+        if self.normalization == "exact":
+            if self.sn_constants is None:
+                raise RuntimeError("normalization='exact' needs set_sn_constants() before the first batch")
+            return ("exact", *self.sn_constants)
         return None if self.normalization == "none" else "batch"
 
     def _logged_action_prob(self, policy_prob, actions):
@@ -393,7 +425,8 @@ class SNDRPolicyLoss(_BanditPolicyLossBase):
     scaled: per minibatch ('batch', legacy SNDR), by a fixed full-data mean weight refreshed every
     epoch ('global') or not at all ('none', see ``DRPolicyLoss``). Under the log trick the weights,
     and so both normalizers, carry no gradient: none of the three is the gradient of the SNDR ratio
-    (docs/training_losses.md, section 3.4)."""
+    (docs/training_losses.md, section 3.4). 'exact' (direct gradient only) is: its rows carry the
+    ratio's full-data gradient at the epoch's refresh point (``dr_correction``)."""
 
     @property
     def per_example_additive(self) -> bool:

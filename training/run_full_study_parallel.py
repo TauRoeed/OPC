@@ -89,8 +89,11 @@ from training.run_full_study import (
     _no_prop_policy_loss_types,
     _resolve_val_size_configs,
     _run_condition,
+    add_search_space_arguments,
+    search_space_from_args,
 )
 from training.trainer_trials import (
+    resolve_search_space,
     DEFAULT_SELECT_WEIGHTS,
     DEFAULT_QHAT_ACTION_CHUNK,
     DEFAULT_QHAT_USER_CHUNK,
@@ -406,6 +409,7 @@ def _execute_run(config: dict):
         sampler=str(config.get("sampler", "tpe")),
         stage=str(config.get("stage", "development")),
         opc_gradient=str(config.get("opc_gradient", STUDY_OPC_GRADIENT)),
+        search_space=config.get("search_space"),
     )
 
     summary_df = _finalize_summary_df(
@@ -434,6 +438,7 @@ def main():
     )
     parser.add_argument("--datasets", nargs="+", default=list(DEFAULT_DATASETS), help="Default: " + " ".join(DEFAULT_DATASETS) + ".")
     add_world_arguments(parser)
+    add_search_space_arguments(parser)
     parser.add_argument(
         "--logging-uniform-mix",
         type=float,
@@ -561,11 +566,12 @@ def main():
     )
     parser.add_argument(
         "--sn-scope",
-        choices=["batch", "global"],
+        choices=["batch", "global", "exact"],
         default="batch",
-        help="Normalizer of the sndr / kl correction: batch (default, legacy: the minibatch mean weight) or "
+        help="Normalizer of the sndr / kl correction: batch (default, legacy: the minibatch mean weight), "
         "global (the full-data mean weight, computed at the start of every epoch and held fixed; a "
-        "stop-gradient SNDR surrogate, not exact SNDR).",
+        "stop-gradient SNDR surrogate, not exact SNDR), or exact (sndr with --opc-gradient direct only: the "
+        "gradient of the full-data SNDR ratio, its two means refreshed every epoch).",
     )
     parser.add_argument(
         "--sampler",
@@ -806,6 +812,7 @@ def main():
             "sampler": str(args.sampler),
             "stage": str(args.stage),
             "opc_gradient": str(args.opc_gradient),
+            "search_space": search_space_from_args(args),
         }
         run_configs.append(cfg)
 
@@ -888,6 +895,8 @@ def main():
                     "oom_backoff": bool(args.oom_backoff),
                     "num_gpus": num_gpus,
                     "code_commit": code_commit(),
+                    "search_space": {k: (list(v) if v is not None else None)
+                                     for k, v in resolve_search_space(search_space_from_args(args)).items()},
                 },
                 f,
                 indent=2,

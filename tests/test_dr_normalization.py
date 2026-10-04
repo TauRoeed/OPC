@@ -150,7 +150,7 @@ def test_trainer_wiring_and_defaults(monkeypatch, capsys):
 
     import training.trainer_trials as tt
 
-    assert "dr" in tt.VALID_POLICY_LOSSES and tt.SN_SCOPES == ("batch", "global")
+    assert "dr" in tt.VALID_POLICY_LOSSES and tt.SN_SCOPES == ("batch", "global", "exact")
     dr = tt._policy_loss_from_name("dr", train_weights="shrink:100")
     assert isinstance(dr, DRPolicyLoss) and dr.normalization == "none"
     assert tt._policy_loss_from_name("sndr").normalization == "batch"  # the older loss, unchanged

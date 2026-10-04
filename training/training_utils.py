@@ -57,8 +57,10 @@ def train(
     log_gpu=False,
     optimizer=None,
     check_nan: bool = CHECK_POLICY_NAN,
+    weight_decay: float = 0.0,
 ):
-    """Train ``num_epochs`` with one Adam (momentum preserved across epochs)."""
+    """Train ``num_epochs`` with one Adam (momentum preserved across epochs). ``weight_decay`` > 0 uses AdamW
+    instead: decoupled decay of every trained parameter toward 0 (for the policy, toward the logger)."""
     model.to(device).train()
     if hasattr(criterion, "to"):
         criterion = criterion.to(device)
@@ -67,7 +69,10 @@ def train(
         assert next(model.parameters()).is_cuda, "Model is on CPU!"
 
     if optimizer is None:
-        optimizer = optim.Adam(model.parameters(), lr=lr)
+        if float(weight_decay) > 0.0:
+            optimizer = optim.AdamW(model.parameters(), lr=lr, weight_decay=float(weight_decay))
+        else:
+            optimizer = optim.Adam(model.parameters(), lr=lr)
     else:
         _set_optimizer_lr(optimizer, lr)
 
@@ -78,6 +83,8 @@ def train(
             _set_optimizer_lr(optimizer, current_lr)
         if getattr(criterion, "needs_global_normalizer", False):  # SNDR with --sn-scope global
             criterion.set_global_normalizer(full_data_mean_weight(model, train_loader.dataset, criterion, device))
+        if getattr(criterion, "needs_sn_constants", False):  # SNDR with --sn-scope exact
+            criterion.set_sn_constants(*full_data_sn_constants(model, train_loader.dataset, scores_all, criterion, device))
 
         if torch.cuda.is_available():
             torch.cuda.reset_peak_memory_stats()
@@ -128,6 +135,41 @@ def full_data_mean_weight(model, dataset, criterion, device, *, cells: int = 32 
             iw, _ = criterion._prepare_iw(pi_a, pscore)
             total += float(iw.double().sum())
         return total / max(n, 1)
+    finally:
+        model.train(was_training)
+
+
+@torch.no_grad()
+def full_data_sn_constants(model, dataset, scores_all, criterion, device, *, cells: int = 32 * 1024 * 1024):
+    """(S, N) of the exact SNDR objective over all training rows under the model's current policy:
+    S = mean g(w) and N = mean g(w) (r - q_hat(x, a)), with the q_hat the training loss uses
+    (``scores_all``, cross-fitted when it is). ``--sn-scope exact`` refreshes them at the start of every
+    epoch. Rows are read in fixed chunks in row order (the training shuffle is untouched), in eval mode."""
+    was_training = model.training
+    model.eval()
+    try:
+        n = len(dataset)
+        n_actions = int(getattr(model, "actions").numel()) if hasattr(model, "actions") else 1
+        step = max(1, int(cells) // max(1, n_actions))
+        s_sum = n_sum = 0.0
+        for s in range(0, n, step):
+            users = dataset.user_idx[s : s + step].to(device)
+            actions = dataset.action_idx[s : s + step].to(device)
+            pscore = dataset.pscore[s : s + step].to(device)
+            rewards = dataset.rewards[s : s + step].to(device)
+            prob = model(users)
+            if prob.dim() == 3:
+                prob = prob.squeeze(-1)
+            rows = torch.arange(users.shape[0], device=prob.device)
+            iw, _ = criterion._prepare_iw(prob[rows, actions], pscore)
+            q = scores_all[users.long()]
+            if q.dim() == 3:
+                q = q.squeeze(-1)
+            q_a = q[rows.to(q.device), actions.to(q.device)].to(iw.device)
+            iw = iw.double()
+            s_sum += float(iw.sum())
+            n_sum += float((iw * (rewards.double() - q_a.double())).sum())
+        return s_sum / max(n, 1), n_sum / max(n, 1)
     finally:
         model.train(was_training)
 

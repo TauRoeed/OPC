@@ -8,6 +8,7 @@ import pandas as pd
 
 from training.metrics_utils import add_paired_method_pct_columns
 from training.trainer_trials import (
+    DEFAULT_SEARCH_SPACE,
     VALID_OPTUNA_SELECTION,
     VALID_POLICY_LOSSES,
     VALID_REWARD_MODELS,
@@ -22,6 +23,7 @@ from training.trainer_trials import (
     format_runtime_estimate,
     no_propensity_trainer_trial,
     regression_trainer_trial,
+    resolve_search_space,
 )
 
 VALID_STUDY_METHODS = ("opc", "no_propensity")  # the default arms
@@ -230,6 +232,35 @@ def _condition_run_key(dataset_name: str, bias: str, ctr: float, seed: int, worl
     return key
 
 
+def add_search_space_arguments(parser) -> None:
+    """``--lr-range``, ``--epochs-range``, ``--lr-decay-range``, ``--weight-decay-range`` (both runners)."""
+    d = DEFAULT_SEARCH_SPACE
+    g = parser.add_argument_group("policy search space (shared by OPC, no-propensity and DM-only)")
+    g.add_argument("--lr-range", nargs=2, type=float, metavar=("LOW", "HIGH"), default=None,
+                   help=f"Log-uniform learning-rate range (default {d['lr'][0]:g} {d['lr'][1]:g}).")
+    g.add_argument("--epochs-range", nargs=2, type=int, metavar=("LOW", "HIGH"), default=None,
+                   help=f"Epoch range, uniform over the integers (default {d['num_epochs'][0]} {d['num_epochs'][1]}).")
+    g.add_argument("--lr-decay-range", nargs=2, type=float, metavar=("LOW", "HIGH"), default=None,
+                   help=f"Per-epoch learning-rate decay range (default {d['lr_decay'][0]:g} {d['lr_decay'][1]:g}).")
+    g.add_argument("--weight-decay-range", nargs=2, type=float, metavar=("LOW", "HIGH"), default=None,
+                   help="AdamW weight decay toward the logger, log-uniform, drawn per trial from its own seeded "
+                        "stream (needs --sampler random). Default: none (Adam).")
+
+
+def search_space_from_args(args) -> dict | None:
+    """The ranges given on the command line (None when every range is the default)."""
+    space = {}
+    for key, attr in (("lr", "lr_range"), ("num_epochs", "epochs_range"), ("lr_decay", "lr_decay_range"),
+                      ("weight_decay", "weight_decay_range")):
+        value = getattr(args, attr, None)
+        if value is not None:
+            space[key] = tuple(value)
+    if not space:
+        return None
+    resolve_search_space(space)  # validate early
+    return space
+
+
 def build_condition_world(dataset_name: str, emb_dir: Path, bias: str, ctr: float, seed: int, *,
                           world_options: dict | None = None, logging_uniform_mix: float = 0.0):
     """The simulated world of one condition, exactly as ``_run_condition`` builds it (call after
@@ -356,6 +387,7 @@ def _run_condition(
     sampler: str = "tpe",
     stage: str = "development",
     opc_gradient: str = STUDY_OPC_GRADIENT,
+    search_space: dict | None = None,
 ):
     """One condition. ``methods`` may add the opt-in baselines (``BASELINE_METHODS``); their
     summaries and trials come back as a 6th item ``{method: (summary_df, trials_df)}`` when
@@ -387,6 +419,8 @@ def _run_condition(
     if train_mode == "harmonic" and opc_log_trick and "opc" in _normalize_study_methods(methods):
         raise ValueError("harmonic training weights are optimized by their direct gradient (Metelli et al. 2021): "
                          "use opc_gradient='direct' (--opc-gradient direct)")
+    if str(sn_scope) == "exact" and opc_log_trick and "opc" in _normalize_study_methods(methods):
+        raise ValueError("sn_scope='exact' (the SNDR ratio's gradient) needs opc_gradient='direct'")
     reward_data = str(reward_data).lower()
     if reward_data not in REWARD_DATA_MODES:
         raise ValueError(f"reward_data must be one of {REWARD_DATA_MODES}, got {reward_data!r}")
@@ -542,6 +576,7 @@ def _run_condition(
             sn_scope=str(sn_scope),
             sampler=str(sampler),
             seed_label=shared_seed_label,
+            search_space=search_space,
         )
     else:
         try:
@@ -590,6 +625,7 @@ def _run_condition(
             post_temper=bool(post_temper),
             sampler=str(sampler),
             seed_label=shared_seed_label,
+            search_space=search_space,
         )
     else:
         try:
@@ -646,6 +682,7 @@ def _run_condition(
             size_crossfit=size_crossfit,
             sampler=str(sampler),
             seed_label=shared_seed_label if method == "dm" else None,  # the tempered logger searches its own space
+            search_space=search_space,
             **arm,
         )
 
@@ -718,6 +755,7 @@ def _run_condition(
         "paired_arms": shared_seed_label is not None,
         "stage": str(stage),
         "code_commit": code_commit(),
+        "search_space": {k: (list(v) if v is not None else None) for k, v in resolve_search_space(search_space).items()},
         "dr_score_clip_m": parse_weight_spec(select_label)[1] if select_label.startswith("clip") else None,
         "shared_regression_size": int(
             shared_regression_bundle.get("sample_size", reg_size)
@@ -801,6 +839,7 @@ def main():
     )
     parser.add_argument("--datasets", nargs="+", default=list(DEFAULT_DATASETS), help="Default: " + " ".join(DEFAULT_DATASETS) + ".")
     add_world_arguments(parser)
+    add_search_space_arguments(parser)
     parser.add_argument(
         "--logging-uniform-mix",
         type=float,
@@ -984,7 +1023,9 @@ def main():
         help="Normalizer of the sndr / kl correction: batch (default, legacy: the minibatch mean weight, so "
         "the objective depends on the Optuna-searched batch size) or global (the full-data mean weight, "
         "computed at the start of every epoch and held fixed: no gradient through it, stale after the "
-        "epoch's first step; a stop-gradient SNDR surrogate, not exact SNDR, docs/training_losses.md 3.4).",
+        "epoch's first step; a stop-gradient SNDR surrogate, not exact SNDR, docs/training_losses.md 3.4), or exact "
+        "(sndr with --opc-gradient direct only: the gradient of the full-data SNDR ratio, whose two means are "
+        "refreshed at the start of every epoch).",
     )
     parser.add_argument(
         "--sampler",
@@ -1198,6 +1239,7 @@ def main():
                                 sampler=str(args.sampler),
                                 stage=str(args.stage),
                                 opc_gradient=str(args.opc_gradient),
+                                search_space=search_space_from_args(args),
                             )
                         except Exception as e:
                             failures.append({"run_key": run_key, "error": repr(e)})
@@ -1277,6 +1319,8 @@ def main():
                     "sampler": str(args.sampler),
                     "stage": str(args.stage),
                     "code_commit": code_commit(),
+                    "search_space": {k: (list(v) if v is not None else None)
+                                     for k, v in resolve_search_space(search_space_from_args(args)).items()},
                     "opc_gradient": str(args.opc_gradient),
                 },
                 f,
