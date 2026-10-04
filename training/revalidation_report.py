@@ -155,6 +155,55 @@ def fig3_contrasts(table: pd.DataFrame, out: Path, contrast: str = "OPC - DM-onl
     _save(fig, out, name, t)
 
 
+def fig4_weighting(screen: pd.DataFrame, sel_diag: pd.DataFrame, out: Path) -> None:
+    """Fig 4: (a–c) the corrected weighting study: the selected policy's true gain against each family's parameter,
+    one panel per train size, raw weights as a line; (d) the selected OPC policies' raw-weight ESS and (e) share of
+    weights above 10, by arm and train size (corrected Stage 2)."""
+    from training.analyze_revalidation import weight_family
+
+    plt = _plt()
+    fams = {"clip": ("#0072B2", "o", "clip:M (M)"), "shrink": ("#E69F00", "s", "Su shrink:λ (λ)"),
+            "harmonic": ("#009E73", "^", "Metelli harmonic:λ (1/λ)")}
+    fig, axes = plt.subplots(1, 5, figsize=(15, 3.1))
+    sc = screen.copy()
+    fam_param = [weight_family(r) for r in sc["run"]]
+    sc["family"] = [f for f, _ in fam_param]
+    sc["param"] = np.array([p for _, p in fam_param], dtype=float)
+    # one common x-axis: the weight cap (clip M, √λ for shrink's peak position, 1/λ for harmonic's cap)
+    sc["cap"] = np.where(sc["family"] == "shrink", np.sqrt(sc["param"]),
+                         np.where(sc["family"] == "harmonic", 1.0 / sc["param"], sc["param"]))
+    for ax, n in zip(axes[:3], SIZES):
+        g = sc[sc["train_size"] == n]
+        ax.axhline(0, color="#555555", linestyle="--", linewidth=1, label="raw weights (reference)")
+        for fam, (c, mk, lab) in fams.items():
+            f = g[g["family"] == fam].sort_values("cap")
+            ax.errorbar(f["cap"], f["selected_vs_ref"], yerr=[f["selected_vs_ref"] - f["selected_vs_ref_lo"],
+                                                           f["selected_vs_ref_hi"] - f["selected_vs_ref"]],
+                        color=c, marker=mk, markersize=4, linewidth=1.3, capsize=2, elinewidth=0.7, label=lab)
+        ax.set_xscale("log")
+        ax.set_title(f"{n // 1000}k: selected policy vs raw weights")
+        ax.set_xlabel("weight cap (clip M; √λ; 1/λ)")
+    axes[0].set_ylabel("true CTR difference to raw (points;\npaired over conditions)")
+    axes[2].legend(frameon=False, fontsize=7, loc="lower right")
+    d = sel_diag[sel_diag["method"].isin(["opc", "dm"])] if "method" in sel_diag else sel_diag
+    for ax, col, lab in ((axes[3], "ess_raw", "raw-weight ESS of the selected policy"),
+                         (axes[4], "w_share_gt10", "share of weights > 10 (%)")):
+        for m in ("opc", "dm"):
+            g = d[d["method"] == m].groupby("train_size")[col].median()
+            if g.empty:
+                continue
+            ax.plot(np.log10(g.index), g.values * (100 if col == "w_share_gt10" else 1), marker="o",
+                    color=COLORS[m], label=METHOD_NAMES[m])
+        ax.set_xticks(np.log10(SIZES), ["5k", "25k", "100k"])
+        ax.set_title(lab)
+    axes[3].set_yscale("log")
+    axes[3].legend(frameon=False, fontsize=7)
+    fig.suptitle("Corrected weighting study (OPC, tuning seed 201) and weight diagnostics of the corrected Stage 2",
+                 fontsize=9, y=1.03)
+    fig.tight_layout()
+    _save(fig, out, "fig4_weights_ess", sc)
+
+
 def fig_verdicts(findings: pd.DataFrame, out: Path) -> None:
     """Fig 7: every key finding, old vs new effect (points or fraction), coloured by its classification."""
     plt = _plt()

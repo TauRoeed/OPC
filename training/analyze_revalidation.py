@@ -258,6 +258,43 @@ def paired_by_move(a: pd.DataFrame, b: pd.DataFrame, method: str = "opc",
                   gain_a=("gain_a", "mean"), gain_b=("gain_b", "mean")).reset_index())
 
 
+def screen_table(runs: dict[str, pd.DataFrame], reference: str, method: str = "opc") -> pd.DataFrame:
+    """One row per run × train size: the selected trial's true gain (mean and 95% interval over conditions, and per
+    dataset), the per-trial paired difference against ``reference`` and the share of trials where the run is better,
+    and the selected trials' diagnostics (median raw-weight ESS, share of weights > 10 in %, median learned logit
+    scale, DR point-estimate error and true regret)."""
+    ref = runs[reference]
+    ref_sel = selected_rows(ref[ref["method"] == method]).set_index(KEYS)["gain"]
+    rows = []
+    for label, t in runs.items():
+        sel = selected_rows(t[t["method"] == method])
+        pr = paired_runs(ref, t, method) if label != reference else None
+        for n, g in sel.groupby("train_size"):
+            m, lo, hi, k = mean_ci(g["gain"])
+            diff = (g.set_index(KEYS)["gain"] - ref_sel).dropna()  # paired over conditions
+            dm, dlo, dhi, _ = mean_ci(diff)
+            r = dict(run=label, train_size=n, conditions=k, selected=m, selected_lo=lo, selected_hi=hi,
+                     selected_vs_ref=dm, selected_vs_ref_lo=dlo, selected_vs_ref_hi=dhi,
+                     ess_raw=g["ess_raw"].median(), w_gt10_pct=100 * g["w_share_gt10"].mean(),
+                     logit_scale=g["logit_scale"].median(), err_point=g["err_point"].mean(), regret=g["regret"].mean())
+            if pr is not None:
+                d = pr[pr["train_size"] == n]
+                r["trial_vs_ref"] = float(np.average(d["trial_diff"], weights=d["conditions"]))
+                r["trials_better_share"] = float(d["trials_better"].sum() / d["trials"].sum())
+            for ds, gd in g.groupby("dataset"):
+                r[f"selected_{ds}"] = gd["gain"].mean()
+            rows.append(r)
+    return pd.DataFrame(rows)
+
+
+def weight_family(label: str) -> tuple[str, float]:
+    """('clip' | 'shrink' | 'harmonic' | 'none', parameter) from a run label such as clip10, shrink100, harm0.1."""
+    for prefix, fam in (("clip", "clip"), ("shrink", "shrink"), ("harm", "harmonic")):
+        if label.startswith(prefix):
+            return fam, float(label[len(prefix):])
+    return "none", np.nan
+
+
 def main(argv=None) -> None:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
