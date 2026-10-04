@@ -397,6 +397,70 @@ The shared setting favours OPC most. DM-only would prefer the fixed scale on kua
 - **Preliminary decision:** keep clip:10 with the 95% lower bound. Re-checked on the 2C runs (other training
   weights).
 
+### 2.7 2C: training weights (`run_reval_w_*_s201`; table `tuning/weights_screen_s201.csv`)
+
+**Setup.** OPC with dr and the direct gradient, in the chosen space, with the learnable scale and clip:10 selection.
+Tuning seed 201; ml and kuairand × warp / vector / combined high × 5k / 25k / 100k. 16 weightings, all paired trial
+by trial.
+
+**Selected policy minus raw DR** (paired over the 6 conditions, true CTR points):
+
+| weights | 5k | 25k | 100k | mean | per trial, mean over sizes |
+|---|---|---|---|---|---|
+| clip:3 | +0.40 | +0.46 | +0.17 | +0.34 | +0.25 |
+| clip:10 | +0.16 | +0.35 | +0.26 | +0.26 | +0.15 |
+| clip:30 | +0.04 | +0.06 | +0.20 | +0.10 | +0.08 |
+| clip:100 | −0.05 | +0.01 | +0.09 | +0.02 | +0.04 |
+| shrink:10 | +0.62 | +0.29 | −0.06 | +0.28 | +0.37 |
+| shrink:100 | +0.30 | +0.36 | +0.24 | +0.30 | +0.26 |
+| shrink:1000 | +0.17 | +0.18 | +0.21 | +0.18 | +0.16 |
+| shrink:10⁴ | +0.02 | +0.14 | +0.27 | +0.14 | +0.09 |
+| harmonic:0.003 | +0.03 | +0.08 | +0.12 | +0.08 | +0.06 |
+| harmonic:0.01 | +0.05 | +0.16 | +0.25 | +0.15 | +0.14 |
+| harmonic:0.03 | +0.20 | +0.43 | +0.30 | +0.31 | +0.23 |
+| **harmonic:0.1** | **+0.31** | **+0.46** | **+0.31** | **+0.36** | **+0.34** |
+| harmonic:0.2 | +0.50 | +0.50 | +0.18 | +0.40 | +0.42 |
+| harmonic:0.3 | +0.52 | +0.50 | +0.24 | +0.42 | +0.46 |
+| harmonic:0.5 | +0.49 | +0.35 | +0.02 | +0.29 | +0.48 |
+
+**Findings.**
+- **Every regularized weighting beats raw DR, and the gap is wider than on the buggy logs.** The best are about +0.3
+  to +0.5 points per cell. In the old study, harmonic:0.1 was +0.07 to +0.74 above raw, and only from 25k up.
+- **The best amount of regularization falls with n**, as theory predicts (λ* ∝ 1/√n), in every family:
+  - at 5k, the tightest transforms win (shrink:10 +0.62, harmonic 0.2–0.3 about +0.5);
+  - at 100k, moderate caps win (clip:10, shrink:100–10⁴, harmonic 0.03–0.1: +0.24 to +0.31), and the tightest lose
+    (shrink:10 −0.06, harmonic:0.5 +0.02).
+- **Metelli's rate-optimal λ is far too small for learning.** It is λ*₂ ≈ 0.001–0.003 here (the 2-Rényi divergence
+  from the selected policies' ESS), and harmonic:0.003 is barely better than raw (+0.08).
+- **The harmonic optimum is interior:** the mean peaks at λ = 0.2–0.3, and λ = 0.5 falls back.
+- **Diagnostics.** The selected policies keep 1.7–2.1% of weights above 10 under every weighting. Regularized
+  weights hold the learned logit scale down: about 4–19, against 20–35 for raw and the loose transforms. The median
+  raw-weight ESS is 290–1,390 of 20,000, and the regret stays at 0.0–0.3 points.
+- **By dataset:** the same ordering holds on ml and kuairand. On ml at 100k, harmonic:0.1 is the best of all
+  (7.35 vs 6.87 raw).
+
+**Pairwise checks** (selected, 5k / 25k / 100k):
+- harmonic:0.3 − harmonic:0.1: +0.22 [−0.12, +0.55] / +0.04 [−0.19, +0.27] / −0.07 [−0.22, +0.08];
+- harmonic:0.2 − harmonic:0.1: +0.19 [−0.08, +0.47] / +0.05 [−0.01, +0.10] / −0.12 [−0.19, −0.05];
+- harmonic:0.1 − shrink:100: +0.00 / +0.10 / +0.07 (every interval includes 0).
+
+**Decision (the pre-registered rule).**
+- harmonic 0.1, 0.2 and 0.3 have the highest means (+0.36 to +0.42), within each other's intervals.
+- Among them, harmonic:0.1 is the most robust across sizes: its worst size is +0.31, against +0.18 and +0.24, and it
+  is significantly ahead of 0.2 at 100k.
+- **The default stays dr, direct gradient, harmonic:0.1**, now with the corrected search space and the learnable
+  scale.
+- **Robustness alternative:** Su shrink:100, a different family within noise of the default, run on the whole
+  Stage 2 grid.
+- λ-sensitivity is reported from this screen. A size-dependent λ ∝ 1/√n would gain about +0.08 here; it is not
+  adopted (it would be fit on this screen).
+
+**Selection rule** (post hoc on the harmonic:0.1, harmonic:0.3 and shrink:100 runs):
+- clip:10 with the 95% lower bound picks within 0.03–0.11 points of the best trial at every size. No other tight
+  transform or z improves on it by more than 0.04.
+- Raw-weight selection loses up to 0.8 points with the bound.
+- **Kept: clip:10, 95% lower bound.**
+
 ### 2.2 Phase 3 plan (fixed before the reruns)
 
 All reruns use the worlds and seeds of the old runs (100/101), so every result pairs with its old value world by
