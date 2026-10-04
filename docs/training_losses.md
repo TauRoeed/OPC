@@ -102,14 +102,27 @@ OPC uses logged propensities (`propensity_mode="logged"`) and IW / DR-style
 losses: the reward model's value of the policy plus the weighted correction w·(r − q̂), no KL and no
 CRM.
 
-**Working development default (since f5cade9 (2026-09-27)).** OPC trains `dr` with the direct gradient
-(`--opc-gradient direct`), so the named estimate is the objective being optimized. Its weights are
-`harmonic:0.1` (Metelli et al. 2021), and selection keeps `clip:10`. This is the working method for
-development runs, not the final paper choice. It was chosen as an established smooth, monotone and
-differentiable OPL correction; `harmonic:0.2` was not chosen merely because the best development
-result sat at the edge of the small λ set. The prespecified standard smooth-weight comparison is
-`shrink:100` (Su et al. 2020), and raw DR (`none`) is the unregularized reference. The evidence is in
-section 9 and in `docs/decision_record_opc_objective_weighting.md`.
+**Working development default (since f5cade9 (2026-09-27); revalidated on corrected logs 2026-10-04).** OPC
+trains `dr` with the direct gradient (`--opc-gradient direct`), so the named estimate is the objective being
+optimized. Its weights are `harmonic:0.1` (Metelli et al. 2021), and selection keeps `clip:10` with the 95% lower
+bound. This is the working method for development runs, not the final paper choice.
+
+The original choice (section 9, the decision record) rested on runs with the buggy logging simulator
+(69fffab..c11b2b3). The revalidation on the fixed simulator
+([simulator_fix_opc_revalidation_20261004.md](simulator_fix_opc_revalidation_20261004.md), Phase 2) re-tuned it:
+- **weights:** a screen of raw, clip M ∈ {3, 10, 30, 100}, Su shrink λ ∈ {10, …, 10⁴} and harmonic λ ∈ {0.003, …,
+  0.5}. Every regularized weighting beats raw DR, and harmonic 0.1–0.3 lead; `harmonic:0.1` is the most robust
+  across sizes. `shrink:100` (Su et al. 2020) is within noise of it and is a robustness alternative; raw DR
+  (`none`) stays the unregularized reference;
+- **regime dependence:** the cap of 10 shared by harmonic:0.1 and shrink:100 makes OPC fragile to a misspecified
+  reward model at large n: with concat features they lose about 4.5 points at 100k, raw DR nothing. Raw DR costs
+  0.77 points with a well-specified q̂ (revalidation §3C). It is the robustness alternative wherever q̂ may be
+  misspecified;
+- **objective:** exact SNDR (`--sn-scope exact`) adds nothing over DR with harmonic weights;
+- **gradient:** the log trick is never better than the direct gradient;
+- **search space:** the study now searches lr 1e-4–2e-3 and 5–30 epochs (`--lr-range 1e-4 2e-3 --epochs-range 5
+  30`; the search-space paragraph of section 4); the older range's optimum sat at its edge;
+- **sharpness and regularization:** the learnable logit scale stays on; weight decay and post-hoc tempering stay off.
 
 The objective variants remain available for reproducibility and diagnostics:
 - **Legacy SNDR** (`sndr --sn-scope batch`) divides the correction by the minibatch mean weight, so
@@ -522,6 +535,10 @@ No-propensity Optuna parameters:
   - `batch_size` from `batch_schedule` by train size (512 / 1024 / 2048 up to 25k rows, 2048 / 4096 / 8192 up to
     100k).
 - **Overrides** (both runners): `--lr-range`, `--epochs-range` and `--lr-decay-range` replace a range.
+- **Revalidated study configuration (2026-10-04, corrected simulator):** `--lr-range 1e-4 2e-3 --epochs-range 5 30`,
+  the lr decay and batch schedule unchanged, no weight decay. Chosen to minimize the largest loss of any trained arm
+  against its own best candidate range (revalidation §2.3). The code defaults above are kept so that older commands
+  reproduce.
 - **Weight decay.** `--weight-decay-range LOW HIGH` adds AdamW weight decay, log-uniform. Every trained parameter
   starts at 0, so the decay pulls toward the logger. It needs `--sampler random`, and each trial draws its decay from
   its own seeded stream. The other parameters, and the pairing of trials across runs and arms, are therefore

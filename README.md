@@ -5,11 +5,12 @@ Offline policy comparison experiments with matrix-factorization embeddings.
 **Loss / Optuna details:** [`docs/training_losses.md`](docs/training_losses.md)  
 **Research notes:** [`docs/research_workplan.md`](docs/research_workplan.md)  
 **Simulator:** [`docs/representation_bias.md`](docs/representation_bias.md)  
-**Experimental report (all representation-repair results, figures):** [`docs/representation_repair_experimental_report_20260928.md`](docs/representation_repair_experimental_report_20260928.md) (figures and tables: `artifacts/full_study/report_20260928/`)  
+**Simulator fix and OPC revalidation (current results; old vs corrected, 2026-10-04):** [`docs/simulator_fix_opc_revalidation_20261004.md`](docs/simulator_fix_opc_revalidation_20261004.md) (summaries, figures and tables: `artifacts/full_study/opc_revalidation_20261004/`)  
+**Experimental report, historical (generated on the buggy simulator, 69fffab..c11b2b3; superseded by the revalidation):** [`docs/representation_repair_experimental_report_20260928.md`](docs/representation_repair_experimental_report_20260928.md) (figures and tables: `artifacts/full_study/report_20260928/`)  
 **Code handoff since c072f9b (for Roee):** [`docs/roee_handoff_20260928.md`](docs/roee_handoff_20260928.md)  
 **Representation repair, stage write-ups:** [`docs/representation_repair_dev_20260927.md`](docs/representation_repair_dev_20260927.md) · follow-up: [`docs/representation_repair_followup_20260927.md`](docs/representation_repair_followup_20260927.md)  
 **Objective and weighting decision record:** [`docs/decision_record_opc_objective_weighting.md`](docs/decision_record_opc_objective_weighting.md)  
-**Code Atlas (PDF snapshot of the published page, code at 603cc2c):** [`docs/opc_code_atlas.pdf`](docs/opc_code_atlas.pdf)  
+**Code Atlas (PDF snapshot of the published page, version 9, code at 34a37cb):** [`docs/opc_code_atlas.pdf`](docs/opc_code_atlas.pdf)  
 **CausE baseline (specification, OPC mapping, budget protocol):** [`docs/cause_baseline.md`](docs/cause_baseline.md)  
 **CausE vs OPC, bounded development comparison (report before scaling):** [`docs/cause_dev_report_20261004.md`](docs/cause_dev_report_20261004.md)
 
@@ -22,14 +23,15 @@ Main flow:
 
 | Knob | Default |
 |------|---------|
-| OPC train loss (`--policy-losses`) | `dr` (DM + weighted correction, no self-normalization): the working development default since f5cade9 (2026-09-27), not the final paper choice. Legacy `sndr --sn-scope batch` (the default before) and `--sn-scope global` stay for reproducibility and diagnostics; the evidence is in `docs/training_losses.md` §9 and `docs/decision_record_opc_objective_weighting.md` |
+| OPC train loss (`--policy-losses`) | `dr` (DM + weighted correction, no self-normalization): the working development default since f5cade9 (2026-09-27), revalidated on corrected logs (2026-10-04: exact SNDR, `--sn-scope exact`, adds nothing over DR with harmonic weights; `docs/simulator_fix_opc_revalidation_20261004.md` §2.8). Not the final paper choice. Legacy `sndr --sn-scope batch` (the default before f5cade9) and `--sn-scope global` stay for reproducibility and diagnostics |
 | OPC gradient (`--opc-gradient`) | `direct`: the named estimate is the objective optimized; `log-trick` (the default before f5cade9) reproduces older runs |
 | Policy transform (`--policy-transform`) | `linear`: (I + D) x + b per side, starting exactly at the logger |
 | No-propensity train | always `naive` (no IW, no DM/DR, no clip) |
 | Optuna objective | `ci_low` = DR/naive mean − t·SE |
-| Importance weights | `--train-weights` default `harmonic:0.1` (Metelli et al. 2021): the working development default, not the final paper choice. `shrink:100` (Su et al. 2020) is the prespecified standard smooth-weight comparison, and `none` (raw DR) the unregularized reference; `clip:M` and `shrink:10000` stay for reproducibility. `--select-weights` (selection + post-hoc) keeps `clip:10`. Neither is Optuna-searched. `--policy-losses sndr --sn-scope batch --opc-gradient log-trick --train-weights shrink:100` reproduces the defaults before f5cade9; the H1 runner keeps those settings |
+| Importance weights | `--train-weights` default `harmonic:0.1` (Metelli et al. 2021), re-tuned on corrected logs against raw, clip, Su shrinkage and harmonic grids (2026-10-04, revalidation §2.7): the working development default, not the final paper choice. `shrink:100` (Su et al. 2020) is a robustness alternative (within noise of the default on the whole Stage 2 grid), and `none` (raw DR) the unregularized reference. **Regime dependence:** with a misspecified reward model (`--reward-features concat`) harmonic:0.1 and shrink:100 lose about 4.5 points at 100k while raw DR loses nothing; raw DR costs 0.77 points with a well-specified q̂ (revalidation §3C). Use `--train-weights none` as well wherever q̂ may be misspecified. `--select-weights` (selection + post-hoc) keeps `clip:10` with the 95% lower bound (revalidated post hoc). Neither is Optuna-searched. `--policy-losses sndr --sn-scope batch --opc-gradient log-trick --train-weights shrink:100` reproduces the defaults before f5cade9; the H1 runner keeps those settings |
 | Study arms (`--methods`) | `opc no_propensity`; opt-in baselines `dm` (policy trained and selected on `q̂` alone) and `tempered_logger` (the logger's logits × s, s chosen by the DR score) |
-| Logit scale (`--learn-logit-scale`) | off; on, every trained policy also learns s in softmax(s·u·a/T), starting at 1 |
+| Logit scale (`--learn-logit-scale`) | off; on, every trained policy also learns s in softmax(s·u·a/T), starting at 1. The study configuration turns it on (revalidated: a fixed scale loses 0.2–1.3 points; post-hoc tempering on top adds nothing to the selected policy) |
+| Policy search space (`--lr-range`, `--epochs-range`, `--lr-decay-range`, `--weight-decay-range`) | the code default keeps the older range, lr 1e-4–1e-3 (log-uniform), epochs 5–25, lr decay 0.8–1, no weight decay, so that older commands reproduce. The revalidated study configuration widens it to **lr 1e-4–2e-3, epochs 5–30** (revalidation §2.3; the old optimum sat at the range's edge); AdamW decay is available but off (§2.4). Every run records its space in `run_meta.json` (`search_space`) |
 | Reward model `q̂` | `regression` on interaction features `[x, a, x⊙a]` (`--reward-features`; bias script often uses `logging_score`) |
 | Reward-model data (`--reward-data`, `--crossfit-folds`) | `train`: fit on each train size's own training rows (the same budget as the policy), cross-fitted by user in 5 folds; `external` = a separate 50k-row slice (runs before 2026-09-26) |
 | Validation (`--val-size`) | 20,000 logged rows at every train size; `0` = the older rule `clamp(0.15·n, 5000, –)` |
@@ -41,6 +43,20 @@ Main flow:
 | Optuna sampler (`--sampler`) | `tpe`; `random` = seeded random search without warm starts: the same trial configurations and seeds in every run of the grid, so runs that differ only in the objective are a paired (replayed) comparison |
 | Run stage (`--stage`) | `development`, recorded in `run_meta.json`, the summaries and the manifest; `confirmatory` for the frozen method on fresh seeds and conditions |
 | Skip finished cells | `--skip-completed` on (checks `summary_metrics.csv` only) |
+
+**Revalidated study configuration (2026-10-04, corrected simulator).** The Stage 2 / Stage 3 reruns used, on top of the
+defaults above (and `--stage development`, `--n-trials 20`, `--slim`):
+
+```text
+--policy-losses dr --opc-gradient direct --train-weights harmonic:0.1 --select-weights clip:10
+--learn-logit-scale --sampler random --lr-range 1e-4 2e-3 --epochs-range 5 30
+--methods opc dm no_propensity tempered_logger
+(robustness alternatives: --train-weights shrink:100; --train-weights none where q̂ may be misspecified)
+```
+
+with the budget-fair reward model (`--reward-data train`, 5-fold cross-fitting, interaction features), 20,000
+validation rows and logger share 0.8 (all defaults). Each run's exact flags, code commit and search space are in its
+`run_meta.json` and in `artifacts/full_study/run_registry.csv`.
 
 Offline clip pick: `scripts/sim_dr_score_clip_logging_score.py` → `artifacts/oom_smoke/dr_score_clip_logging_score`.
 
@@ -146,7 +162,8 @@ For each dataset `<name>`:
 - Single process: `training/run_full_study.py`
 - Parallel: `training/run_full_study_parallel.py`
 
-OPC trains with `sndr` by default. Trial selection uses DR with IW clipped at `M=1`. No-propensity stays pure naive.
+OPC trains with `dr` (direct gradient, `harmonic:0.1` training weights) by default. Trial selection uses the DR 95%
+lower bound with weights clipped at 10 (`--select-weights clip:10`). No-propensity stays pure naive.
 
 ### Simulated world
 
@@ -260,7 +277,12 @@ runs ~5× slower per epoch than 4096.
 
 ### Useful Flags
 
-- `--policy-losses dr` (default) — OPC train loss; `sndr` (with `--sn-scope batch` or `global`) for the legacy objectives.
+- `--policy-losses dr` (default) — OPC train loss; `sndr` (with `--sn-scope batch` or `global`) for the legacy objectives;
+  `sndr --sn-scope exact` is the gradient of the full-data SNDR ratio (its normalizers refreshed each epoch; needs
+  `--opc-gradient direct`).
+- `--lr-range LOW HIGH`, `--epochs-range LOW HIGH`, `--lr-decay-range LOW HIGH` — the policy search space shared by
+  every trained arm (defaults 1e-4 1e-3, 5 25, 0.8 1; the revalidated study configuration uses `--lr-range 1e-4 2e-3
+  --epochs-range 5 30`). `--weight-decay-range LOW HIGH` adds AdamW decay drawn per trial (needs `--sampler random`).
 - `--policy-transform {linear,linear+mlp,mlp}` — how the learned policy corrects the biased vectors: `linear`
   (default) = (I + D) x + b per side, starting exactly at the logger; `mlp` = x + MLP(LayerNorm(x)) (older);
   `linear+mlp` = (I + D) x + b + MLP(x), no LayerNorm or dropout.

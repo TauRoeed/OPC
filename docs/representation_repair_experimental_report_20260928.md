@@ -6,6 +6,12 @@
 >   therefore received a nearly fixed action, while the stored propensity was the logger's softmax probability.
 > - **Scope.** Section C (Stage 1 and its validation) and the structural gap use no logs and are unaffected; every learned result (sections D–J) is affected.
 > - **Superseded by** [the revalidation on the fixed simulator](simulator_fix_opc_revalidation_20261004.md).
+>   Corrected counterparts of this report's tables (in `artifacts/full_study/opc_revalidation_20261004/report/tables.md`):
+>   - Table 2 → R1; Table 3 → R2, and old vs corrected in R4a–c;
+>   - Table 4 → R7; Table 5 → R6; Table 6 → R9;
+>   - Table 7 → the revalidation's §2.7–2.8; Table 8 → R11; Table 9 → R10.
+>
+>   Every finding of sections D–J is classified old vs corrected in R13.
 > - **This document** is kept unchanged as the record of what was run and concluded at the time.
 
 This is one report of every representation-repair experiment run so far. Everything is **development** evidence
