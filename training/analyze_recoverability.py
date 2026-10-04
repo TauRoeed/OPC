@@ -222,8 +222,9 @@ def stage2_tables(m: pd.DataFrame) -> dict[str, pd.DataFrame]:
     rows = []
     for measure, col in (("stochastic", "V_method"), ("greedy", "V_method_greedy")):
         wide = m.pivot_table(index=_KEYS, columns="method", values=col)
+        others = list(ARMS[1:]) + sorted(c for c in wide.columns if c not in ARMS)  # robustness arms last
         for (bias, size), cell in wide.groupby(level=["bias", "train_size"]):
-            for other in ARMS[1:]:
+            for other in others:
                 if "opc" not in cell or other not in cell:
                     continue
                 mean, lo, hi, n = mean_ci(100 * (cell["opc"] - cell[other]))
@@ -444,6 +445,9 @@ def main(argv=None) -> None:
     ap.add_argument("oracle_root")
     ap.add_argument("--runs", nargs="*", default=[], help="stage2: study run folders (the four arms)")
     ap.add_argument("--su", default=None, help="stage2: the shrink:100 robustness run (OPC only), paired with --runs")
+    ap.add_argument("--robust", action="append", default=[], metavar="LABEL=DIR",
+                    help="stage2: an OPC-only robustness run paired with --runs (repeatable): reported as the arm "
+                         "opc_LABEL next to the others, and as LABEL minus the default OPC per bias x train size")
     ap.add_argument("--candidates", default=None, help="followup: the oracle validation folder (oracle_candidates.csv)")
     ap.add_argument("--use-validated", action="store_true",
                     help="followup: build the per-dataset and gap tables on the validated bounds (default: Stage 1's)")
@@ -486,8 +490,16 @@ def main(argv=None) -> None:
             print(summary(derive(oracle), cls).round(3).to_string())
     else:
         m = learned_recovery(load_learned(*a.runs), oracle)
-        tables = {f"stage2_{k}": v for k, v in stage2_tables(m).items()}
-        tables["stage2_learned_rows"] = m
+        robust = {}
+        for spec in a.robust:
+            label, path = spec.split("=", 1)
+            robust[label] = learned_recovery(load_learned(path), oracle)
+        m_all = pd.concat([m] + [r[r["method"] == "opc"].assign(method=f"opc_{label}") for label, r in robust.items()],
+                          ignore_index=True)
+        tables = {f"stage2_{k}": v for k, v in stage2_tables(m_all).items()}
+        tables["stage2_learned_rows"] = m_all
+        for label, r in robust.items():
+            tables[f"stage2_robust_{label}_minus_default"] = paired_runs(r, m)
         if a.su:
             su = learned_recovery(load_learned(a.su), oracle)
             tables["stage2_su_harmonic_minus_shrink100"] = paired_runs(m, su)

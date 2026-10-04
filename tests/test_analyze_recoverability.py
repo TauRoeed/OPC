@@ -259,3 +259,40 @@ def test_followup_cli_writes_the_tables(tmp_path):
     assert (tmp_path / "out2" / "gap_decomposition_validated_bound.csv").exists()
     pd.testing.assert_frame_equal(pd.read_csv(tmp_path / "out2" / "gap_decomposition.csv"),
                                   pd.read_csv(tmp_path / "out" / "gap_decomposition.csv"))  # nothing to lift here
+
+
+def test_stage2_cli_reports_a_robustness_arm(tmp_path):
+    """--robust LABEL=DIR: an OPC-only run on the same worlds appears as the arm opc_LABEL (fractions, diagnostics,
+    OPC minus it in the paired table) and as LABEL minus the default OPC per bias x train size."""
+    from test_reproducibility import _toy_embeddings
+
+    from training.analyze_recoverability import main
+    from training.oracle_repair import main as oracle_main
+    from training.run_full_study import _condition_run_key, _finalize_summary_df, _run_condition
+    from utils.representation_bias import resolve_bias_configs
+
+    _toy_embeddings(tmp_path)
+    oracle_main(["--datasets", "toy", "--seeds", "0", "--steps", "40", "--fit-users", "400", "--batch-users", "128",
+                 "--emb-dir", str(tmp_path), "--bias-configs", "high/none/none", "--classes", "linear", "linear+scale",
+                 "--lrs", "0.01", "--out", str(tmp_path / "oracle")])
+    (bias,) = resolve_bias_configs(["high/none/none"])
+    for name, methods, weights in (("run_main", ("opc", "no_propensity", "dm", "tempered_logger"), None),
+                                   ("run_raw", ("opc",), "none")):
+        cond = tmp_path / name / _condition_run_key("toy", bias, 0.05, 0, {}, "1000")
+        cond.mkdir(parents=True)
+        opc, nop, _, _, meta, extra = _run_condition(
+            dataset_name="toy", emb_dir=tmp_path, bias=bias, ctr=0.05, seed=0, train_sizes=[1000], n_trials=2,
+            batch_size=None, val_size=1000, val_frac=0.15, val_min=1000, val_max=None, policy_reward_mode="exact",
+            policy_reward_mc_sim=8, slim=True, shared_regression_size=2000, run_dir=cond, return_extra=True,
+            methods=methods, sampler="random", train_weights=weights)
+        _finalize_summary_df(opc, nop, meta, extra=extra).to_csv(cond / "summary_metrics.csv", index=False)
+    main(["stage2", str(tmp_path / "oracle"), "--runs", str(tmp_path / "run_main"),
+          "--robust", f"raw={tmp_path / 'run_raw'}", "--out", str(tmp_path / "out")])
+    rows = pd.read_csv(tmp_path / "out" / "stage2_learned_rows.csv")
+    assert set(rows["method"]) == {"opc", "no_propensity", "dm", "tempered_logger", "opc_raw"}
+    paired = pd.read_csv(tmp_path / "out" / "stage2_paired.csv")
+    assert "opc - opc_raw" in set(paired["contrast"])
+    rob = pd.read_csv(tmp_path / "out" / "stage2_robust_raw_minus_default.csv")
+    v = rob[rob["measure"] == "V %"].iloc[0]
+    o, r = (rows[rows["method"] == m]["V_method"].iloc[0] for m in ("opc", "opc_raw"))
+    assert v["diff"] == pytest.approx(100 * (r - o), abs=1e-9)
