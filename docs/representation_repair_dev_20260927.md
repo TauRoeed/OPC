@@ -1,5 +1,13 @@
 # Representation repair: development results (2026-09-27)
 
+> **Historical: buggy logging simulator.**
+> - **The bug.** The learned results here were produced by the logging simulator of commits 69fffab..c11b2b3
+>   (2026-09-24 to 2026-10-04). In it, each logged action reused the random draw that picked its user. A user
+>   therefore received a nearly fixed action, while the stored propensity was the logger's softmax probability.
+> - **Scope.** Stage 1 (the oracle repair bound) uses no logs and is unaffected; Stages 2 and 3 are affected.
+> - **Superseded by** [the revalidation on the fixed simulator](simulator_fix_opc_revalidation_20261004.md).
+> - **This document** is kept unchanged as the record of what was run and concluded at the time.
+
 Status: these are development runs only, on seeds 100/101 with the paired random sampler (no TPE warm
 start). They are not the confirmatory protocol. The method is the working development default since
 f5cade9: OPC = DR, differentiated directly, harmonic:0.1 training weights, clip:10 selection weights.

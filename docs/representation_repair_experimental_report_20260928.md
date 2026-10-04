@@ -1,5 +1,13 @@
 # Correcting a source representation from logged feedback: experimental report (development, 2026-09-28)
 
+> **Historical: buggy logging simulator.**
+> - **The bug.** The learned results here were produced by the logging simulator of commits 69fffab..c11b2b3
+>   (2026-09-24 to 2026-10-04). In it, each logged action reused the random draw that picked its user. A user
+>   therefore received a nearly fixed action, while the stored propensity was the logger's softmax probability.
+> - **Scope.** Section C (Stage 1 and its validation) and the structural gap use no logs and are unaffected; every learned result (sections D–J) is affected.
+> - **Superseded by** [the revalidation on the fixed simulator](simulator_fix_opc_revalidation_20261004.md).
+> - **This document** is kept unchanged as the record of what was run and concluded at the time.
+
 This is one report of every representation-repair experiment run so far. Everything is **development** evidence
 (seeds 100/101), used to design and understand the method; confirmatory runs on fresh seeds are still to come.
 

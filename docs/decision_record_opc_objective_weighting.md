@@ -1,5 +1,13 @@
 # Decision record: OPC training objective and importance weighting (2026-09-27)
 
+> **Historical: buggy logging simulator.**
+> - **The bug.** The learned results here were produced by the logging simulator of commits 69fffab..c11b2b3
+>   (2026-09-24 to 2026-10-04). In it, each logged action reused the random draw that picked its user. A user
+>   therefore received a nearly fixed action, while the stored propensity was the logger's softmax probability.
+> - **Scope.** Every empirical comparison here is affected; the analytic statements (what each objective and gradient optimizes) are not.
+> - **Superseded by** [the revalidation on the fixed simulator](simulator_fix_opc_revalidation_20261004.md).
+> - **This document** is kept unchanged as the record of what was run and concluded at the time.
+
 Status: the development work on this component is closed. Working development defaults were set on
 2026-09-27 (f5cade9; see the update below). The final paper choice is left to the scientific reassessment.
 All evidence comes from development runs; the frozen protocol will be evaluated on fresh confirmatory

@@ -67,7 +67,10 @@ The world has two copies of every user and item vector:
    (the logger before 2026-09-26, which spreads over half the catalog and earns only about 25–35%
    of its own greedy CTR). The click model does not change.
 
-   Why 0.8 by default (2026-09-26; ml / kuairand / anime): at 0.8 the logger's temperature drops
+   Why 0.8 by default (2026-09-26; ml / kuairand / anime; the learning comparisons below ran on the buggy
+   logging simulator of 69fffab..c11b2b3, see
+   [simulator_fix_opc_revalidation_20261004.md](simulator_fix_opc_revalidation_20261004.md); the evaluable-room
+   measure is exact and unaffected): at 0.8 the logger's temperature drops
    about 4.2 times and it spreads over 110–260 items (0.9: 30–65, 0.95: 11–21). How much room the
    logs can still evaluate, measured as the best value a linear policy reaches when trained on the
    truth while keeping its ESS under the logger near 10%, is about +5 to +7.6 points over the

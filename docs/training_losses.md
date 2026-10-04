@@ -710,6 +710,12 @@ does not change the study's training (before `--opc-gradient`, passing it left O
 
 ## 9. Development evidence: objective, gradient form and importance weights (2026-09-27)
 
+> **Historical: buggy logging simulator.** Every run in this section used the logging simulator of 69fffab..c11b2b3,
+> in which each logged action reused its user's random draw (users received nearly fixed actions; the stored
+> propensities were the logger's softmax probabilities). The empirical comparisons are superseded by the re-tuning
+> on the fixed simulator ([simulator_fix_opc_revalidation_20261004.md](simulator_fix_opc_revalidation_20261004.md),
+> Phase 2). The analytic statements of section 3.4 are unaffected. The section is kept as the record.
+
 All runs below are **development runs**, used to design the method. They are not confirmatory: once
 the objective and weighting are frozen, the paper protocol is evaluated on fresh seeds and conditions.
 Runs are listed in `artifacts/full_study/run_registry.csv`, and the decision record is

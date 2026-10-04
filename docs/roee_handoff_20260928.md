@@ -1,5 +1,13 @@
 # Code handoff for Roee: CRM from c072f9b to now (2026-09-23 → 2026-09-28)
 
+> **Historical: buggy logging simulator.**
+> - **The bug.** The learned results here were produced by the logging simulator of commits 69fffab..c11b2b3
+>   (2026-09-24 to 2026-10-04). In it, each logged action reused the random draw that picked its user. A user
+>   therefore received a nearly fixed action, while the stored propensity was the logger's softmax probability.
+> - **Scope.** The code descriptions stand; the results it cites are affected.
+> - **Superseded by** [the revalidation on the fixed simulator](simulator_fix_opc_revalidation_20261004.md).
+> - **This document** is kept unchanged as the record of what was run and concluded at the time.
+
 ## Baseline
 
 - **Baseline: `c072f9b`** (2026-09-23 12:55, TauRoeed): "Document sndr default, fixed DR score clip, and batch schedule".
