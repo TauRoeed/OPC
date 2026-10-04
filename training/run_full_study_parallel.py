@@ -92,6 +92,7 @@ from training.run_full_study import (
     add_search_space_arguments,
     search_space_from_args,
 )
+from training.cause_trials import add_cause_arguments, cause_options_from_args
 from training.trainer_trials import (
     resolve_search_space,
     DEFAULT_SELECT_WEIGHTS,
@@ -410,6 +411,7 @@ def _execute_run(config: dict):
         stage=str(config.get("stage", "development")),
         opc_gradient=str(config.get("opc_gradient", STUDY_OPC_GRADIENT)),
         search_space=config.get("search_space"),
+        cause_options=config.get("cause_options"),
     )
 
     summary_df = _finalize_summary_df(
@@ -439,6 +441,7 @@ def main():
     parser.add_argument("--datasets", nargs="+", default=list(DEFAULT_DATASETS), help="Default: " + " ".join(DEFAULT_DATASETS) + ".")
     add_world_arguments(parser)
     add_search_space_arguments(parser)
+    add_cause_arguments(parser)
     parser.add_argument(
         "--logging-uniform-mix",
         type=float,
@@ -813,6 +816,7 @@ def main():
             "stage": str(args.stage),
             "opc_gradient": str(args.opc_gradient),
             "search_space": search_space_from_args(args),
+            "cause_options": cause_options_from_args(args),
         }
         run_configs.append(cfg)
 
@@ -885,6 +889,7 @@ def main():
                     "sampler": str(args.sampler),
                     "stage": str(args.stage),
                     "opc_gradient": str(args.opc_gradient),
+                    "cause_options": cause_options_from_args(args),
                     "val_min": args.val_min,
                     "val_max": args.val_max,
                     "policy_reward_mode": args.policy_reward_mode,

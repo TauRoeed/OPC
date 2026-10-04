@@ -4,6 +4,7 @@ from datetime import datetime
 from pathlib import Path
 
 import numpy as np
+import torch
 import pandas as pd
 
 from training.metrics_utils import add_paired_method_pct_columns
@@ -24,13 +25,21 @@ from training.trainer_trials import (
     no_propensity_trainer_trial,
     regression_trainer_trial,
     resolve_search_space,
+    _dataset_log_constants,
+    _policy_greedy_reward_from_embeddings,
+    _training_device,
 )
+
+from training.cause_trials import add_cause_arguments, cause_options_from_args
 
 VALID_STUDY_METHODS = ("opc", "no_propensity")  # the default arms
 # Opt-in baselines (--methods): dm = policy trained and selected on q_hat alone (no propensities);
 # tempered_logger = no training, the logger's logits x s with s chosen by the DR selection score.
 BASELINE_METHODS = ("dm", "tempered_logger")
-ALL_STUDY_METHODS = VALID_STUDY_METHODS + BASELINE_METHODS
+# Opt-in prior-work baselines: cause = native CausE on the fixed-budget warm/uniform data
+# (training/cause_trials.py; one summary method per prediction and rho, cause_<prediction>_r<rho per mille>).
+PRIOR_WORK_METHODS = ("cause",)
+ALL_STUDY_METHODS = VALID_STUDY_METHODS + BASELINE_METHODS + PRIOR_WORK_METHODS
 # Where the regression reward model's data come from: 'external' = a separate reg slice
 # (--shared-regression-size, the same at every train size); 'train' = each train size's own
 # training rows, so every arm uses only the n logged rows it is given.
@@ -116,7 +125,10 @@ def _summary_has_methods(summary_path: Path, methods) -> bool:
         summary = pd.read_csv(summary_path)
     except Exception:
         return False
-    return "method" in summary.columns and set(methods) <= set(summary["method"].astype(str))
+    if "method" not in summary.columns:
+        return False
+    have = set(summary["method"].astype(str))
+    return all(any(h.startswith("cause_") for h in have) if m == "cause" else m in have for m in methods)
 
 
 def _load_cached_method_df(run_dir: Path, method: str) -> pd.DataFrame:
@@ -388,6 +400,7 @@ def _run_condition(
     stage: str = "development",
     opc_gradient: str = STUDY_OPC_GRADIENT,
     search_space: dict | None = None,
+    cause_options: dict | None = None,
 ):
     """One condition. ``methods`` may add the opt-in baselines (``BASELINE_METHODS``); their
     summaries and trials come back as a 6th item ``{method: (summary_df, trials_df)}`` when
@@ -486,6 +499,8 @@ def _run_condition(
     )
     first_train = int(min(train_sizes)) if len(train_sizes) > 0 else 10_000
     first_split = split_cache[(first_train, 0)]
+    # CausE uses no reward model: a CausE-only run skips the q_hat fits (the splits are built the same way)
+    needs_qhat = bool(set(methods) - set(PRIOR_WORK_METHODS))
     shared_regression_bundle = fit_shared_regression_bundle(
         dataset,
         first_split["reg_data"],
@@ -495,9 +510,9 @@ def _run_condition(
         action_chunk=int(qhat_action_chunk),
         q_error=float(q_error),
         q_bad_value=q_bad_value,
-    )
+    ) if needs_qhat else {}
     size_bundles = None
-    if reward_data == "train":  # each size's own training rows fit its q_hat; every arm shares it
+    if reward_data == "train" and needs_qhat:  # each size's own training rows fit its q_hat; every arm shares it
         size_bundles = {
             int(n): fit_shared_regression_bundle(
                 dataset,
@@ -512,7 +527,7 @@ def _run_condition(
             for n in train_sizes
         }
     size_crossfit = None
-    if crossfit_folds:
+    if crossfit_folds and needs_qhat:
         user_fold = np.random.default_rng(derive_seed(seed, "crossfit", "user_fold")).integers(
             0, crossfit_folds, int(dataset["n_users"])
         )
@@ -686,6 +701,22 @@ def _run_condition(
             **arm,
         )
 
+    cause_meta = None
+    if "cause" in methods:  # prior-work baseline on the fixed-budget warm/uniform data (training/cause_trials.py)
+        from training.cause_trials import CAUSE_DEFAULTS, cause_trainer_trial
+
+        our_x, our_a = dataset["our_x"], dataset["our_a"]
+        cause_constants = {"initial_reward": _dataset_log_constants(dataset, our_x, our_a)["initial_reward"],
+                           "logger_greedy": _policy_greedy_reward_from_embeddings(dataset, our_x, our_a)}
+        cause_meta = {**CAUSE_DEFAULTS, **(cause_options or {})}
+        cause_meta["n_trials"] = int(cause_meta.get("n_trials") or n_trials)
+        extra.update(cause_trainer_trial(
+            train_sizes=train_sizes, dataset=dataset, split_cache=split_cache, condition_seed=int(seed), seed=int(seed),
+            n_trials=int(n_trials), log_constants=cause_constants, options=cause_options, sampler=str(sampler),
+            stage=str(stage), run_idx=LOGGED_RUN_IDX,
+            device=torch.device("cpu") if cause_meta.get("device") == "cpu" else _training_device(require_cuda=require_cuda),
+        ))
+
     # Unified long logs for post-hoc analysis.
     trials_frames = []
     runs_frames = []
@@ -775,6 +806,7 @@ def _run_condition(
         "q_error": float(shared_regression_bundle.get("q_error", q_error)),
         "q_bad_value": shared_regression_bundle.get("q_bad_value", q_bad_value),
         "rand_ctr": rand_ctr_meta or {},
+        "cause": cause_meta,
     }
     if return_extra:
         return opc_df, noprop_df, opc_trials, noprop_trials, meta, extra
@@ -840,6 +872,7 @@ def main():
     parser.add_argument("--datasets", nargs="+", default=list(DEFAULT_DATASETS), help="Default: " + " ".join(DEFAULT_DATASETS) + ".")
     add_world_arguments(parser)
     add_search_space_arguments(parser)
+    add_cause_arguments(parser)
     parser.add_argument(
         "--logging-uniform-mix",
         type=float,
@@ -1240,6 +1273,7 @@ def main():
                                 stage=str(args.stage),
                                 opc_gradient=str(args.opc_gradient),
                                 search_space=search_space_from_args(args),
+                                cause_options=cause_options_from_args(args),
                             )
                         except Exception as e:
                             failures.append({"run_key": run_key, "error": repr(e)})

@@ -200,7 +200,9 @@ def test_study_runs_the_baseline_arms(tmp_path):
     )
 
     assert VALID_STUDY_METHODS == ("opc", "no_propensity")  # the default arms are unchanged
-    assert set(ALL_STUDY_METHODS) == {"opc", "no_propensity", "dm", "tempered_logger"}
+    # cause is the opt-in prior-work arm (tests/test_cause_trials.py); this test runs the other arms
+    assert set(ALL_STUDY_METHODS) == {"opc", "no_propensity", "dm", "tempered_logger", "cause"}
+    arms = tuple(m for m in ALL_STUDY_METHODS if m != "cause")
     with pytest.raises(ValueError):
         _normalize_study_methods(["opc", "oracle"])
     _toy_embeddings(tmp_path)
@@ -209,14 +211,14 @@ def test_study_runs_the_baseline_arms(tmp_path):
               policy_reward_mc_sim=8, slim=True, shared_regression_size=2000)
     run_dir = tmp_path / "all"
     run_dir.mkdir()
-    out = _run_condition(**kw, run_dir=run_dir, methods=ALL_STUDY_METHODS, learn_logit_scale=True, return_extra=True,
+    out = _run_condition(**kw, run_dir=run_dir, methods=arms, learn_logit_scale=True, return_extra=True,
                          log_select_weights=("clip:10", "dm"))
     *_, meta, extra = out
     assert set(extra) == {"dm", "tempered_logger"} and meta["learn_logit_scale"] is True
     summary = _finalize_summary_df(out[0], out[1], meta, extra=extra)
-    assert set(summary["method"]) == set(ALL_STUDY_METHODS) and summary["learn_logit_scale"].all()
+    assert set(summary["method"]) == set(arms) and summary["learn_logit_scale"].all()
     trials = pd.read_csv(run_dir / "trials_long.csv")
-    assert set(trials["method"]) == set(ALL_STUDY_METHODS)
+    assert set(trials["method"]) == set(arms)
     # through the study path, every arm (no-prop included) logs the re-selection scores
     for col in ("sel_ci_low[clip:10]", "sel_ci_low[dm]"):
         assert trials.groupby("method")[col].apply(lambda c: c.notna().all()).all(), col
