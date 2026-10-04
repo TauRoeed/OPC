@@ -413,4 +413,9 @@ random sampler and 20 trials per size.
 The structural quantities (oracle bounds, structural gaps) are reused unchanged. Only the learned side is
 recomputed.
 
+The baseline arms (no-propensity, DM-only, tempered logger) do not depend on OPC's training weights. Under the paired
+random sampler every trained arm draws its configurations and seeds from the seed label "opc", whether it runs alone
+or next to OPC. They are therefore run first (`run_reval_stage2_base_*`), and OPC follows in OPC-only runs once its
+weights are chosen. The trials stay paired across these runs.
+
 (Phases 2–5 follow.)
