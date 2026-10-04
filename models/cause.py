@@ -360,8 +360,101 @@ def fit_cause(
 
 
 @torch.no_grad()
-def predict_logits(model: CausEModel, users: np.ndarray, rows: np.ndarray, *, chunk: int = 65536) -> np.ndarray:
-    device = model.item_emb.device
+def warm_start_(model: CausEModel, user_vectors: np.ndarray, item_vectors: np.ndarray) -> CausEModel:
+    """CausE-warm (docs/cause_fair_comparison_25k.md §1.2): every user row starts at its source vector x_i and every item
+    row, control j and treatment j + n_items, at the source item vector a_j (the treatment representation starts at the
+    control / source one: eq. 16's residual is 0). Biases stay 0 and alpha at its native initial value."""
+    if model.variant != "prod":
+        raise ValueError("CausE-warm is defined for CausE-prod (avg has no per-item treatment rows)")
+    x = torch.as_tensor(np.asarray(user_vectors, dtype=np.float32))
+    a = torch.as_tensor(np.asarray(item_vectors, dtype=np.float32))
+    n_items = int(model.tie_offset)
+    if x.shape != model.user_emb.shape or a.shape != (n_items, model.dim):
+        raise ValueError(f"source vectors {tuple(x.shape)}, {tuple(a.shape)} do not fit the model "
+                         f"({tuple(model.user_emb.shape)}, {n_items} items × {model.dim})")
+    model.user_emb.copy_(x.to(model.user_emb.device))
+    model.item_emb[:n_items].copy_(a.to(model.item_emb.device))
+    model.item_emb[n_items:].copy_(a.to(model.item_emb.device))
+    return model
+
+
+class CausELinModel(nn.Module):
+    """CausE-capacity-matched (docs/cause_fair_comparison_25k.md §1.3): CausE's control / treatment objective on OPC's
+    correction family. The source vectors X (users), A (items) are frozen buffers; trained are one
+    ``GlobalLinearCorrection`` (OPC's (I + D)x + b) for the users, one for the control items and one for the treatment
+    items, a global bias b and the scale alpha:
+        z(i, k) = alpha * <(I + D_u) x_i + b_u, theta_k> + b,   theta_k = (I + D_c) a_k + b_c       (k < n_items)
+                                                               theta_k = (I + D_t) a_j + b_t, j = k - n_items
+    Item rows follow the prod layout (control j, treatment j + n_items), so the data, the tie and the predictions are
+    those of CausE-prod. No per-user or per-item biases (OPC's class has none)."""
+
+    variant = "lin"
+
+    def __init__(self, user_vectors: np.ndarray, item_vectors: np.ndarray, *, alpha_init: float = ALPHA_INIT):
+        super().__init__()
+        from models.models import GlobalLinearCorrection
+
+        x = torch.as_tensor(np.asarray(user_vectors, dtype=np.float32))
+        a = torch.as_tensor(np.asarray(item_vectors, dtype=np.float32))
+        self.register_buffer("X", x)
+        self.register_buffer("A", a)
+        self.n_users, self.n_items, self.dim = int(x.shape[0]), int(a.shape[0]), int(x.shape[1])
+        self.tie_offset = self.n_items
+        self.user_map = GlobalLinearCorrection(self.dim)
+        self.control_map = GlobalLinearCorrection(self.dim)
+        self.treatment_map = GlobalLinearCorrection(self.dim)
+        self.global_bias = nn.Parameter(torch.zeros(1))
+        self.alpha = nn.Parameter(torch.tensor(float(alpha_init)))
+
+    def item_vectors(self, rows: torch.Tensor) -> torch.Tensor:
+        treat = rows >= self.n_items
+        a = self.A[torch.where(treat, rows - self.n_items, rows)]
+        return torch.where(treat[:, None], self.treatment_map(a), self.control_map(a))
+
+    def logits(self, users: torch.Tensor, rows: torch.Tensor) -> torch.Tensor:
+        u = self.user_map(self.X[users])
+        return self.alpha * (u * self.item_vectors(rows)).sum(dim=-1) + self.global_bias
+
+    def tie(self, rows: torch.Tensor, *, symmetric: bool = False) -> torch.Tensor:
+        """mean_B 1[k control] |theta^c_k - sg(theta^t_k)|_1 (treatment rows contribute 0, as r(k) = k in CausE-prod)."""
+        control = rows < self.n_items
+        a = self.A[torch.where(control, rows, rows - self.n_items)]
+        t = self.treatment_map(a)
+        t = t if symmetric else t.detach()
+        return ((self.control_map(a) - t).abs().sum(dim=-1) * control).mean()
+
+    def l2(self) -> torch.Tensor:
+        """½ of the squared norms of the three maps (D and b of each); b and alpha unpenalized, as in CausE."""
+        return 0.5 * sum(p.pow(2).sum() for m in (self.user_map, self.control_map, self.treatment_map)
+                         for p in m.parameters())
+
+    def loss(self, users, rows, labels, *, l2_pen: float = 0.0, cf_pen: float = 1.0, symmetric: bool = False):
+        ce = F.binary_cross_entropy_with_logits(self.logits(users, rows), labels, reduction="none").mean()
+        total = ce
+        if l2_pen:
+            total = total + float(l2_pen) * self.l2()
+        if cf_pen:
+            total = total + float(cf_pen) * self.tie(rows, symmetric=symmetric)
+        return total, ce
+
+    @torch.no_grad()
+    def policy_vectors(self, rows: np.ndarray | torch.Tensor) -> tuple[np.ndarray, np.ndarray]:
+        """(user, item) vectors whose dot product is alpha<u_i, theta_row(j)> (+ 0: no item bias): the ranking and
+        the softmax of the logits (the global bias is constant over items)."""
+        rows = torch.as_tensor(np.asarray(rows, dtype=np.int64), device=self.X.device)
+        u = self.alpha * self.user_map(self.X)
+        user = torch.cat([u, torch.ones(self.n_users, 1, device=self.X.device)], dim=1)
+        item = torch.cat([self.item_vectors(rows), torch.zeros(len(rows), 1, device=self.X.device)], dim=1)
+        return user.float().cpu().numpy(), item.float().cpu().numpy()
+
+
+def _model_device(model: nn.Module) -> torch.device:
+    return next(model.parameters()).device
+
+
+@torch.no_grad()
+def predict_logits(model: nn.Module, users: np.ndarray, rows: np.ndarray, *, chunk: int = 65536) -> np.ndarray:
+    device = _model_device(model)
     out = []
     users = np.asarray(users, dtype=np.int64)
     rows = np.asarray(rows, dtype=np.int64)
@@ -474,6 +567,88 @@ class CausEBatchModel(nn.Module):
         return ok & torch.isfinite(self.alpha) & torch.isfinite(self.global_bias)
 
 
+class CausELinBatchModel(nn.Module):
+    """K ``CausELinModel`` trials trained together (``CausEBatchModel``'s layout: every parameter has a leading trial
+    axis, so ``CausEBatchOptimizer`` and ``fit_cause_batch`` apply unchanged). The frozen source vectors are shared."""
+
+    def __init__(self, models: list[CausELinModel]):
+        super().__init__()
+        first = models[0]
+        self.K = len(models)
+        self.variant = "lin"
+        self.n_users, self.n_items, self.dim, self.tie_offset = first.n_users, first.n_items, first.dim, first.n_items
+        self.register_buffer("X", first.X)
+        self.register_buffer("A", first.A)
+        stack = lambda get: nn.Parameter(torch.stack([get(m).detach() for m in models]).clone())
+        self.D_u, self.b_u = stack(lambda m: m.user_map.delta), stack(lambda m: m.user_map.bias)
+        self.D_c, self.b_c = stack(lambda m: m.control_map.delta), stack(lambda m: m.control_map.bias)
+        self.D_t, self.b_t = stack(lambda m: m.treatment_map.delta), stack(lambda m: m.treatment_map.bias)
+        self.global_bias = nn.Parameter(torch.cat([m.global_bias.detach() for m in models]).clone())
+        self.alpha = nn.Parameter(torch.stack([m.alpha.detach() for m in models]).clone())
+
+    @staticmethod
+    def _map(x: torch.Tensor, d: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
+        """x [B, d] -> [K, B, d]: x + x D_k^T + b_k for every trial k (GlobalLinearCorrection's x + F.linear(x, D, b))."""
+        return x[None] + torch.einsum("bd,ked->kbe", x, d) + b[:, None, :]
+
+    def logits(self, users: torch.Tensor, rows: torch.Tensor) -> torch.Tensor:
+        treat = rows >= self.n_items
+        a = self.A[torch.where(treat, rows - self.n_items, rows)]
+        theta = torch.where(treat[None, :, None], self._map(a, self.D_t, self.b_t), self._map(a, self.D_c, self.b_c))
+        u = self._map(self.X[users], self.D_u, self.b_u)
+        return self.alpha[:, None] * (u * theta).sum(dim=-1) + self.global_bias[:, None]
+
+    def tie(self, rows: torch.Tensor, *, symmetric: bool = False) -> torch.Tensor:
+        control = rows < self.n_items
+        a = self.A[torch.where(control, rows, rows - self.n_items)]
+        t = self._map(a, self.D_t, self.b_t)
+        t = t if symmetric else t.detach()
+        return ((self._map(a, self.D_c, self.b_c) - t).abs().sum(dim=-1) * control[None, :]).mean(dim=-1)
+
+    def l2(self) -> torch.Tensor:
+        k = self.K
+        return 0.5 * sum(p.reshape(k, -1).pow(2).sum(1) for p in (self.D_u, self.b_u, self.D_c, self.b_c, self.D_t, self.b_t))
+
+    def loss(self, users, rows, labels, *, l2_pen: torch.Tensor, cf_pen: torch.Tensor, symmetric: bool = False,
+             use_l2: bool = True, use_tie: bool = True):
+        z = self.logits(users, rows)
+        ce = F.binary_cross_entropy_with_logits(z, labels[None, :].expand_as(z), reduction="none").mean(dim=1)
+        total = ce
+        if use_l2:
+            total = total + l2_pen * self.l2()
+        if use_tie:
+            total = total + cf_pen * self.tie(rows, symmetric=symmetric)
+        return total.sum(), ce
+
+    @torch.no_grad()
+    def trial_model(self, k: int, template: CausELinModel) -> CausELinModel:
+        m = template
+        for mod, d, b in ((m.user_map, self.D_u, self.b_u), (m.control_map, self.D_c, self.b_c),
+                          (m.treatment_map, self.D_t, self.b_t)):
+            mod.delta.copy_(d[k])
+            mod.bias.copy_(b[k])
+        m.global_bias.copy_(self.global_bias[k:k + 1])
+        m.alpha.copy_(self.alpha[k])
+        return m
+
+    @torch.no_grad()
+    def trial_finite(self) -> torch.Tensor:
+        k = self.K
+        ok = torch.isfinite(self.alpha) & torch.isfinite(self.global_bias)
+        for p in (self.D_u, self.b_u, self.D_c, self.b_c, self.D_t, self.b_t):
+            ok &= torch.isfinite(p.reshape(k, -1)).all(dim=1)
+        return ok
+
+
+def batch_model_for(models: list) -> nn.Module:
+    """The K-trial training module of a list of trials of one model class."""
+    if all(isinstance(m, CausELinModel) for m in models):
+        return CausELinBatchModel(models)
+    if all(isinstance(m, CausEModel) for m in models):
+        return CausEBatchModel(models)
+    raise TypeError("the trials of a batch must share one model class")
+
+
 class CausEBatchOptimizer:
     """``CausEOptimizer`` per trial: lr_k (decayed per step for ``momentum_decay``), the same float32 arithmetic."""
 
@@ -521,7 +696,7 @@ def fit_cause_batch(
     ``models[k]`` with lr ``lrs[k]``, L2 ``l2_pens[k]``, tie ``cf_pens[k]`` and order seed ``order_seed``.
     The trained values are copied back into ``models``. Returns per-trial diagnostics."""
     device = torch.device(device)
-    batch_model = CausEBatchModel([m.to(device) for m in models]).to(device)
+    batch_model = batch_model_for([m.to(device) for m in models]).to(device)
     k = batch_model.K
     lrs_t = torch.as_tensor(np.asarray(lrs, dtype=np.float32), device=device)
     l2_t = torch.as_tensor(np.asarray(l2_pens, dtype=np.float32), device=device)
