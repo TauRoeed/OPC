@@ -12,7 +12,9 @@ from its old and new 95% intervals and the paired interval of the change:
     includes 0;
   - same direction, different magnitude: significant before and after with the same sign, and the change's
     interval excludes 0;
-  - weakened: significant before; after, the same sign but the interval includes 0;
+  - weakened: significant before; after, the same sign but smaller, with the interval including 0;
+  - unchanged size, less precise: significant before; after, the same sign and at least as large, but the interval
+    includes 0 (the effect did not shrink; the new evidence is noisier);
   - unsupported: significant before; after, the opposite sign but the interval includes 0;
   - reversed: significant after with the opposite sign of the old mean (significant or not before);
   - new: not significant before, significant after with the old mean's sign (or the old mean 0).
@@ -53,7 +55,9 @@ def classify(old, new, change) -> str:
     if new_sig and not same_sign and np.sign(om) != 0:
         return "reversed"
     if old_sig and not new_sig:
-        return "weakened" if same_sign else "unsupported"
+        if not same_sign:
+            return "unsupported"
+        return "unchanged size, less precise" if abs(nm) >= abs(om) else "weakened"
     if not old_sig and new_sig:
         return "new"
     if old_sig and new_sig and _significant(clo, chi):

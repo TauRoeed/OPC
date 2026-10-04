@@ -24,7 +24,8 @@ from training.revalidation_compare import KEYS, mean_ci, old_new_table
 
 SHARES = (0.6, 0.8, 0.95)
 ALL_BIASES = ("none",) + BIASES
-VERDICT_COLORS = {"unchanged": "#4D4D4D", "same direction, different magnitude": "#0072B2", "weakened": "#E69F00",
+VERDICT_COLORS = {"unchanged": "#4D4D4D", "unchanged size, less precise": "#8C8C8C",
+                  "same direction, different magnitude": "#0072B2", "weakened": "#E69F00",
                   "unsupported": "#D55E00", "reversed": "#CC0000", "new": "#009E73"}
 
 
