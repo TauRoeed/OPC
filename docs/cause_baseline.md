@@ -220,10 +220,10 @@ Code milestones are committed on the local branch only. Documentation and result
 |---|---|---|
 | M1 | this note | done at commit |
 | M2 | budget split, CausE core, unit tests and TF numerical match; local commit | done (`5c011a9`, `b2f05d8`, `e497180`) |
-| M3 | study-runner arm, determinism and bit-identity tests, smoke run; local commit | done (`5a01501`); smoke run in progress |
-| M4 | ML-100K reproduction (then ML-10M in the background); local commit | in progress |
-| M5 | bounded comparison at 25k: 3 datasets × 5 biases × seeds 100/101, OPC / DM / tempered / CausE × 6 ρ | +6–8 h of compute |
-| M6 | analysis, figures and report; stop | +2 h |
+| M3 | study-runner arm, determinism and bit-identity tests, smoke run; local commit | done (`5a01501` ... `a0ee395`, local) |
+| M4 | ML-100K reproduction (then ML-10M in the background); local commit | done (§10) |
+| M5 | bounded comparison at 25k: 3 datasets × 5 biases × seeds 100/101, OPC / DM / tempered / CausE × 6 ρ | done (2026-10-04) |
+| M6 | analysis, figures and report; stop | done: `docs/cause_dev_report_20261004.md` |
 
 ## 8. Implementation and validation status (local branch `cause-baseline`)
 
