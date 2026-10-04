@@ -665,6 +665,7 @@ def misspec_mechanism_table(trials: pd.DataFrame, rows: dict[str, pd.DataFrame])
     n = 100000
     for alt, ref, q, name in (("concat_raw_100k", "concat", "concat q̂", "raw training weights"),
                               ("concat_oldspace_100k", "concat", "concat q̂", "old search space"),
+                              ("concat_shrink100_100k", "concat", "concat q̂", "shrink:100 training weights"),
                               ("interaction_raw_100k", "interaction", "interaction q̂", "raw training weights")):
         if alt not in rows or by(alt).empty:
             continue
@@ -680,7 +681,8 @@ def misspec_mechanism_table(trials: pd.DataFrame, rows: dict[str, pd.DataFrame])
     for setting, label in (("interaction", "interaction q̂"), ("concat", "concat q̂"),
                            ("interaction_raw_100k", "interaction q̂, raw training weights"),
                            ("concat_raw_100k", "concat q̂, raw training weights"),
-                           ("concat_oldspace_100k", "concat q̂, old search space")):
+                           ("concat_oldspace_100k", "concat q̂, old search space"),
+                           ("concat_shrink100_100k", "concat q̂, shrink:100 training weights")):
         if setting in rows:
             r = sel(setting)
             for n in SIZES:
@@ -762,7 +764,7 @@ def main(argv=None) -> None:
     trials_path = new_dir / "reward_model" / "opc_trials_misspecification.csv"
     if trials_path.exists():
         settings = {"interaction": mh(new2_main), "concat": rm_new["concat"][1]}
-        for extra in ("concat_raw_100k", "concat_oldspace_100k", "interaction_raw_100k"):
+        for extra in ("concat_raw_100k", "concat_oldspace_100k", "interaction_raw_100k", "concat_shrink100_100k"):
             if (new_dir / "reward_model" / f"learned_rows_{extra}.csv").exists():
                 settings[extra] = load_rows(new_dir / "reward_model" / f"learned_rows_{extra}.csv")
         misspec_mechanism_table(pd.read_csv(trials_path), settings).to_csv(out / "misspecification_mechanism.csv",
