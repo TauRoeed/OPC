@@ -51,17 +51,19 @@ def cell_means(rows: pd.DataFrame, value: str, scale: float = 100.0, methods=Non
 
 
 def fig1_recovery(old: pd.DataFrame, new: pd.DataFrame, out: Path) -> None:
-    """OPC and DM-only greedy fraction of the oracle repair against data size, old (dashed) vs new (solid)."""
+    """OPC, DM-only and no-propensity greedy fraction of the oracle repair against data size, old (dashed) vs new
+    (solid)."""
     plt = _plt()
     fig, axes = plt.subplots(1, len(BIASES), figsize=(12.5, 3.0), sharey=True)
     data = []
     for tag, rows, ls, alpha in (("old (buggy logs)", old, "--", 0.55), ("new (fixed logs)", new, "-", 1.0)):
-        c = cell_means(rows, "fraction_of_oracle_repair_greedy", scale=1.0, methods=["opc", "dm"])
+        arms = ("opc", "dm", "no_propensity")
+        c = cell_means(rows, "fraction_of_oracle_repair_greedy", scale=1.0, methods=list(arms))
         data.append(c.assign(simulator=tag))
         for ax, b in zip(axes, BIASES):
-            for i, m in enumerate(("opc", "dm")):
+            for i, m in enumerate(arms):
                 g = c[(c["bias"] == b) & (c["method"] == m)].sort_values("train_size")
-                xs = np.log10(g["train_size"]) + (i - 0.5) * 0.03 + (0.012 if ls == "-" else -0.012)
+                xs = np.log10(g["train_size"]) + (i - 1) * 0.03 + (0.012 if ls == "-" else -0.012)
                 ax.errorbar(xs, g["mean"], yerr=[g["mean"] - g["ci_low"], g["ci_high"] - g["mean"]], color=COLORS[m],
                             linestyle=ls, alpha=alpha, marker="o" if ls == "-" else "s", markersize=3.3, linewidth=1.3,
                             capsize=2, elinewidth=0.8, label=f"{METHOD_NAMES[m]}, {tag}")
@@ -85,13 +87,19 @@ def fig2_arms(new: pd.DataFrame, out: Path, arms=("opc", "dm", "no_propensity", 
     arms = tuple(arms) + tuple(sorted(extra))
     fig, axes = plt.subplots(1, len(ALL_BIASES), figsize=(14, 3.0), sharey=True)
     c = cell_means(new, "learned_gain", methods=list(arms))
+    # a robustness arm is drawn only in cells where it covers the same worlds as OPC
+    n_opc = c[c["method"] == "opc"].set_index(["bias", "train_size"])["n"]
+    keep = [m == "opc" or not m.startswith("opc_") or n_opc.get((b, n), -1) == k
+            for m, b, n, k in zip(c["method"], c["bias"], c["train_size"], c["n"])]
+    c = c[keep]
+    names = {m: METHOD_NAMES.get(m, f"OPC, {m[4:].replace('shrink', 'shrink:')} weights") for m in arms}
     for ax, b in zip(axes, ALL_BIASES):
         for i, m in enumerate(arms):
             g = c[(c["bias"] == b) & (c["method"] == m)].sort_values("train_size")
             xs = np.log10(g["train_size"]) + (i - (len(arms) - 1) / 2) * 0.025
             ax.errorbar(xs, g["mean"], yerr=[g["mean"] - g["ci_low"], g["ci_high"] - g["mean"]],
                         color=COLORS.get(m, "#56B4E9"), linestyle=":" if m.startswith("opc_") else "-", marker="o",
-                        markersize=3.2, linewidth=1.3, capsize=2, elinewidth=0.8, label=METHOD_NAMES.get(m, m))
+                        markersize=3.2, linewidth=1.3, capsize=2, elinewidth=0.8, label=names[m])
         ax.axhline(0, color="#666666", linewidth=0.7)
         ax.set_xticks(np.log10(SIZES), ["5k", "25k", "100k"])
         ax.set_title(LABEL.get(b, b))
@@ -128,16 +136,17 @@ def fig3_contrasts(table: pd.DataFrame, out: Path, contrast: str = "OPC - DM-onl
             ax.plot([], [], "o", color=c, label=f"new: {v}")
     ax.axhline(0, color="#444444", linewidth=0.8)
     ax.set_xticks(range(len(order)), [LABEL.get(b, b) for b in order])
-    ax.set_ylabel(f"{contrast}, true CTR points")
-    ax.set_title(f"{contrast}: old (grey) vs corrected logs (coloured by the classification); paired over 6 worlds "
+    name_ = contrast.replace(" - ", " − ")
+    ax.set_ylabel(f"{name_}, true CTR points")
+    ax.set_title(f"{name_}: old (grey) vs corrected logs (coloured by the classification); paired over 6 worlds "
                  f"(5k / 25k / 100k left to right)")
-    ax.legend(frameon=False, fontsize=7, ncol=4, loc="upper left")
+    ax.legend(frameon=False, fontsize=7.5, ncol=5, loc="upper center", bbox_to_anchor=(0.5, -0.11))
     ax.grid(axis="x", visible=False)
     fig.tight_layout()
     _save(fig, out, name, t)
 
 
-def fig4_weighting(screen: pd.DataFrame, sel_diag: pd.DataFrame, out: Path) -> None:
+def fig4_weighting(screen: pd.DataFrame, sel_diag: pd.DataFrame, out: Path, old_diag: pd.DataFrame | None = None) -> None:
     """Fig 4: (a–c) the corrected weighting study: the selected policy's true gain against each family's parameter,
     one panel per train size, raw weights as a line; (d) the selected OPC policies' raw-weight ESS and (e) share of
     weights above 10, by arm and train size (corrected Stage 2)."""
@@ -166,19 +175,24 @@ def fig4_weighting(screen: pd.DataFrame, sel_diag: pd.DataFrame, out: Path) -> N
         ax.set_title(f"{n // 1000}k: selected policy vs raw weights")
         ax.set_xlabel("weight cap (clip M; √λ; 1/λ)")
     axes[0].set_ylabel("true CTR difference to raw (points;\npaired over conditions)")
-    axes[2].legend(frameon=False, fontsize=7, loc="lower right")
-    d = sel_diag[sel_diag["method"].isin(["opc", "dm"])] if "method" in sel_diag else sel_diag
-    for ax, col, lab in ((axes[3], "ess_raw", "raw-weight ESS of the selected policy\n(median over worlds)"),
-                         (axes[4], "w_share_gt10", "share of weights > 10 (%)\n(median over worlds)")):
-        for m in ("opc", "dm"):
-            g = d[d["method"] == m].groupby("train_size")[col].median()
-            if g.empty:
-                continue
-            ax.plot(np.log10(g.index), g.values * (100 if col == "w_share_gt10" else 1), marker="o",
-                    color=COLORS[m], label=METHOD_NAMES[m])
+    handles, labels = axes[0].get_legend_handles_labels()
+    fig.legend(handles, labels, frameon=False, fontsize=7.5, ncol=4, loc="upper center", bbox_to_anchor=(0.33, 0.0))
+    biased = lambda d: d[d["bias"] != "none"] if "bias" in d else d
+    sources = [("corrected", biased(sel_diag), "-", 1.0)]
+    if old_diag is not None:
+        sources.append(("old (buggy logs)", biased(old_diag), "--", 0.55))
+    for ax, col, lab in ((axes[3], "ess_raw", "selected policy's raw-weight ESS\n(mean over biased worlds)"),
+                         (axes[4], "w_share_gt10", "share of weights > 10 (%)\n(mean over biased worlds)")):
+        for tag, d, ls, alpha in sources:
+            for m in ("opc", "dm"):
+                g = d[d["method"] == m].groupby("train_size")[col].mean()
+                if g.empty:
+                    continue
+                ax.plot(np.log10(g.index), g.values * (100 if col == "w_share_gt10" else 1), marker="o", linestyle=ls,
+                        alpha=alpha, color=COLORS[m], label=f"{METHOD_NAMES[m]}, {tag}")
         ax.set_xticks(np.log10(SIZES), ["5k", "25k", "100k"])
+        ax.set_ylim(bottom=0)
         ax.set_title(lab)
-    axes[3].set_yscale("log")
     axes[3].legend(frameon=False, fontsize=7)
     fig.suptitle("Corrected weighting study (OPC, tuning seed 201) and weight diagnostics of the corrected Stage 2",
                  fontsize=9, y=1.03)
@@ -278,13 +292,15 @@ def support_table(rows_by_share: dict[float, pd.DataFrame]) -> pd.DataFrame:
     return pd.DataFrame(out)
 
 
-def fig6_support(old_t: pd.DataFrame, new_t: pd.DataFrame, out: Path) -> None:
+def fig6_support(old_t: pd.DataFrame, new_t: pd.DataFrame, out: Path, coupling: pd.DataFrame | None = None) -> None:
     """Fig 6: the logging-support sweep at 25k, old vs corrected: the oracle bound (unchanged), OPC's fraction of it,
-    OPC − DM-only and OPC's raw-weight ESS against the logger's greedy share."""
+    OPC − DM-only and OPC's raw-weight ESS against the logger's greedy share; with ``coupling``
+    (revalidation_tables.coupling_by_share), (e) the effective number of actions per user the logs were drawn from."""
     from training.representation_report import BIAS_COLORS, BIAS_MARKERS
 
     plt = _plt()
-    fig, axes = plt.subplots(1, 4, figsize=(13, 3.0))
+    panels = 5 if coupling is not None and len(coupling) else 4
+    fig, axes = plt.subplots(1, panels, figsize=(3.3 * panels, 3.0))
     for tag, t, ls in (("old", old_t, "--"), ("new", new_t, "-")):
         for i, b in enumerate(SINGLES):
             g = t[t["bias"] == b].sort_values("share")
@@ -297,14 +313,24 @@ def fig6_support(old_t: pd.DataFrame, new_t: pd.DataFrame, out: Path) -> None:
                 ax.errorbar(xs, g[col], yerr=[g[col] - g[f"{col}_lo"], g[f"{col}_hi"] - g[col]], capsize=2,
                             elinewidth=0.8, label=f"{LABEL[b]} ({tag})" if ax is axes[1] else None, **kw)
             axes[3].plot(xs, g["opc_ess"], **kw)
-    for ax, title in zip(axes, ("(a) oracle ranking gain (points)", "(b) OPC fraction of the oracle repair",
-                                "(c) OPC − DM-only (points)", "(d) OPC raw-weight ESS (of 20,000)")):
+    if panels == 5:
+        for i, b in enumerate(SINGLES):
+            g = coupling[coupling["bias"] == b].sort_values("share")
+            xs = g["share"] + (i - 1) * 0.006
+            axes[4].plot(xs, g["eff_actions_pi0"], color=BIAS_COLORS[b], marker=BIAS_MARKERS[b], markersize=4)
+            axes[4].plot(xs, g["eff_actions_old"], color=BIAS_COLORS[b], marker=BIAS_MARKERS[b], markersize=4,
+                         linestyle="--", alpha=0.5)
+        axes[4].set_yscale("log")
+    titles = ("(a) oracle ranking gain (points)", "(b) OPC fraction of the oracle repair", "(c) OPC − DM-only (points)",
+              "(d) OPC raw-weight ESS (of 20,000)", "(e) effective actions per user\n(1/Σπ², the distribution logged)")
+    for ax, title in zip(axes, titles):
         ax.set_title(title)
         ax.set_xticks(SHARES, ["0.6", "0.8", "0.95"])
         ax.set_xlabel("logger greedy share")
     axes[0].set_ylim(bottom=0)
     axes[2].axhline(0, color="#444444", linewidth=0.8)
-    axes[1].legend(frameon=False, fontsize=6.5, ncol=1)
+    handles, labels = axes[1].get_legend_handles_labels()
+    fig.legend(handles, labels, frameon=False, fontsize=7.5, ncol=6, loc="upper center", bbox_to_anchor=(0.5, 0.0))
     fig.suptitle("Logging-support sweep at 25k: old (dashed, buggy logs) vs corrected (solid); ml, kuairand × 2 seeds",
                  fontsize=9, y=1.03)
     fig.tight_layout()
@@ -460,8 +486,10 @@ def build_findings(old2, new2, rm_old, rm_new, sup_old_rows, sup_new_rows, su_ol
     # the no-bias control
     for n in (5000, 100000):
         add(G_NOBIAS, f"OPC − tempered logger, no bias, {k(n)}", *both(old2, new2, "opc", "tempered_logger", size=n, biased=False))
-    add(G_NOBIAS, "OPC − no-propensity, no bias, 5k", *both(old2, new2, "opc", "no_propensity", size=5000, biased=False))
-    add(G_NOBIAS, "OPC − DM-only, no bias, 100k", *both(old2, new2, "opc", "dm", size=100000, biased=False))
+    for n in (5000, 100000):
+        add(G_NOBIAS, f"OPC − no-propensity, no bias, {k(n)}", *both(old2, new2, "opc", "no_propensity", size=n, biased=False))
+    for n in (5000, 100000):
+        add(G_NOBIAS, f"OPC − DM-only, no bias, {k(n)}", *both(old2, new2, "opc", "dm", size=n, biased=False))
     # reward-model tests: rm_*[test] = (reference-setting rows, altered-setting rows)
     ext_old, ext_new = rm_old["budget"][0], rm_new["budget"][0]
     add(G_REWARD, "external 50k-row q̂: OPC − DM-only, 5k", *both(ext_old, ext_new, "opc", "dm", size=5000))
@@ -605,7 +633,7 @@ def main(argv=None) -> None:
     fig3_contrasts(t2, out)
     # weighting (Phase 2) and the corrected Stage 2's weight diagnostics
     screen = pd.read_csv(Path(a.tuning) / "weights_screen_s201.csv")
-    fig4_weighting(screen, new2_main.rename(columns={}), out)
+    fig4_weighting(screen, new2_main, out, old2)
     # reward-model tests: old = the older pipeline's runs on the buggy logs (rebuilt into --new/old by
     # training.revalidation_phase3), new = the reruns and the Stage 2 rerun
     mh = lambda d: d[d["bias"].isin(["medium", "high"])]
@@ -627,7 +655,9 @@ def main(argv=None) -> None:
     st_old, st_new = support_table(sup_old), support_table(sup_new)
     st_old.to_csv(out / "support_old.csv", index=False)
     st_new.to_csv(out / "support_new.csv", index=False)
-    fig6_support(st_old, st_new, out)
+    from training.revalidation_tables import coupling_by_share
+
+    fig6_support(st_old, st_new, out, coupling_by_share(Path(a.phase0)))
     # Su robustness slice: harmonic:0.1 − shrink:100 on the single-type highs at 25k (ml, kuairand), old vs new
     su_old = su_new = None
     su_path = new_dir / "old" / "su_shrink100.csv"

@@ -285,11 +285,22 @@ def t_m5(t: pd.DataFrame) -> str:
                    "largest absolute difference"], rows)
 
 
+GROUP_SHORT = (("Stage 2 recovery", "Stage 2 recovery (fraction)"), ("Stage 2: OPC minus", "OPC − baseline (points)"),
+               ("No-bias", "no-bias control (points)"), ("Reward-model", "reward-model tests (points)"),
+               ("Logging support", "logging support (fraction)"), ("Importance weighting", "weighting (points)"),
+               ("Selection", "selection (points)"), ("Selected OPC policy's raw-weight ESS", "OPC ESS (log10)"),
+               ("Selected OPC policy's share", "OPC weights > 10 (%)"))
+
+
+def _short(group: str) -> str:
+    return next((short for prefix, short in GROUP_SHORT if group.startswith(prefix)), group)
+
+
 def t_findings(f: pd.DataFrame) -> str:
     rows = []
     for _, r in f.iterrows():
         d = 3 if "fraction" in str(r.get("group", "")) else 2
-        rows.append([str(r.get("group", "")).split(" (")[0], r["finding"], str(int(r["worlds"])),
+        rows.append([_short(str(r.get("group", ""))), r["finding"], str(int(r["worlds"])),
                      _ci(r["old"], r["old_lo"], r["old_hi"], d), _ci(r["new"], r["new_lo"], r["new_hi"], d),
                      _ci(r["change"], r["change_lo"], r["change_hi"], d), r["verdict"]])
     return _table(["group", "finding", "worlds", "old", "corrected", "change", "classification"], rows)
