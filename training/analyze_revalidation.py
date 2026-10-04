@@ -109,6 +109,42 @@ def simulate_protocol(t: pd.DataFrame, lr=None, epochs=None, *, k=20, resamples=
     return pd.DataFrame(rows)
 
 
+# Candidate search spaces (lr range, epoch range) within the range study's lr 1e-4-1e-1 × epochs 5-60
+CANDIDATES = {
+    "old: lr 1e-4-1e-3, ep 5-25": ((1e-4, 1e-3), (5, 25)),
+    "lr 1e-4-1e-2, ep 5-60": ((1e-4, 1e-2), (5, 60)),
+    "lr 3e-4-1e-2, ep 5-60": ((3e-4, 1e-2), (5, 60)),
+    "lr 1e-3-1e-2, ep 5-60": ((1e-3, 1e-2), (5, 60)),
+    "lr 1e-3-1e-2, ep 5-30": ((1e-3, 1e-2), (5, 30)),
+    "lr 1e-3-3e-2, ep 5-60": ((1e-3, 3e-2), (5, 60)),
+    "lr 3e-3-3e-2, ep 5-60": ((3e-3, 3e-2), (5, 60)),
+    "lr 1e-4-1e-1, ep 5-60 (all)": ((1e-4, 1e-1), (5, 60)),
+    "lr 1e-3-1e-1, ep 5-60": ((1e-3, 1e-1), (5, 60)),
+    "lr 3e-4-3e-3, ep 5-60": ((3e-4, 3e-3), (5, 60)),
+}
+
+
+def candidate_table(t: pd.DataFrame, candidates: dict = CANDIDATES, ks=(10, 20), resamples=200) -> pd.DataFrame:
+    """``simulate_protocol`` for every candidate space and trial budget k: per arm and train size, the mean
+    selected gain over conditions (with its 95% interval), the mean regret, the trials available per
+    condition, and OPC minus each other arm (paired over conditions)."""
+    rows = []
+    for name, (lr, ep) in candidates.items():
+        for k in ks:
+            sim = simulate_protocol(t, lr=lr, epochs=ep, k=k, resamples=resamples)
+            wide = sim.pivot_table(index=KEYS, columns="method", values="gain")
+            for (arm, n), g in sim.groupby(["method", "train_size"]):
+                m, lo, hi, c = mean_ci(g["gain"])
+                row = dict(candidate=name, k=k, method=arm, train_size=n, gain=m, gain_lo=lo, gain_hi=hi,
+                           regret=g["regret"].mean(), available=g["available"].mean(), conditions=c)
+                if arm == "opc":
+                    w = wide.xs(n, level="train_size")
+                    for other in [a for a in w.columns if a != "opc"]:
+                        row[f"opc_minus_{other}"] = mean_ci(w["opc"] - w[other])[0]
+                rows.append(row)
+    return pd.DataFrame(rows)
+
+
 def paired_runs(a: pd.DataFrame, b: pd.DataFrame, method: str = "opc") -> pd.DataFrame:
     """Run b minus run a for ``method``: per trial (identical configurations and seeds) and for each run's own
     selected trial, mean and 95% interval over the conditions of each bias × train size cell."""
@@ -223,7 +259,10 @@ def main(argv=None) -> None:
         t = load_trials(*args.runs)
         t.to_csv(out / "trials.csv", index=False)
         response_table(t).to_csv(out / "response_by_move.csv", index=False)
-        print(response_table(t).to_string())
+        cand = candidate_table(t)
+        cand.to_csv(out / "protocol_candidates.csv", index=False)
+        print(cand[cand["k"] == 20].pivot_table(index="candidate", columns=["method", "train_size"], values="gain")
+              .round(2).to_string())
     else:
         a, b = load_trials(args.a), load_trials(args.b)
         res = paired_runs(a, b, args.method)
