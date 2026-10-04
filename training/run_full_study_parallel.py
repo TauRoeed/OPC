@@ -65,6 +65,7 @@ def _parallel_worker_init(worker_slot, num_gpus: int) -> None:
 from BPR.bpr_config import DEFAULT_DATASETS
 from models.models import POLICY_TRANSFORMS, REWARD_FEATURES
 from utils.importance_weights import weight_spec_label
+from utils.provenance import code_commit
 from utils.seeding import DEFAULT_CPU_THREADS, pin_cpu_threads
 from training.memory_budget import describe_plan, device_capacities, plan_worker_groups
 from training.run_full_study import (
@@ -886,6 +887,7 @@ def main():
                     "min_workers": min_workers,
                     "oom_backoff": bool(args.oom_backoff),
                     "num_gpus": num_gpus,
+                    "code_commit": code_commit(),
                 },
                 f,
                 indent=2,

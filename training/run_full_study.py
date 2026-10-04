@@ -174,6 +174,7 @@ from utils.representation_bias import (
     world_options_from_args,
     world_run_key_suffix,
 )
+from utils.provenance import code_commit
 from utils.seeding import (
     DEFAULT_CPU_THREADS,
     OPTUNA_SAMPLERS,
@@ -716,6 +717,7 @@ def _run_condition(
         "sampler": str(sampler),
         "paired_arms": shared_seed_label is not None,
         "stage": str(stage),
+        "code_commit": code_commit(),
         "dr_score_clip_m": parse_weight_spec(select_label)[1] if select_label.startswith("clip") else None,
         "shared_regression_size": int(
             shared_regression_bundle.get("sample_size", reg_size)
@@ -1274,6 +1276,7 @@ def main():
                     "sn_scope": str(args.sn_scope),
                     "sampler": str(args.sampler),
                     "stage": str(args.stage),
+                    "code_commit": code_commit(),
                     "opc_gradient": str(args.opc_gradient),
                 },
                 f,
