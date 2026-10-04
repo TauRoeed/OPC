@@ -462,6 +462,24 @@ by trial.
 - Raw-weight selection loses up to 0.8 points with the bound.
 - **Kept: clip:10, 95% lower bound.**
 
+### 2.8 2A: objective family, and 2B: gradient (paired with the screen's runs, seed 201)
+
+| comparison (selected; per trial), 5k / 25k / 100k | selected difference [95% CI] | per-trial difference | trials better |
+|---|---|---|---|
+| exact SNDR − DR, raw weights | +0.07 [−0.28, +0.41] / +0.21 [−0.07, +0.48] / +0.05 [−0.28, +0.38] | +0.05 / +0.08 / +0.07 | 62 / 78 / 66% |
+| exact SNDR − DR, harmonic:0.1 | −0.01 [−0.24, +0.22] / +0.09 [−0.27, +0.45] / +0.01 [−0.36, +0.38] | +0.03 / −0.03 / +0.07 | 63 / 61 / 80% |
+| log trick − direct, shrink:100 | −0.11 [−0.23, +0.02] / −0.10 [−0.29, +0.08] / −0.02 [−0.18, +0.15] | −0.06 / −0.11 / +0.05 | 29 / 31 / 71% |
+
+- **Objective (2A).**
+  - The legitimate self-normalized objective (`--sn-scope exact`, the gradient of the full-data SNDR ratio) does not
+    trail DR. The legacy and global surrogates did, by 0.02–0.32 per trial on the buggy logs.
+  - With raw weights it is slightly ahead per trial. On top of the harmonic transform it adds nothing.
+  - **Decision: additive DR stays the objective** (simpler, per-row additive, no full-data pass per epoch). Exact SNDR
+    remains an available, tested option.
+  - Legacy and global SNDR stay reproduction-only.
+- **Gradient (2B).** At shrink:100, where the two forms optimize different objectives (section 3.4 of
+  `training_losses.md`), the log trick is never better than the direct gradient. **Direct gradient kept.**
+
 ### 2.2 Phase 3 plan (fixed before the reruns)
 
 All reruns use the worlds and seeds of the old runs (100/101), so every result pairs with its old value world by
