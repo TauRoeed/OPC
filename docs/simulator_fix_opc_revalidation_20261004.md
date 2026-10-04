@@ -229,4 +229,62 @@ Of the four tests in `test_logging_rng_independence.py`, two fail on the old cod
 shared-seed guard). The other two pass there: the pscore formula and per-seed determinism. On the fixed code all
 pass, with and without the GPU.
 
+---
+
+## Phase 2. Re-tuning OPC on corrected logs
+
+### 2.0 Design (written before the tuning runs)
+
+**Seeds and stages.**
+- Tuning uses new development seeds, **200 and 201**, never used before.
+- Seeds 100/101 are reserved for the Phase 3 reruns, which pair trial by trial with the old runs. The configuration
+  chosen here is therefore never evaluated on the worlds it was tuned on.
+- Every run is a development run (`--stage development`, run tags `reval_*`). Confirmatory runs on fresh seeds
+  remain for the paper.
+
+**Fixed across the tuning.** These are design choices, not tuned:
+- the budget-fair q̂ (5-fold cross-fitted, interaction features), 20,000 validation rows, logger share 0.8;
+- the linear repair class and the paired random sampler;
+- 20 trials per size (40 in the range study).
+
+**Factors, in order.** Each step uses the previous step's choice.
+
+| step | question | runs | analysis |
+|---|---|---|---|
+| 2D-R | search space: learning rate and step budget (lr, epochs, batch, lr decay), weight decay | lr 1e-4–1e-1 and epochs 5–60, 40 trials. Arms: OPC (harmonic:0.1), OPC (raw), DM-only, no-propensity, all paired. AdamW decay as a paired OPC run | true gain against the optimization budget (lr × steps); the 20-trial protocol simulated on candidate sub-ranges by resampling the logged trials |
+| 2C | training weights | raw; clip M ∈ {3, 10, 30, 100}; Su shrink λ ∈ {10, 100, 1000, 10⁴}; Metelli harmonic λ ∈ {0.003, 0.01, 0.03, 0.1, 0.2, 0.3, 0.5}; screened, then the leaders on the full tuning grid | selected and per-trial true value (paired), ESS, weight tails, estimate error, sensitivity by dataset, bias and size, grid edges |
+| 2A | objective family | additive DR; exact SNDR (`--sn-scope exact`, the full-data ratio's gradient); raw DR (reference) | as 2C |
+| 2B | gradient (confirmation only) | direct vs log trick at shrink:100 | per-trial paired |
+| 2D-S | sharpness | learnable logit scale (current) vs fixed vs post-hoc tempering | as 2C |
+| 2D-Sel | selection | the selection weights (13 transforms logged per trial) and the lower bound's penalty, post hoc on the logged scores | selected true value, regret, optimism |
+
+**The harmonic λ grid**, from theory, earlier results and the corrected weights:
+- Metelli et al.'s rate-optimal λ*₂ = √(2 log(1/δ) / (3 I₂ n)) gives λ ≈ 0.001–0.003 at these n, taking the 2-Rényi
+  divergence I₂ ≈ n/ESS ≈ 10–70 from the old diagnostics.
+- The old (buggy) optimum sat at the edge of {0.05, 0.1, 0.2}.
+- The grid therefore spans 0.003 to 0.5.
+
+**The other λ grids.**
+- Su's shrinkage peaks at w = √λ, so λ ∈ {10, …, 10⁴} spans thresholds of about 3–100.
+- The clip values bracket the same range.
+
+**Decision rule.**
+- Choose the configuration with the highest mean selected true gain over the tuning grid. Every condition × size
+  counts equally.
+- Read the per-trial paired differences alongside.
+- Among options within each other's intervals, prefer the simpler or more robust one (raw over transformed weights,
+  wider over narrower support).
+- If an optimum sits on a grid edge, extend the grid before choosing.
+- No per-condition tuning. Dependence on dataset, mismatch type and size is reported, not fitted.
+- The global default is accompanied by robustness alternatives.
+
+### 2.1 Probe (seed 200, combined high bias, current defaults)
+
+One condition per dataset at the current defaults (`run_reval_probe_s200`), mainly to time the grid.
+Preliminary results:
+- On ml and kuairand, OPC's per-trial true gain rises monotonically with the optimization budget lr × steps:
+  Spearman 0.96–0.98 at every size.
+- The best trials sit at the largest budgets the old range allows (lr ≤ 1e-3, 5–25 epochs).
+- The policies are under-trained in the old search space, so step 2D-R comes first.
+
 (Phases 2–5 follow.)
