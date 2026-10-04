@@ -180,6 +180,8 @@ DATASET_ORDER = ("ml", "kuairand", "anime")
 
 def _ordered(df: pd.DataFrame) -> pd.DataFrame:
     """The study's bias order, then dataset, train size and arm (rows keep their order otherwise), with the bias name."""
+    if df.empty or "bias" not in df:  # e.g. no OPC rows yet, so no OPC contrasts
+        return df
     df = df.copy()
     df["_o"] = df["bias"].map({b: i for i, b in enumerate(BIAS_ORDER)}).fillna(len(BIAS_ORDER))
     sort = ["_o"]
