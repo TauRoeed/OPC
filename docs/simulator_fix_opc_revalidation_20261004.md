@@ -301,6 +301,48 @@ Preliminary results:
 - The best trials sit at the largest budgets the old range allows (lr ≤ 1e-3, 5–25 epochs).
 - The policies are under-trained in the old search space, so step 2D-R comes first.
 
+### 2.3 2D-R: the search space (`run_reval_range2_*`, seed 200)
+
+**Response of the true gain to the optimization budget.**
+- Budget is move = lr × steps per epoch × Σ_e decay^e, the total Adam step length; analysis in
+  `training/analyze_revalidation.py`.
+- ml and kuairand × warp / vector / combined high: every arm peaks at move ≈ 0.03–1 (log10 move between −1.5 and 0)
+  at every size. Beyond move ≈ 1 the gain collapses: OPC falls from about 8.5 to 1–2 points at 100k, and below 0 at
+  5k–25k.
+- The mechanism is the learnable logit scale. Median s is 1–3 at small budgets and 7–21 at the peak, then 10²–10⁶
+  beyond it. The policy turns deterministic, the raw-weight ESS falls from ~10⁴ to tens, and the largest weight
+  diverges.
+
+| OPC trials by log10(move) | 5k gain | 25k gain | 100k gain | median ESS (25k) | median logit scale (25k) |
+|---|---|---|---|---|---|
+| ≤ −2 | 2.6 | 3.3 | 3.9 | 11,700 | 1.2 |
+| (−1.5, −1] | 6.2 | 7.3 | 8.1 | 1,420 | 3.3 |
+| (−1, −0.5] | 6.5 | 7.8 | 8.7 | 830 | 9.1 |
+| (−0.5, 0] | 4.9 | 7.9 | 8.6 | 450 | 21 |
+| (0, 0.5] | 2.0 | 4.9 | 6.7 | 28 | 102 |
+| (0.5, 1] | −1.5 | 2.2 | 2.7 | 17 | 559 |
+
+**The 20-trial protocol on sub-ranges.**
+- Method: simulated by resampling the logged trials inside each candidate range, each arm selecting by its own
+  score, 300 resamples.
+- **OPC** is best with lr up to 3e-3: +0.39 / +0.16 / +0.10 points at 5k / 25k / 100k over the old range. Its
+  selection regret stays at 0.01–0.17 points in every range.
+- **DM-only** is best in the old range. With lr up to 3e-3 it loses 0.89 / 0.20 / 0.17 points, and its regret rises
+  from 0.72 to 1.76 at 5k. DM selects by its own reward model, which rates policies that exploit q̂'s errors highly,
+  and a wider range offers more of them.
+- **No-propensity** is indifferent across the ranges.
+
+**Choice: one search space for every trained arm.**
+- Criterion: minimize the largest loss of any arm (at any size) against that arm's own best candidate, over 40
+  candidates (lr lower bound 1–3e-4, upper bound 1–5e-3, epochs 5–25 / 5–30).
+- The best family is lr from 1–3e-4 to 1.5–2e-3 with epochs 5–30, whose worst arm loss is 0.19 points (0.38 for the
+  old range).
+- Chosen: **lr 1e-4–2e-3 (log-uniform), epochs 5–30**. The lr decay (0.8–1) and the batch schedule are unchanged.
+- Against the old range: OPC +0.2 at 5k–25k and ±0 at 100k; DM −0.2 at 5k and −0.15 at 100k; no-propensity
+  unchanged.
+- The mean OPC − DM-only shifts by about +0.2 points because of the range alone, which Phase 4 reports.
+- The anime condition and the raw-weight OPC run check the choice (below).
+
 ### 2.2 Phase 3 plan (fixed before the reruns)
 
 All reruns use the worlds and seeds of the old runs (100/101), so every result pairs with its old value world by

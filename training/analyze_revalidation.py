@@ -240,6 +240,23 @@ def posthoc_selection(t: pd.DataFrame, zs=(0.0, 0.5, 1.0, 1.96, 3.0)) -> pd.Data
     return pd.DataFrame(rows)
 
 
+def paired_by_move(a: pd.DataFrame, b: pd.DataFrame, method: str = "opc",
+                   bins=(-np.inf, -2.0, -1.5, -1.0, -0.5, 0.0, 0.5, 1.0, np.inf)) -> pd.DataFrame:
+    """Run b minus run a, trial by trial (identical configurations and seeds), by train size and the
+    optimization budget's log10 bin: the mean difference in true gain, the share of trials where b is
+    better, and each run's mean gain."""
+    ka = a[a["method"] == method].set_index(KEYS + ["trial_number"])
+    kb = b[b["method"] == method].set_index(KEYS + ["trial_number"])
+    common = ka.index.intersection(kb.index)
+    d = pd.DataFrame({"gain_a": ka.loc[common, "gain"], "gain_b": kb.loc[common, "gain"],
+                      "move": ka.loc[common, "move"]}).reset_index()
+    d["diff"] = d["gain_b"] - d["gain_a"]
+    d["move_bin"] = pd.cut(np.log10(d["move"]), bins)
+    return (d.groupby(["train_size", "move_bin"], observed=True)
+             .agg(trials=("diff", "size"), diff=("diff", "mean"), b_better=("diff", lambda x: float((x > 0).mean())),
+                  gain_a=("gain_a", "mean"), gain_b=("gain_b", "mean")).reset_index())
+
+
 def main(argv=None) -> None:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
