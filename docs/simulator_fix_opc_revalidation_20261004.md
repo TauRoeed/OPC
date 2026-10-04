@@ -424,8 +424,9 @@ by trial.
 | harmonic:0.5 | +0.49 | +0.35 | +0.02 | +0.29 | +0.48 |
 
 **Findings.**
-- **Every regularized weighting beats raw DR, and the gap is wider than on the buggy logs.** The best are about +0.3
-  to +0.5 points per cell. In the old study, harmonic:0.1 was +0.07 to +0.74 above raw, and only from 25k up.
+- **Every regularized weighting beats raw DR.** The best are about +0.3 to +0.5 points per cell. On the buggy logs
+  (a different grid: medium and high bias), harmonic:0.1 − raw was +0.07 to +0.74 per trial across its 6 cells, so the
+  size of the gain is similar; it is not clearly larger.
 - **The best amount of regularization falls with n**, as theory predicts (λ* ∝ 1/√n), in every family:
   - at 5k, the tightest transforms win (shrink:10 +0.62, harmonic 0.2–0.3 about +0.5);
   - at 100k, moderate caps win (clip:10, shrink:100–10⁴, harmonic 0.03–0.1: +0.24 to +0.31), and the tightest lose
