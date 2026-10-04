@@ -38,6 +38,9 @@ def load_trials(*run_dirs, methods=ARMS) -> pd.DataFrame:
             if not path.exists():
                 continue
             t = pd.read_csv(path)
+            # a run stopped and resumed with --skip-completed appends the redone sizes again: identical rows
+            # (deterministic) except the wall time; keep one
+            t = t.drop_duplicates(["method", "train_size", "trial_number"], keep="last")
             t = t[t["method"].isin(methods) & (t["train_size"] > 0)].copy()
             tags = _tags(cond.name)
             t["run"] = Path(run).name

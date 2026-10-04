@@ -137,6 +137,8 @@ def load_learned(*run_dirs) -> pd.DataFrame:
             tags = _tags(cond.name)
             s = pd.read_csv(cond / "summary_metrics.csv")
             t = pd.read_csv(cond / "trials_long.csv")
+            # resumed runs repeat the redone sizes' trials (identical but for the wall time): keep one
+            t = t.drop_duplicates(["method", "train_size", "trial_number"], keep="last")
             s = s[s["train_size"] > 0]
             temp = s[s["method"] == "tempered_logger"].set_index("train_size")["policy_rewards"]
             for _, r in s.iterrows():
