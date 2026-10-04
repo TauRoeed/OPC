@@ -123,7 +123,7 @@ def fair_runs(tmp_path_factory):
         run_dir = root / family
         run_dir.mkdir()
         options = {"rhos": [0.0, 0.25], "dim": D, "batch_size": 128, "n_trials": 4, "family": family,
-                   "ties": ["one_way", "symmetric"], "temper": True}
+                   "ties": ["one_way", "symmetric"], "bias_inits": ["zero", "base_rate"], "temper": True}
         out[family] = _run_condition(dataset_name="toy", emb_dir=root, bias="medium", ctr=0.05, seed=0,
                                      train_sizes=[1000], n_trials=2, batch_size=None, val_size=1000, val_frac=0.15,
                                      val_min=1000, val_max=None, policy_reward_mode="exact", policy_reward_mc_sim=8,
@@ -143,7 +143,8 @@ def test_both_families_end_to_end_with_tempering(fair_runs, family):
         summary, trials = extra[label]
         row = summary.loc[1000]
         assert row["cause_family"] == family and row["n_total"] == 1000 and row["n_trials"] == 4 == len(trials)
-        assert set(trials["tie"]) <= {"one_way", "symmetric"}
+        assert set(trials["tie"]) <= {"one_way", "symmetric"} and set(trials["bias_init"]) <= {"zero", "base_rate"}
+        assert row["cause_bias_init"] in ("zero", "base_rate")
         for col in ("policy_rewards", "policy_rewards_greedy", "policy_rewards_tempered", "val_dr_greedy",
                     "val_dr_tempered_low"):
             assert np.isfinite(row[col]), col

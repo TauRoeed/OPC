@@ -43,9 +43,16 @@ DIVERGED_NLL = 1e9
 CAUSE_FAMILIES = ("native", "warm", "cap")
 FAMILY_PREDICTIONS = {"c": "control", "t": "treatment"}
 FAMILY_LABEL = {"native": "cause", "warm": "causewarm", "cap": "causecap"}
+# where a warm-started model's intercept starts: 0 (the native initialization) or the logit of the click rate of its own
+# training rows. With source vectors, whose logged dot products are large and positive, a zero intercept makes the
+# scale alpha absorb the initial miscalibration (sigma(0) = 0.5 against a ~10% click rate) and can drive it negative
+BIAS_INITS = ("zero", "base_rate")
+# CausE's tempering grid: its logits are click log-odds, much flatter than a policy's, so the grid reaches higher than
+# OPC's post-tempering grid (0.25-16)
+CAUSE_TEMPER_GRID = tuple(float(2.0 ** k) for k in range(-2, 13))
 
 
-def _distributions(lr_range=CAUSE_LR_RANGE, epochs=CAUSE_EPOCHS, l2=CAUSE_L2, cf=CAUSE_CF_PEN, ties=None):
+def _distributions(lr_range=CAUSE_LR_RANGE, epochs=CAUSE_EPOCHS, l2=CAUSE_L2, cf=CAUSE_CF_PEN, ties=None, bias_inits=None):
     from optuna.distributions import CategoricalDistribution, FloatDistribution
 
     # insertion order = the order of the suggest_* calls of the sequential search; the tie direction is searched only
@@ -54,6 +61,8 @@ def _distributions(lr_range=CAUSE_LR_RANGE, epochs=CAUSE_EPOCHS, l2=CAUSE_L2, cf
          "l2_pen": CategoricalDistribution(list(l2)), "cf_pen": CategoricalDistribution(list(cf))}
     if ties is not None and len(ties) > 1:
         d["tie"] = CategoricalDistribution(list(ties))
+    if bias_inits is not None and len(bias_inits) > 1:
+        d["bias_init"] = CategoricalDistribution(list(bias_inits))
     return d
 
 
@@ -61,7 +70,7 @@ CAUSE_DISTRIBUTIONS = _distributions()
 CAUSE_DEFAULTS = {"rhos": list(CAUSE_RHOS), "variants": list(CAUSE_VARIANTS), "dim": 32,
                   "optimizer": "momentum_decay", "tie": "one_way", "batch_size": 512, "n_trials": None, "device": "auto",
                   "family": "native", "lr_range": list(CAUSE_LR_RANGE), "epochs": list(CAUSE_EPOCHS),
-                  "l2": list(CAUSE_L2), "cf": list(CAUSE_CF_PEN), "ties": None, "temper": False}
+                  "l2": list(CAUSE_L2), "cf": list(CAUSE_CF_PEN), "ties": None, "bias_inits": None, "temper": False}
 
 
 def cause_method_label(prediction: str, rho: float, family: str = "native") -> str:
@@ -94,6 +103,8 @@ def add_cause_arguments(parser) -> None:
     g.add_argument("--cause-cf", type=float, nargs="+", default=list(CAUSE_CF_PEN))
     g.add_argument("--cause-ties", nargs="+", default=None, choices=list(CAUSE_TIES),
                    help="Search the tie direction over these (default: --cause-tie only).")
+    g.add_argument("--cause-bias-inits", nargs="+", default=None, choices=list(BIAS_INITS),
+                   help="Warm families: where the intercept starts (searched when several are given; default zero).")
     g.add_argument("--cause-temper", action="store_true",
                    help="Also temper each selected model's softmax by the DR lower bound on validation (clip:10; q_hat "
                         "fit on CausE's own rows at each rho), and record DR estimates of its greedy and tempered "
@@ -107,6 +118,7 @@ def cause_options_from_args(args) -> dict:
             "family": str(args.cause_family), "lr_range": [float(x) for x in args.cause_lr_range],
             "epochs": [int(x) for x in args.cause_epochs], "l2": [float(x) for x in args.cause_l2],
             "cf": [float(x) for x in args.cause_cf], "ties": None if args.cause_ties is None else list(args.cause_ties),
+            "bias_inits": None if args.cause_bias_inits is None else list(args.cause_bias_inits),
             "temper": bool(args.cause_temper)}
 
 
@@ -182,15 +194,15 @@ def _greedy_dr(val: dict, ux: np.ndarray, ia: np.ndarray, lookup, *, clip: float
 
 def _tempered(dataset: dict, val: dict, ux: np.ndarray, ia: np.ndarray, lookup) -> dict:
     """The fair sharpening of a click predictor's softmax (docs/cause_fair_comparison_25k.md §2): its logits ux·ia × s,
-    s in OPC's post-tempering grid, chosen by the DR lower bound (clip:10) on the validation rows, as the tempered
-    logger's scale is; the exact value of the tempered softmax, and the DR estimates of it and of the greedy policy."""
+    s in ``CAUSE_TEMPER_GRID``, chosen by the DR lower bound (clip:10) on the validation rows, as the tempered logger's
+    scale is; the exact value of the tempered softmax, and the DR estimates of it and of the greedy policy."""
     from scipy.stats import t as student_t
 
-    from training.trainer_trials import POST_TEMPER_GRID, _policy_temperature, _split_dr_vec_and_ess
+    from training.trainer_trials import _policy_temperature, _split_dr_vec_and_ess
 
     temperature = float(_policy_temperature(dataset))  # the DR score's softmax divides by the logger's T
     best = (-np.inf, 1.0, np.nan)
-    for s in POST_TEMPER_GRID:
+    for s in CAUSE_TEMPER_GRID:
         vec, _, _ = _split_dr_vec_and_ess(val, ux * np.float32(s * temperature), ia, lookup, dataset,
                                           propensity_mode="logged", weights=("clip", 10.0))
         n = max(len(vec), 2)
@@ -248,8 +260,13 @@ def cause_trainer_trial(
     ties = list(opts["ties"]) if opts.get("ties") else None
     searched_tie = ties is not None and len(ties) > 1
     default_tie = ties[0] if (ties and not searched_tie) else str(opts["tie"])
+    bias_inits = list(opts["bias_inits"]) if opts.get("bias_inits") else None
+    searched_init = bias_inits is not None and len(bias_inits) > 1
+    default_init = bias_inits[0] if bias_inits else "zero"
+    if family == "native" and default_init != "zero" or (family == "native" and searched_init):
+        raise ValueError("the intercept initialization is an option of the warm-started families only")
     distributions = _distributions(tuple(opts["lr_range"]), tuple(opts["epochs"]), tuple(opts["l2"]), tuple(opts["cf"]),
-                                   ties)
+                                   ties, bias_inits)
     ensure_exact_env_q_cache(dataset)
     n_users, n_actions = int(dataset["n_users"]), int(dataset["n_actions"])
     source = None
@@ -315,18 +332,27 @@ def cause_trainer_trial(
                                     **{f"{p}_{k}": v for k, v in extra.items()}})
                     return rec
 
-                def new_model(number):
+                base_rate_logit = float(np.log(labels.mean() / (1.0 - labels.mean())))  # of its own N training rows
+
+                def new_model(number, bias_init="zero"):
                     trial_seed = derive_seed(seed, *labels_seed, "trial", number)
                     if family == "cap":
-                        return CausELinModel(*source)
-                    gen = torch.Generator().manual_seed(derive_seed(trial_seed, "init"))
-                    model = CausEModel.for_layout(layout, n_users, int(opts["dim"]), generator=gen)
-                    return warm_start_(model, *source) if family == "warm" else model
+                        model = CausELinModel(*source)
+                    else:
+                        gen = torch.Generator().manual_seed(derive_seed(trial_seed, "init"))
+                        model = CausEModel.for_layout(layout, n_users, int(opts["dim"]), generator=gen)
+                        if family == "warm":
+                            warm_start_(model, *source)
+                    if bias_init == "base_rate":
+                        with torch.no_grad():
+                            model.global_bias.fill_(base_rate_logit)
+                    return model
 
                 def record(number, params, info_steps, finite, model):
                     rec = {"train_size": n, "rho": rho, "variant": variant, "trial": number, "lr": params["lr"],
                            "epochs": int(params["epochs"]), "l2_pen": float(params["l2_pen"]),
                            "cf_pen": float(params["cf_pen"]), "tie": str(params.get("tie", default_tie)),
+                           "bias_init": str(params.get("bias_init", default_init)),
                            "steps": int(info_steps), "finite": bool(finite),
                            **_diagnostics(model, layout, source if family == "warm" else None)}
                     return evaluate(model, rec)
@@ -342,11 +368,12 @@ def cause_trainer_trial(
                     asked = [study.ask(distributions) for _ in range(n_trials)]
                     groups: dict[tuple, list] = {}
                     for tr in asked:
-                        groups.setdefault((int(tr.params["epochs"]), str(tr.params.get("tie", default_tie))), []).append(tr)
+                        key = (int(tr.params["epochs"]), str(tr.params.get("tie", default_tie)))
+                        groups.setdefault(key, []).append(tr)
                     done = {}
                     for (epochs, tie), group in sorted(groups.items()):
                         t0 = time.time()
-                        models = [new_model(tr.number) for tr in group]
+                        models = [new_model(tr.number, str(tr.params.get("bias_init", default_init))) for tr in group]
                         info = fit_cause_batch(models, users, rows, labels, epochs=epochs,
                                                batch_size=int(opts["batch_size"]), optimizer=str(opts["optimizer"]),
                                                lrs=[tr.params["lr"] for tr in group],
@@ -370,7 +397,9 @@ def cause_trainer_trial(
                                   "cf_pen": trial.suggest_categorical("cf_pen", list(opts["cf"]))}
                         if searched_tie:
                             params["tie"] = trial.suggest_categorical("tie", ties)
-                        model = new_model(trial.number)
+                        if searched_init:
+                            params["bias_init"] = trial.suggest_categorical("bias_init", bias_inits)
+                        model = new_model(trial.number, params.get("bias_init", default_init))
                         info = fit_cause(model, users, rows, labels, epochs=int(params["epochs"]),
                                          batch_size=int(opts["batch_size"]), optimizer=str(opts["optimizer"]),
                                          lr=params["lr"], l2_pen=float(params["l2_pen"]), cf_pen=float(params["cf_pen"]),
@@ -420,6 +449,7 @@ def cause_trainer_trial(
                     }
                     if family != "native":
                         row["cause_family"] = family
+                        row["cause_bias_init"] = str(best.get("bias_init", default_init))
                     if lookup is not None:
                         row.update({"policy_rewards_tempered": float(best[f"{p}_value_tempered"]),
                                     "temper_scale": float(best[f"{p}_temper_scale"]),

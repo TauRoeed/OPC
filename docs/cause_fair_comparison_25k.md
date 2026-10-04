@@ -69,7 +69,7 @@ starts from the source representation OPC starts from.
 | user representation | U_i ← x_i (the source user vector), shared by the control and treatment tasks (eq. 12/18), updated by both. Users without training rows keep x_i |
 | control items | θ^c_j ← a_j (the source item vector), updated on S_c and by the tie |
 | treatment (target) items | θ^t_j ← a_j: the treatment representation starts at the source / control representation. This is CausE's residual reading θ^t = θ^c + θ^Δ (eq. 16) with θ^Δ = 0 at the start. It is updated on S_t (and by the tie under the symmetric form) |
-| biases, scale | biases 0 and α = 1e-8, exactly the native initialization: at the start the logit is the bias part, and the embeddings enter as α grows. Starting α at a fitted or logger scale was rejected as an extra, non-CausE step |
+| biases, scale | α = 1e-8 and the per-row biases 0, exactly the native initialization. The intercept b starts at 0 (native) or at the logit of the click rate of CausE's own N training rows; the tuning stage decides (§3). Why it matters: the source vectors' dot products on logged pairs are large and positive, so with b = 0 the model starts at σ(0) = 50% against a ~10% click rate. The scale α then absorbs the miscalibration and can turn negative, inverting the ranking; a smoke test showed this. Native CausE never meets it, because its random initial vectors have near-zero dot products. Starting α at a fitted or logger scale was rejected as an extra, non-CausE step |
 | discrepancy regularizer | The released L1 tie cf·mean_B ‖θ^c_k − sg(θ^t_k)‖₁ (one-way: it pulls the control rows toward the treatment rows), or the paper's eq. 18 reading without sg (symmetric). The direction is chosen in the tuning stage (§3) as a structural hyperparameter, then fixed |
 | L2 | The native l2·½(‖U‖² + ‖P‖² + biases), which shrinks toward 0, not toward the source. Tuning chooses its strength, 0 included. Shrinking toward the source instead would be an invented advantage |
 | ρ = 0 | S_t is empty. Under the one-way tie with l2 = 0 the treatment rows stay at a_j. The T prediction is then ⟨U_trained, a_j⟩: the user vectors are adapted on S_c, the items are the source. Under the symmetric tie the treatment rows follow the control rows. The C prediction is a click model fit on all N warm rows, pulled toward the treatment rows |
@@ -94,7 +94,8 @@ loss on a batch B of S_c (control) and S_t (treatment) rows:
   mean_B CE(y, σ(z))
   + l2 · ½(‖D_u‖²_F + ‖b_u‖² + ‖D_c‖²_F + ‖b_c‖² + ‖D_t‖²_F + ‖b_t‖²)
   + cf · mean_B 1[k control] ‖θ^c_k − sg(θ^t_k)‖₁        (one-way; symmetric without sg)
-init: D = 0, b_u = b_c = b_t = 0, so every vector starts at its source vector; global bias 0, α = 1e-8 (native)
+init: D = 0, b_u = b_c = b_t = 0, so every vector starts at its source vector; α = 1e-8 (native); the global
+      bias at 0 or at the base-rate logit of its own training rows (chosen in tuning, as for CausE-warm)
 ```
 
 | question | CausE-capacity-matched |
@@ -135,8 +136,10 @@ oracle repair is computed against the same bound.
 - **Secondary: stochastic value.**
   - OPC learns a logit scale. The tempered logger is the logger's logits × s with s chosen by the DR lower bound on V.
   - A click predictor's softmax has no defined temperature (CausE's paper defines none; M5 used τ = 1).
-  - CausE therefore gets the same mechanism the tempered logger uses. Its selected model's logits are multiplied by s
-    from OPC's post-tempering grid (0.25–16), chosen by the DR lower bound with clip:10 on V.
+  - CausE therefore gets the same mechanism the tempered logger uses. Its selected model's logits are multiplied by s,
+    chosen by the DR lower bound with clip:10 on V. The grid is s ∈ {2⁻², …, 2¹²}, wider than OPC's post-tempering
+    grid (0.25–16), because click log-odds are much flatter than a policy's logits. A smoke test hit the old grid's top
+    at 16. A choice on the grid's edge is reported.
   - The q̂ inside that score is fit on CausE's own N rows at that ρ, so the budget stays fair.
   - Both are reported: CausE's raw softmax (τ = 1) and the tempered one.
 - **The tempered logger stays as the sharpening-only reference.** No gain that sharpening alone reaches is attributed
@@ -166,12 +169,13 @@ worlds** before the main grid:
   - l2 {0, 1e-7, 1e-6, 1e-5, 1e-4, 1e-3, 1e-2};
   - cf {0, 0.01, 0.1, 1, 10, 100, 1000};
   - tie {one-way, symmetric};
+  - the intercept's initialization {0, base rate} (warm families only);
 - **analysis:** where the validation-selected trials and the best-true-value trials fall in each dimension;
   whether any optimum lies on a boundary; and the 20-trial protocol simulated on candidate sub-spaces by resampling
   the logged trials, as for OPC's range (revalidation 2.3);
 - **decision rule, fixed now:** the main space for each variant is the candidate with the best mean selected greedy
-  value over the tuning worlds. The tie direction is chosen the same way. Each dimension's range is widened if its
-  optimum sits on an edge.
+  value over the tuning worlds. The tie direction and the intercept initialization are chosen the same way. Each
+  dimension's range is widened if its optimum sits on an edge.
 
 ρ is never tuned. Nothing is tuned on the 30 main worlds.
 
