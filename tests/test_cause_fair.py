@@ -150,3 +150,40 @@ def test_both_families_end_to_end_with_tempering(fair_runs, family):
             assert np.isfinite(row[col]), col
         assert row["temper_scale"] > 0 and row["val_dr_tempered_low"] <= row["val_dr_tempered"]
         assert row["oracle_selected_value_greedy"] >= row["policy_rewards_greedy"] - 1e-12
+
+
+def test_tempering_only_the_selected_trial_matches_tempering_every_trial(tmp_path):
+    """The scale search is a post-hoc function of the selected model, and the selection (validation NLL) does not
+    depend on it: tempering the selected trial alone reproduces the selected rows of tempering every trial."""
+    from test_reproducibility import _toy_embeddings
+    from training.cause_trials import TEMPER_FIELDS
+    from training.run_full_study import _run_condition
+
+    _toy_embeddings(tmp_path)
+    out = {}
+    for mode in ("all", "selected"):
+        run_dir = tmp_path / mode
+        run_dir.mkdir()
+        options = {"rhos": [0.25], "dim": D, "batch_size": 128, "n_trials": 4, "family": "cap", "temper": True,
+                   "ties": ["one_way", "symmetric"], "bias_inits": ["zero", "base_rate"], "temper_trials": mode}
+        out[mode] = _run_condition(dataset_name="toy", emb_dir=tmp_path, bias="medium", ctr=0.05, seed=0,
+                                   train_sizes=[1000], n_trials=2, batch_size=None, val_size=1000, val_frac=0.15,
+                                   val_min=1000, val_max=None, policy_reward_mode="exact", policy_reward_mc_sim=8,
+                                   run_dir=run_dir, slim=True, shared_regression_size=2000, methods=("cause",),
+                                   sampler="random", return_extra=True, cause_options=options)[5]
+    assert set(out["all"]) == set(out["selected"])
+    for label in out["all"]:
+        (s_all, t_all), (s_sel, t_sel) = out["all"][label], out["selected"][label]
+        a, b = s_all.loc[1000], s_sel.loc[1000]
+        assert a["selected_trial"] == b["selected_trial"]
+        for col in ("policy_rewards", "policy_rewards_greedy", "policy_rewards_tempered", "temper_scale", "val_dr_greedy",
+                    "val_dr_greedy_low", "val_dr_tempered", "val_dr_tempered_low"):
+            assert a[col] == pytest.approx(b[col], rel=1e-9, abs=1e-12), col
+        assert np.isnan(b["oracle_selected_value_tempered"]) and np.isfinite(a["oracle_selected_value_tempered"])
+        p = label.split("_")[1]
+        np.testing.assert_allclose(t_sel[f"{p}_val_dr_greedy"], t_all[f"{p}_val_dr_greedy"], rtol=1e-9)
+        tempered = t_sel[f"{p}_temper_scale"].notna()
+        assert tempered.sum() == 1 and int(t_sel.loc[tempered, "trial"].iloc[0]) == int(b["selected_trial"])
+        for k in TEMPER_FIELDS:
+            assert t_sel.loc[tempered, f"{p}_{k}"].iloc[0] == pytest.approx(
+                t_all.loc[t_all["trial"] == b["selected_trial"], f"{p}_{k}"].iloc[0], rel=1e-9, abs=1e-12)

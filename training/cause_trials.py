@@ -50,6 +50,7 @@ BIAS_INITS = ("zero", "base_rate")
 # CausE's tempering grid: its logits are click log-odds, much flatter than a policy's, so the grid reaches higher than
 # OPC's post-tempering grid (0.25-16)
 CAUSE_TEMPER_GRID = tuple(float(2.0 ** k) for k in range(-2, 13))
+TEMPER_FIELDS = ("temper_scale", "value_tempered", "val_dr_tempered", "val_dr_tempered_low")
 
 
 def _distributions(lr_range=CAUSE_LR_RANGE, epochs=CAUSE_EPOCHS, l2=CAUSE_L2, cf=CAUSE_CF_PEN, ties=None, bias_inits=None):
@@ -70,7 +71,8 @@ CAUSE_DISTRIBUTIONS = _distributions()
 CAUSE_DEFAULTS = {"rhos": list(CAUSE_RHOS), "variants": list(CAUSE_VARIANTS), "dim": 32,
                   "optimizer": "momentum_decay", "tie": "one_way", "batch_size": 512, "n_trials": None, "device": "auto",
                   "family": "native", "lr_range": list(CAUSE_LR_RANGE), "epochs": list(CAUSE_EPOCHS),
-                  "l2": list(CAUSE_L2), "cf": list(CAUSE_CF_PEN), "ties": None, "bias_inits": None, "temper": False}
+                  "l2": list(CAUSE_L2), "cf": list(CAUSE_CF_PEN), "ties": None, "bias_inits": None, "temper": False,
+                  "temper_trials": "selected"}
 
 
 def cause_method_label(prediction: str, rho: float, family: str = "native") -> str:
@@ -109,6 +111,10 @@ def add_cause_arguments(parser) -> None:
                    help="Also temper each selected model's softmax by the DR lower bound on validation (clip:10; q_hat "
                         "fit on CausE's own rows at each rho), and record DR estimates of its greedy and tempered "
                         "policies (docs/cause_fair_comparison_25k.md §2).")
+    g.add_argument("--cause-temper-trials", default="selected", choices=["selected", "all"],
+                   help="With --cause-temper: search the scale for each prediction's selected trial only (default; the "
+                        "selection does not depend on it) or for every trial (the tuning stage's diagnostics). Every "
+                        "trial gets the DR estimate of its greedy policy either way.")
 
 
 def cause_options_from_args(args) -> dict:
@@ -119,7 +125,7 @@ def cause_options_from_args(args) -> dict:
             "epochs": [int(x) for x in args.cause_epochs], "l2": [float(x) for x in args.cause_l2],
             "cf": [float(x) for x in args.cause_cf], "ties": None if args.cause_ties is None else list(args.cause_ties),
             "bias_inits": None if args.cause_bias_inits is None else list(args.cause_bias_inits),
-            "temper": bool(args.cause_temper)}
+            "temper": bool(args.cause_temper), "temper_trials": str(args.cause_temper_trials)}
 
 
 def _exact_values(dataset: dict, model: CausEModel, rows: np.ndarray) -> tuple[float, float]:
@@ -267,6 +273,9 @@ def cause_trainer_trial(
         raise ValueError("the intercept initialization is an option of the warm-started families only")
     distributions = _distributions(tuple(opts["lr_range"]), tuple(opts["epochs"]), tuple(opts["l2"]), tuple(opts["cf"]),
                                    ties, bias_inits)
+    if opts.get("temper_trials", "selected") not in ("selected", "all"):
+        raise ValueError(f"temper_trials must be 'selected' or 'all', got {opts['temper_trials']!r}")
+    temper_all = opts.get("temper_trials", "selected") == "all"
     ensure_exact_env_q_cache(dataset)
     n_users, n_actions = int(dataset["n_users"]), int(dataset["n_actions"])
     source = None
@@ -309,8 +318,12 @@ def cause_trainer_trial(
                 trial_rows = []
                 order_seed = derive_seed(seed, *labels_seed, "order")  # one batch order for every trial of the study
 
+                selected_vectors: dict[str, tuple] = {}  # per prediction: ((val NLL, trial), its policy vectors)
+
                 def evaluate(model, rec):
-                    """Validation metrics and exact true values of every prediction of a trained trial."""
+                    """Validation metrics and exact true values of every prediction of a trained trial; with
+                    tempering, the DR estimate of its greedy policy, and the scale search for every trial
+                    (``temper_trials='all'``) or, after the search, for the selected trial only."""
                     for p in preds:
                         extra = {}
                         if rec["finite"]:
@@ -320,13 +333,20 @@ def cause_trainer_trial(
                             v_soft, v_greedy = _exact_values(dataset, model, pred_rows[p])
                             if lookup is not None:
                                 ux, ia = model.policy_vectors(pred_rows[p])
-                                extra = _tempered(dataset, val, ux, ia, lookup)
+                                if temper_all:
+                                    extra = _tempered(dataset, val, ux, ia, lookup)
+                                else:
+                                    g_hat, g_low = _greedy_dr(val, ux, ia, lookup)
+                                    extra = {k: np.nan for k in TEMPER_FIELDS} | {"val_dr_greedy": g_hat,
+                                                                                  "val_dr_greedy_low": g_low}
+                                    key = (float(m["nll"]), int(rec["trial"]))
+                                    if m["nll"] < DIVERGED_NLL and (p not in selected_vectors or key < selected_vectors[p][0]):
+                                        selected_vectors[p] = (key, (ux, ia))
                         else:
                             m = {"nll": DIVERGED_NLL, "mse": np.nan, "auc": np.nan}
                             v_soft = v_greedy = np.nan
                             if lookup is not None:
-                                extra = {k: np.nan for k in ("temper_scale", "value_tempered", "val_dr_tempered",
-                                                             "val_dr_tempered_low", "val_dr_greedy", "val_dr_greedy_low")}
+                                extra = {k: np.nan for k in TEMPER_FIELDS + ("val_dr_greedy", "val_dr_greedy_low")}
                         rec.update({f"{p}_val_nll": m["nll"], f"{p}_val_mse": m["mse"], f"{p}_val_auc": m["auc"],
                                     f"{p}_value": v_soft, f"{p}_value_greedy": v_greedy,
                                     **{f"{p}_{k}": v for k, v in extra.items()}})
@@ -416,6 +436,12 @@ def cause_trainer_trial(
                 if torch.cuda.is_available():
                     torch.cuda.empty_cache()
                 trials_df = pd.DataFrame(trial_rows)
+                if lookup is not None and not temper_all:  # the selected trial of each prediction (selection by NLL)
+                    for p, ((_nll, number), (ux, ia)) in selected_vectors.items():
+                        extra = _tempered(dataset, val, ux, ia, lookup)
+                        at = trials_df.index[trials_df["trial"] == number][0]
+                        for k in TEMPER_FIELDS:
+                            trials_df.loc[at, f"{p}_{k}"] = extra[k]
                 print(f"[cause:{family}] N={n} rho={rho:g} {variant}: {len(trials_df)} trials in "
                       f"{time.time() - t_study:.0f}s; finite {int(trials_df['finite'].sum())}; best {preds[0]} val NLL "
                       f"{trials_df[f'{preds[0]}_val_nll'].min():.4f}", flush=True)
@@ -423,6 +449,8 @@ def cause_trainer_trial(
                     label = cause_method_label(p, rho, family)
                     finite = trials_df[trials_df[f"{p}_val_nll"] < DIVERGED_NLL]
                     best = finite.loc[finite[f"{p}_val_nll"].idxmin()] if len(finite) else trials_df.iloc[0]
+                    if lookup is not None and not temper_all and len(finite):
+                        assert int(best["trial"]) == selected_vectors[p][0][1], "tempered a different trial"
                     oracle = trials_df.loc[trials_df[f"{p}_value_greedy"].idxmax()] if trials_df[f"{p}_value_greedy"].notna().any() else best
                     v_soft, v_greedy = float(best[f"{p}_value"]), float(best[f"{p}_value_greedy"])
                     row = {
@@ -457,7 +485,10 @@ def cause_trainer_trial(
                                     "val_dr_greedy_low": float(best[f"{p}_val_dr_greedy_low"]),
                                     "val_dr_tempered": float(best[f"{p}_val_dr_tempered"]),
                                     "val_dr_tempered_low": float(best[f"{p}_val_dr_tempered_low"]),
-                                    "oracle_selected_value_tempered": float(trials_df[f"{p}_value_tempered"].max()),
+                                    # the best tempered value over the trials (a regret diagnostic): only when
+                                    # every trial was tempered
+                                    "oracle_selected_value_tempered": float(trials_df[f"{p}_value_tempered"].max())
+                                    if temper_all else np.nan,
                                     "qhat_rows": int(n)})
                     summaries.setdefault(label, []).append(row)
                     trials_by_label.setdefault(label, []).append(trials_df.assign(method=label, prediction=p))
