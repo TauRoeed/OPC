@@ -300,6 +300,13 @@ def _short(group: str) -> str:
     return next((short for prefix, short in GROUP_SHORT if group.startswith(prefix)), group)
 
 
+def t_own_range(t: pd.DataFrame) -> str:
+    rows = [[_k(r["train_size"]), str(int(r["worlds"])), _ci(r["shared"], r["shared_lo"], r["shared_hi"]),
+             _ci(r["own"], r["own_lo"], r["own_hi"]), _ci(r["diff"], r["diff_lo"], r["diff_hi"])] for _, r in t.iterrows()]
+    return _table(["train", "worlds", "OPC − DM-only, shared revalidated space", "OPC (revalidated) − DM-only (old space)",
+                   "difference"], rows)
+
+
 def t_findings(f: pd.DataFrame) -> str:
     rows = []
     for _, r in f.iterrows():
@@ -346,6 +353,9 @@ def main(argv=None) -> None:
               ("R12. The simulator fix vs the retuning (ml, kuairand; paired by world; points)",
                t_decomposition(rd(rep / "decomposition_simulator_vs_retuning.csv"))
                if (rep / "decomposition_simulator_vs_retuning.csv").exists() else "(the decomposition runs are missing)\n"),
+              ("R12b. OPC − DM-only with each arm in its own search space (ml, kuairand, biased worlds; corrected logs; "
+               "points)", t_own_range(rd(rep / "opc_vs_dm_own_search_spaces.csv"))
+               if (rep / "opc_vs_dm_own_search_spaces.csv").exists() else "(the decomposition runs are missing)\n"),
               ("R13. Every major old finding, old vs corrected (classification: training/revalidation_compare.py)",
                t_findings(rd(rep / "findings_old_vs_new.csv"))),
               ("R14. Phase 5: the OPC side of the CausE M5 comparison vs the revalidated configuration (25k; the same "

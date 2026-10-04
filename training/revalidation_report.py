@@ -527,7 +527,12 @@ def build_findings(old2, new2, rm_old, rm_new, sup_old_rows, sup_new_rows, su_ol
     return pd.DataFrame(F)
 
 
-DECOMPOSITION = {"OPC": ("opc", None), "DM-only": ("dm", None), "OPC - DM-only": ("opc", "dm")}
+DECOMPOSITION = {"OPC": ("opc", None, "V_method"), "DM-only": ("dm", None, "V_method"),
+                 "OPC - DM-only": ("opc", "dm", "V_method"),
+                 "OPC: DR estimate - truth": ("opc", None, "sel_error_point"), "OPC: selection regret": ("opc", None, "regret"),
+                 "DM-only: q̂ estimate - truth": ("dm", None, "sel_error_point"),
+                 "DM-only: selection regret": ("dm", None, "regret")}
+VALUE_QUANTITIES = ("OPC", "DM-only", "OPC - DM-only")
 EFFECTS = {"simulator": ("mid", "old"), "configuration": ("new", "mid"), "total": ("new", "old")}
 
 
@@ -537,8 +542,8 @@ def decomposition_table(old: pd.DataFrame, mid: pd.DataFrame, new: pd.DataFrame,
     ``by``: each quantity's mean in the three runs and the paired simulator (mid − old), configuration (new − mid) and
     total (new − old) effects, with 95% intervals over the worlds present in all three (true CTR points)."""
     out = []
-    for label, (a, b) in DECOMPOSITION.items():
-        v = {k: _per_world(r, a, b) for k, r in (("old", old), ("mid", mid), ("new", new))}
+    for label, (a, b, value) in DECOMPOSITION.items():
+        v = {k: _per_world(r, a, b, value) for k, r in (("old", old), ("mid", mid), ("new", new))}
         common = v["old"].index.intersection(v["mid"].index).intersection(v["new"].index)
         df = pd.DataFrame({k: s.loc[common] for k, s in v.items()}).reset_index()
         for cell, g in df.groupby(list(by)):
@@ -553,14 +558,34 @@ def decomposition_table(old: pd.DataFrame, mid: pd.DataFrame, new: pd.DataFrame,
     return pd.DataFrame(out)
 
 
+def own_range_table(mid: pd.DataFrame, new: pd.DataFrame, by=("train_size",)) -> pd.DataFrame:
+    """OPC in the revalidated search space against DM-only in the old one (its best on the tuning seeds, 2.3), on
+    the same corrected logs and worlds: each arm in its own range, beside the shared-range contrast."""
+    out = []
+    shared = _per_world(new, "opc", "dm")
+    own = (_per_world(new, "opc", None) - _per_world(mid, "dm", None)).dropna()
+    common = shared.index.intersection(own.index)
+    df = pd.DataFrame({"shared": shared.loc[common], "own": own.loc[common]}).reset_index()
+    for cell, g in df.groupby(list(by)):
+        rec = dict(zip(by, cell if isinstance(cell, tuple) else (cell,)), worlds=len(g))
+        for k in ("shared", "own"):
+            m, lo, hi, _ = mean_ci(g[k])
+            rec.update({k: m, f"{k}_lo": lo, f"{k}_hi": hi})
+        m, lo, hi, _ = mean_ci(g["own"] - g["shared"])
+        rec.update(diff=m, diff_lo=lo, diff_hi=hi)
+        out.append(rec)
+    return pd.DataFrame(out)
+
+
 def fig8_decomposition(table: pd.DataFrame, out: Path) -> None:
     """Fig 8: the old-to-new change of OPC, DM-only and OPC − DM-only on the biased worlds, split into the simulator
     effect (old configuration, buggy → corrected logs) and the configuration effect (corrected logs, old → new
     configuration), per train size."""
     plt = _plt()
     colors = {"simulator": "#0072B2", "configuration": "#E69F00", "total": "#333333"}
-    fig, axes = plt.subplots(1, len(DECOMPOSITION), figsize=(12, 3.2), sharey=True)
-    for ax, q in zip(axes, DECOMPOSITION):
+    table = table[table["quantity"].isin(VALUE_QUANTITIES)]
+    fig, axes = plt.subplots(1, len(VALUE_QUANTITIES), figsize=(12, 3.2), sharey=True)
+    for ax, q in zip(axes, VALUE_QUANTITIES):
         t = table[table["quantity"] == q].sort_values("train_size")
         for i, (k, c) in enumerate(colors.items()):
             xs = np.arange(len(t)) + (i - 1) * 0.22
@@ -685,6 +710,8 @@ def main(argv=None) -> None:
                         ignore_index=True)
         dec.to_csv(out / "decomposition_simulator_vs_retuning.csv", index=False)
         fig8_decomposition(dec[dec["worlds_kind"] == "biased"], out)
+        own_range_table(_sel(mid2, biased=True), _sel(new2_main, biased=True)).to_csv(
+            out / "opc_vs_dm_own_search_spaces.csv", index=False)
     # Phase 5: the M5 OPC side vs the revalidated configuration on the same logs
     m5_path = new_dir / "m5" / "learned_rows_m5_opc_side.csv"
     if m5_path.exists():

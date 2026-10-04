@@ -35,7 +35,7 @@ def test_rebuilds_from_committed_summaries(report):
         for ext in ("png", "pdf", "csv"):
             assert (report / f"{name}.{ext}").exists(), (name, ext)
     text = (report / "tables.md").read_text()
-    for k in ("1", "2", "3", "4a", "4b", "4c", "5a", "5b", "6", "7", "8", "9", "10", "11", "12", "13", "14"):
+    for k in ("1", "2", "3", "4a", "4b", "4c", "5a", "5b", "6", "7", "8", "9", "10", "11", "12", "12b", "13", "14"):
         assert f"### R{k}." in text, k
 
 
