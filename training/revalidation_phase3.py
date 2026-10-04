@@ -7,6 +7,7 @@ new counterpart paired by world:
   stage3_lgs_<share>/   the logging-support sweep at 25k (share 0.8 = the Stage 2 rerun's 25k cells)
   reward_model/   learned rows of the external-q̂ and misspecified-q̂ reruns and of their old counterparts
   decomposition/  learned rows of the old Stage 2 configuration on the corrected logs (OPC and DM-only, ml/kuairand)
+  old/            the old (buggy-log) reward-model tests and Su slice, rebuilt from their run folders
 
 Usage: python -m training.revalidation_phase3 --out artifacts/full_study/opc_revalidation_20261004/summaries
 """
@@ -31,6 +32,32 @@ REWARD_MODEL = {"external": ["run_reval_budget_external_base", "run_reval_budget
                 "concat": ["run_reval_qhat_concat_base", "run_reval_qhat_concat_opc"]}
 # the old Stage 2 configuration (old search space) on the corrected logs: separates the simulator effect from the retuning
 OLDSPACE = ["run_reval_stage2_oldspace_opc_mlkr", "run_reval_stage2_oldspace_dm_mlkr"]
+# the old (buggy-log) counterparts that are not in summaries_20260927: the reward-model tests of the older pipeline
+# (run folder, condition-name pattern; the old report's Table 6) and the Su robustness slice
+OLD_REWARD_MODEL = {"external": ("run_logger_explore", r"__lgs=0\.8$"),
+                    "budget_fair": ("run_logger_explore", r"__lgs=0\.8__qhat=train__cf=5$"),
+                    "interaction": ("run_logger_explore_budget", r"__lgs=0\.8__qhat=train__cf=5__val=20000$"),
+                    "concat": ("run_qhat_concat", r"__lgs=0\.8__qhat=train__cf=5__val=20000$")}
+OLD_SU = "run_stage2_su_shrink_100"
+
+
+def learned_rows_matching(run_dir, oracle_root, pattern: str) -> pd.DataFrame:
+    """``learned_recovery`` rows of the condition folders of ``run_dir`` whose name matches the regular expression
+    ``pattern`` (the old reward-model runs mix several settings in one run folder)."""
+    import re
+    import tempfile
+
+    run_dir = Path(run_dir)
+    with tempfile.TemporaryDirectory() as tmp:
+        sub = Path(tmp) / run_dir.name
+        sub.mkdir()
+        for cond in run_dir.glob("dataset=*"):
+            if re.search(pattern, cond.name):
+                (sub / cond.name).symlink_to(cond.resolve())
+        rows = load_learned(sub)
+    if rows.empty:
+        raise FileNotFoundError(f"no condition of {run_dir} matches {pattern!r}")
+    return learned_recovery(rows, load_oracle(oracle_root))
 
 
 def _existing(names) -> list[str]:
@@ -81,6 +108,14 @@ def main(argv=None) -> None:
         for setting, names in REWARD_MODEL.items():
             if _existing(names):
                 learned_recovery(load_learned(*_existing(names)), oracle).to_csv(rm / f"learned_rows_{setting}.csv", index=False)
+        # the old counterparts (buggy logs), rebuilt with the current loader, so that the report needs no run folder
+        (out / "old").mkdir(exist_ok=True)
+        for setting, (run, pattern) in OLD_REWARD_MODEL.items():
+            if (RUNS / run).exists():
+                learned_rows_matching(RUNS / run, ORACLE, pattern).to_csv(out / "old" / f"reward_model_{setting}.csv",
+                                                                         index=False)
+        if (RUNS / OLD_SU).exists():
+            learned_recovery(load_learned(RUNS / OLD_SU), oracle).to_csv(out / "old" / "su_shrink100.csv", index=False)
         if _existing(OLDSPACE):
             (out / "decomposition").mkdir(exist_ok=True)
             learned_recovery(load_learned(*_existing(OLDSPACE)), oracle).to_csv(

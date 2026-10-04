@@ -3,9 +3,10 @@
 Inputs (summaries written by ``training.analyze_recoverability``):
   --old  the buggy-simulator summaries (artifacts/full_study/summaries_20260927): stage2_learned_rows.csv,
          stage3_lgs_*/stage2_learned_rows.csv
-  --new  the fixed-simulator summaries (artifacts/full_study/opc_revalidation_20261004/summaries): the same files,
-         plus budget_* and misspec_* learned rows (the reward-model tests) and the old counterparts of those under
-         --old-extra (rebuilt from the local old run folders by ``old_extra_rows``)
+  --new  the fixed-simulator summaries (artifacts/full_study/opc_revalidation_20261004/summaries,
+         training.revalidation_phase3): the same files, the reward-model reruns' learned rows (reward_model/), the old
+         configuration on the corrected logs (decomposition/), and the old reward-model and Su-slice rows rebuilt
+         from the old run folders (old/), so that the report needs no run folder
   --tuning  the Phase 2 weighting tables (tuning/weights_*.csv)
 
 Outputs (--out): fig1..fig8 as PNG and PDF, each with the plotted values in a CSV of the same name, the old-vs-new
@@ -44,28 +45,6 @@ def cell_means(rows: pd.DataFrame, value: str, scale: float = 100.0, methods=Non
         mm, lo, hi, k = mean_ci(scale * g[value])
         out.append(dict(bias=b, train_size=n, method=m, mean=mm, ci_low=lo, ci_high=hi, n=k))
     return pd.DataFrame(out)
-
-
-def learned_rows_matching(run_dir, oracle_root, pattern: str) -> pd.DataFrame:
-    """``learned_recovery`` rows of the condition folders of ``run_dir`` whose name matches the regular expression
-    ``pattern`` (the old reward-model runs mix several settings in one run folder)."""
-    import re
-    import shutil
-    import tempfile
-
-    from training.analyze_recoverability import learned_recovery, load_learned, load_oracle
-
-    run_dir = Path(run_dir)
-    with tempfile.TemporaryDirectory() as tmp:
-        sub = Path(tmp) / run_dir.name
-        sub.mkdir()
-        for cond in run_dir.glob("dataset=*"):
-            if re.search(pattern, cond.name):
-                (sub / cond.name).symlink_to(cond.resolve())
-        rows = load_learned(sub)
-    if rows.empty:
-        raise FileNotFoundError(f"no condition of {run_dir} matches {pattern!r}")
-    return learned_recovery(rows, load_oracle(oracle_root))
 
 
 # --------------------------------------------------------------------------------------------- figures
@@ -189,8 +168,8 @@ def fig4_weighting(screen: pd.DataFrame, sel_diag: pd.DataFrame, out: Path) -> N
     axes[0].set_ylabel("true CTR difference to raw (points;\npaired over conditions)")
     axes[2].legend(frameon=False, fontsize=7, loc="lower right")
     d = sel_diag[sel_diag["method"].isin(["opc", "dm"])] if "method" in sel_diag else sel_diag
-    for ax, col, lab in ((axes[3], "ess_raw", "raw-weight ESS of the selected policy"),
-                         (axes[4], "w_share_gt10", "share of weights > 10 (%)")):
+    for ax, col, lab in ((axes[3], "ess_raw", "raw-weight ESS of the selected policy\n(median over worlds)"),
+                         (axes[4], "w_share_gt10", "share of weights > 10 (%)\n(median over worlds)")):
         for m in ("opc", "dm"):
             g = d[d["method"] == m].groupby("train_size")[col].median()
             if g.empty:
@@ -238,7 +217,7 @@ def reward_model_table(settings: dict[str, tuple[pd.DataFrame, pd.DataFrame]]) -
                         m, lo, hi, _ = mean_ci(100 * a["qhat_error"])
                         row.update({f"qhat error {arm} {tag}": m, f"qhat error {arm} {tag} lo": lo,
                                     f"qhat error {arm} {tag} hi": hi})
-                    row[f"ess {arm} {tag}"] = a["ess_raw"].median() if len(a) else np.nan
+                    row[f"ess {arm} {tag}"] = a["ess_raw"].mean() if len(a) else np.nan
             out.append(row)
     return pd.DataFrame(out)
 
@@ -288,10 +267,13 @@ def support_table(rows_by_share: dict[float, pd.DataFrame]) -> pd.DataFrame:
             frac = r[r["method"] == "opc"]["fraction_of_oracle_repair_greedy"]
             m, lo, hi, _ = mean_ci(frac)
             d, dlo, dhi, k = mean_ci(_per_world(r, "opc", "dm"))
-            o = r[r["method"] == "opc"]
+            o, dm = r[r["method"] == "opc"], r[r["method"] == "dm"]
             out.append(dict(share=share, bias=b, worlds=k, opc_fraction=m, opc_fraction_lo=lo, opc_fraction_hi=hi,
-                            opc_minus_dm=d, opc_minus_dm_lo=dlo, opc_minus_dm_hi=dhi, opc_ess=o["ess_raw"].median(),
-                            opc_w_gt10_pct=100 * o["w_share_gt10"].mean(), logger_value_pct=100 * o["V_logger"].mean(),
+                            dm_fraction=dm["fraction_of_oracle_repair_greedy"].mean(),
+                            opc_minus_dm=d, opc_minus_dm_lo=dlo, opc_minus_dm_hi=dhi, opc_ess=o["ess_raw"].mean(),
+                            opc_w_gt10_pct=100 * o["w_share_gt10"].mean(), opc_regret_pct=100 * o["regret"].mean(),
+                            opc_sel_error_pct=100 * o["sel_error_point"].mean(), dm_regret_pct=100 * dm["regret"].mean(),
+                            logger_value_pct=100 * o["V_logger"].mean(),
                             oracle_gain_greedy_pct=100 * (o["oracle_repair_greedy"] - o["V_logger_greedy"]).mean()))
     return pd.DataFrame(out)
 
@@ -580,18 +562,15 @@ def _md_table(df: pd.DataFrame, cols, fmt=None) -> str:
 
 
 def main(argv=None) -> None:
-    from training.analyze_recoverability import learned_recovery, load_learned, load_oracle
-
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--old", default="artifacts/full_study/summaries_20260927")
     ap.add_argument("--new", default="artifacts/full_study/opc_revalidation_20261004/summaries")
     ap.add_argument("--tuning", default="artifacts/full_study/opc_revalidation_20261004/tuning")
-    ap.add_argument("--runs", default="artifacts/full_study", help="run folders (old reward-model tests, Su slices)")
     ap.add_argument("--out", default="artifacts/full_study/opc_revalidation_20261004/report")
+    ap.add_argument("--phase0", default="artifacts/full_study/opc_revalidation_20261004/phase0")
     a = ap.parse_args(argv)
-    out, old_dir, new_dir, runs = Path(a.out), Path(a.old), Path(a.new), Path(a.runs)
+    out, old_dir, new_dir = Path(a.out), Path(a.old), Path(a.new)
     out.mkdir(parents=True, exist_ok=True)
-    oracle_root = runs / "run_oracle_repair_20260927"
     old2 = load_rows(old_dir / "stage2_learned_rows.csv")
     new2 = load_rows(new_dir / "stage2" / "stage2_learned_rows.csv")
     new2_main = new2[~new2["method"].str.startswith("opc_")]
@@ -607,12 +586,11 @@ def main(argv=None) -> None:
     # weighting (Phase 2) and the corrected Stage 2's weight diagnostics
     screen = pd.read_csv(Path(a.tuning) / "weights_screen_s201.csv")
     fig4_weighting(screen, new2_main.rename(columns={}), out)
-    # reward-model tests: old from the old run folders (older pipeline), new from the reruns + the Stage 2 rerun
+    # reward-model tests: old = the older pipeline's runs on the buggy logs (rebuilt into --new/old by
+    # training.revalidation_phase3), new = the reruns and the Stage 2 rerun
     mh = lambda d: d[d["bias"].isin(["medium", "high"])]
-    rm_old = {"budget": (learned_rows_matching(runs / "run_logger_explore", oracle_root, r"__lgs=0\.8$"),
-                         learned_rows_matching(runs / "run_logger_explore", oracle_root, r"__lgs=0\.8__qhat=train__cf=5$")),
-              "concat": (learned_rows_matching(runs / "run_logger_explore_budget", oracle_root, r"__lgs=0\.8__qhat=train__cf=5__val=20000$"),
-                         learned_rows_matching(runs / "run_qhat_concat", oracle_root, r"__lgs=0\.8__qhat=train__cf=5__val=20000$"))}
+    old_rm = lambda name: load_rows(new_dir / "old" / f"reward_model_{name}.csv")
+    rm_old = {"budget": (old_rm("external"), old_rm("budget_fair")), "concat": (old_rm("interaction"), old_rm("concat"))}
     rm_new = {"budget": (load_rows(new_dir / "reward_model" / "learned_rows_external.csv"), mh(new2_main)),
               "concat": (mh(new2_main), load_rows(new_dir / "reward_model" / "learned_rows_concat.csv"))}
     labels = {"budget": "external 50k-row q̂", "concat": "misspecified (concat) q̂"}
@@ -632,11 +610,10 @@ def main(argv=None) -> None:
     fig6_support(st_old, st_new, out)
     # Su robustness slice: harmonic:0.1 − shrink:100 on the single-type highs at 25k (ml, kuairand), old vs new
     su_old = su_new = None
-    su_old_dir = runs / "run_stage2_su_shrink_100"
+    su_path = new_dir / "old" / "su_shrink100.csv"
     rob = new2[new2["method"] == "opc_shrink100"]
-    if su_old_dir.exists() and not rob.empty:
-        oracle = load_oracle(oracle_root)
-        su_rows = learned_recovery(load_learned(su_old_dir), oracle)
+    if su_path.exists() and not rob.empty:
+        su_rows = load_rows(su_path)
         keys = ["dataset", "bias", "seed", "train_size"]
         o_h = old2[old2["method"] == "opc"].set_index(keys)["V_method"]
         o_s = su_rows[su_rows["method"] == "opc"].set_index(keys)["V_method"]
@@ -665,6 +642,9 @@ def main(argv=None) -> None:
     fmt["worlds"] = "{:.0f}"
     (out / "findings_old_vs_new.md").write_text(_md_table(findings, cols, fmt))
     print(findings[cols].round(3).to_string(index=False))
+    from training.revalidation_tables import main as tables
+
+    tables(["--old", str(old_dir), "--new", str(new_dir), "--report", str(out), "--phase0", a.phase0])
 
 
 if __name__ == "__main__":

@@ -123,6 +123,15 @@ def _tags(folder: str) -> dict:
     return dict(part.split("=", 1) for part in folder.split("__") if "=" in part)
 
 
+def _qhat_error(best: pd.Series, summary: pd.Series) -> float:
+    """The condition's reward model q̂ evaluating the selected policy, minus the truth: q̂'s own estimation error where
+    it matters. From the selected trial's DM score on the validation rows (``sel_r_hat[dm]``, logged with
+    ``--log-select-weights ... dm``), else from the post-hoc DM estimate (``reg_dm``; not computed in --slim runs)."""
+    if pd.notna(best.get("sel_r_hat[dm]", np.nan)):
+        return float(best["sel_r_hat[dm]"] - best["actual_reward"])
+    return float(summary.get("reg_dm", np.nan) - summary["policy_rewards"])
+
+
 def load_learned(*run_dirs) -> pd.DataFrame:
     """One row per (condition, method, train size) of study runs: the selected policy's true stochastic and greedy
     CTR (V_method, V_method_greedy), its learned logit scale, the tempered logger's value in the same cell, and the
@@ -155,9 +164,7 @@ def load_learned(*run_dirs) -> pd.DataFrame:
                     w_max=float(best.get("diag_w_max", np.nan)),
                     sel_error_point=float(best["r_hat"] - best["actual_reward"]),
                     sel_error_lower=float(best["value"] - best["actual_reward"]),
-                    # the condition's reward model q̂ evaluating the selected policy (DM estimate on the validation
-                    # users) minus the truth: q̂'s own estimation error where it matters
-                    qhat_error=float(r.get("reg_dm", np.nan) - r["policy_rewards"]),
+                    qhat_error=_qhat_error(best, r),
                     regret=float(g["actual_reward"].max() - best["actual_reward"]), n_trials=len(g)))
     return pd.DataFrame(out)
 
