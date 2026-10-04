@@ -246,12 +246,13 @@ def fig5_reward_model(old_t: pd.DataFrame, new_t: pd.DataFrame, out: Path) -> No
                                           ("change dm", "DM-only: altered − reference q̂"),
                                           ("change opc", "OPC: altered − reference q̂"))):
             ax = axes[r, c]
-            for k, (tag, t, mk) in enumerate((("old", old_t, "s"), ("new", new_t, "o"))):
+            for k, (tag, t) in enumerate((("old", old_t), ("new", new_t))):
                 g = t[t["setting"] == setting]
                 for j, b in enumerate(("medium", "high")):
                     gb = g[g["bias"] == b].sort_values("train_size")
                     if gb.empty:
                         continue
+                    mk = {("old", "medium"): "s", ("old", "high"): "^", ("new", "medium"): "o", ("new", "high"): "D"}[tag, b]
                     xs = np.log10(gb["train_size"]) + (k - 0.5) * 0.04 + (j - 0.5) * 0.015
                     ax.errorbar(xs, gb[col], yerr=[gb[col] - gb[f"{col} lo"], gb[f"{col} hi"] - gb[col]], marker=mk,
                                 color=("#999999" if tag == "old" else ("#0072B2" if b == "medium" else "#D55E00")),
