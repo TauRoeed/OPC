@@ -8,6 +8,7 @@ new counterpart paired by world:
   reward_model/   learned rows of the external-q̂ and misspecified-q̂ reruns and of their old counterparts
   decomposition/  learned rows of the old Stage 2 configuration on the corrected logs (OPC and DM-only, ml/kuairand)
   old/            the old (buggy-log) reward-model tests and Su slice, rebuilt from their run folders
+  m5/             the OPC side of the CausE M5 comparison (read only, for the Phase 5 assessment)
 
 Usage: python -m training.revalidation_phase3 --out artifacts/full_study/opc_revalidation_20261004/summaries
 """
@@ -39,6 +40,8 @@ OLD_REWARD_MODEL = {"external": ("run_logger_explore", r"__lgs=0\.8$"),
                     "interaction": ("run_logger_explore_budget", r"__lgs=0\.8__qhat=train__cf=5__val=20000$"),
                     "concat": ("run_qhat_concat", r"__lgs=0\.8__qhat=train__cf=5__val=20000$")}
 OLD_SU = "run_stage2_su_shrink_100"
+# the OPC side of the CausE M5 comparison (fixed simulator, the pre-revalidation OPC configuration; Phase 5 only reads it)
+M5_OPC = "run_cause_dev_25k_opc_20261004"
 
 
 def learned_rows_matching(run_dir, oracle_root, pattern: str) -> pd.DataFrame:
@@ -116,6 +119,10 @@ def main(argv=None) -> None:
                                                                          index=False)
         if (RUNS / OLD_SU).exists():
             learned_recovery(load_learned(RUNS / OLD_SU), oracle).to_csv(out / "old" / "su_shrink100.csv", index=False)
+        if (RUNS / M5_OPC).exists():
+            (out / "m5").mkdir(exist_ok=True)
+            learned_recovery(load_learned(RUNS / M5_OPC), oracle).to_csv(out / "m5" / "learned_rows_m5_opc_side.csv",
+                                                                         index=False)
         if _existing(OLDSPACE):
             (out / "decomposition").mkdir(exist_ok=True)
             learned_recovery(load_learned(*_existing(OLDSPACE)), oracle).to_csv(

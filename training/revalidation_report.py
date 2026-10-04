@@ -553,6 +553,26 @@ def fig8_decomposition(table: pd.DataFrame, out: Path) -> None:
     _save(fig, out, "fig8_simulator_vs_retuning", table)
 
 
+def m5_config_table(m5: pd.DataFrame, new: pd.DataFrame) -> pd.DataFrame:
+    """Phase 5: the OPC side of the CausE M5 comparison (fixed-simulator logs; the pre-revalidation configuration: old
+    search space, fixed logit scale) against the corrected Stage 2 at 25k on the same worlds (the same logs and
+    splits: a one-size run reproduces that size's trials of a multi-size run). Per arm and bias: both means and the
+    paired difference (revalidated − M5) in true CTR points. The tempered logger has no training configuration, so its
+    difference must be exactly 0 if the logs are identical."""
+    out = []
+    n25 = new[new["train_size"] == 25000]
+    for arm in ("opc", "dm", "tempered_logger"):
+        a = m5[m5["method"] == arm].set_index(KEYS)["V_method"]
+        b = n25[n25["method"] == arm].set_index(KEYS)["V_method"]
+        common = a.index.intersection(b.index)
+        both = pd.DataFrame({"m5": 100 * a.loc[common], "new": 100 * b.loc[common]}).reset_index()
+        for bias, g in list(both.groupby("bias")) + [("all", both), ("biased", both[both["bias"] != "none"])]:
+            m, lo, hi, k = mean_ci(g["new"] - g["m5"])
+            out.append(dict(method=arm, bias=bias, worlds=k, m5=g["m5"].mean(), revalidated=g["new"].mean(), diff=m,
+                            diff_lo=lo, diff_hi=hi, max_abs_diff=float((g["new"] - g["m5"]).abs().max())))
+    return pd.DataFrame(out)
+
+
 def _md_table(df: pd.DataFrame, cols, fmt=None) -> str:
     fmt = fmt or {}
     head = "| " + " | ".join(cols) + " |\n|" + "---|" * len(cols) + "\n"
@@ -634,6 +654,10 @@ def main(argv=None) -> None:
                         ignore_index=True)
         dec.to_csv(out / "decomposition_simulator_vs_retuning.csv", index=False)
         fig8_decomposition(dec[dec["worlds_kind"] == "biased"], out)
+    # Phase 5: the M5 OPC side vs the revalidated configuration on the same logs
+    m5_path = new_dir / "m5" / "learned_rows_m5_opc_side.csv"
+    if m5_path.exists():
+        m5_config_table(load_rows(m5_path), new2_main).to_csv(out / "phase5_m5_opc_side_vs_revalidated.csv", index=False)
     findings = build_findings(old2, new2_main, rm_old, rm_new, sup_old, sup_new, su_old, su_new)
     findings.to_csv(out / "findings_old_vs_new.csv", index=False)
     fig_verdicts(findings, out)

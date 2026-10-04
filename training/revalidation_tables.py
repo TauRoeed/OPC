@@ -74,7 +74,7 @@ def t_contrasts(paired: pd.DataFrame) -> str:
     contrasts = [("opc - dm", "OPC − DM-only"), ("opc - no_propensity", "OPC − no-propensity"),
                  ("opc - tempered_logger", "OPC − tempered logger")]
     extra = sorted(c for c in p["contrast"].unique() if c.startswith("opc - opc_"))
-    contrasts += [(c, "OPC − OPC " + c.split("opc_", 1)[1]) for c in extra]
+    contrasts += [(c, "OPC − OPC with " + c.split("opc_", 1)[1].replace("shrink", "shrink:")) for c in extra]
     rows = []
     for b, n, g in _cells(p):
         if g.empty:
@@ -89,7 +89,7 @@ def t_old_new(t: pd.DataFrame, contrast: str, d: int = 2) -> str:
     g0 = t[t["contrast"] == contrast]
     rows = []
     for b, n, g in _cells(g0):
-        if g.empty:
+        if g.empty or not g["worlds"].iloc[0]:  # e.g. no fractions without a bias
             continue
         r = g.iloc[0]
         rows.append([LABEL[b], _k(n), str(int(r["worlds"])), _ci(r["old"], r["old_lo"], r["old_hi"], d),
@@ -235,17 +235,18 @@ def t_support(old: pd.DataFrame, new: pd.DataFrame, coupling: pd.DataFrame) -> s
 
 
 def t_robust(rob: pd.DataFrame) -> str:
+    """The default (harmonic:0.1) minus the robustness arm (shrink:100), the sign of R2 and of the old Su slice; the
+    summary file holds robust − default."""
     rows = []
     for b, n, g in _cells(rob):
         if g.empty:
             continue
         r = lambda meas: g[g["measure"] == meas]
-        v = r("V %")
-        fr = r("fraction greedy")
-        rows.append([LABEL[b], _k(n), str(int(v["n"].iloc[0])) if len(v) else "—",
-                     _ci(*v[["diff", "ci_low", "ci_high"]].iloc[0]) if len(v) else "—",
-                     _ci(*fr[["diff", "ci_low", "ci_high"]].iloc[0], d=3) if len(fr) else "—"])
-    return _table(["bias", "train", "worlds", "V: shrink:100 − harmonic:0.1 (points)", "fraction (greedy)"], rows)
+        flip = lambda t: (-t["diff"].iloc[0], -t["ci_high"].iloc[0], -t["ci_low"].iloc[0])
+        v, fr = r("V %"), r("fraction greedy")
+        rows.append([LABEL[b], _k(n), str(int(v["n"].iloc[0])) if len(v) else "—", _ci(*flip(v)) if len(v) else "—",
+                     _ci(*flip(fr), d=3) if len(fr) else "—"])
+    return _table(["bias", "train", "worlds", "V: harmonic:0.1 − shrink:100 (points)", "fraction (greedy)"], rows)
 
 
 def t_decomposition(dec: pd.DataFrame) -> str:
@@ -265,6 +266,23 @@ def t_decomposition(dec: pd.DataFrame) -> str:
                              _ci(r["total"], r["total_lo"], r["total_hi"])])
     return _table(["worlds", "quantity (points)", "train", "n", "old / old config on corrected logs / corrected",
                    "simulator fix (old config)", "retuning (corrected logs)", "total"], rows)
+
+
+def t_m5(t: pd.DataFrame) -> str:
+    """Phase 5: the M5 OPC side (pre-revalidation configuration) vs the revalidated configuration, same logs, 25k."""
+    rows = []
+    order = [b for b in ALL_BIASES] + ["biased", "all"]
+    for arm in ("opc", "dm", "tempered_logger"):
+        for b in order:
+            g = t[(t["method"] == arm) & (t["bias"] == b)]
+            if g.empty:
+                continue
+            r = g.iloc[0]
+            rows.append([ARMS[arm], LABEL.get(b, f"pooled: {b}"), str(int(r["worlds"])), _f(r["m5"], 2, False),
+                         _f(r["revalidated"], 2, False), _ci(r["diff"], r["diff_lo"], r["diff_hi"]),
+                         _f(r["max_abs_diff"], 3, False)])
+    return _table(["arm", "bias", "worlds", "M5 (V %)", "revalidated (V %)", "revalidated − M5 (points)",
+                   "largest absolute difference"], rows)
 
 
 def t_findings(f: pd.DataFrame) -> str:
@@ -308,13 +326,16 @@ def main(argv=None) -> None:
                "anime × 2 seeds)", t_reward(rd(rep / "reward_model_tests_old.csv"), rd(rep / "reward_model_tests_new.csv"))),
               ("R10. Logging support at 25k (ml, kuairand × 2 seeds): old → corrected",
                t_support(rd(rep / "support_old.csv"), rd(rep / "support_new.csv"), coupling_by_share(Path(a.phase0)))),
-              ("R11. Robustness arm: OPC with shrink:100 minus OPC with harmonic:0.1 training weights (paired trial by "
-               "trial)", t_robust(rd(new / "stage2" / "stage2_robust_shrink100_minus_default.csv"))),
+              ("R11. Robustness arm: OPC with harmonic:0.1 (default) minus OPC with shrink:100 training weights "
+               "(paired trial by trial)", t_robust(rd(new / "stage2" / "stage2_robust_shrink100_minus_default.csv"))),
               ("R12. The simulator fix vs the retuning (ml, kuairand; paired by world; points)",
                t_decomposition(rd(rep / "decomposition_simulator_vs_retuning.csv"))
                if (rep / "decomposition_simulator_vs_retuning.csv").exists() else "(the decomposition runs are missing)\n"),
               ("R13. Every major old finding, old vs corrected (classification: training/revalidation_compare.py)",
-               t_findings(rd(rep / "findings_old_vs_new.csv")))]
+               t_findings(rd(rep / "findings_old_vs_new.csv"))),
+              ("R14. Phase 5: the OPC side of the CausE M5 comparison vs the revalidated configuration (25k; the same "
+               "worlds, logs and splits)", t_m5(rd(rep / "phase5_m5_opc_side_vs_revalidated.csv"))
+               if (rep / "phase5_m5_opc_side_vs_revalidated.csv").exists() else "(the M5 run folder is missing)\n")]
     text = "# Revalidation tables (generated by training/revalidation_tables.py; do not edit)\n\n" + "\n".join(
         f"### {title}\n\n{body}" for title, body in parts)
     (rep / "tables.md").write_text(text)
