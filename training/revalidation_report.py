@@ -43,6 +43,28 @@ def cell_means(rows: pd.DataFrame, value: str, scale: float = 100.0, methods=Non
     return pd.DataFrame(out)
 
 
+def learned_rows_matching(run_dir, oracle_root, pattern: str) -> pd.DataFrame:
+    """``learned_recovery`` rows of the condition folders of ``run_dir`` whose name matches the regular expression
+    ``pattern`` (the old reward-model runs mix several settings in one run folder)."""
+    import re
+    import shutil
+    import tempfile
+
+    from training.analyze_recoverability import learned_recovery, load_learned, load_oracle
+
+    run_dir = Path(run_dir)
+    with tempfile.TemporaryDirectory() as tmp:
+        sub = Path(tmp) / run_dir.name
+        sub.mkdir()
+        for cond in run_dir.glob("dataset=*"):
+            if re.search(pattern, cond.name):
+                (sub / cond.name).symlink_to(cond.resolve())
+        rows = load_learned(sub)
+    if rows.empty:
+        raise FileNotFoundError(f"no condition of {run_dir} matches {pattern!r}")
+    return learned_recovery(rows, load_oracle(oracle_root))
+
+
 # --------------------------------------------------------------------------------------------- figures
 
 

@@ -146,7 +146,8 @@ def load_learned(*run_dirs) -> pd.DataFrame:
                 out.append(dict(
                     run=Path(run).name, dataset=tags["dataset"], bias=tags["bias"], seed=int(tags["seed"]),
                     method=r["method"], train_size=int(r["train_size"]), V_method=float(r["policy_rewards"]),
-                    V_method_greedy=float(r["policy_rewards_greedy"]), logit_scale=float(best.get("logit_scale", np.nan)),
+                    V_method_greedy=float(r.get("policy_rewards_greedy", np.nan)),  # absent in runs before c1b6dfb
+                    logit_scale=float(best.get("logit_scale", np.nan)),
                     V_tempered=float(temp.get(r["train_size"], np.nan)),
                     ess_raw=float(best.get("ess_raw", np.nan)), w_share_gt10=float(best.get("diag_w_share_gt10", np.nan)),
                     w_max=float(best.get("diag_w_max", np.nan)),
