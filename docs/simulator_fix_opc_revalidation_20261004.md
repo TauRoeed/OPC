@@ -384,6 +384,14 @@ The shared setting favours OPC most. DM-only would prefer the fixed scale on kua
 - **Decision:** keep the learnable logit scale (the Stage 2 setting). The runaway is contained by the chosen range.
   The logit-scale speed (30, set on buggy logs in 2a29056) is unchanged.
 
+**Post-hoc tempering on top of the learned scale** (`run_reval_posttemper_harm0.1_s201`; seed 201, paired with
+harmonic:0.1). The trained policy's logits are rescaled by the factor (0.25–16) with the best DR lower bound.
+- **Per trial:** most trials improve, by +1.17 / +0.13 / +0.19 points (99% / 65% / 76% of trials at 5k / 25k /
+  100k), mostly by sharpening under-trained 5k policies (median factor 8 at 5k).
+- **Selected policy:** +0.09 [−0.01, +0.18] / +0.04 [−0.03, +0.12] / −0.07 [−0.25, +0.10]. The selection already
+  finds well-sharpened trials.
+- **Decision:** no post-hoc tempering. It is simpler, and the selected value does not change.
+
 ### 2.6 Selection (post hoc on the logged scores; preliminary)
 
 - **Data:** every trial logs its DR point estimate and 95% lower bound under 19 selection transforms. The OPC trials
