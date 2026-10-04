@@ -222,6 +222,7 @@ def posthoc_selection(t: pd.DataFrame, zs=(0.0, 0.5, 1.0, 1.96, 3.0)) -> pd.Data
     """The selected trial's true gain under every logged selection transform (``sel_r_hat[spec]``,
     ``sel_ci_low[spec]``) and lower-bound multipliers z (score = point − z·se, se recovered from the logged
     95% bound with the t quantile of the 20,000-row validation), per arm and train size (means over conditions)."""
+    t = t.reset_index(drop=True)  # the picks are looked up by index label
     specs = sorted({c[len("sel_r_hat["):-1] for c in t.columns if c.startswith("sel_r_hat[")})
     tq = stats.t.ppf(0.975, 20_000 - 1)
     rows = []
