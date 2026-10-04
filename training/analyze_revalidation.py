@@ -138,6 +138,72 @@ def paired_runs(a: pd.DataFrame, b: pd.DataFrame, method: str = "opc") -> pd.Dat
     return pd.DataFrame(rows)
 
 
+def selected_rows(t: pd.DataFrame) -> pd.DataFrame:
+    """Each arm's selected trial per condition and size, with its diagnostics: true gain, raw-weight ESS, share of
+    weights above 10, largest weight, learned logit scale, the selection estimate's error (point and lower bound,
+    points), the true regret over the arm's trials and the Spearman correlation of the selection score with the
+    truth over the trials."""
+    rows = []
+    for key, g in t.groupby(KEYS + ["method", "run"]):
+        best = g[g["is_best_in_run"].astype(bool)]
+        if best.empty:
+            continue
+        b = best.iloc[0]
+        rho = stats.spearmanr(g["value"], g["actual_reward"]).statistic if g["value"].nunique() > 1 else np.nan
+        rows.append(dict(zip(KEYS + ["method", "run"], key), gain=b["gain"], ess_raw=b.get("ess_raw", np.nan),
+                         w_share_gt10=b.get("diag_w_share_gt10", np.nan), w_max=b.get("diag_w_max", np.nan),
+                         logit_scale=b.get("logit_scale", np.nan),
+                         err_point=100.0 * (b["r_hat"] - b["actual_reward"]),
+                         err_lower=100.0 * (b["value"] - b["actual_reward"]),
+                         regret=float(g["gain"].max() - b["gain"]), spearman_score_truth=rho, trials=len(g)))
+    return pd.DataFrame(rows)
+
+
+def compare_runs(runs: dict[str, pd.DataFrame], reference: str, method: str = "opc") -> pd.DataFrame:
+    """Every run against ``reference`` (same paired trials): per train size, the mean over conditions of the
+    per-trial and the selected difference in true gain, with 95% intervals, and the mean selected gain."""
+    ref = runs[reference]
+    rows = []
+    for label, t in runs.items():
+        res = paired_runs(ref, t, method) if label != reference else None
+        sel = selected_rows(t[t["method"] == method])
+        for n, g in sel.groupby("train_size"):
+            m, lo, hi, k = mean_ci(g["gain"])
+            row = dict(run=label, train_size=n, conditions=k, selected_gain=m, selected_lo=lo, selected_hi=hi,
+                       ess_raw=g["ess_raw"].median(), w_share_gt10=g["w_share_gt10"].mean(), regret=g["regret"].mean(),
+                       err_point=g["err_point"].mean(), err_lower=g["err_lower"].mean(),
+                       spearman_score_truth=g["spearman_score_truth"].mean())
+            if res is not None:
+                d = res[res["train_size"] == n]
+                w = d["conditions"].to_numpy(float)
+                row.update(trial_diff=float(np.average(d["trial_diff"], weights=w)),
+                           selected_diff=float(np.average(d["selected_diff"], weights=w)))
+            rows.append(row)
+    return pd.DataFrame(rows)
+
+
+def posthoc_selection(t: pd.DataFrame, zs=(0.0, 0.5, 1.0, 1.96, 3.0)) -> pd.DataFrame:
+    """The selected trial's true gain under every logged selection transform (``sel_r_hat[spec]``,
+    ``sel_ci_low[spec]``) and lower-bound multipliers z (score = point − z·se, se recovered from the logged
+    95% bound with the t quantile of the 20,000-row validation), per arm and train size (means over conditions)."""
+    specs = sorted({c[len("sel_r_hat["):-1] for c in t.columns if c.startswith("sel_r_hat[")})
+    tq = stats.t.ppf(0.975, 20_000 - 1)
+    rows = []
+    for (arm, n), g in t.groupby(["method", "train_size"]):
+        for spec in specs:
+            hat, low = f"sel_r_hat[{spec}]", f"sel_ci_low[{spec}]"
+            if hat not in g or g[hat].isna().all():
+                continue
+            se = (g[hat] - g[low]) / tq
+            for z in zs:
+                score = g[hat] - z * se
+                picked = g.assign(_s=score).loc[lambda x: x.groupby(KEYS)["_s"].idxmax()]
+                rows.append(dict(method=arm, train_size=n, spec=spec, z=z, gain=picked["gain"].mean(),
+                                 regret=float((g.groupby(KEYS)["gain"].max() - picked.set_index(KEYS)["gain"]).mean()),
+                                 conditions=len(picked)))
+    return pd.DataFrame(rows)
+
+
 def main(argv=None) -> None:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
