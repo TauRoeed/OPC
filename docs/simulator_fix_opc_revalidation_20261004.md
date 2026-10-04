@@ -341,7 +341,41 @@ Preliminary results:
 - Against the old range: OPC +0.2 at 5k–25k and ±0 at 100k; DM −0.2 at 5k and −0.15 at 100k; no-propensity
   unchanged.
 - The mean OPC − DM-only shifts by about +0.2 points because of the range alone, which Phase 4 reports.
-- The anime condition and the raw-weight OPC run check the choice (below).
+
+**Checks.**
+- **Anime** (combined high, one condition): the same peak. OPC keeps its value beyond the peak better than on ml and
+  kuairand, and would gain from a higher range (+0.8 / +0.4 points at 5k / 25k with lr up to 1e-2 or 3e-3). DM is
+  again best in the old and the chosen range.
+- **Raw weights** (OPC, `run_reval_range2_raw_s200`, paired trial by trial with harmonic:0.1). Raw training weights
+  are worse almost everywhere near and beyond the peak. Within the chosen lr range raw beats harmonic in 0–9 of 28–32
+  paired trials per cell, and the selected policy on ml is 0.4 / 0.9 / 0.9 points lower at 5k / 25k / 100k. The
+  chosen range suits raw weights as well (their best candidate is within 0.4 points).
+- **Sensitivity reported, not used for selection.** OPC's own best range is higher (lr up to 3e-3 on ml and
+  kuairand, up to 1e-2 on anime).
+
+### 2.4 Weight decay (`run_reval_range2_wd_s200`; OPC harmonic:0.1, AdamW decay log-uniform 1e-2–3, paired per trial)
+
+- **Per trial** (ml and kuairand): decay rescues trials beyond the peak (+1.7 to +6.6 points at log10 move > 0, where
+  it stops the logit scale's runaway). Near and below the peak it changes nothing (±0.05).
+- **Under the protocol** (chosen range, 20 trials): the selected value with decay is within ±0.1 point of the value
+  without it on ml (6.19 / 7.73 / 8.54 vs 6.19 / 7.83 / 8.58). The selection already avoids the collapsed trials.
+- **Decision:** no weight decay (Adam, as before). Weight decay remains a tested, available alternative
+  (`--weight-decay-range`).
+
+### 2.5 Sharpness: the learnable logit scale (`run_reval_range2_noscale_s200`, paired per trial)
+
+With the logit scale fixed at 1 (the policy can still sharpen through D), on ml in the chosen range:
+
+| selected true gain (points), 5k / 25k / 100k | scale learned | scale fixed |
+|---|---|---|
+| OPC | 6.19 / 7.83 / 8.58 | 4.91 / 7.01 / 8.04 |
+| DM-only | 4.66 / 7.28 / 7.89 | 4.89 / 6.98 / 7.62 |
+| no-propensity | 4.04 / 4.80 / 5.20 | 3.40 / 4.60 / 4.88 |
+
+- **Per trial:** the fixed scale is worse below and at the peak (−0.2 to −1.7 points) and better only beyond it,
+  where it avoids the runaway.
+- **Decision:** keep the learnable logit scale (the Stage 2 setting). The runaway is contained by the chosen range.
+  The logit-scale speed (30, set on buggy logs in 2a29056) is unchanged.
 
 ### 2.2 Phase 3 plan (fixed before the reruns)
 
