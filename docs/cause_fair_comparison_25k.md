@@ -139,7 +139,11 @@ oracle repair is computed against the same bound.
   - CausE therefore gets the same mechanism the tempered logger uses. Its selected model's logits are multiplied by s,
     chosen by the DR lower bound with clip:10 on V. The grid is s ∈ {2⁻², …, 2¹²}, wider than OPC's post-tempering
     grid (0.25–16), because click log-odds are much flatter than a policy's logits. A smoke test hit the old grid's top
-    at 16. A choice on the grid's edge is reported.
+    at 16. A choice on the grid's edge is reported. At the top of the grid (2¹²) the softmax is effectively the
+    greedy policy, so a choice there means "as sharp as possible".
+  - The scale is searched for each prediction's NLL-selected trial. The selection does not depend on the scale, so
+    this gives the same selected rows as tempering every trial (a unit test checks this; f72f8ed). The tuning
+    stage tempered every trial. Every trial gets the DR estimate of its greedy policy.
   - The q̂ inside that score is fit on CausE's own N rows at that ρ, so the budget stays fair.
   - Both are reported: CausE's raw softmax (τ = 1) and the tempered one.
 - **The tempered logger stays as the sharpening-only reference.** No gain that sharpening alone reaches is attributed
@@ -178,6 +182,62 @@ worlds** before the main grid:
   dimension's range is widened if its optimum sits on an edge.
 
 ρ is never tuned. Nothing is tuned on the 30 main worlds.
+
+### 3.1 Tuning results and the chosen spaces
+
+**Runs.** `run_cause_tune_cap_s200` and `run_cause_tune_warm_s200` (code e6ba2e3, pinned worktree; every trial
+tempered). Each covers 18 tuning worlds (ml, kuairand, anime × warp / vector / combined high × seeds 200/201) × ρ
+{0.05, 0.25} × 40 trials. The trial configurations depend on the seed, not on the world or ρ, so each family saw 80
+distinct configurations. Tables: `artifacts/full_study/cause_fair_25k/tuning/` (`tuning_decision.csv`,
+`tuning_marginals.csv`, `tuning_boundaries.csv`).
+
+**How the rule was applied** (`training/analyze_cause_fair.py · tuning_decision`).
+- Each candidate is a sub-space of the wide space.
+- Its score is the mean, over 18 worlds × 2 ρ × 2 predictions, of the true greedy gain of the trial that a 10-trial
+  study inside it selects (lowest validation NLL). The draws are resampled 300 times, and both predictions share them.
+- The candidates come in two stages:
+  1. the tie direction and the intercept initialization, each fixed or searched;
+  2. on the best structure: six 2-decade lr windows, six epoch windows, the best of each combined, and the
+     combination without the extreme l2 (1e-2) and cf (1000).
+- A candidate needs at least 5 trials per cell on average.
+- The chosen candidate is the eligible one with the best score, as fixed above.
+
+**CausE-capacity-matched** (all 18 worlds; selected greedy gain over the logger's greedy value, CTR points):
+
+| candidate | trials per cell | selected gain | minus wide [95% CI over worlds] |
+|---|---|---|---|
+| wide space | 40 | 3.00 | — |
+| tie one-way / symmetric (intercept searched) | 19.5 / 20.5 | 3.06 / 3.10 | +0.06 [−0.13, 0.25] / +0.10 [−0.05, 0.24] |
+| intercept 0 (tie searched) | 18.5 | 1.25 | −1.76 [−2.42, −1.09] |
+| **intercept at the base rate** (tie searched) | 21.5 | 3.44 | +0.44 [0.29, 0.59] |
+| base rate, lr 3e-4–3e-2 | 12.5 | 3.61 | +0.61 [0.39, 0.83] |
+| base rate, epochs {30, 100, 300} | 10.5 | 3.60 | +0.60 [0.37, 0.83] |
+| **base rate, lr 3e-4–3e-2, epochs {30, 100, 300}, l2 ≤ 1e-3, cf ≤ 100 (chosen)** | 6.0 | 3.64 | +0.64 [0.41, 0.88] |
+
+- **Chosen space:**
+  - lr log-uniform on [3e-4, 3e-2];
+  - epochs {30, 100, 300};
+  - l2 {0, 1e-7, 1e-6, 1e-5, 1e-4, 1e-3};
+  - cf {0, 0.01, 0.1, 1, 10, 100};
+  - the tie direction searched (one-way, symmetric);
+  - the intercept at the base rate.
+- **Most of the gain is the intercept.** A zero intercept loses 1.8 points. Fixing the tie direction adds nothing
+  over searching it.
+- **The windows mostly remove failures.** Above lr 0.1, 72–91% of the trials diverge. Short training underfits:
+  trials with lr × steps / 2 ≤ 10 sit a median 5.6 points below their cell's best trial.
+- **The top candidates are within 0.04 points of each other.** The rule takes the best of them, the narrowest. It
+  is a sub-space of the next ones, so it cannot remove a region they found useful.
+- **Boundaries.** What matters is the total step, lr × steps / 2. Inside the chosen space its optimum,
+  log10 = 1–2, is interior:
+  - 94% of the selected trials and 83% of the best-true trials fall there;
+  - every epoch value reaches it within the lr window;
+  - the median best-true lr is 8e-3, inside the window.
+  - The best-true trial uses 300 epochs in 65% of cells, but half of the sampled trials in the space have 300 epochs,
+    and the trials at 30, 100 and 300 epochs sit a similar distance below their cell's best (means −1.5 / −1.1 /
+    −1.2 points). The rule's "widen at an
+    edge" therefore does not apply.
+- **Selection works for this family.** In the chosen space, NLL selection loses 0.11 points against the best of the
+  10 drawn trials.
 
 ## 4. Capacity diagnostics
 
