@@ -247,7 +247,10 @@ def blob_trainer_trial(
                    "oracle_selected_value": float(trials_df["value"].max()),
                    "blob_norm": bool(opts["norm"]), "blob_alias_loc": bool(opts["alias_loc"]),
                    "blob_source_scale": str(opts["source_scale"]), "blob_batch_size": int(opts["batch_size"]),
-                   "blob_sampler": "random", "stage": str(stage), "n_total": int(n)}
+                   "blob_sampler": "random", "stage": str(stage), "n_total": int(n),
+                   # for the data-identity check: the same warm and validation rows as every other arm
+                   "train_click_sum": float(clicks.sum(dtype=np.float64)),
+                   "val_click_sum": float(val_labels.sum())}
             for k in ("sp_wa", "sp_wb", "wc", "zeta_norm", "kappa_rms", "kappa_sd_post", "deviation_ratio",
                       "val_dr_greedy", "val_dr_greedy_low"):
                 if k in best:

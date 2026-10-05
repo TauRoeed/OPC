@@ -708,6 +708,16 @@ def tables_md(t: pd.DataFrame, s: pd.DataFrame, p: pd.DataFrame, acc: pd.DataFra
     return "\n\n".join(out) + "\n"
 
 
+def data_identity_table(blob: pd.DataFrame, lik: pd.DataFrame) -> pd.DataFrame:
+    """Per world and BLOB family: the click sum of its N training rows against CausE-cap's warm rows at ρ = 0 (the
+    rows OPC trains on), and its validation size against CausE-cap's."""
+    cap = lik[lik["arm"] == "cap_c"].set_index(WORLD)[["opc_collection_reward_sum", "val_size"]]
+    b = blob.set_index(WORLD)[["arm", "train_click_sum", "val_size"]].join(cap, rsuffix="_cap")
+    b["train_rows_differ"] = (b["train_click_sum"] - b["opc_collection_reward_sum"]).abs() > 1e-6
+    b["val_rows_differ"] = b["val_size"] != b["val_size_cap"]
+    return b.reset_index()
+
+
 def compare_main(args) -> None:
     from training.analyze_cause_fair import BEST_ITEM, reference_rows
 
@@ -717,6 +727,10 @@ def compare_main(args) -> None:
     refs = reference_rows(dm_own_runs=[DM_OWN_ANIME])
     refs = refs[refs["arm"].isin(REFERENCE_ARMS)]
     lik = likelihood_rows()
+    ident = data_identity_table(blob, lik)
+    ident.to_csv(out / "table_data_identity.csv", index=False)
+    if ident["train_rows_differ"].any() or ident["val_rows_differ"].any():
+        raise AssertionError("BLOB trained or selected on different rows than the other arms")
     oracles = class_oracle_table(Path(args.oracles)) if args.oracles else None
     t = condition_table(blob, refs, lik, oracles, pd.read_csv(BEST_ITEM))
     t.to_csv(out / "table_conditions.csv", index=False, float_format="%.8g")
