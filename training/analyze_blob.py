@@ -27,6 +27,12 @@ WIDE = {"lr": (1e-4, 3e-2), "epochs": (10, 30, 100, 300), "wa_m": (-1.0, 1.0, 3.
         "kappa_s": (0.01, 0.1, 1.0)}
 
 
+def blob_label_parts(label: str) -> tuple[str, str]:
+    """(family, prior variant) of a BLOB arm label: ``blob_nq`` → (nq, released); ``blob_l100_nq`` → (nq, L100)."""
+    parts = label.split("_")
+    return parts[-1], ("released" if len(parts) == 2 else parts[1].upper())
+
+
 def load_blob_trials(*run_dirs) -> pd.DataFrame:
     """Every trial of the BLOB studies of finished conditions, with the world's tags, the logger's values and the gains
     over the logger in CTR points (greedy: over the logger's greedy value; stochastic: over the logger's value)."""
@@ -43,7 +49,10 @@ def load_blob_trials(*run_dirs) -> pd.DataFrame:
                 t = pd.read_csv(path)
                 label = path.name[: -len("_trials.csv")]
                 row = s[s["method"] == label].iloc[0]
-                t["family"], t["run"] = label.split("_", 1)[1], Path(run).name
+                family, variant = blob_label_parts(label)
+                t["family"], t["run"] = family, Path(run).name
+                if "variant" not in t:
+                    t["variant"] = variant
                 t["dataset"], t["bias"], t["seed"] = tags["dataset"], tags["bias"], int(tags["seed"])
                 t["logger_greedy"], t["initial_reward"] = float(row["logger_greedy"]), float(row["initial_reward"])
                 t["selected_trial"] = int(row["selected_trial"])
@@ -260,6 +269,108 @@ def selected_table(t: pd.DataFrame) -> pd.DataFrame:
     sel["regret"] = sel["best_gain_greedy"] - sel["gain_greedy"]
     assert (sel["trial"] == sel["selected_trial"]).all(), "the run's selection differs from the NLL argmin"
     return sel
+
+
+# ------------------------------------------------------------------------------- prior calibration (§2 of
+# docs/blob_prior_calibration.md): one score per prior variant, the pre-registered choice among the L anchors
+CALIB_CANDIDATES = ("L1000", "L100", "L10")
+CALIB_PRINCIPLED = "L100"
+CALIB_REFERENCE = "released"
+CALIB_MARGIN = 0.10  # CTR points: an anchor must beat L100 by at least this to replace it
+CALIB_OLD_LR = (3e-3, 1e-1)  # the controlled main grid's NQ range, before the one-step extension
+
+
+def calibration_scores(t: pd.DataFrame, *, k: int = 20, resamples: int = 300) -> pd.DataFrame:
+    """Per prior variant: the mean selected greedy gain of a simulated k-trial study (validation NLL) over the worlds,
+    the best-of-k, the regret, and paired differences (95% CI over worlds) against the released prior and L100."""
+    per_world, rows = {}, {}
+    for v, tv in t.groupby("variant"):
+        sim = simulate_protocol(tv, None, k=k, resamples=resamples)
+        per_world[v] = sim.groupby(WORLD)["gain_greedy"].mean()
+        rows[v] = {"variant": v, "available": float(sim["available"].mean()), "gain_greedy": float(sim["gain_greedy"].mean()),
+                   "best_greedy": float(sim["best_greedy"].mean()), "regret": float(sim["regret"].mean()),
+                   "no_usable_trial": float(sim["no_usable_trial"].mean())}
+    for v, r in rows.items():
+        for ref in (CALIB_REFERENCE, CALIB_PRINCIPLED):
+            if ref in per_world:
+                d = (per_world[v] - per_world[ref].reindex(per_world[v].index)).values
+                m, lo, hi, n = mean_ci(d)
+                r.update({f"minus_{ref}": m, f"minus_{ref}_lo": lo, f"minus_{ref}_hi": hi, "worlds": n})
+    return pd.DataFrame(list(rows.values()))
+
+
+def calibration_decision(scores: pd.DataFrame) -> str:
+    """The pre-registered choice: the best-scoring L anchor, unless it beats L100 by less than CALIB_MARGIN."""
+    cand = scores[scores["variant"].isin(CALIB_CANDIDATES)].set_index("variant")["gain_greedy"]
+    best = str(cand.idxmax())
+    return best if best == CALIB_PRINCIPLED or cand[best] - cand[CALIB_PRINCIPLED] >= CALIB_MARGIN else CALIB_PRINCIPLED
+
+
+MECHANISM_COLUMNS = ("gain_greedy", "deviation_ratio", "zeta_norm", "sp_wa", "sp_wb", "kappa_rms", "val_nll", "val_auc",
+                     "diag_agree_logger_top1", "diag_in_logger_top10", "diag_pick_rank_median", "diag_optimism_at_pick",
+                     "diag_logged_ce", "diag_mae_lt0.1", "diag_mae_ge10")
+
+
+def calibration_mechanism(t: pd.DataFrame) -> pd.DataFrame:
+    """Per variant: the means over worlds of the NLL-selected trial (over all of a variant's trials) and of all usable
+    trials: gain, the correction's size, the click model's fit and where the greedy policy recommends."""
+    usable = t[t["usable"]]
+    sel = usable.loc[usable.groupby(["variant"] + CELL)["val_nll"].idxmin()]
+    rows = []
+    for which, frame in (("selected", sel), ("all trials", usable)):
+        for v, g in frame.groupby("variant"):
+            r = {"variant": v, "trials": which, "n": len(g)}
+            r.update({c: float(g[c].mean()) for c in MECHANISM_COLUMNS if c in g})
+            r["best_trial_gain"] = float(usable[usable["variant"] == v].groupby(CELL)["gain_greedy"].max().mean())
+            rows.append(r)
+    return pd.DataFrame(rows)
+
+
+def calibration_lr(t: pd.DataFrame, chosen: str, *, k: int = 20, resamples: int = 300) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """The learning-rate edge (Phase 3): per variant (the released prior and the chosen anchor), the half-decade
+    marginal over the extended range, and the score restricted to the previous range against the full range."""
+    marg, rows = [], []
+    for v in dict.fromkeys([CALIB_REFERENCE, chosen]):
+        tv = t[t["variant"] == v]
+        m = marginal_table(tv, None, dims=("lr",), spaces={f: {"lr": (1e-4, 3e-1)} for f in tv["family"].unique()})
+        marg.append(m.assign(variant=v))
+        for name, win in (("extended 3e-3-3e-1", None), ("previous 3e-3-1e-1", {"lr": CALIB_OLD_LR})):
+            sim = simulate_protocol(tv, win, k=k, resamples=resamples)
+            rows.append({"variant": v, "range": name, "available": float(sim["available"].mean()),
+                         "gain_greedy": float(sim["gain_greedy"].mean())})
+    return pd.concat(marg, ignore_index=True), pd.DataFrame(rows)
+
+
+CALIB_SPACE = {"lr": (3e-3, 3e-1), "epochs": (10, 30, 100, 300, 1000), "wa_m": (-1.0, 1.0, 3.0),
+               "wb_m": (-6.0, -3.0, 0.0), "kappa_s": (0.1,)}
+
+
+def calibration_edges(t: pd.DataFrame, chosen: str) -> pd.DataFrame:
+    """The edge rule of the controlled study (EDGE_MARGIN) on the chosen variant's trials: a dimension whose best value
+    sits at the top or bottom of the calibration space. The lr range is not widened again (§2); this is reported."""
+    tv = t[t["variant"] == chosen]
+    return edge_check(tv, {f: {} for f in tv["family"].unique()},
+                      spaces={f: CALIB_SPACE for f in tv["family"].unique()})
+
+
+def calib_main(args) -> None:
+    out = Path(args.out)
+    out.mkdir(parents=True, exist_ok=True)
+    t = load_blob_trials(*args.runs)
+    t.to_csv(out / "calibration_trials_long.csv.gz", index=False, float_format="%.8g")
+    scores = calibration_scores(t, k=args.k, resamples=args.resamples)
+    chosen = calibration_decision(scores)
+    scores["chosen"] = scores["variant"] == chosen
+    scores.to_csv(out / "calibration_decision.csv", index=False, float_format="%.6g")
+    calibration_mechanism(t).to_csv(out / "calibration_mechanism.csv", index=False, float_format="%.6g")
+    marg, ranges = calibration_lr(t, chosen, k=args.k, resamples=args.resamples)
+    marg.to_csv(out / "calibration_lr_marginals.csv", index=False, float_format="%.6g")
+    ranges.to_csv(out / "calibration_lr_ranges.csv", index=False, float_format="%.6g")
+    calibration_edges(t, chosen).to_csv(out / "calibration_edges.csv", index=False, float_format="%.6g")
+    print(scores[["variant", "available", "gain_greedy", "best_greedy", "regret"]].round(3).to_string(index=False))
+    print(f"chosen: {chosen}")
+    print(f"wrote {out}: {len(t)} trial rows; variants {sorted(t['variant'].unique())}; "
+          f"{t[WORLD].drop_duplicates().shape[0]} worlds")
 
 
 def tune_main(args) -> None:
@@ -865,6 +976,11 @@ def main(argv=None) -> None:
     tune.add_argument("--resamples", type=int, default=300)
     tune.add_argument("--spaces", choices=list(SPACES), default="wide",
                       help="the candidates' space: the wide space, or the edge rule's supplementary extension")
+    cal = sub.add_parser("calib", help="the prior calibration (docs/blob_prior_calibration.md §2)")
+    cal.add_argument("--runs", nargs="+", required=True)
+    cal.add_argument("--out", required=True)
+    cal.add_argument("--k", type=int, default=20, help="trials per simulated study (default 20, the main grid's)")
+    cal.add_argument("--resamples", type=int, default=300)
     comp = sub.add_parser("compare", help="the bounded comparison's tables")
     comp.add_argument("--blob-runs", nargs="+", required=True)
     comp.add_argument("--oracles", default=str(ORACLE_RUN), help="the class-oracle run ('' to skip)")
@@ -873,6 +989,8 @@ def main(argv=None) -> None:
     args = ap.parse_args(argv)
     if args.command == "tune":
         tune_main(args)
+    elif args.command == "calib":
+        calib_main(args)
     else:
         compare_main(args)
 

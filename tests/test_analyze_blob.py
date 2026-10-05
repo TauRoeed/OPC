@@ -57,3 +57,26 @@ def test_edge_rule_extends_only_a_dominant_edge_value():
     assert k["best_value"] == "1" and k["at_wide_edge"] and k["extend"]  # +2 points per decade
     lr = e[e["dimension"] == "lr"].iloc[0]
     assert lr["best_value"] in ("1e-3-3e-3", "3e-3-1e-2") and not lr["extend"]  # interior optimum
+
+
+def test_calibration_rule_prefers_the_principled_anchor_unless_another_clearly_wins():
+    from training.analyze_blob import calibration_decision, calibration_scores
+
+    rng = np.random.default_rng(3)
+    rows = []
+    lift = {"released": 0.0, "L1000": 0.5, "L100": 1.0, "L10": 1.05, "S100": 0.8}  # L10 beats L100 by < 0.10
+    for w in range(4):
+        for cfg in range(30):
+            for v, d in lift.items():
+                g = d + rng.normal(0, 0.05)
+                rows.append({"family": "nq", "dataset": "toy", "bias": f"b{w}", "seed": 200, "trial": cfg, "variant": v,
+                             "gain_greedy": g, "val_nll": 0.5 - 0.01 * g, "usable": True})
+    t = pd.DataFrame(rows)
+    s = calibration_scores(t, k=20, resamples=40)
+    assert calibration_decision(s) == "L100"
+    t.loc[t["variant"] == "L10", "gain_greedy"] += 0.5
+    t.loc[t["variant"] == "L10", "val_nll"] -= 0.005
+    assert calibration_decision(calibration_scores(t, k=20, resamples=40)) == "L10"
+    s = calibration_scores(t, k=20, resamples=40).set_index("variant")
+    assert s.loc["released", "minus_released"] == pytest.approx(0.0)
+    assert s.loc["L100", "minus_released"] > 0.9

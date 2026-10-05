@@ -199,3 +199,92 @@ def test_sync_free_loop_is_bit_identical_to_the_first_loop(device):
     _reference_fit(ref, x, a, y, epochs=3, lrs=lrs, batch_size=64, order_seed=5, noise_seed=6, device=device)
     for p, q in zip(new.params_in_order(), ref.params_in_order()):
         assert torch.equal(p.detach().nan_to_num(), q.detach().nan_to_num())
+
+
+@pytest.mark.parametrize("family", ["mnq", "nq"])
+def test_batched_l_scales_equal_separate_runs(family):
+    """Per-trial L scales (the catalog-normalized prior, docs/blob_prior_calibration.md) equal single runs with
+    L = l_scale · chol(Ψ̃ᵀΨ̃ / P)."""
+    psi, x, a, y = _data(4)
+    scales = [1.0, 3.0, 0.5]
+    batch = BlobBanditBatch(psi, PRIORS, family=family, l_scales=scales)
+    singles = [BlobBandit(psi, family=family, priors=p, l_scale=c) for p, c in zip(PRIORS, scales)]
+    opt_b = TFAdamBatch(batch.params_in_order(), LRS)
+    opts = [TFAdam(tf_param_order(m), lr=lr) for m, lr in zip(singles, LRS)]
+    xt, at, yt = torch.as_tensor(x), torch.as_tensor(a), torch.as_tensor(y)
+    gen = torch.Generator().manual_seed(5)
+    for _ in range(2):
+        order = torch.randperm(N, generator=gen)
+        for s in range(0, N, 64):
+            idx = order[s:s + 64]
+            noise = torch.randn(len(PRIORS), len(idx), 4, generator=gen)
+            loss = batch.neg_elbo(xt[idx], at[idx], yt[idx], N, noise)
+            opt_b.zero_grad()
+            loss.sum().backward()
+            opt_b.step()
+            for t, (m, o) in enumerate(zip(singles, opts)):
+                nz = noise[t]
+                lt, _, _ = m.neg_elbo(xt[idx], at[idx], yt[idx], N, {"wa": nz[:, 0:1], "wb": nz[:, 1:2],
+                                                                     "band": nz[:, 2:3], "bias": nz[:, 3:4]})
+                torch.testing.assert_close(loss[t], lt, rtol=1e-5, atol=1e-6)
+                o.zero_grad()
+                lt.backward()
+                o.step()
+    for t, m in enumerate(singles):
+        beta_b, kappa_b, _ = batch.point(t)
+        torch.testing.assert_close(beta_b, m.point_beta()[0], rtol=1e-4, atol=1e-6)
+
+
+def test_scaling_l_reparameterizes_zeta():
+    """L → cL with ζ is the same correction as L with cζ (the two parameterizations of one prior on the correction)."""
+    psi, *_ = _data(5)
+    c = 4.0
+    a = BlobBandit(psi, family="nq", l_scale=c)
+    b = BlobBandit(psi, family="nq")
+    z = torch.randn(K * K, 1, generator=torch.Generator().manual_seed(0))
+    with torch.no_grad():
+        for m in (a, b):
+            m.wb_means.fill_(0.3)
+        a.zeta_means.copy_(z)
+        b.zeta_means.copy_(c * z)
+    torch.testing.assert_close(a.point_beta()[0], b.point_beta()[0], rtol=1e-5, atol=1e-6)
+    from training.blob_trials import parse_variant
+    assert parse_variant("released", 400) == (1.0, 1.0)
+    assert parse_variant("L100", 400) == pytest.approx((2.0, 1.0))
+    assert parse_variant("S100", 400) == pytest.approx((1.0, 2.0))
+
+
+def test_paired_trials_share_their_noise_stream():
+    psi, x, a, y = _data(6)
+    model = BlobBanditBatch(psi, [BlobPriors()] * 3, family="nq")
+    fit_blob_batch(model, x, a, y, epochs=2, lrs=[1e-2] * 3, batch_size=64, order_seed=1, noise_seed=2,
+                   noise_index=[0, 0, 1])
+    m = model.zeta_means.detach()
+    assert torch.equal(m[0], m[1]) and not torch.equal(m[0], m[2])
+
+
+def test_prior_variants_leave_the_released_arm_unchanged(tmp_path):
+    """Training the catalog-normalized variants on the same configurations does not change the released arm: its rows
+    equal a run with the released prior alone (the noise of a configuration's stream is the released draw)."""
+    from test_reproducibility import _toy_embeddings
+    from training.run_full_study import _run_condition
+
+    _toy_embeddings(tmp_path)
+    out = {}
+    for name, variants in (("alone", ["released"]), ("paired", ["released", "L100", "S100"])):
+        run_dir = tmp_path / name
+        run_dir.mkdir()
+        options = {"families": ["nq"], "n_trials": 3, "epochs": [2, 5], "batch_size": 128, "variants": variants,
+                   "lr_range": [1e-3, 3e-2]}
+        out[name] = _run_condition(dataset_name="toy", emb_dir=tmp_path, bias="medium", ctr=0.05, seed=0,
+                                   train_sizes=[1000], n_trials=2, batch_size=None, val_size=1000, val_frac=0.15,
+                                   val_min=1000, val_max=None, policy_reward_mode="exact", policy_reward_mc_sim=8,
+                                   run_dir=run_dir, slim=True, shared_regression_size=2000, methods=("blob",),
+                                   sampler="random", return_extra=True, blob_options=options)[5]
+    assert set(out["paired"]) == {"blob_nq", "blob_l100_nq", "blob_s100_nq"}
+    alone, paired = out["alone"]["blob_nq"][1], out["paired"]["blob_nq"][1]
+    np.testing.assert_allclose(paired["value_greedy"].to_numpy(), alone["value_greedy"].to_numpy(), rtol=1e-6, atol=1e-9)
+    np.testing.assert_allclose(paired["val_nll"].to_numpy(), alone["val_nll"].to_numpy(), rtol=1e-5)
+    l100 = out["paired"]["blob_l100_nq"][1]
+    assert (l100["lr"].to_numpy() == paired["lr"].to_numpy()).all() and (l100["l_scale"] > 1).all()
+    assert (out["paired"]["blob_s100_nq"][1]["s_zeta"] > 1).all()

@@ -41,11 +41,27 @@ DIVERGED_NLL = 1e9
 BLOB_DEFAULTS = {"families": ["nq"], "n_trials": None, "lr_range": list(BLOB_LR_RANGE), "epochs": list(BLOB_EPOCHS),
                  "wa_m": list(BLOB_WA_M), "wb_m": list(BLOB_WB_M), "kappa_s": list(BLOB_KAPPA_S), "batch_size": 1024,
                  "temper": True, "norm": True, "alias_loc": True, "device": "auto", "source_scale": "rms",
-                 "pick_diagnostics": False, "policy_dir": None, "seed_tag": None}
+                 "pick_diagnostics": False, "policy_dir": None, "seed_tag": None, "variants": ["released"]}
 
 
-def blob_method_label(family: str) -> str:
-    return f"blob_{family}"
+def blob_method_label(family: str, variant: str = "released") -> str:
+    """``blob_<family>`` for the released prior; ``blob_<variant>_<family>`` (e.g. ``blob_l100_nq``) otherwise."""
+    return f"blob_{family}" if variant == "released" else f"blob_{variant.lower()}_{family}"
+
+
+def parse_variant(spec: str, n_items: int) -> tuple[float, float]:
+    """(L scale, s_ζ) of a prior variant (docs/blob_prior_calibration.md): ``released`` (1, 1); ``L<P0>``, L computed
+    at the catalog size P0, i.e. L scaled by √(P / P0); ``S<P0>``, the same prior on the correction through
+    s_ζ = √(P / P0) with the released L."""
+    if spec == "released":
+        return 1.0, 1.0
+    kind, p0 = spec[:1].upper(), float(spec[1:])
+    c = float(np.sqrt(n_items / p0))
+    if kind == "L":
+        return c, 1.0
+    if kind == "S":
+        return 1.0, c
+    raise ValueError(f"prior variant must be 'released', 'L<P0>' or 'S<P0>', got {spec!r}")
 
 
 def add_blob_arguments(parser) -> None:
@@ -64,6 +80,9 @@ def add_blob_arguments(parser) -> None:
     g.add_argument("--blob-batch-size", type=int, default=BLOB_DEFAULTS["batch_size"])
     g.add_argument("--blob-no-temper", action="store_true", help="Skip the fair tempering of the selected trial.")
     g.add_argument("--blob-device", default="auto", choices=["auto", "cpu"])
+    g.add_argument("--blob-variants", nargs="+", default=["released"],
+                   help="Prior variants, trained on the same configurations (docs/blob_prior_calibration.md): "
+                        "released, L<P0> (L computed at catalog size P0) or S<P0> (s_zeta = sqrt(P / P0)); one row each.")
     g.add_argument("--blob-seed-tag", default=None,
                    help="Draw an independent set of trials (configurations, batch order and noise), e.g. for a "
                         "supplementary tuning run on the same worlds.")
@@ -77,7 +96,8 @@ def blob_options_from_args(args) -> dict:
             "wa_m": [float(x) for x in args.blob_wa_m], "wb_m": [float(x) for x in args.blob_wb_m],
             "kappa_s": [float(x) for x in args.blob_kappa_s], "batch_size": int(args.blob_batch_size),
             "temper": not bool(args.blob_no_temper), "device": str(args.blob_device),
-            "pick_diagnostics": bool(args.blob_pick_diagnostics), "seed_tag": args.blob_seed_tag}
+            "pick_diagnostics": bool(args.blob_pick_diagnostics), "seed_tag": args.blob_seed_tag,
+            "variants": list(args.blob_variants)}
 
 
 def supplied_source(dataset: dict, scale: str = "rms") -> tuple[np.ndarray, np.ndarray]:
@@ -121,8 +141,8 @@ def _diagnostics(model: BlobBanditBatch, t: int) -> dict:
                 "wc": float(model.bias_means[t, 0]), "zeta_norm": float(zeta.norm()),
                 "kappa_rms": float(model.kappa_means[t, :, 0].pow(2).mean().sqrt()),
                 "kappa_sd_post": float(torch.exp(model.kappa_logstd[t]).mean()),
-                # the bandit term's size relative to the organic term, s+(w_b)‖L ζᵀ‖ / s+(w_a)
-                "deviation_ratio": float(sp(model.wb_means[t, 0]) * (model.chol @ zeta.T).norm() /
+                # the bandit term's size relative to the organic term, s+(w_b)‖L ζᵀ‖ / s+(w_a) (L with its scale)
+                "deviation_ratio": float(sp(model.wb_means[t, 0]) * model.l_scale[t] * (model.chol @ zeta.T).norm() /
                                          (sp(model.wa_means[t, 0]) * np.sqrt(model.K)))}
 
 
@@ -140,11 +160,12 @@ def blob_trainer_trial(
     device: torch.device | str = "cpu",
     run_idx: int = 0,
 ) -> dict:
-    """``{blob_<family>: (summary_df indexed by train size, trials_df)}``."""
+    """``{label: (summary_df indexed by train size, trials_df)}``, one label per family and prior variant
+    (``blob_method_label``)."""
     import optuna
 
-    from training.cause_trials import _greedy_dr, _tempered
-    from training.policy_diagnostics import POLICY_SUFFIX, greedy_pick_diagnostics, logger_reference, save_selected_policy
+    from training.cause_trials import _greedy_dr
+    from training.policy_diagnostics import greedy_pick_diagnostics, logger_reference
     from training.trainer_trials import _scores_lookup_from_bundle, fit_shared_regression_bundle
 
     opts = {**BLOB_DEFAULTS, **(options or {})}
@@ -173,34 +194,48 @@ def blob_trainer_trial(
         if opts["temper"]:  # q_hat of the same N warm rows (= OPC's training rows)
             bundle = fit_shared_regression_bundle(dataset, {k: warm[k] for k in ("x", "a", "r", "x_idx", "pscore")})
             lookup = _scores_lookup_from_bundle(bundle, torch.device("cuda" if torch.cuda.is_available() else "cpu"))
+        variants = list(opts.get("variants") or ["released"])
+        scales = {v: parse_variant(v, int(psi.shape[0])) for v in variants}
+        nv = len(variants)
+        paired = nv > 1
         for family in opts["families"]:
-            label = blob_method_label(family)
             # a seed tag draws an independent set of trials (configurations, batch order, noise), e.g. for a
             # supplementary tuning run on the same worlds
             labels_seed = ("blob", family, n) + ((str(opts["seed_tag"]),) if opts.get("seed_tag") else ())
             study = optuna.create_study(direction="minimize", sampler=optuna_sampler(seed, *labels_seed, kind="random"))
             asked = [study.ask(dist) for _ in range(n_trials)]
+            # every configuration is trained under every prior variant, with one batch order and, per configuration,
+            # one noise stream (docs/blob_prior_calibration.md §2); a single variant is the plain search
             groups: dict[int, list] = {}
             for tr in asked:
-                groups.setdefault(int(tr.params["epochs"]), []).append(tr)
-            done, best_vectors = {}, None
+                for j, v in enumerate(variants):
+                    groups.setdefault(int(tr.params["epochs"]), []).append((tr, j, v))
+            done = {}
+            best_vectors = {v: None for v in variants}
             t_study = time.time()
             order_seed = derive_seed(seed, *labels_seed, "order")
             for epochs, group in sorted(groups.items()):
                 t0 = time.time()
                 priors = [BlobPriors(wa_m=float(tr.params.get("wa_m", opts["wa_m"][0])),
                                      wb_m=float(tr.params.get("wb_m", opts["wb_m"][0])),
-                                     kappa_s=float(tr.params.get("kappa_s", opts["kappa_s"][0]))) for tr in group]
+                                     kappa_s=float(tr.params.get("kappa_s", opts["kappa_s"][0])),
+                                     s_zeta=scales[v][1]) for tr, _j, v in group]
+                l_scales = [scales[v][0] for _tr, _j, v in group]
+                configs = sorted({tr.number for tr, _j, _v in group})
                 model = BlobBanditBatch(psi, priors, family=family, norm=bool(opts["norm"]),
-                                        alias_loc=bool(opts["alias_loc"])).to(device)
+                                        alias_loc=bool(opts["alias_loc"]),
+                                        l_scales=l_scales if any(c != 1.0 for c in l_scales) else None).to(device)
                 info = fit_blob_batch(model, omega[users], actions, clicks, epochs=epochs,
-                                      lrs=[tr.params["lr"] for tr in group], batch_size=int(opts["batch_size"]),
+                                      lrs=[tr.params["lr"] for tr, _j, _v in group], batch_size=int(opts["batch_size"]),
                                       order_seed=order_seed, noise_seed=derive_seed(seed, *labels_seed, "noise", epochs),
-                                      device=device)
-                for i, tr in enumerate(group):
-                    rec = {"train_size": n, "trial": tr.number, "lr": float(tr.params["lr"]), "epochs": epochs,
-                           "wa_m": priors[i].wa_m, "wb_m": priors[i].wb_m, "kappa_s": priors[i].kappa_s,
-                           "steps": int(info["steps"]), "finite": bool(info["finite"][i])}
+                                      device=device,
+                                      noise_index=[configs.index(tr.number) for tr, _j, _v in group] if paired else None)
+                for i, (tr, j, v) in enumerate(group):
+                    number = tr.number * nv + j if paired else tr.number
+                    rec = {"train_size": n, "trial": number, "config": tr.number, "variant": v,
+                           "l_scale": scales[v][0], "s_zeta": scales[v][1], "lr": float(tr.params["lr"]),
+                           "epochs": epochs, "wa_m": priors[i].wa_m, "wb_m": priors[i].wb_m,
+                           "kappa_s": priors[i].kappa_s, "steps": int(info["steps"]), "finite": bool(info["finite"][i])}
                     if rec["finite"]:
                         beta, kappa, wc = model.point(i)
                         pol = _Policy(omega, beta, kappa)
@@ -218,58 +253,74 @@ def blob_trainer_trial(
                             g_hat, g_low = _greedy_dr(val, ux, ia, lookup)
                             rec.update({"val_dr_greedy": g_hat, "val_dr_greedy_low": g_low})
                         if ref is not None:
-                            rec.update({f"diag_{k}": v for k, v in
+                            rec.update({f"diag_{k}": dv for k, dv in
                                         greedy_pick_diagnostics(dataset, ux, ia, offset=wc, ref=ref).items()})
-                        key = (rec["val_nll"], tr.number)
-                        if rec["val_nll"] < DIVERGED_NLL and (best_vectors is None or key < best_vectors[0]):
-                            best_vectors = (key, (ux, ia), wc)
+                        key = (rec["val_nll"], number)
+                        if rec["val_nll"] < DIVERGED_NLL and (best_vectors[v] is None or key < best_vectors[v][0]):
+                            best_vectors[v] = (key, (ux, ia), wc)
                     else:
                         rec.update({"val_nll": DIVERGED_NLL, "value": np.nan, "value_greedy": np.nan})
                     rec["seconds"] = (time.time() - t0) / len(group)
-                    done[tr.number] = rec
+                    done[(tr.number, j)] = rec
                 del model
-            trials_df = pd.DataFrame([done[tr.number] for tr in asked])
-            for tr in asked:
-                study.tell(tr, float(done[tr.number]["val_nll"]))
+            all_trials = pd.DataFrame([done[(tr.number, j)] for tr in asked for j in range(nv)])
+            for tr in asked:  # the sampler is random: its draws do not depend on these values
+                study.tell(tr, float(done[(tr.number, 0)]["val_nll"]))
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
-            finite = trials_df[trials_df["val_nll"] < DIVERGED_NLL]
-            print(f"[blob:{family}] N={n}: {len(trials_df)} trials in {time.time() - t_study:.0f}s; finite {len(finite)}; "
-                  f"best val NLL {finite['val_nll'].min() if len(finite) else float('nan'):.4f}", flush=True)
-            best = finite.loc[finite["val_nll"].idxmin()] if len(finite) else trials_df.iloc[0]
-            row = {"train_size": n, "blob_family": family, "policy_rewards": float(best["value"]),
-                   "policy_rewards_greedy": float(best["value_greedy"]), "initial_reward": v_logger,
-                   "logger_greedy": v_logger_greedy, "uniform_value": v_uniform,
-                   "gain_over_logger": float(best["value"]) - v_logger,
-                   "gain_over_logger_greedy": float(best["value_greedy"]) - v_logger_greedy,
-                   "selection_val_score": float(best["val_nll"]), "selection_metric": "val_nll",
-                   "val_nll": float(best["val_nll"]), "val_auc": float(best.get("val_auc", np.nan)),
-                   "val_size": int(len(val_labels)), "selected_trial": int(best["trial"]),
-                   "lr": float(best["lr"]), "epochs": int(best["epochs"]), "wa_m": float(best["wa_m"]),
-                   "wb_m": float(best["wb_m"]), "kappa_s": float(best["kappa_s"]),
-                   "n_finite_trials": int(len(finite)), "n_trials": int(len(trials_df)),
-                   "oracle_selected_value_greedy": float(trials_df["value_greedy"].max()),
-                   "oracle_selected_value": float(trials_df["value"].max()),
-                   "blob_norm": bool(opts["norm"]), "blob_alias_loc": bool(opts["alias_loc"]),
-                   "blob_source_scale": str(opts["source_scale"]), "blob_batch_size": int(opts["batch_size"]),
-                   "blob_sampler": "random", "stage": str(stage), "n_total": int(n),
-                   # for the data-identity check: the same warm and validation rows as every other arm
-                   "train_click_sum": float(clicks.sum(dtype=np.float64)),
-                   "val_click_sum": float(val_labels.sum())}
-            for k in ("sp_wa", "sp_wb", "wc", "zeta_norm", "kappa_rms", "kappa_sd_post", "deviation_ratio",
-                      "val_dr_greedy", "val_dr_greedy_low"):
-                if k in best:
-                    row[k] = float(best[k])
-            if lookup is not None and best_vectors is not None:
-                extra = _tempered(dataset, val, *best_vectors[1], lookup)
-                assert int(best["trial"]) == best_vectors[0][1], "tempered a different trial"
-                row.update({"policy_rewards_tempered": float(extra["value_tempered"]),
-                            "temper_scale": float(extra["temper_scale"]), "val_dr_tempered": float(extra["val_dr_tempered"]),
-                            "val_dr_tempered_low": float(extra["val_dr_tempered_low"])})
-            if opts.get("policy_dir") and best_vectors is not None:
-                assert int(best["trial"]) == best_vectors[0][1], "saving a different trial"
-                save_selected_policy(Path(opts["policy_dir"]) / f"{label}_n{n}{POLICY_SUFFIX}", *best_vectors[1],
-                                     offset=best_vectors[2], arm=label, trial=int(best["trial"]),
-                                     value_greedy=float(best["value_greedy"]), value=float(best["value"]))
-            out[label] = (pd.DataFrame([row]).set_index("train_size"), trials_df.assign(method=label))
+            for v in variants:
+                label = blob_method_label(family, v)
+                trials_df = all_trials[all_trials["variant"] == v].reset_index(drop=True)
+                out[label] = _variant_summary(
+                    dataset, family, v, scales[v], label, trials_df, best_vectors[v], n=n, opts=opts, stage=stage,
+                    t_study=t_study, val=val, val_labels=val_labels, clicks=clicks, lookup=lookup, v_logger=v_logger,
+                    v_logger_greedy=v_logger_greedy, v_uniform=v_uniform)
     return out
+
+
+def _variant_summary(dataset, family, variant, scale, label, trials_df, best_vectors, *, n, opts, stage, t_study, val,
+                     val_labels, clicks, lookup, v_logger, v_logger_greedy, v_uniform):
+    """One variant's selection (lowest validation NLL), its summary row, fair tempering and saved policy."""
+    from training.cause_trials import _tempered
+    from training.policy_diagnostics import POLICY_SUFFIX, save_selected_policy
+
+    finite = trials_df[trials_df["val_nll"] < DIVERGED_NLL]
+    print(f"[blob:{label}] N={n}: {len(trials_df)} trials in {time.time() - t_study:.0f}s; finite {len(finite)}; "
+          f"best val NLL {finite['val_nll'].min() if len(finite) else float('nan'):.4f}", flush=True)
+    best = finite.loc[finite["val_nll"].idxmin()] if len(finite) else trials_df.iloc[0]
+    row = {"train_size": n, "blob_family": family, "blob_variant": variant, "l_scale": float(scale[0]),
+           "s_zeta": float(scale[1]), "policy_rewards": float(best["value"]),
+           "policy_rewards_greedy": float(best["value_greedy"]), "initial_reward": v_logger,
+           "logger_greedy": v_logger_greedy, "uniform_value": v_uniform,
+           "gain_over_logger": float(best["value"]) - v_logger,
+           "gain_over_logger_greedy": float(best["value_greedy"]) - v_logger_greedy,
+           "selection_val_score": float(best["val_nll"]), "selection_metric": "val_nll",
+           "val_nll": float(best["val_nll"]), "val_auc": float(best.get("val_auc", np.nan)),
+           "val_size": int(len(val_labels)), "selected_trial": int(best["trial"]),
+           "lr": float(best["lr"]), "epochs": int(best["epochs"]), "wa_m": float(best["wa_m"]),
+           "wb_m": float(best["wb_m"]), "kappa_s": float(best["kappa_s"]),
+           "n_finite_trials": int(len(finite)), "n_trials": int(len(trials_df)),
+           "oracle_selected_value_greedy": float(trials_df["value_greedy"].max()),
+           "oracle_selected_value": float(trials_df["value"].max()),
+           "blob_norm": bool(opts["norm"]), "blob_alias_loc": bool(opts["alias_loc"]),
+           "blob_source_scale": str(opts["source_scale"]), "blob_batch_size": int(opts["batch_size"]),
+           "blob_sampler": "random", "stage": str(stage), "n_total": int(n),
+           # for the data-identity check: the same warm and validation rows as every other arm
+           "train_click_sum": float(clicks.sum(dtype=np.float64)),
+           "val_click_sum": float(val_labels.sum())}
+    for k in ("sp_wa", "sp_wb", "wc", "zeta_norm", "kappa_rms", "kappa_sd_post", "deviation_ratio",
+              "val_dr_greedy", "val_dr_greedy_low"):
+        if k in best:
+            row[k] = float(best[k])
+    if lookup is not None and best_vectors is not None:
+        extra = _tempered(dataset, val, *best_vectors[1], lookup)
+        assert int(best["trial"]) == best_vectors[0][1], "tempered a different trial"
+        row.update({"policy_rewards_tempered": float(extra["value_tempered"]),
+                    "temper_scale": float(extra["temper_scale"]), "val_dr_tempered": float(extra["val_dr_tempered"]),
+                    "val_dr_tempered_low": float(extra["val_dr_tempered_low"])})
+    if opts.get("policy_dir") and best_vectors is not None:
+        assert int(best["trial"]) == best_vectors[0][1], "saving a different trial"
+        save_selected_policy(Path(opts["policy_dir"]) / f"{label}_n{n}{POLICY_SUFFIX}", *best_vectors[1],
+                             offset=best_vectors[2], arm=label, trial=int(best["trial"]),
+                             value_greedy=float(best["value_greedy"]), value=float(best["value"]))
+    return pd.DataFrame([row]).set_index("train_size"), trials_df.assign(method=label)

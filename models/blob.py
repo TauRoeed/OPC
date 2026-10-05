@@ -78,7 +78,9 @@ class BlobBandit(nn.Module):
     0)."""
 
     def __init__(self, psi: np.ndarray, *, family: str = "mnq", priors: BlobPriors = BlobPriors(), norm: bool = True,
-                 alias_loc: bool = True):
+                 alias_loc: bool = True, l_scale: float = 1.0):
+        """``l_scale``: L becomes l_scale · chol(Ψ̃ᵀΨ̃ / P). √(P / P₀) gives chol(Ψ̃ᵀΨ̃ / P₀), the catalog-normalized
+        parameterization of docs/blob_prior_calibration.md; 1 is the release."""
         super().__init__()
         if family not in BLOB_FAMILIES:
             raise ValueError(f"family must be one of {BLOB_FAMILIES}, got {family!r}")
@@ -87,9 +89,10 @@ class BlobBandit(nn.Module):
         psi_loc, psi_cov, chol = prepare_psi(psi, norm=norm, alias_loc=alias_loc)
         P, K = psi_cov.shape
         self.P, self.K = int(P), int(K)
+        self.l_scale = float(l_scale)
         self.register_buffer("psi_loc", torch.as_tensor(psi_loc))
         self.register_buffer("psi_cov", torch.as_tensor(psi_cov))
-        self.register_buffer("chol", torch.as_tensor(chol))
+        self.register_buffer("chol", torch.as_tensor(chol if l_scale == 1.0 else chol * np.float32(l_scale)))
         pr = priors
         f32 = dict(dtype=torch.float32)
         # priors (constants of the graph)
@@ -269,7 +272,8 @@ class BlobBanditBatch(nn.Module):
     batches and noise (tests/test_blob.py)."""
 
     def __init__(self, psi: np.ndarray, priors: list[BlobPriors], *, family: str = "mnq", norm: bool = True,
-                 alias_loc: bool = True):
+                 alias_loc: bool = True, l_scales: list[float] | None = None):
+        """``l_scales``: one L scale per trial (``BlobBandit``'s ``l_scale``); None is the release for every trial."""
         super().__init__()
         if family not in BLOB_FAMILIES:
             raise ValueError(f"family must be one of {BLOB_FAMILIES}, got {family!r}")
@@ -280,6 +284,11 @@ class BlobBanditBatch(nn.Module):
         self.register_buffer("psi_loc", torch.as_tensor(psi_loc))
         self.register_buffer("psi_cov", torch.as_tensor(psi_cov))
         self.register_buffer("chol", torch.as_tensor(chol))
+        scales = np.ones(self.T, dtype=np.float32) if l_scales is None else np.asarray(l_scales, dtype=np.float32)
+        if scales.shape != (self.T,):
+            raise ValueError(f"l_scales must have one value per trial ({self.T}), got shape {scales.shape}")
+        self.scaled = bool((scales != 1.0).any())
+        self.register_buffer("l_scale", torch.as_tensor(scales))
         col = lambda name: torch.tensor([[getattr(p, name)] for p in priors], dtype=torch.float32)  # T x 1
         self.register_buffer("s_zeta", col("s_zeta"))
         self.register_buffer("bias_0_mean", col("wc_m"))
@@ -331,6 +340,8 @@ class BlobBanditBatch(nn.Module):
             mean_band = torch.einsum("bq,tq->tb", r, self.zeta_means[:, :, 0])
             r_cov = torch.einsum("bq,tq->tb", r ** 2, torch.exp(2 * self.zeta_logstd[:, :, 0]))
             pred_band = wb * (mean_band + torch.sqrt(r_cov) * noise[..., 2])
+        if self.scaled:  # L → c_t L scales the band term's mean and its noise std by c_t
+            pred_band = pred_band * self.l_scale[:, None]
         kappa_a = self.kappa_means[:, a, 0]
         kappa_logstd_a = self.kappa_logstd[:, a, 0]
         pred_bias = self.bias_means + kappa_a + \
@@ -371,8 +382,9 @@ class BlobBanditBatch(nn.Module):
     def point(self, t: int) -> tuple[torch.Tensor, torch.Tensor, float]:
         """(β̂, κ̂, μ_wc) of trial t."""
         zeta = self.zeta_means[t].reshape(self.K, self.K)
+        chol = self.chol * self.l_scale[t] if self.scaled else self.chol
         beta = F.softplus(self.wa_means[t]) * self.psi_loc + \
-            F.softplus(self.wb_means[t]) * (self.psi_cov @ zeta @ self.chol.T)
+            F.softplus(self.wb_means[t]) * (self.psi_cov @ zeta @ chol.T)
         return beta, self.kappa_means[t, :, 0].clone(), float(self.bias_means[t, 0])
 
     @torch.no_grad()
@@ -408,10 +420,11 @@ class TFAdamBatch(TFAdam):
 
 def fit_blob_batch(model: BlobBanditBatch, x: np.ndarray, a: np.ndarray, y: np.ndarray, *, epochs: int, lrs,
                    batch_size: int = 1024, order_seed: int = 0, noise_seed: int = 1,
-                   device: torch.device | str | None = None) -> dict:
+                   device: torch.device | str | None = None, noise_index=None) -> dict:
     """Train T trials together with the released loop (``fit_blob``): one shared shuffled batch order per epoch
     (from ``order_seed``), independent noise per trial. A trial whose loss turns non-finite is frozen at its last
-    finite parameters (its gradient is zeroed). Returns {'steps', 'finite' (T,)}."""
+    finite parameters (its gradient is zeroed). ``noise_index`` (T): trials with the same index share one noise
+    stream (paired variants of one configuration); None gives every trial its own. Returns {'steps', 'finite' (T,)}."""
     device = torch.device(device) if device is not None else model.psi_loc.device
     model.to(device)
     xt = torch.as_tensor(np.asarray(x, dtype=np.float32), device=device)
@@ -423,12 +436,20 @@ def fit_blob_batch(model: BlobBanditBatch, x: np.ndarray, a: np.ndarray, y: np.n
     gen = torch.Generator(device="cpu").manual_seed(int(order_seed))
     noise_gen = torch.Generator(device=device).manual_seed(int(noise_seed))
     alive = torch.ones(T, dtype=torch.bool, device=device)
+    if noise_index is not None:
+        stream = torch.as_tensor(np.asarray(noise_index, dtype=np.int64), device=device)
+        if stream.shape != (T,):
+            raise ValueError(f"noise_index must have one entry per trial ({T})")
+        n_streams = int(stream.max()) + 1
     steps = 0
     for _ in range(int(epochs)):
         order = torch.randperm(n, generator=gen).to(device)
         for s in range(0, n, int(batch_size)):
             idx = order[s:s + int(batch_size)]
-            noise = torch.randn(T, int(idx.shape[0]), 4, generator=noise_gen, device=device)
+            if noise_index is None:
+                noise = torch.randn(T, int(idx.shape[0]), 4, generator=noise_gen, device=device)
+            else:
+                noise = torch.randn(n_streams, int(idx.shape[0]), 4, generator=noise_gen, device=device)[stream]
             loss = model.neg_elbo(xt[idx], at[idx], yt[idx], n, noise)
             alive &= torch.isfinite(loss)
             opt.zero_grad()
