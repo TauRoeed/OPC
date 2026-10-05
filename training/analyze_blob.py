@@ -556,7 +556,8 @@ def fig_gains(s: pd.DataFrame, out: Path, col: str = "gain_greedy", name: str = 
                         marker=MARKERS[arm], markersize=5, capsize=2, elinewidth=1, linestyle="none")
             data.append({"panel": panel, "arm": arm, "mean": r[col], "lo": r[col + "_lo"], "hi": r[col + "_hi"]})
         ax.axvline(0, color="black", linewidth=0.8)
-        ax.set_title("biased worlds (24)" if panel == "biased (pooled)" else BIAS_NAMES.get(panel, panel) + " (6)")
+        n = int(g["worlds"].max()) if len(g) else 0
+        ax.set_title(("biased worlds" if panel == "biased (pooled)" else BIAS_NAMES.get(panel, panel)) + f" ({n})")
         ax.set_yticks(range(len(arms)))
         ax.set_yticklabels([NAMES[a] for a in arms])
     axes[0].invert_yaxis()  # once: the panels share the y axis
@@ -647,7 +648,8 @@ def fig_picks(dt: pd.DataFrame, out: Path, panel: str = "biased (pooled)") -> No
         ax.set_yticks(range(len(arms)))
         ax.set_yticklabels([PICK_ARMS[a][0] for a in arms])
     axes[0].invert_yaxis()
-    fig.suptitle("Where the selected policies recommend and what it is worth there (exact; means over the 24 biased "
+    n = int(d["worlds"].max()) if "worlds" in d and len(d) else 0
+    fig.suptitle(f"Where the selected policies recommend and what it is worth there (exact; means over {n} biased "
                  "worlds)", y=1.02, fontsize=9.5)
     _save(fig, out, "fig3_picks", pd.DataFrame(data))
 
@@ -827,6 +829,9 @@ def compare_main(args) -> None:
         acc += [accounting_table(t, "opc", "cap_c")] if {"opc", "cap_c"} <= set(t["arm"]) else []
         if acc:
             pd.concat(acc, ignore_index=True).to_csv(out / "table_accounting.csv", index=False, float_format="%.6g")
+    counts = t.groupby("arm")[WORLD].apply(lambda g: len(g.drop_duplicates()))
+    if (counts < 30).any():  # the table headers name 24 biased and 6 unbiased worlds
+        print(f"warning: incomplete arms {counts[counts < 30].to_dict()}: tables.md headers assume 30 worlds")
     (out / "tables.md").write_text(tables_md(t, s, p, pd.concat(acc, ignore_index=True) if acc else None, orc))
     fig_gains(s, out)
     fig_gains(s, out, col="gain_tempered", name="fig1b_tempered_gain",
