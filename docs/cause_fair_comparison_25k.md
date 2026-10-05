@@ -239,6 +239,41 @@ distinct configurations. Tables: `artifacts/full_study/cause_fair_25k/tuning/` (
 - **Selection works for this family.** In the chosen space, NLL selection loses 0.11 points against the best of the
   10 drawn trials.
 
+**CausE-warm** (all 18 worlds; the same scale):
+
+| candidate | trials per cell | selected gain (C / T) | minus wide [95% CI over worlds] |
+|---|---|---|---|
+| wide space | 40 | 1.00 (1.72 / 0.27) | — |
+| tie one-way / symmetric (intercept searched) | 19.5 / 20.5 | 0.92 / 1.09 | −0.07 [−0.26, 0.11] / +0.09 [−0.04, 0.22] |
+| intercept at the base rate (tie searched) | 19.5 | 0.79 | −0.21 [−0.37, −0.05] |
+| **intercept 0** (tie searched) | 20.5 | 1.12 | +0.13 [−0.01, 0.26] |
+| intercept 0, lr 0.01–1 | 11.5 | 1.38 | +0.39 [0.15, 0.63] |
+| intercept 0, epochs {30, 100, 300} | 10.5 | 1.45 | +0.45 [0.20, 0.70] |
+| **intercept 0, epochs {10, 30, 100} (chosen)** | 8.5 | 1.46 (2.26 / 0.66) | +0.47 [0.22, 0.72] |
+
+- **Chosen space:**
+  - lr log-uniform on [1e-4, 3] (the full range);
+  - epochs {10, 30, 100};
+  - l2 and cf as in the wide space;
+  - the tie direction searched;
+  - the intercept at 0.
+  The lr + epoch combination had 4.5 trials per cell and was not eligible.
+- **The intercept goes the other way than for CausE-capacity-matched.** For CausE-warm, a base-rate intercept costs
+  0.21 points. (CausE-warm has per-row biases, CausE-capacity-matched none; why the sign flips was not tested.)
+  The smoke test's negative-α failure did not survive NLL selection.
+- **Epochs matter more than lr.** One to three epochs underfit. 10–100 epochs and 30–300 epochs are within 0.02
+  points of each other (the rule takes the former).
+- **Boundaries.**
+  - 100 epochs is the top of the chosen window but not of the wide space: the candidates with 300 epochs were
+    evaluated and were no better.
+  - The selected lr has median 0.049, and only 10% of the selected trials sit in the top half-decade of the range.
+  - The total step lr × steps / 2 of the selected trials is mostly 10–100 (62%).
+  - Divergence is 0.7% inside the space.
+- **Weaker and less well selected than CausE-capacity-matched.** The selected gain is 2.26 points for C and 0.66 for
+  T. NLL selection loses 0.31 points against the best of the 10 drawn trials.
+- **Cost.** Without 300 epochs the warm main grid is cheaper than its tuning: the dense updates of 73k anime user
+  vectors dominate the training time.
+
 ## 4. Capacity diagnostics
 
 | variant | representation family | structural ceiling used |
