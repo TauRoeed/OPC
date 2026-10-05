@@ -281,6 +281,44 @@ these values sit at an edge of the wide range and beat their neighbour by more t
   reported as a limitation.
 - **Check.** The supplementary trials alone, analyzed the same way.
 
+### 3.2 Tuning, supplementary round, and the main-grid spaces
+
+**Runs.** `run_blob_tune_s200_supp_nq` (3 workers) and `run_blob_tune_s200_supp_mnq` (1 worker): code 152502b, pinned
+worktree, 14:11–15:04. 18 worlds × 40 trials each; no trial diverged. Tables: `tuning_round2/` (pooled, the decision)
+and `tuning_round2_supplement_only/` (the check).
+
+**The rule on the pooled trials** (80 per cell; selected greedy gain, CTR points; 10-trial studies):
+
+| family | wide | best structure | chosen candidate | its gain | minus wide [95% CI] | trials per cell |
+|---|---|---|---|---|---|---|
+| NQ | 1.41 | σ_κ = 0.1 (1.78) | σ_κ = 0.1; lr 3e-3–1e-1 | 1.90 | +0.49 [+0.07, +0.90] | 6.5 |
+| MNQ | 0.57 | μ_wa = 5 (1.24) | μ_wa = 5; lr 1e-3–3e-2 | 1.29 | +0.71 [+0.37, +1.06] | 8.0 |
+
+- **NQ** keeps σ_κ = 0.1, as in the first round. Its best lr window moves up, with the extended range. More total
+  training is better: the windows with 300–1,000 epochs or lr above 3e-3 lead.
+- **MNQ's structure is a near-tie.** μ_wa = 5 (only supplementary trials, 11 per cell) leads σ_κ = 0.1 (1.17) by
+  0.07. The supplement-only check picks μ_wa = 1 (1.27), with μ_wa = 5 at 1.24 and σ_κ = 0.1 at 1.13.
+  - The rule fixes one structural dimension, so σ_κ stays searched over {0.01, 0.1, 1} in MNQ's space. One third of
+    its trials therefore have free intercepts (σ_κ = 1), the worst value in every analysis.
+  - MNQ's main-grid result is therefore a lower bound on what a two-dimension structure choice would give. NQ's
+    space fixes σ_κ = 0.1.
+- **The edge rule fires again, on lr in both families, at the top.** In the chosen spaces the top half-decade leads
+  its neighbour by 0.63 (NQ, 3e-2–1e-1) and 0.37 (MNQ, 1e-2–3e-2). As fixed before the round, there is no second
+  extension.
+  - Limitation: both families might gain from a still larger total step. NQ already searches up to lr 0.1 with
+    1,000 epochs.
+- **The primary BLOB row is BLOB-NQ**, the family with the higher score in its chosen space (1.90 against 1.29).
+
+**Main-grid spaces** (20 trials per world and family; the 30 main worlds; `--blob-pick-diagnostics --save-policies`):
+
+| family | lr (log-uniform) | epochs | μ_wa | μ_wb | σ_κ |
+|---|---|---|---|---|---|
+| NQ (primary) | 3e-3–1e-1 | 10, 30, 100, 300, 1,000 | −1, 1, 3 | −6, −3, 0 | 0.1 |
+| MNQ | 1e-3–3e-2 | 3, 10, 30, 100, 300 | 5 | −9, −6, −3, 0 | 0.01, 0.1, 1 |
+
+**Tuning budget.** 80 trials per tuning world and family, 40 in each round (2,880 trials). OPC's range came from
+the revalidation's range study, and CausE-cap's from 80 trials per tuning world (40 at each of two ρ).
+
 **Capacity, against the other arms** (§1.6; as score functions for the greedy ranking):
 
 | arm | ranking family over the logger's vectors | free parameters (K = 32) |

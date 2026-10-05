@@ -1,0 +1,9 @@
+family,dimension,best_value,best_below_best,neighbour,margin,at_wide_edge,extend
+mnq,lr,1e-2-3e-2,-1.66509,3e-3-1e-2,0.365355,True,True
+mnq,epochs,10,-1.12168,,,False,False
+mnq,wb_m,0,-0.94673,-3,0.174953,True,False
+mnq,kappa_s,0.1,-1.21523,,,False,False
+nq,lr,3e-2-1e-1,-0.619597,1e-2-3e-2,0.632047,True,True
+nq,epochs,100,-0.777973,,,False,False
+nq,wa_m,1,-1.26821,,,False,False
+nq,wb_m,-3,-0.787934,,,False,False
