@@ -574,13 +574,15 @@ def fig_accounting(acc: pd.DataFrame, out: Path) -> None:
     from training.representation_report import _plt, _save
 
     plt = _plt()
-    pairs = [(a, b) for a, b in acc[["a", "b"]].drop_duplicates().itertuples(index=False)]
+    short = {"blob_nq": "BLOB-NQ", "blob_mnq": "BLOB-MNQ", "opc": "OPC", "cap_c": "CausE-cap-C (ρ = 0)"}
+    have = {(a, b) for a, b in acc[["a", "b"]].drop_duplicates().itertuples(index=False)}
+    pairs = [x for x in (("blob_nq", "opc"), ("blob_nq", "cap_c"), ("opc", "cap_c")) if x in have]
     panels = [p for p in ["biased (pooled)", "none", "w-high.g-none.v-none", "w-none.g-high.v-none",
                           "w-none.g-none.v-high", "high"] if p in set(acc["bias"])]
     parts = (("gain", "net difference", "#000000"), ("ceiling", "class ceiling (value oracles)", "#0072B2"),
              ("training", "− training gap (ceiling − best of 20 trials)", "#E69F00"),
              ("selection", "− selection regret (best − selected)", "#009E73"))
-    fig, axes = plt.subplots(1, len(pairs), figsize=(6.2 * len(pairs), 3.2), sharey=True)
+    fig, axes = plt.subplots(1, len(pairs), figsize=(4.6 * len(pairs) + 2.4, 3.4), sharey=True)
     axes = np.atleast_1d(axes)
     data = []
     for ax, (a, b) in zip(axes, pairs):
@@ -599,7 +601,7 @@ def fig_accounting(acc: pd.DataFrame, out: Path) -> None:
         ax.set_xticks(x)
         ax.set_xticklabels(["biased\n(24)" if p == "biased (pooled)" else BIAS_NAMES.get(p, p).replace(" ", "\n")
                             for p in panels])
-        ax.set_title(f"{NAMES[a]} − {NAMES[b]}")
+        ax.set_title(f"{short[a]} − {short[b]}")
     axes[0].set_ylabel("CTR points (greedy)")
     axes[-1].legend(loc="center left", bbox_to_anchor=(1.0, 0.5), frameon=False)
     fig.suptitle("Where the difference comes from: structural ceiling, training and selection (mean and 95% CI over "
