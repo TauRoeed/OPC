@@ -660,7 +660,7 @@ def _panels(s: pd.DataFrame, panels) -> tuple:
     from training.representation_report import _plt
 
     plt = _plt()
-    fig, axes = plt.subplots(1, len(panels), figsize=(2.65 * len(panels), 3.0), sharey=False)
+    fig, axes = plt.subplots(1, len(panels), figsize=(max(2.65 * len(panels), 7.2), 3.0), sharey=False)
     return plt, fig, np.atleast_1d(axes)
 
 
@@ -704,7 +704,9 @@ def _reference_lines(ax, sb: pd.DataFrame, col: str, arms=("opc", "dm_own"), bes
 
 def fig_rho(s: pd.DataFrame, out: Path, *, col: str = "gain_greedy", name: str = "fig1_rho_greedy",
             ylabel: str = "greedy value − logger's greedy value (CTR pts)", arms=FAIR_ARMS, refs=("opc", "dm_own"),
-            title: str = "") -> None:
+            title: str = "", ref_col: str | None = None) -> None:
+    """``ref_col``: the references' column when it differs from the CausE arms' (their stochastic value against
+    CausE's tempered one)."""
     biases = [b for b in BIAS_ORDER if b in set(s["bias"])]
     plt, fig, axes = _panels(s, biases)
     data = []
@@ -716,7 +718,8 @@ def fig_rho(s: pd.DataFrame, out: Path, *, col: str = "gain_greedy", name: str =
                 continue
             _ci_line(ax, g, col, NAMES[arm], arm, **_arm_style(arm))
             data.append(g.assign(panel=bias))
-        data += [d.assign(panel=bias) for d in _reference_lines(ax, sb, col, refs, best_item=col == "gain_greedy")]
+        data += [d.assign(panel=bias) for d in _reference_lines(ax, sb, ref_col or col, refs,
+                                                                best_item=col == "gain_greedy")]
         ax.set_title(BIAS_NAMES.get(bias, bias))
         _rho_axis(ax)
     axes[0].set_ylabel(ylabel)
@@ -783,8 +786,8 @@ def fig_variants(s: pd.DataFrame, out: Path) -> None:
     axes[0].set_ylabel("greedy value − logger's greedy value (CTR pts)")
     fig.supxlabel("randomized share of the 25k budget, ρ", fontsize=9)
     _legend(fig, axes)
-    fig.suptitle("Native CausE (from scratch) vs CausE-warm (source vectors, free capacity) vs CausE-cap (source "
-                 "vectors, OPC's linear family)", y=1.02, fontsize=9.5)
+    fig.suptitle("Native CausE (from scratch) vs CausE-warm (source vectors, free capacity)\nvs CausE-cap (source "
+                 "vectors, OPC's linear family); mean and 95% CI over worlds", y=1.06, fontsize=9.5)
     from training.representation_report import _save
 
     _save(fig, out, "fig3_cause_variants", pd.concat(data, ignore_index=True) if data else pd.DataFrame())
@@ -951,7 +954,7 @@ def compare_main(args) -> None:
     oc.to_csv(out / "table_oracle_check.csv", index=False, float_format="%.6g")
     selection_rule_table(trials).to_csv(out / "table_selection_rule.csv", index=False, float_format="%.6g")
     fig_rho(s, out)
-    fig_rho(s, out, col="gain_tempered", name="fig1b_rho_stochastic_tempered",
+    fig_rho(s, out, col="gain_tempered", name="fig1b_rho_stochastic_tempered", ref_col="gain",
             ylabel="stochastic value − logger's value (CTR pts)", refs=("opc", "tempered_logger", "dm_own"),
             title="Secondary: stochastic value; CausE's softmax tempered by the DR lower bound (references: OPC's "
                   "learned scale, the tempered logger)")
