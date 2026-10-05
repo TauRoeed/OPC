@@ -435,7 +435,8 @@ rebuild them. Development stage.
 | `run_blob_main_25k_nq`, `_mnq` | ca842cc | main grid: 30 worlds × 20 trials per family, pick diagnostics, saved policies | 15:07–17:19, 3 + 1 |
 | `run_replay_opc_25k_{mlkr,anime}` | d0a8a77 | OPC (harmonic:0.1) replayed at 25k with saved policies (§4) | 12:59–13:46, 2 + 1 |
 | `run_replay_cap_rho0_25k_{mlkr,anime}` | d0a8a77 | CausE-cap at ρ = 0 replayed with saved policies (§4) | 12:59–13:37, 2 then 1 |
-| `run_class_oracles_20261005` | d0a8a77 | class oracles, 3 classes × 2 objectives, 30 worlds, saved policies | 12:57–… (paused, see below) |
+| `run_class_oracles_20261005` | d0a8a77 | class oracles, 3 classes × 2 objectives, 30 worlds, saved policies | 12:57–17:58 (paused part of the time, see below) |
+| pick diagnostics (`training/policy_diagnostics.py`) | 4b9bd25–ea88fef | every saved policy of the 30 worlds, the logger and BLOB's prior mean | 17:22–17:59 |
 | reused: Stage 2 runs, `run_cause_fair_cap_25k`, `run_cause_fair_warm_25k`, `run_cause_fair_dm_oldspace_anime` | — | OPC, DM-only, the tempered logger, CausE-cap, CausE-warm | — |
 
 **Checks.**
@@ -450,6 +451,8 @@ rebuild them. Development stage.
 - **Two class-oracle fits measure the same class.** The class oracle of OPC's family (value objective) is within
   0.15 points of the Stage 1 linear-repair oracle, always slightly below it. All ceilings below use the class
   oracles, fit the same way for every class.
+- **The class oracles are deterministic.** The rerun with saved policies reproduces the first pass's 36 fits on
+  the 6 worlds both covered: greedy value, objective and learning rate are identical.
 - **GPU scheduling.** The class-oracle jobs for kuairand and anime were paused (SIGSTOP) during the BLOB runs: they
   starved BLOB's small training steps of GPU time slices, slowing each step 3–4×. The anime job ran again
   alongside the main grid from 15:55, and the kuairand job after it. The computation is deterministic, so this
@@ -537,3 +540,219 @@ rebuild them. Development stage.
 - **Selected configurations.**
   - NQ: σ_κ = 0.1 by construction; 100 or 300 epochs in 26 of 30 worlds; μ_wb = 0 in 23; lr median 0.012.
   - MNQ: σ_κ = 0.1 in 26 of 30 worlds (NLL selection mostly avoids the free intercepts); μ_wb = −6 in 22.
+
+### 5.5 Capacity: the class oracles
+
+The class oracles are fit on the truth, with no logged data (`table_class_oracles.csv`). Greedy gain over the
+logger's greedy value, 24 biased worlds:
+
+| score class | value oracle (its best policy) | likelihood oracle (infinite-data likelihood fit under π0) | value − likelihood |
+|---|---|---|---|
+| OPC's and CausE-cap's family, xᵀMa + wᵀa (+ user terms) | +6.62 [+5.04, +8.21] | +5.21 [+3.92, +6.49] | +1.42 [+0.81, +2.02] |
+| BLOB's class, xᵀMa + κ_a | +6.70 [+5.13, +8.27] | +5.49 [+4.07, +6.91] | +1.21 [+0.72, +1.69] |
+| bilinear, xᵀMa (BLOB with κ pinned) | +6.53 [+4.96, +8.10] | +4.75 [+3.52, +5.98] | +1.79 [+1.09, +2.48] |
+
+- **The three classes are nearly the same ranking family.**
+  - BLOB's free intercepts add 0.07 [0.05, 0.10] points of structural value over OPC's family.
+  - OPC's item-linear term adds 0.09 [0.07, 0.11] over the bilinear form.
+  - So capacity can neither explain BLOB's deficit nor be a handicap: BLOB's class can express OPC's best policy.
+- **The likelihood objective costs value even with unlimited data, except under warp.** By bias, value minus
+  likelihood is:
+  - warp: about 0 (−0.05 to +0.17). The warped click model is in each class, so the infinite-data fit ranks like
+    the truth.
+  - group: 1.2–1.6; vector: 1.0–1.4; combined: 2.3–4.1. The likelihood fit spreads its errors by π0's sampling, not
+    by where the policy will act.
+- **Richer classes help the likelihood fit more than the value fit.** BLOB's likelihood oracle is 0.28 [−0.01,
+  0.57] above OPC's family's, and OPC's family is 0.46 [0.34, 0.58] above the bilinear.
+- **At infinite data a likelihood learner in BLOB's class would reach +5.49.** That is above every 25k arm
+  (OPC +2.69, CausE-cap +3.09) and below the value ceiling (+6.62).
+
+### 5.6 Where the differences come from: ceiling, training and selection
+
+Per world, gain = ceiling − training gap − selection regret (§4); a paired difference splits the same way
+(`table_accounting.csv`, `fig2_accounting`):
+
+| a − b (biased, 24) | Δgain | Δceiling | Δtraining gap | Δselection regret |
+|---|---|---|---|---|
+| BLOB-NQ − CausE-cap-C | −1.67 [−2.29, −1.06] | +0.07 [+0.05, +0.10] | +1.31 [+0.80, +1.82] | +0.44 [+0.02, +0.85] |
+| BLOB-NQ − OPC | −1.27 [−1.77, −0.76] | +0.07 [+0.05, +0.10] | +0.94 [+0.61, +1.26] | +0.40 [−0.02, +0.83] |
+| OPC − CausE-cap-C | −0.41 [−0.66, −0.16] | 0 | +0.38 [+0.16, +0.60] | +0.03 [−0.05, +0.11] |
+
+- **Training is most of BLOB's deficit**, about three quarters of it. Selection accounts for the rest.
+  - The best of BLOB-NQ's 20 trials reaches +1.98, against +2.84 for OPC and +3.22 for CausE-cap.
+  - As a share of their class's value oracle these are 0.21 against 0.37 and 0.42.
+- **Against its own infinite-data likelihood limit**, BLOB-NQ's best trial reaches 36% (1.98 of 5.49), against
+  CausE-cap's 62% (3.22 of 5.21).
+  - Under warp, where that limit equals the value ceiling (+7.2 in both classes), BLOB-NQ reaches 22% (+1.60) and
+    CausE-cap 59% (+4.25).
+  - The whole warp difference, −2.65, is training; selection there is +0.00.
+- **Selection matters only under combined bias.** There it is 1.56 of BLOB's 3.33-point deficit against
+  CausE-cap; elsewhere it is within ±0.2.
+- **OPC − CausE-cap (reused rows) is training too.** OPC's 0.41 deficit is +0.38 training and +0.03 selection,
+  nearly all of it under warp. This is the open question the CausE comparison left: the likelihood fit learns the
+  warp faster from 25k rows than OPC's DR objective does.
+
+### 5.7 Where the policies recommend: extrapolation
+
+Exact pick diagnostics of each selected policy, means over the 24 biased worlds (`table_pick_diagnostics.csv`,
+`table_pick_pairs.csv`, `fig3_picks`):
+
+| policy | users on the logger's top item | in its top 10 | median pick rank | true CTR at the moved picks | true CTR at the kept picks | click model's optimism at its picks |
+|---|---|---|---|---|---|---|
+| logger | 100% | 100% | 0 | — | 20.5% | — |
+| BLOB at its prior mean (its start) | 84% | 99.9% | 0 | 17.9% | 21.0% | — |
+| **BLOB-NQ** | **64%** | 95.9% | 0.2 | 21.6% | 22.0% | −1.30 pts |
+| BLOB-MNQ | 66% | 93.2% | 4.5 | 20.6% | 23.3% | −0.04 |
+| CausE-cap-C | 38% | 78.4% | 2.8 | 21.9% | 25.9% | +0.36 |
+| OPC | 42% | 83.5% | 1.9 | 21.9% | 24.5% | — |
+| likelihood oracle, BLOB's class | 21% | 54.5% | 36.6 | 23.9% | 33.1% | +1.67 |
+| value oracle, OPC's class | 21% | 55.5% | 34.5 | 25.5% | 31.5% | — |
+
+- **BLOB moves the fewest users off the logger's choice.**
+  - Its start, the normalized source, already keeps 84% of users there, and is worth the logger's greedy value
+    (−0.04 [−0.14, +0.06]).
+  - Training moves another fifth of the users and adds +1.46.
+  - CausE-cap and OPC move about 60%; the oracles move about 80%, mostly to items the logger ranks far down
+    (median rank 16–37).
+- **Where BLOB moves a user, the pick is worth about what the other learners' moves are worth** (21.6% against
+  21.9%). It falls short by leaving users on the logger's top item for whom that item is mediocre: 22.0% for the
+  users it keeps, against 25.9% for those CausE-cap keeps.
+- **Its click model is the most pessimistic and the least accurate.**
+  - It under-predicts at its own picks by 1.30 points.
+  - Its error is the largest of the learners in every logging-propensity bin, including the rarely logged pairs:
+    MAE 0.0126 against 0.0100 for CausE-cap where P π0 < 0.1.
+  - Its population NLL under π0 is 0.402, 0.010 above its class's likelihood floor (0.392). CausE-cap's is 0.398,
+    0.005 above its floor.
+- **OPC's lead over BLOB is in the moves.**
+  - OPC − BLOB-NQ is +1.27 [0.76, 1.77]. The two pick the same item for 52% of users.
+  - For 39% of users OPC's pick is the one the logger shows less often, and these users carry +1.11 of the +1.27.
+  - For the 10% where BLOB's pick is the rarer one, OPC still gains +0.16.
+  - CausE-cap − BLOB-NQ (+1.67) splits the same way: +1.47 from the 45% of users it moves further.
+- **OPC against CausE-cap:** CausE-cap moves further for 27% of users and gains 0.31 points there. The other 19%,
+  where OPC moves further, cost OPC 0.10.
+
+## 6. Mechanism: the six questions
+
+1. **Does BLOB behave like the plain likelihood learner under warp? Same principle and same limit, very different
+   learning.**
+   - Under warp the infinite-data likelihood fit reaches the value ceiling in both classes (+7.2), so either
+     learner could repair the warp completely with enough rows.
+   - From 25k rows CausE-cap gets +4.23 and BLOB-NQ +1.58: −2.65 [−3.44, −1.86], 0 of 6 worlds, all of it training.
+   - BLOB keeps 54% of users on the logger's top item under warp, against 26% for CausE-cap and 21% for the oracles.
+2. **Does its source prior help under group or vector mismatch? No.**
+   - Under group bias BLOB trails CausE-cap by 0.52 and OPC by 0.62. Under vector bias it ties both (CIs include 0).
+     No learner repairs much there: at most 1.15 points of a 3.4–3.6-point ceiling.
+   - The prior's pull to the source pays only where the source is right: without bias BLOB beats CausE-cap by 0.38
+     (6/6) and OPC by 0.43 (5/6).
+3. **Does its richer target capacity (κ) explain any advantage? There is no advantage on biased worlds to explain,
+   and the capacity is barely used.**
+   - Structurally the intercepts add 0.07 points (§5.5). The fitted intercepts have an RMS of 0.011 against a
+     source term of about 5.7.
+   - Free intercepts (σ_κ = 1) were the worst structure in tuning, by about 2 points, through selection regret.
+4. **Does it extrapolate into poorly logged regions better or worse? Worse, by not extrapolating.**
+   - It moves the fewest users away from the logger's choice. Its moves are worth what the others' are worth.
+   - Its click model is the least accurate in every propensity bin, rarely logged pairs included, and pessimistic
+     at its picks (§5.7).
+   - Its caution protects it without bias and costs it under bias.
+5. **Where does OPC differ from it given the same source? In moving users to items the logger shows less often.**
+   - 88% of OPC's lead (+1.11 of +1.27) comes from the users for whom OPC's pick is the rarer one.
+   - By bias, OPC leads under combined (+2.86), warp (+1.45) and group (+0.62), ties under vector (−0.13 [−0.34,
+     +0.09] for BLOB − OPC), and trails without bias (−0.43).
+6. **Is any difference training, selection or capacity? Mostly training, then selection; not capacity.**
+   - Of BLOB-NQ's 1.67-point deficit against CausE-cap: +1.31 training, +0.44 selection, and −0.07 capacity (the
+     ceiling term is in BLOB's favour). Against OPC: +0.94 training and +0.40 selection.
+   - Within training, the likelihood principle itself is not the reason. BLOB and CausE-cap share it, and BLOB's
+     infinite-data limit is the higher one (+5.49 against +5.21).
+   - What differs is how far BLOB's fit moves from the source in 25k rows. Its K × K deviation stays at about 2.5%
+     of the source term, and the trials whose deviation grows most gain the most (§5.4).
+   - One property of the released parameterization plausibly contributes; it is not tested here.
+     - The deviation enters as s+(w_b) L ζᵀ with L = chol(Ψ̃ᵀΨ̃/P). Under the released column normalization this
+       shrinks as 1/√P: ‖L‖_F = √(K/P) is 0.05–0.10 in these catalogs (P = 3,533–10,803, K = 32), against 0.45 in
+       the paper's Table 3 setting (P = 100, K = 20).
+     - For the same correction of W, ζ must be √(P/100) ≈ 6–10 times larger per entry, against the same N(0, I)
+       prior and within the same optimization budget.
+     - The edge rule's second firing (lr at the top of the range for both families, §3.2) points the same way.
+
+## 7. Conclusions
+
+**Phase 6 (a 5k / 100k extension) is not triggered** (rule fixed in §4).
+- **Not close.** BLOB − OPC is −1.27 [−1.77, −0.76], and BLOB − CausE-cap is −1.67 [−2.29, −1.06]. Neither CI
+  includes 0.
+- **Not size-dependent.** OPC's infinite-data reference, its class's value oracle (+6.62), is above BLOB's, its
+  class's likelihood oracle (+5.49): the 25k ordering. The class oracles stand in for the large-N limit, and nothing
+  more was run.
+
+**Answers** (development stage, 25k, 30 worlds; scoped to these conditions):
+1. **Is BLOB a stronger model-based baseline than the plain likelihood learner? No, not here.**
+   - Given the same source and rows, BLOB-supplied-source trails CausE-cap at ρ = 0 (the plain likelihood learner in
+     OPC's class) by 1.67 points on biased worlds, higher in 2 of 24.
+   - It is better only without bias (+0.38, 6/6), because it barely moves from the source.
+   - It also trails DM-only (−0.74) and is level with CausE-warm.
+2. **Is its performance explained by source information, capacity or learning principle?**
+   - Source information: no, it is identical by construction.
+   - Capacity: no, its class equals OPC's within 0.07 points of structural value, and its intercepts are barely
+     used.
+   - Learning principle: not as such. It shares the likelihood principle with the plain learner, whose
+     infinite-data limit is no higher.
+   - The explanation is finite-sample learning: BLOB's source-anchored Bayesian layer adapts the map little from
+     25k rows. A larger NLL-selection loss adds to it, mostly in combined-bias worlds.
+3. **Where does OPC lead or trail?**
+   - OPC leads BLOB-NQ by 1.27 points on biased worlds (22 of 24): most under combined (+2.86) and warp (+1.45),
+     less under group (+0.62); tied under vector bias.
+   - OPC trails BLOB without bias (−0.43).
+   - OPC's lead comes from moving users to less-logged items that are better for them.
+   - The earlier result stands: OPC trails the plain likelihood learner by 0.41, all of it under warp, and all of it
+     training.
+4. **What does this imply for the richer misspecification experiment?**
+   - The informative contrast remains likelihood-based adaptation (CausE-cap's plain likelihood learner) against
+     propensity-aware value optimization (OPC), at matched capacity. BLOB, a source-anchored Bayesian likelihood
+     learner, is dominated by the plain one here and adds little to that contrast.
+   - The class oracles say where the objective can matter.
+     - Under warp the likelihood and value optima coincide, so any lead there is finite-sample.
+     - Under group, vector and combined bias the likelihood objective gives up 1–4 points even with unlimited data.
+     - These are the cells where richer corrections (group, regional, per-vector) and a value objective can be told
+       apart.
+   - The same decomposition carries over: value and likelihood oracles per class, the training / selection /
+     ceiling accounting, and the pick diagnostics. It separates capacity, objective and finite-sample learning
+     without new arms.
+5. **Does BLOB need to be in every cell? No.**
+   - It is below the plain likelihood learner in 22 of 24 biased worlds, at higher cost; the main grid's NQ studies
+     took 13–17 minutes per world.
+   - It adds information only as a conservative reference without bias.
+   - A single BLOB row in a later main table would suffice. If it is kept, its ζ prior scale is the hyperparameter
+     to search (the limitation below), not its capacity.
+6. **What should carry forward into RecoGym?**
+   - The faithful port and its TensorFlow fixture, and the Table 3 harness, which reproduces the paper.
+   - In RecoGym, BLOB's organic sessions exist, so BLOB can run natively there rather than supplied-source.
+   - The tooling: the pre-registered tuning rule with its edge check, NLL selection's measured cost, the class
+     oracles (where the simulator's click model is exposed to compute them), and the pick diagnostics.
+   - The catalog-size observation: the paper's RecoGym settings have P = 100 and 1,000. A catalog-size sweep there
+     would test whether BLOB's adaptation shrinks as P grows.
+
+**Limitations.**
+- **Scope.** Development seeds, 25k only, 30 worlds, one confirmatory step missing.
+- **Search range.** The edge rule fired a second time (lr at the top for both families), and by the protocol the
+  range was not extended again. BLOB might gain from a still larger total step.
+- **MNQ's space.** Its structure choice was a near-tie, and its space kept σ_κ searched.
+- **The ζ prior.** Its scale stayed at the released 1, which at P = 3.5k–10.8k makes the deviation prior far
+  tighter, relative to the source term, than in the paper's settings. Searching it is a BLOB hyperparameter, not a
+  capacity change, and is a decision for the review.
+- **The adaptation.** BLOB-supplied-source replaces the organic model by the logger's vectors, on purpose (§3).
+  Native BLOB with its organic VAE was not run in this environment.
+- **Selection.** NLL selection is our protocol; the paper fixed its hyperparameters.
+
+## 8. Tests and reproducibility
+
+- `tests/test_blob_tf_reference.py`: the port against the unmodified TensorFlow graph, five cases, step by step;
+  the normalization aliasing; the fixture's provenance.
+- `tests/test_blob.py`: batched trials equal separate runs; the released initialization; the point prediction;
+  freezing a diverging trial; the sync-free loop is bit-identical to the first one on CPU and GPU; the arm end to
+  end, deterministically; the supplied source at unit RMS.
+- `tests/test_class_oracles.py`: every class starts at the logger; the ranking vectors and the click offset
+  reproduce the scores; both objectives improve.
+- `tests/test_policy_diagnostics.py`: every diagnostic against dense numpy; every arm's saved policy (OPC,
+  CausE-cap, BLOB) reproduces its own greedy value.
+- `tests/test_analyze_blob.py`: the simulated protocol, the decision rule and the edge rule on synthetic trials.
+- Three study-level tests had not been updated when BLOB joined the method list (31018af). Fixed in b0a337b: the
+  every-arm runs leave BLOB out, since it needs `--sampler random`.
+- Suites at the final commit: see §8.1.
