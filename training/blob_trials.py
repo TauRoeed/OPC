@@ -12,12 +12,15 @@ For each train size N:
 * selection: validation NLL of the posterior-mean click model (with its intercept w_c);
 * outcomes: the exact true value of its greedy policy argmax_a ω̂ β̂_a + κ̂_a (the released recommendation) and of
   the softmax of those logits, raw (τ = 1) and with the fair tempering of the CausE arm (§2 of
-  docs/cause_fair_comparison_25k.md), plus diagnostics.
+  docs/cause_fair_comparison_25k.md), plus diagnostics;
+* optionally (``pick_diagnostics``) every trial's pick-level diagnostics against the truth and the logger
+  (training/policy_diagnostics.py), and (``policy_dir``) the selected trial's policy saved for the cross-arm pass.
 Each family is reported as its own method, ``blob_<family>``.
 """
 from __future__ import annotations
 
 import time
+from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
@@ -37,7 +40,8 @@ BLOB_KAPPA_S = (0.01,)
 DIVERGED_NLL = 1e9
 BLOB_DEFAULTS = {"families": ["nq"], "n_trials": None, "lr_range": list(BLOB_LR_RANGE), "epochs": list(BLOB_EPOCHS),
                  "wa_m": list(BLOB_WA_M), "wb_m": list(BLOB_WB_M), "kappa_s": list(BLOB_KAPPA_S), "batch_size": 1024,
-                 "temper": True, "norm": True, "alias_loc": True, "device": "auto", "source_scale": "rms"}
+                 "temper": True, "norm": True, "alias_loc": True, "device": "auto", "source_scale": "rms",
+                 "pick_diagnostics": False, "policy_dir": None}
 
 
 def blob_method_label(family: str) -> str:
@@ -60,6 +64,8 @@ def add_blob_arguments(parser) -> None:
     g.add_argument("--blob-batch-size", type=int, default=BLOB_DEFAULTS["batch_size"])
     g.add_argument("--blob-no-temper", action="store_true", help="Skip the fair tempering of the selected trial.")
     g.add_argument("--blob-device", default="auto", choices=["auto", "cpu"])
+    g.add_argument("--blob-pick-diagnostics", action="store_true",
+                   help="Record every trial's pick-level diagnostics (training/policy_diagnostics.py).")
 
 
 def blob_options_from_args(args) -> dict:
@@ -67,7 +73,8 @@ def blob_options_from_args(args) -> dict:
             "lr_range": [float(x) for x in args.blob_lr_range], "epochs": [int(x) for x in args.blob_epochs],
             "wa_m": [float(x) for x in args.blob_wa_m], "wb_m": [float(x) for x in args.blob_wb_m],
             "kappa_s": [float(x) for x in args.blob_kappa_s], "batch_size": int(args.blob_batch_size),
-            "temper": not bool(args.blob_no_temper), "device": str(args.blob_device)}
+            "temper": not bool(args.blob_no_temper), "device": str(args.blob_device),
+            "pick_diagnostics": bool(args.blob_pick_diagnostics)}
 
 
 def supplied_source(dataset: dict, scale: str = "rms") -> tuple[np.ndarray, np.ndarray]:
@@ -134,6 +141,7 @@ def blob_trainer_trial(
     import optuna
 
     from training.cause_trials import _greedy_dr, _tempered
+    from training.policy_diagnostics import POLICY_SUFFIX, greedy_pick_diagnostics, logger_reference, save_selected_policy
     from training.trainer_trials import _scores_lookup_from_bundle, fit_shared_regression_bundle
 
     opts = {**BLOB_DEFAULTS, **(options or {})}
@@ -147,6 +155,7 @@ def blob_trainer_trial(
     v_logger = float(log_constants["initial_reward"])
     v_logger_greedy = float(log_constants["logger_greedy"])
     v_uniform = float(calc_uniform_reward(dataset))
+    ref = logger_reference(dataset) if opts["pick_diagnostics"] else None
     out = {}
     for n in [int(x) for x in train_sizes]:
         split = split_cache[(n, run_idx)]
@@ -203,9 +212,12 @@ def blob_trainer_trial(
                         if lookup is not None:
                             g_hat, g_low = _greedy_dr(val, ux, ia, lookup)
                             rec.update({"val_dr_greedy": g_hat, "val_dr_greedy_low": g_low})
+                        if ref is not None:
+                            rec.update({f"diag_{k}": v for k, v in
+                                        greedy_pick_diagnostics(dataset, ux, ia, offset=wc, ref=ref).items()})
                         key = (rec["val_nll"], tr.number)
                         if rec["val_nll"] < DIVERGED_NLL and (best_vectors is None or key < best_vectors[0]):
-                            best_vectors = (key, (ux, ia))
+                            best_vectors = (key, (ux, ia), wc)
                     else:
                         rec.update({"val_nll": DIVERGED_NLL, "value": np.nan, "value_greedy": np.nan})
                     rec["seconds"] = (time.time() - t0) / len(group)
@@ -246,5 +258,10 @@ def blob_trainer_trial(
                 row.update({"policy_rewards_tempered": float(extra["value_tempered"]),
                             "temper_scale": float(extra["temper_scale"]), "val_dr_tempered": float(extra["val_dr_tempered"]),
                             "val_dr_tempered_low": float(extra["val_dr_tempered_low"])})
+            if opts.get("policy_dir") and best_vectors is not None:
+                assert int(best["trial"]) == best_vectors[0][1], "saving a different trial"
+                save_selected_policy(Path(opts["policy_dir"]) / f"{label}_n{n}{POLICY_SUFFIX}", *best_vectors[1],
+                                     offset=best_vectors[2], arm=label, trial=int(best["trial"]),
+                                     value_greedy=float(best["value_greedy"]), value=float(best["value"]))
             out[label] = (pd.DataFrame([row]).set_index("train_size"), trials_df.assign(method=label))
     return out

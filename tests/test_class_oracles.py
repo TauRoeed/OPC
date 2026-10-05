@@ -58,3 +58,14 @@ def test_value_oracle_does_not_lose_and_likelihood_oracle_improves_its_objective
     m2, trace2, obj2 = fit_class_oracle(toy, "affine_bilinear", "likelihood", lr=3e-3, steps=60, fit_users=200,
                                         batch_users=50, device="cpu")
     assert trace2[-1] < trace2[0] and np.isfinite(obj2)
+
+
+@pytest.mark.parametrize("cls", CLASSES)
+def test_click_offset_completes_the_ranking_vectors_to_the_scores(toy, cls):
+    m = ScoreClass(toy["our_x"], toy["our_a"], cls, 0.5)
+    with torch.no_grad():
+        for p in m.parameters():
+            p.normal_()
+    ux, ia = m.ranking_vectors()
+    f = m.scores(torch.arange(toy["n_users"])).detach().numpy()
+    np.testing.assert_allclose(ux @ ia.T + m.click_offset()[:, None], f, atol=1e-4)

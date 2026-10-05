@@ -18,6 +18,7 @@ Each (prediction, rho) is reported as its own method, ``cause_<prediction>_r<rho
 from __future__ import annotations
 
 import time
+from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
@@ -136,6 +137,15 @@ def _exact_values(dataset: dict, model: CausEModel, rows: np.ndarray) -> tuple[f
 
 
 @torch.no_grad()
+def click_offset(model) -> np.ndarray:
+    """What the click logit adds to ``policy_vectors``' dot product: the global bias, plus the user's bias in the
+    free-vector model (one value per user)."""
+    with torch.no_grad():
+        if isinstance(model, CausELinModel):
+            return np.asarray(float(model.global_bias), dtype=np.float32)
+        return (model.user_bias + model.global_bias).float().cpu().numpy()
+
+
 def _diagnostics(model, layout: CausELayout, source: tuple | None = None) -> dict:
     """alpha and representation diagnostics; for warm starts also how far the vectors moved from the source."""
     if isinstance(model, CausELinModel):
@@ -256,6 +266,7 @@ def cause_trainer_trial(
     the fair sharpening of every trial's softmax and DR estimates of its policies (§2)."""
     import optuna
 
+    from training.policy_diagnostics import POLICY_SUFFIX, save_selected_policy
     from training.trainer_trials import _scores_lookup_from_bundle, fit_shared_regression_bundle
 
     opts = {**CAUSE_DEFAULTS, **(options or {})}
@@ -318,7 +329,8 @@ def cause_trainer_trial(
                 trial_rows = []
                 order_seed = derive_seed(seed, *labels_seed, "order")  # one batch order for every trial of the study
 
-                selected_vectors: dict[str, tuple] = {}  # per prediction: ((val NLL, trial), its policy vectors)
+                # per prediction: ((val NLL, trial), its policy vectors, its click model's offset over them)
+                selected_vectors: dict[str, tuple] = {}
 
                 def evaluate(model, rec):
                     """Validation metrics and exact true values of every prediction of a trained trial; with
@@ -341,7 +353,7 @@ def cause_trainer_trial(
                                                                                   "val_dr_greedy_low": g_low}
                                     key = (float(m["nll"]), int(rec["trial"]))
                                     if m["nll"] < DIVERGED_NLL and (p not in selected_vectors or key < selected_vectors[p][0]):
-                                        selected_vectors[p] = (key, (ux, ia))
+                                        selected_vectors[p] = (key, (ux, ia), click_offset(model))
                         else:
                             m = {"nll": DIVERGED_NLL, "mse": np.nan, "auc": np.nan}
                             v_soft = v_greedy = np.nan
@@ -437,7 +449,7 @@ def cause_trainer_trial(
                     torch.cuda.empty_cache()
                 trials_df = pd.DataFrame(trial_rows)
                 if lookup is not None and not temper_all:  # the selected trial of each prediction (selection by NLL)
-                    for p, ((_nll, number), (ux, ia)) in selected_vectors.items():
+                    for p, ((_nll, number), (ux, ia), _offset) in selected_vectors.items():
                         extra = _tempered(dataset, val, ux, ia, lookup)
                         at = trials_df.index[trials_df["trial"] == number][0]
                         for k in TEMPER_FIELDS:
@@ -490,6 +502,11 @@ def cause_trainer_trial(
                                     "oracle_selected_value_tempered": float(trials_df[f"{p}_value_tempered"].max())
                                     if temper_all else np.nan,
                                     "qhat_rows": int(n)})
+                    if opts.get("policy_dir") and p in selected_vectors:  # for the cross-arm pick diagnostics
+                        assert int(best["trial"]) == selected_vectors[p][0][1], "saving a different trial"
+                        save_selected_policy(Path(opts["policy_dir"]) / f"{label}_n{n}{POLICY_SUFFIX}",
+                                             *selected_vectors[p][1], offset=selected_vectors[p][2], arm=label,
+                                             trial=int(best["trial"]), value_greedy=v_greedy, value=v_soft)
                     summaries.setdefault(label, []).append(row)
                     trials_by_label.setdefault(label, []).append(trials_df.assign(method=label, prediction=p))
     out = {}

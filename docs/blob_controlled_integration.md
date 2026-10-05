@@ -172,7 +172,7 @@ on separate tuning worlds by the rule below. The wide tuning space:
 The rest of the priors stay as released.
 
 **Tuning protocol.** This is the CausE comparison's protocol (§3 of `docs/cause_fair_comparison_25k.md`), adapted to
-BLOB's dimensions. It was written at 12:45 on 2026-10-05, while the tuning ran. At that point only the log lines of
+BLOB's dimensions. It was written at 12:39 on 2026-10-05 (commit 1d3bdbc), while the tuning ran. At that point only the log lines of
 one finished cell (its timing and best validation NLL) had been seen, and no value.
 - **Tuning worlds:**
   - seeds 200/201 (never in the main grid) × ml, kuairand, anime × warp high, vector high, combined high; N = 25,000;

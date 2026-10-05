@@ -406,6 +406,7 @@ def _run_condition(
     search_space: dict | None = None,
     cause_options: dict | None = None,
     blob_options: dict | None = None,
+    save_policies: bool = False,
 ):
     """One condition. ``methods`` may add the opt-in baselines (``BASELINE_METHODS``); their
     summaries and trials come back as a 6th item ``{method: (summary_df, trials_df)}`` when
@@ -597,6 +598,7 @@ def _run_condition(
             sampler=str(sampler),
             seed_label=shared_seed_label,
             search_space=search_space,
+            policy_dir=str(run_dir) if save_policies else None,
         )
     else:
         try:
@@ -703,6 +705,7 @@ def _run_condition(
             sampler=str(sampler),
             seed_label=shared_seed_label if method == "dm" else None,  # the tempered logger searches its own space
             search_space=search_space,
+            policy_dir=str(run_dir) if save_policies else None,
             **arm,
         )
 
@@ -715,6 +718,8 @@ def _run_condition(
                            "logger_greedy": _policy_greedy_reward_from_embeddings(dataset, our_x, our_a)}
         cause_meta = {**CAUSE_DEFAULTS, **(cause_options or {})}
         cause_meta["n_trials"] = int(cause_meta.get("n_trials") or n_trials)
+        if save_policies:  # the selected policies, for the cross-arm pick diagnostics (training/policy_diagnostics.py)
+            cause_options = {**(cause_options or {}), "policy_dir": str(run_dir)}
         extra.update(cause_trainer_trial(
             train_sizes=train_sizes, dataset=dataset, split_cache=split_cache, condition_seed=int(seed), seed=int(seed),
             n_trials=int(n_trials), log_constants=cause_constants, options=cause_options, sampler=str(sampler),
@@ -731,6 +736,8 @@ def _run_condition(
                           "logger_greedy": _policy_greedy_reward_from_embeddings(dataset, our_x, our_a)}
         blob_meta = {**BLOB_DEFAULTS, **(blob_options or {})}
         blob_meta["n_trials"] = int(blob_meta.get("n_trials") or n_trials)
+        if save_policies:
+            blob_options = {**(blob_options or {}), "policy_dir": str(run_dir)}
         extra.update(blob_trainer_trial(
             train_sizes=train_sizes, dataset=dataset, split_cache=split_cache, seed=int(seed), n_trials=int(n_trials),
             log_constants=blob_constants, options=blob_options, sampler=str(sampler), stage=str(stage),
@@ -1041,6 +1048,12 @@ def main():
     parser.add_argument("--out-dir", default="artifacts/full_study")
     parser.add_argument("--run-tag", default=None)
     parser.add_argument(
+        "--save-policies",
+        action="store_true",
+        default=False,
+        help="Also save each arm's selected policy vectors in the condition folder (training/policy_diagnostics.py).",
+    )
+    parser.add_argument(
         "--slim",
         action="store_true",
         default=False,
@@ -1298,6 +1311,7 @@ def main():
                                 search_space=search_space_from_args(args),
                                 cause_options=cause_options_from_args(args),
                                 blob_options=blob_options_from_args(args),
+                                save_policies=bool(args.save_policies),
                             )
                         except Exception as e:
                             failures.append({"run_key": run_key, "error": repr(e)})

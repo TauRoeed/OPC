@@ -414,6 +414,7 @@ def _execute_run(config: dict):
         search_space=config.get("search_space"),
         cause_options=config.get("cause_options"),
         blob_options=config.get("blob_options"),
+        save_policies=bool(config.get("save_policies", False)),
     )
 
     summary_df = _finalize_summary_df(
@@ -672,6 +673,12 @@ def main():
         help="Floor for OOM backoff worker count (default: 1).",
     )
     parser.add_argument(
+        "--save-policies",
+        action="store_true",
+        default=False,
+        help="Also save each arm's selected policy vectors in the condition folder (training/policy_diagnostics.py).",
+    )
+    parser.add_argument(
         "--slim",
         action="store_true",
         default=False,
@@ -821,6 +828,7 @@ def main():
             "search_space": search_space_from_args(args),
             "cause_options": cause_options_from_args(args),
             "blob_options": blob_options_from_args(args),
+            "save_policies": bool(args.save_policies),
         }
         run_configs.append(cfg)
 
@@ -895,6 +903,7 @@ def main():
                     "opc_gradient": str(args.opc_gradient),
                     "cause_options": cause_options_from_args(args),
                     "blob_options": blob_options_from_args(args),
+                    "save_policies": bool(args.save_policies),
                     "val_min": args.val_min,
                     "val_max": args.val_max,
                     "policy_reward_mode": args.policy_reward_mode,

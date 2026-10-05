@@ -3024,9 +3024,12 @@ def regression_trainer_trial(
     sampler: str = "tpe",
     seed_label: str | None = None,
     search_space: dict | None = None,
+    policy_dir: str | None = None,
 ):
     """
     OPC / no-propensity trainer with Optuna over CF hyperparameters.
+
+    ``policy_dir``: also save each size's selected policy vectors there (training/policy_diagnostics.py).
 
     ``slim``: always writes ``trials_long`` (all hyperparameters per trial). Skips only
     the heavy post-hoc ``get_trial_results`` pass (full-catalog reward + val DM/DR/IPW/SNDR).
@@ -3610,6 +3613,15 @@ def regression_trainer_trial(
             )
         learned_x, learned_a = trial_embeddings[best_trial_number]
         trial_embeddings.clear()
+        if policy_dir is not None:  # for the cross-arm pick diagnostics; the selection is unchanged
+            from training.policy_diagnostics import POLICY_SUFFIX, save_selected_policy
+
+            save_selected_policy(
+                Path(policy_dir) / f"{method_label}_n{int(train_size)}_r{int(run)}{POLICY_SUFFIX}",
+                learned_x, learned_a, arm=method_label, trial=int(best_trial_number),
+                value_greedy=float(study.best_trial.user_attrs.get("actual_reward_greedy", float("nan"))),
+                logit_scale=float(study.best_trial.user_attrs.get("logit_scale", 1.0)),
+            )
 
         wrapped_reg_model = IndexToContextModelWrapper(
             regression_model, our_x_orig

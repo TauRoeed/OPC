@@ -91,6 +91,14 @@ class ScoreClass(torch.nn.Module):
         ia = torch.cat([self.a, self.item_term()[:, None]], dim=1)
         return ux.float().cpu().numpy(), ia.float().cpu().numpy()
 
+    @torch.no_grad()
+    def click_offset(self) -> np.ndarray:
+        """f(u, a) minus the ranking vectors' dot product, per user: the click model is σ(ux·ia + offset)."""
+        off = self.c.expand(self.x.shape[0])
+        if self.cls == "affine_bilinear":
+            off = off + self.x @ self.v
+        return off.float().cpu().numpy()
+
 
 def _logger_probs(x_users: torch.Tensor, a: torch.Tensor, temperature: float) -> torch.Tensor:
     return torch.softmax((x_users @ a.T) / float(temperature), dim=1)
@@ -167,15 +175,16 @@ def fit_class_oracle(dataset: dict, cls: str, objective: str, *, lr: float, step
 
 def class_oracles(dataset: dict, *, classes=CLASSES, objectives=OBJECTIVES, lrs=DEFAULT_LRS, steps: int = DEFAULT_STEPS,
                   fit_users: int = DEFAULT_FIT_USERS, batch_users: int = DEFAULT_BATCH_USERS, seed: int = 0,
-                  device=None) -> list[dict]:
+                  device=None, policy_dir: Path | None = None) -> list[dict]:
     """Per objective: ``bilinear`` first, from the logger; then each superset class (``affine_bilinear``, ``blob``)
-    from the best ``bilinear`` solution, so a larger class never ends below a smaller one by optimization alone."""
+    from the best ``bilinear`` solution, so a larger class never ends below a smaller one by optimization alone.
+    ``policy_dir``: also save each kept fit's policy and click model (training/policy_diagnostics.py)."""
     rows = []
     order = sorted(classes, key=lambda c: c != "bilinear")
     for objective in objectives:
         base_model = None
         for cls in order:
-            best = None
+            best, best_model = None, None
             for lr in (lrs if cls == "bilinear" else [x * WARM_LR_SCALE for x in lrs]):
                 t0 = time.time()
                 model, trace, obj = fit_class_oracle(dataset, cls, objective, lr=lr, steps=steps, fit_users=fit_users,
@@ -196,7 +205,7 @@ def class_oracles(dataset: dict, *, classes=CLASSES, objectives=OBJECTIVES, lrs=
                 if best is None or key > best[0]:
                     if cls == "bilinear":
                         base_model = model
-                    best = (key, rec)
+                    best, best_model = (key, rec), model
                 if base_model is not model:
                     del model
                 if torch.cuda.is_available():
@@ -204,6 +213,14 @@ def class_oracles(dataset: dict, *, classes=CLASSES, objectives=OBJECTIVES, lrs=
             row = dict(best[1])
             row["flat"] = bool(abs(row["trace_last"] - row["trace_prev"]) < 1e-4)
             rows.append(row)
+            if policy_dir is not None:
+                from training.policy_diagnostics import POLICY_SUFFIX, save_selected_policy
+
+                ux, ia = best_model.ranking_vectors()
+                save_selected_policy(Path(policy_dir) / f"oracle_{cls}_{objective}_n0{POLICY_SUFFIX}", ux, ia,
+                                     offset=best_model.click_offset(), arm=f"oracle_{cls}_{objective}",
+                                     value_greedy=float(row["greedy"]), lr=float(row["lr"]))
+            best_model = None
     return rows
 
 
@@ -220,6 +237,8 @@ def main(argv=None):
     ap.add_argument("--batch-users", type=int, default=DEFAULT_BATCH_USERS)
     ap.add_argument("--emb-dir", default="BPR/embeddings")
     ap.add_argument("--out", required=True)
+    ap.add_argument("--save-policies", action="store_true",
+                    help="Also save each kept fit under OUT/policies/<world>/ (training/policy_diagnostics.py).")
     add_world_arguments(ap, bias_default=("none", "high/none/none", "none/high/none", "none/none/high", "high"))
     args = ap.parse_args(argv)
     enable_determinism(True)
@@ -244,8 +263,13 @@ def main(argv=None):
                 seed_everything(seed)
                 dataset, _, _, label = build_condition_world(ds, Path(args.emb_dir), bias, args.ctr, seed,
                                                              world_options=world_options)
+                policy_dir = None
+                if args.save_policies:
+                    policy_dir = out / "policies" / f"dataset={ds}__bias={label}__seed={seed}"
+                    policy_dir.mkdir(parents=True, exist_ok=True)
                 rows = class_oracles(dataset, classes=args.classes, objectives=args.objectives, lrs=args.lrs,
-                                     steps=args.steps, fit_users=args.fit_users, batch_users=args.batch_users, seed=seed)
+                                     steps=args.steps, fit_users=args.fit_users, batch_users=args.batch_users, seed=seed,
+                                     policy_dir=policy_dir)
                 frame = pd.DataFrame(rows).assign(dataset=ds, bias=bias, bias_label=label, seed=seed,
                                                   world_seconds=time.time() - t0, commit=settings["commit"])
                 frame.to_csv(rows_path, mode="a", header=not rows_path.exists(), index=False)
