@@ -74,3 +74,16 @@ def test_paired_contrast_by_world():
     assert p.loc[(0.25, "biased (pooled)"), "a_minus_b_gain_greedy"] == pytest.approx(1.75)
     assert p.loc[(0.25, "none"), "worlds"] == 4 and p.loc[(0.25, "none"), "a_higher"] == 4
     assert CELL == ["dataset", "bias", "seed", "rho"]
+
+
+def test_paired_contrast_across_columns():
+    """OPC's stochastic value against CausE's tempered one: a's column and b's column differ."""
+    rows = []
+    for s in (100, 101):
+        rows.append({"dataset": "ml", "bias": "high", "seed": s, "arm": "opc", "rho": np.nan, "gain": 7.0,
+                     "gain_tempered": np.nan})
+        rows.append({"dataset": "ml", "bias": "high", "seed": s, "arm": "cap_c", "rho": 0.0, "gain": -12.0,
+                     "gain_tempered": 6.0 + s - 100})
+    p = paired_table(pd.DataFrame(rows), "opc", ["cap_c"], col="gain", b_col="gain_tempered").set_index("bias")
+    assert p.loc["high", "a_minus_b_gain_tempered"] == pytest.approx(0.5)
+    assert p.loc["high", "a_higher"] == 2
