@@ -10,6 +10,22 @@ items), barely adapts from its source and trails CausE-cap, OPC and DM-only on b
 intrinsic to BLOB here? Or is it largely a consequence of a prior and parameterization calibrated in the paper's
 P ≈ 100 regime?
 
+**In brief.**
+- **Where P enters.** In the released code every entry of BLOB's K × K target correction has prior variance
+  s+(w_b)² s_ζ² / P (§1). The 1/P inside L is applied after Ψ's columns are normalized, so the prior tightens with
+  catalog size: 35–108 times tighter in our catalogs than at the paper's P = 100.
+- **The calibration.** Computing L at a fixed reference size P₀ removes the dependence. Of P₀ = 1,000, 100 and 10,
+  the pre-registered rule chose P₀ = 10 on the 18 tuning worlds, 0.12 points above P₀ = 100 (§3).
+- **The 25k result.** On the 30 main worlds, BLOB-Pnorm-NQ (P₀ = 10) gains +2.82 on biased worlds (§4).
+  - +1.40 [+0.81, +1.98] over default BLOB, in 24/24 worlds.
+  - Level with OPC: +0.13 [−0.08, +0.34].
+  - Just below CausE-cap: −0.28 [−0.57, +0.01], all of it under warp.
+  - Above DM-only: +0.66.
+- **The mechanism.** The correction is 8.5 times larger and the click model fits better, and the training gap closes
+  (4.72 → 3.56 points). Without bias it stays as close to the logger as default BLOB (§5–§6).
+- **Outcome: B** (§7), with C's condition partly met: tied strongest under combined bias. The published BLOB's rows
+  stay as they were.
+
 ## 1. Where catalog size enters BLOB's prior (Phase 1)
 
 Sources: the paper, §2 and the hierarchical model (arXiv 2008.12504); the released graph,
@@ -285,11 +301,11 @@ trials; none diverged.
   - BLOB-Pnorm ties OPC (+0.13 [−0.08, +0.34], 17/24).
   - It sits just below CausE-cap (−0.28 [−0.57, +0.01], 8/24); the whole deficit is warp (−1.24, 0/6).
   - It is above DM-only by 0.66 (20/24).
-  - Under combined bias it has the highest mean of all arms: +0.14 over CausE-cap (CI includes 0) and +0.61 over
-    OPC, in 6 of 6 worlds.
+  - Under combined bias it has the highest mean of all arms: +0.14 over CausE-cap (CI includes 0; higher in 2 of 6
+    worlds) and +0.61 over OPC (higher in 6 of 6).
   - Under group and vector bias every model-based arm is level.
 - **Stochastic value** (BLOB and CausE tempered by the DR lower bound; OPC its learned scale): BLOB-Pnorm +6.84
-  [6.15, 7.52] against CausE-cap +7.13 (−0.29 [−0.56, −0.02]), OPC +6.76 (+0.08 [−0.12, +0.28]) and default BLOB
+  [6.15, 7.52] against CausE-cap +7.13 (−0.29 [−0.56, −0.02]), OPC +6.75 (+0.08 [−0.12, +0.28]) and default BLOB
   +5.45. The ordering is the greedy one.
 - **Without bias the protection holds on average.** BLOB-Pnorm loses 0.21 points against the logger, against 0.17 for
   default BLOB (−0.03 [−0.34, +0.28]) and 0.55–0.61 for CausE-cap and OPC. One world changes the most: anime seed
@@ -308,7 +324,7 @@ The selected policy of each world, biased worlds unless stated (`table_pick_diag
 | OPC | — | 42% | 1.9 | 21.9% | 24.5% | — | — |
 | likelihood oracle, BLOB's class | — | 21% | 36.6 | 23.9% | 33.1% | 0.3919 | 0.0061 / 0.0213 |
 
-1. **Does the normalized prior increase the learned correction? Yes, about ninefold.** It rises from 2.5% to 22% of
+1. **Does the normalized prior increase the learned correction? Yes, about 8.5-fold.** It rises from 2.5% to 22% of
    the source term. The learned scale s+(w_b) falls from 4.0 to 0.87; the larger L carries the correction instead.
 2. **Does BLOB move more users away from the logger's choice? Yes.**
    - 52% of users get a different item than the logger's top one, against 36% for default BLOB. That is between OPC
@@ -320,17 +336,20 @@ The selected policy of each world, biased worlds unless stated (`table_pick_diag
    - The prediction error falls in every logging-propensity bin. It stays above CausE-cap's.
    - It is more pessimistic at its picks (−1.86 points, against −1.30).
 4. **Does the target value improve together with those changes? Yes, in the same worlds and in the same direction.**
-   The greedy value rises 1.40 points, mostly where the correction grew most: combined and warp.
+   The greedy value rises 1.40 points, mostly where the correction grew most. The four bias types rank the same by
+   the correction's size (combined 0.53, warp 0.20, group 0.11, vector 0.04, against 0.01–0.05 before) and by the
+   value gained (+3.47, +1.41, +0.48, +0.22).
 5. **Does no-bias performance deteriorate? Not on average.**
    - Without bias BLOB-Pnorm keeps 81% of users on the logger's top item, the same share as default BLOB (81%; OPC
-     and CausE-cap keep 68–69%), and its click error there is the lowest of the learners.
+     and CausE-cap keep 68–69%). Its correction there is 0.7% of the source term, and its population NLL (0.4928)
+     is level with default BLOB's and the lowest of the learners.
    - The weaker prior lets BLOB adapt where the logged clicks call for it, and it does not adapt where they do not.
    - The mean no-bias change is −0.03 [−0.34, +0.28], with one anime world losing 0.6 points.
 
 **Against OPC and CausE-cap, the remaining differences are small and specific.**
 - OPC − BLOB-Pnorm is −0.13 [−0.34, +0.08]. The two pick the same item for 58% of users.
   - On the 17% where BLOB-Pnorm's pick is the less-logged one, it gains 0.21 points.
-  - On the 25% where OPC's is, OPC gains 0.08.
+  - On the 24% where OPC's is, OPC gains 0.08.
 - CausE-cap − BLOB-Pnorm is +0.28 [−0.01, +0.57]. Most of it comes from the 28% of users CausE-cap moves further,
   mainly in warp worlds.
 
@@ -359,30 +378,37 @@ changes the prior, not the family, so its value oracle is BLOB's: +6.70 on biase
 
 ## 7. Decision (Phase 8)
 
-**Outcome: B. Calibration substantially closes the gap; BLOB-Pnorm becomes competitive without clearly dominating.**
+**Outcome: B, with C's condition partly met. Calibration substantially closes the gap; BLOB-Pnorm becomes competitive
+without clearly dominating.**
 - **Against default BLOB:** +1.40 (24/24), through the training gap the controlled study identified.
 - **Against OPC:** level, +0.13 [−0.08, +0.34].
 - **Against CausE-cap:** slightly below, −0.28 [−0.57, +0.01], all of it under warp.
 - **Against DM-only:** above, by 0.66.
-- **Elements of C.** It now ranks above OPC in mean, and it has the highest mean under combined bias, tied with
-  CausE-cap. The baseline landscape therefore changes: BLOB is no longer dominated.
-  - It is not the strongest method in any regime with a CI that excludes the others, so C's "stop and analyze" does
-    not follow from the data.
-  - This phase stops for review in any case.
+- **C's condition is partly met.** BLOB-Pnorm is tied strongest under combined bias: it has the highest mean, +0.14
+  [−0.32, +0.60] over CausE-cap. It is also tied strongest under group and vector bias, but there every model-based
+  arm is level.
+  - It is not the strongest anywhere with an interval that excludes the others.
+  - It is clearly below CausE-cap under warp (−1.24, 0/6), so on the pooled biased worlds the ordering is CausE-cap ≥
+    BLOB-Pnorm ≈ OPC > DM-only.
+  - The baseline landscape changes: BLOB is no longer dominated.
+  - C's action, stop and analyze before the simulator changes, is what this phase does in any case.
 
 **Answers to the question of the phase.**
 - **Is BLOB's weak adaptation intrinsic, or a consequence of a prior calibrated for P ≈ 100? Largely the latter.**
   - Under the released parameterization, every entry of the correction's prior has variance ∝ 1/P (§1). In our
     catalogs that is 35–108 times tighter than at P = 100.
-  - Restoring a P-independent prior (P₀ = 100 on the tuning worlds; P₀ = 10 chosen) raises BLOB's correction about
-    ninefold, its value by 1.4–1.9 points, and its click model's fit.
+  - Making the prior independent of P raises BLOB's correction about 8.5-fold and improves its click model's fit.
+  - It raises BLOB's value by 1.40 points on the main worlds (P₀ = 10), and by 1.74 (P₀ = 100) and 1.86 (P₀ = 10)
+    on the tuning worlds.
+  - The gap to OPC goes from −1.27 to +0.13 and the gap to CausE-cap from −1.67 to −0.28.
   - The prior-only variant shows the prior is the cause, not the optimizer geometry.
 - **Both answers stand.**
   - The published BLOB, transferred faithfully to our catalogs, adapts very little and trails CausE-cap, OPC and
     DM-only on biased worlds (the controlled study, unchanged).
   - With its prior normalized for catalog size, BLOB is a competitive model-based baseline: level with OPC and just
     below CausE-cap.
-- **Note on the chosen anchor.** It is P₀ = 10, a prior ten times weaker per entry than the paper's P = 100 regime.
+- **Note on the chosen anchor.** It is P₀ = 10: each entry of the correction has ten times the prior variance it
+  has in the paper's P = 100 regime.
   - On the tuning worlds P₀ = 100 scored 0.12 points lower, with the same mechanism (§3).
   - The rule made the choice, and the main worlds were not used to choose.
 
@@ -391,6 +417,8 @@ changes the prior, not the family, so its value oracle is BLOB's: +6.70 on biase
   "BLOB-Pnorm-NQ, L = chol(Ψ̃ᵀΨ̃/10)". Keep the published BLOB as the faithful reference in a smaller number of cells.
 - **Report its selection separately.** NLL selection is its remaining weakness; a DR-lower-bound selection was not
   tried, and would be a different protocol.
+- **Before the next simulator change, look at warp.** Warp is the one regime where CausE-cap still leads (−1.24). There
+  the difference is mostly training (1.03 points) within classes of the same ceiling.
 - **Carry the P-dependence of the released prior into any RecoGym work**, where P can be varied.
 
 **Limitations.**

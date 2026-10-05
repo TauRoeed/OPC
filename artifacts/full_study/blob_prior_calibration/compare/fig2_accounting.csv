@@ -1,0 +1,73 @@
+a,b,panel,part,signed
+blob_l10_nq,opc,biased (pooled),gain,0.12997058042505877
+blob_l10_nq,opc,none,gain,0.3989476834909633
+blob_l10_nq,opc,w-high.g-none.v-none,gain,-0.04310268712824735
+blob_l10_nq,opc,w-none.g-high.v-none,gain,-0.13962367730684
+blob_l10_nq,opc,w-none.g-none.v-high,gain,0.09070190399654705
+blob_l10_nq,opc,high,gain,0.6119067821387754
+blob_l10_nq,opc,biased (pooled),ceiling,0.07265667349046123
+blob_l10_nq,opc,none,ceiling,-0.004299006123709148
+blob_l10_nq,opc,w-high.g-none.v-none,ceiling,0.005007766383935556
+blob_l10_nq,opc,w-none.g-high.v-none,ceiling,0.11309997573834656
+blob_l10_nq,opc,w-none.g-none.v-high,ceiling,0.11802082772510869
+blob_l10_nq,opc,high,ceiling,0.05449812411445413
+blob_l10_nq,opc,biased (pooled),training,0.22371437708941688
+blob_l10_nq,opc,none,training,0.15189474875436185
+blob_l10_nq,opc,w-high.g-none.v-none,training,0.010068482330510756
+blob_l10_nq,opc,w-none.g-high.v-none,training,-0.19137885592893367
+blob_l10_nq,opc,w-none.g-none.v-high,training,0.22531127441840623
+blob_l10_nq,opc,high,training,0.8508566075376841
+blob_l10_nq,opc,biased (pooled),selection,-0.16640047015481924
+blob_l10_nq,opc,none,selection,0.2513519408603106
+blob_l10_nq,opc,w-high.g-none.v-none,selection,-0.05817893584269355
+blob_l10_nq,opc,w-none.g-high.v-none,selection,-0.06134479711625285
+blob_l10_nq,opc,w-none.g-none.v-high,selection,-0.2526301981469678
+blob_l10_nq,opc,high,selection,-0.2934479495133628
+blob_l10_nq,cap_c,biased (pooled),gain,-0.27721027821501076
+blob_l10_nq,cap_c,none,gain,0.3445656791049217
+blob_l10_nq,cap_c,w-high.g-none.v-none,gain,-1.236801029094266
+blob_l10_nq,cap_c,w-none.g-high.v-none,gain,-0.03650782801692901
+blob_l10_nq,cap_c,w-none.g-none.v-high,gain,0.02167075736170813
+blob_l10_nq,cap_c,high,gain,0.14279698688944378
+blob_l10_nq,cap_c,biased (pooled),ceiling,0.07265667349046123
+blob_l10_nq,cap_c,none,ceiling,-0.004299006123709148
+blob_l10_nq,cap_c,w-high.g-none.v-none,ceiling,0.005007766383935556
+blob_l10_nq,cap_c,w-none.g-high.v-none,ceiling,0.11309997573834656
+blob_l10_nq,cap_c,w-none.g-none.v-high,ceiling,0.11802082772510869
+blob_l10_nq,cap_c,high,ceiling,0.05449812411445413
+blob_l10_nq,cap_c,biased (pooled),training,-0.1523358219316676
+blob_l10_nq,cap_c,none,training,-0.0514906213860152
+blob_l10_nq,cap_c,w-high.g-none.v-none,training,-1.025734078457716
+blob_l10_nq,cap_c,w-none.g-high.v-none,training,-0.2003333890912058
+blob_l10_nq,cap_c,w-none.g-none.v-high,training,0.24980997692549403
+blob_l10_nq,cap_c,high,training,0.3669142028967574
+blob_l10_nq,cap_c,biased (pooled),selection,-0.1975311297738044
+blob_l10_nq,cap_c,none,selection,0.4003553066146461
+blob_l10_nq,cap_c,w-high.g-none.v-none,selection,-0.2160747170204855
+blob_l10_nq,cap_c,w-none.g-high.v-none,selection,0.050725585335930266
+blob_l10_nq,cap_c,w-none.g-none.v-high,selection,-0.34616004728889455
+blob_l10_nq,cap_c,high,selection,-0.2786153401217679
+blob_l10_nq,blob_nq,biased (pooled),gain,1.3967717065460068
+blob_l10_nq,blob_nq,none,gain,-0.03429974152620493
+blob_l10_nq,blob_nq,w-high.g-none.v-none,gain,1.4118111039311951
+blob_l10_nq,blob_nq,w-none.g-high.v-none,gain,0.4844013636369415
+blob_l10_nq,blob_nq,w-none.g-none.v-high,gain,0.21728207712592199
+blob_l10_nq,blob_nq,high,gain,3.4735922814899687
+blob_l10_nq,blob_nq,biased (pooled),ceiling,0.0
+blob_l10_nq,blob_nq,none,ceiling,0.0
+blob_l10_nq,blob_nq,w-high.g-none.v-none,ceiling,0.0
+blob_l10_nq,blob_nq,w-none.g-high.v-none,ceiling,0.0
+blob_l10_nq,blob_nq,w-none.g-none.v-high,ceiling,0.0
+blob_l10_nq,blob_nq,high,ceiling,0.0
+blob_l10_nq,blob_nq,biased (pooled),training,1.1591562985224437
+blob_l10_nq,blob_nq,none,training,0.010584904051014199
+blob_l10_nq,blob_nq,w-high.g-none.v-none,training,1.6270536425501927
+blob_l10_nq,blob_nq,w-none.g-high.v-none,training,0.43959165726924404
+blob_l10_nq,blob_nq,w-none.g-none.v-high,training,0.3808268855278121
+blob_l10_nq,blob_nq,high,training,2.189153008742526
+blob_l10_nq,blob_nq,biased (pooled),selection,0.23761540802356315
+blob_l10_nq,blob_nq,none,selection,-0.04488464557721913
+blob_l10_nq,blob_nq,w-high.g-none.v-none,selection,-0.21524253861899778
+blob_l10_nq,blob_nq,w-none.g-high.v-none,selection,0.04480970636769749
+blob_l10_nq,blob_nq,w-none.g-none.v-high,selection,-0.16354480840189006
+blob_l10_nq,blob_nq,high,selection,1.284439272747443
