@@ -1,0 +1,47 @@
+family,stage,candidate,available,gain_greedy,gain_greedy_c,gain_greedy_t,best_greedy,regret,no_usable_trial,minus_wide,ci_lo,ci_hi,worlds,eligible,chosen,space
+cap,structure,wide,40,3.00069,3.03464,2.96674,3.1936,0.192911,0,0,0,0,18,True,False,{}
+cap,structure,tie one-way,19.5,3.0638,3.07927,3.04834,3.22957,0.165763,0,0.0631133,-0.124784,0.251011,18,True,False,{'tie': {'one_way'}}
+cap,structure,tie symmetric,20.5,3.09742,3.23143,2.96341,3.18169,0.0842737,0,0.0967293,-0.0490509,0.24251,18,True,False,{'tie': {'symmetric'}}
+cap,structure,init zero,18.5,1.24544,1.38612,1.10476,1.82657,0.581123,0,-1.75525,-2.42045,-1.09004,18,True,False,{'bias_init': {'zero'}}
+cap,structure,init base rate,21.5,3.43642,3.48153,3.39131,3.5285,0.0920771,0,0.435729,0.286615,0.584842,18,True,False,{'bias_init': {'base_rate'}}
+cap,structure,"one-way, zero",9.5,2.38401,2.44267,2.32536,2.77671,0.392698,0,-0.61668,-1.2234,-0.00995868,18,True,False,"{'tie': {'one_way'}, 'bias_init': {'zero'}}"
+cap,structure,"one-way, base rate",10,3.40602,3.4063,3.40574,3.47432,0.0682995,0,0.405325,0.0649624,0.745688,18,True,False,"{'tie': {'one_way'}, 'bias_init': {'base_rate'}}"
+cap,structure,"symmetric, zero",9,0.50822,0.643984,0.372457,1.12792,0.619697,0,-2.49247,-3.71659,-1.26835,18,True,False,"{'tie': {'symmetric'}, 'bias_init': {'zero'}}"
+cap,structure,"symmetric, base rate",11.5,3.42129,3.58431,3.25826,3.49607,0.0747849,0,0.420593,0.292614,0.548573,18,True,False,"{'tie': {'symmetric'}, 'bias_init': {'base_rate'}}"
+cap,lr window,init base rate; lr 0.0001-0.01,8.5,3.56206,3.58201,3.54211,3.63693,0.0748689,0,0.561369,0.345541,0.777198,18,True,False,"{'bias_init': {'base_rate'}, 'lr': (0.0001, 0.01)}"
+cap,lr window,init base rate; lr 0.0003-0.03,12.5,3.60946,3.62587,3.59304,3.71245,0.102991,0,0.608767,0.384865,0.832669,18,True,False,"{'bias_init': {'base_rate'}, 'lr': (0.0003, 0.03)}"
+cap,lr window,init base rate; lr 0.001-0.1,12.5,3.57787,3.60527,3.55047,3.70151,0.123643,0,0.577176,0.361607,0.792745,18,True,False,"{'bias_init': {'base_rate'}, 'lr': (0.001, 0.1)}"
+cap,lr window,init base rate; lr 0.003-0.3,11,3.51677,3.52462,3.50892,3.65331,0.136545,0,0.516076,0.285138,0.747015,18,True,False,"{'bias_init': {'base_rate'}, 'lr': (0.003, 0.3)}"
+cap,lr window,init base rate; lr 0.01-1,10,3.42872,3.42866,3.42879,3.50176,0.0730386,0,0.428032,0.186431,0.669632,18,True,False,"{'bias_init': {'base_rate'}, 'lr': (0.01, 1.0)}"
+cap,lr window,init base rate; lr 0.03-3,8,0.447745,0.451818,0.443672,0.449686,0.00194063,0,-2.55295,-4.46952,-0.636372,18,True,False,"{'bias_init': {'base_rate'}, 'lr': (0.03, 3.0)}"
+cap,epoch window,"init base rate; epochs 3,10,30,100,300",16.5,3.55756,3.59012,3.52499,3.64778,0.0902259,0,0.556866,0.372681,0.74105,18,True,False,"{'bias_init': {'base_rate'}, 'epochs': {3, 100, 10, 300, 30}}"
+cap,epoch window,"init base rate; epochs 10,30,100,300",14.5,3.55691,3.59176,3.52207,3.66252,0.105611,0,0.55622,0.35349,0.75895,18,True,False,"{'bias_init': {'base_rate'}, 'epochs': {10, 100, 30, 300}}"
+cap,epoch window,"init base rate; epochs 30,100,300",10.5,3.6041,3.61908,3.58912,3.7344,0.130297,0,0.603407,0.374458,0.832357,18,True,False,"{'bias_init': {'base_rate'}, 'epochs': {100, 30, 300}}"
+cap,epoch window,"init base rate; epochs 1,3,10,30",13.5,3.0292,3.07005,2.98834,3.06942,0.0402259,0,0.0285046,-0.139471,0.19648,18,True,False,"{'bias_init': {'base_rate'}, 'epochs': {1, 10, 3, 30}}"
+cap,epoch window,"init base rate; epochs 3,10,30,100",10.5,3.51085,3.51248,3.50923,3.54428,0.0334254,0,0.510162,0.270949,0.749375,18,True,False,"{'bias_init': {'base_rate'}, 'epochs': {10, 3, 100, 30}}"
+cap,epoch window,"init base rate; epochs 10,30,100",8.5,3.50004,3.51675,3.48334,3.54438,0.0443362,0,0.499353,0.225548,0.773158,18,True,False,"{'bias_init': {'base_rate'}, 'epochs': {10, 100, 30}}"
+cap,lr and epochs,"init base rate; lr 0.0003-0.03; epochs 30,100,300",7,3.63012,3.63313,3.62712,3.75809,0.127968,0,0.629431,0.388672,0.87019,18,True,False,"{'bias_init': {'base_rate'}, 'lr': (0.0003, 0.03), 'epochs': {100, 30, 300}}"
+cap,lr and epochs,"init base rate; lr 0.0003-0.03; epochs 30,100,300; inner l2 / cf",6,3.6439,3.64686,3.64093,3.75549,0.111597,0,0.643204,0.406146,0.880262,18,True,True,"{'bias_init': {'base_rate'}, 'lr': (0.0003, 0.03), 'epochs': {100, 30, 300}, 'l2_pen': {0.0, 1e-05, 0.0001, 1e-07, 1e-06, 0.001}, 'cf_pen': {0.0, 1.0, 0.1, 100.0, 10.0, 0.01}}"
+warm,structure,wide,40,0.994964,1.72268,0.26725,1.43976,0.444793,0,0,0,0,18,True,False,{}
+warm,structure,tie one-way,19.5,0.920698,1.81889,0.0225072,1.12445,0.203752,0,-0.0742659,-0.256795,0.108263,18,True,False,{'tie': {'one_way'}}
+warm,structure,tie symmetric,20.5,1.08524,1.70281,0.467658,1.66783,0.582596,0,0.0902722,-0.0419643,0.222509,18,True,False,{'tie': {'symmetric'}}
+warm,structure,init zero,20.5,1.11987,1.87388,0.365871,1.67348,0.553606,0,0.12491,-0.0144067,0.264226,18,True,False,{'bias_init': {'zero'}}
+warm,structure,init base rate,19.5,0.787136,1.49382,0.0804469,1.0655,0.278361,0,-0.207828,-0.367284,-0.0483717,18,True,False,{'bias_init': {'base_rate'}}
+warm,structure,"one-way, zero",9,1.04255,2.04318,0.0419131,1.15307,0.110522,0,0.0475836,-0.216544,0.311711,18,True,False,"{'tie': {'one_way'}, 'bias_init': {'zero'}}"
+warm,structure,"one-way, base rate",10.5,0.572648,1.13689,0.008406,1.0093,0.436651,0,-0.422316,-0.750602,-0.0940291,18,True,False,"{'tie': {'one_way'}, 'bias_init': {'base_rate'}}"
+warm,structure,"symmetric, zero",11.5,1.03929,1.51665,0.561926,1.94367,0.904384,0,0.0443267,-0.284198,0.372852,18,True,False,"{'tie': {'symmetric'}, 'bias_init': {'zero'}}"
+warm,structure,"symmetric, base rate",9,0.693881,1.27716,0.110606,0.860981,0.1671,0,-0.301083,-0.62854,0.0263752,18,True,False,"{'tie': {'symmetric'}, 'bias_init': {'base_rate'}}"
+warm,lr window,init zero; lr 0.0001-0.01,6.5,-0.175689,0.205005,-0.556384,-0.173165,0.00252406,0,-1.17065,-2.20213,-0.139175,18,True,False,"{'bias_init': {'zero'}, 'lr': (0.0001, 0.01)}"
+warm,lr window,init zero; lr 0.0003-0.03,6.5,1.00746,1.8372,0.177729,1.04112,0.0336546,0,0.0124988,-0.217639,0.242636,18,True,False,"{'bias_init': {'zero'}, 'lr': (0.0003, 0.03)}"
+warm,lr window,init zero; lr 0.001-0.1,10,1.29587,1.98827,0.603475,1.8242,0.528328,0,0.300907,0.0236907,0.578123,18,True,False,"{'bias_init': {'zero'}, 'lr': (0.001, 0.1)}"
+warm,lr window,init zero; lr 0.003-0.3,10,1.27169,1.89563,0.647759,1.89026,0.618562,0,0.276729,0.0117896,0.541669,18,True,False,"{'bias_init': {'zero'}, 'lr': (0.003, 0.3)}"
+warm,lr window,init zero; lr 0.01-1,11.5,1.38274,2.14808,0.617399,1.89169,0.508954,0,0.387776,0.150046,0.625506,18,True,False,"{'bias_init': {'zero'}, 'lr': (0.01, 1.0)}"
+warm,lr window,init zero; lr 0.03-3,12.5,1.31253,2.03543,0.589627,1.9518,0.639267,0,0.317565,0.0966646,0.538465,18,True,False,"{'bias_init': {'zero'}, 'lr': (0.03, 3.0)}"
+warm,epoch window,"init zero; epochs 3,10,30,100,300",16.5,1.21712,1.97616,0.458078,1.81199,0.59487,0,0.222154,0.0436583,0.400649,18,True,False,"{'bias_init': {'zero'}, 'epochs': {3, 100, 10, 300, 30}}"
+warm,epoch window,"init zero; epochs 10,30,100,300",11.5,1.40457,2.17989,0.629251,1.89342,0.488846,0,0.409608,0.179755,0.63946,18,True,False,"{'bias_init': {'zero'}, 'epochs': {10, 100, 30, 300}}"
+warm,epoch window,"init zero; epochs 30,100,300",10.5,1.44618,2.21261,0.679748,1.93326,0.487077,0,0.451215,0.203191,0.69924,18,True,False,"{'bias_init': {'zero'}, 'epochs': {100, 30, 300}}"
+warm,epoch window,"init zero; epochs 1,3,10,30",14,0.948605,1.84218,0.0550315,1.20762,0.259014,0,-0.0463582,-0.216692,0.123975,18,True,False,"{'bias_init': {'zero'}, 'epochs': {1, 10, 3, 30}}"
+warm,epoch window,"init zero; epochs 3,10,30,100",13.5,1.2986,2.05359,0.543611,1.79975,0.501149,0,0.303636,0.117833,0.48944,18,True,False,"{'bias_init': {'zero'}, 'epochs': {10, 3, 100, 30}}"
+warm,epoch window,"init zero; epochs 10,30,100",8.5,1.46068,2.25743,0.663928,1.76742,0.306743,0,0.465713,0.214593,0.716833,18,True,True,"{'bias_init': {'zero'}, 'epochs': {10, 100, 30}}"
+warm,lr and epochs,"init zero; lr 0.01-1; epochs 10,30,100",4.5,1.45266,2.26925,0.636069,1.73923,0.286564,0,0.457698,0.20462,0.710776,18,False,False,"{'bias_init': {'zero'}, 'lr': (0.01, 1.0), 'epochs': {10, 100, 30}}"
+warm,lr and epochs,"init zero; lr 0.01-1; epochs 10,30,100; inner l2 / cf",4.5,1.45266,2.26925,0.636069,1.73923,0.286564,0,0.457698,0.20462,0.710776,18,False,False,"{'bias_init': {'zero'}, 'lr': (0.01, 1.0), 'epochs': {10, 100, 30}, 'l2_pen': {0.0, 1e-05, 0.0001, 1e-07, 1e-06, 0.001}, 'cf_pen': {0.0, 1.0, 0.1, 100.0, 10.0, 0.01}}"

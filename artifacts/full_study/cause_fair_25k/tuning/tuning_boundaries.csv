@@ -1,0 +1,33 @@
+family,trials,dimension,lowest,highest,share_at_lowest,share_at_highest,median,space
+cap,selected,lr,0.000793786,0.0260312,0.277778,0.555556,0.0197874,chosen
+cap,selected,epochs,30,300,0.388889,0.361111,100,chosen
+cap,selected,l2_pen,1e-07,0.001,0.416667,0,1e-05,chosen
+cap,selected,cf_pen,0,1,0.0555556,0.416667,0.1,chosen
+cap,best true,lr,0.000793786,0.0260312,0.430556,0.402778,0.00822298,chosen
+cap,best true,epochs,30,300,0.138889,0.652778,300,chosen
+cap,best true,l2_pen,1e-07,0.001,0.277778,0.111111,1e-05,chosen
+cap,best true,cf_pen,0,1,0.166667,0.277778,0.1,chosen
+warm,selected,lr,0.000202519,1.20125,0,0.0972222,0.0487761,chosen
+warm,selected,epochs,10,100,0,0.513889,100,chosen
+warm,selected,l2_pen,0,0.01,0.0833333,0,0.001,chosen
+warm,selected,cf_pen,0,1000,0.111111,0,10,chosen
+warm,best true,lr,0.000202519,1.20125,0,0.180556,0.0560369,chosen
+warm,best true,epochs,10,100,0,0.611111,100,chosen
+warm,best true,l2_pen,0,0.01,0.125,0,0.001,chosen
+warm,best true,cf_pen,0,1000,0.0416667,0,10,chosen
+cap,selected,lr,0.000101471,2.39778,0,0,0.0197874,wide
+cap,selected,epochs,1,300,0,0.236111,100,wide
+cap,selected,l2_pen,0,0.01,0,0.0555556,1e-05,wide
+cap,selected,cf_pen,0,1000,0.0416667,0,1,wide
+cap,best true,lr,0.000101471,2.39778,0,0,0.00685691,wide
+cap,best true,epochs,1,300,0,0.541667,300,wide
+cap,best true,l2_pen,0,0.01,0.0277778,0.0277778,1e-05,wide
+cap,best true,cf_pen,0,1000,0.152778,0,0.1,wide
+warm,selected,lr,0.000132118,2.72114,0,0.0138889,0.0560369,wide
+warm,selected,epochs,1,300,0.0555556,0.0972222,100,wide
+warm,selected,l2_pen,0,0.01,0.0972222,0,1e-05,wide
+warm,selected,cf_pen,0,1000,0.125,0.125,10,wide
+warm,best true,lr,0.000132118,2.72114,0,0.0416667,0.0560369,wide
+warm,best true,epochs,1,300,0.0277778,0.138889,100,wide
+warm,best true,l2_pen,0,0.01,0.0138889,0,0.001,wide
+warm,best true,cf_pen,0,1000,0.0555556,0.0416667,1,wide

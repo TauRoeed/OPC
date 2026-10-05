@@ -1,8 +1,55 @@
 # CausE vs revalidated OPC: the fair 25k comparison (design, then results)
 
-*Development stage. Branch `cause-fair`: the revalidated `CRM` (d5b4478) with the archived CausE implementation merged
-(`origin/cause-baseline` = d31a5dd). This note fixes the design before any new run. Results follow in later
-sections. Do not read anything here as confirmatory.*
+*Development stage, complete (2026-10-05). Branch `cause-fair`: the revalidated `CRM` (d5b4478) with the archived
+CausE implementation merged (`origin/cause-baseline` = d31a5dd). The summary below comes first. §0–§7 hold the design,
+fixed before the main grid ran: the search spaces of §3.1 were committed before any main-grid run. The results are in
+§8–§10. Seeds 100/101 only: nothing here is confirmatory.*
+
+## Summary
+
+**Setup.**
+- 30 worlds: ml, kuairand and anime × no bias, warp, group, vector and combined high × seeds 100/101.
+- A fixed budget of N = 25,000 target interactions.
+- OPC gets all N logger rows with their propensities. CausE gets (1 − ρ)N logger rows plus ρN uniform rows, with
+  ρ ∈ {0, .01, .05, .10, .15, .25}.
+- Greedy (ranking) value is the primary metric.
+- Brackets are 95% CIs, paired by world, over the 24 biased worlds unless stated.
+
+**Headline findings.**
+- **At equal capacity, CausE does not lose to OPC: it wins, but not because of the randomized traffic.**
+  - CausE-capacity-matched trains OPC's own correction family on the same source vectors with CausE's objective. It
+    beats OPC at every ρ: OPC − CausE-cap-C is −0.41 [−0.66, −0.16] at ρ = 0 and −0.36 [−0.57, −0.15] at ρ = 0.25.
+    OPC is ahead in only 4–6 of 24 worlds. The stochastic value with fair tempering agrees: −0.33 to −0.40.
+  - The randomized rows add nothing. CausE-cap's greedy gain is +3.09 at ρ = 0 and +3.05 at ρ = 0.25, and every ρ
+    differs from ρ = 0 by less than 0.05 points, with every CI covering 0.
+  - At ρ = 0, CausE-cap uses no randomized rows and no propensities: it is a click-likelihood fit inside OPC's class,
+    selected by validation NLL. That alone already beats OPC.
+  - The lead comes from warp bias: −1.19 [−1.44, −0.95], CausE-cap ahead in 6/6 worlds. Group and vector are ties
+    (+0.10, −0.07). Combined high favors CausE-cap without significance (−0.47 [−1.05, 0.12]).
+- **CausE with its native capacity loses to OPC, even with OPC's source vectors.** OPC − CausE-warm is +1.03 [0.43,
+  1.63] for the C prediction and +2.40 [1.63, 3.17] for T (24/24 worlds), at every ρ. CausE-warm-T barely leaves the
+  logger: its treatment item rows learn only from the few uniform rows.
+- **Why native CausE lost in M5: mostly the missing source representation, then capacity.**
+  - CausE-warm − native CausE is +8.3 [5.8, 10.8] (C) and +18.1 (T).
+  - CausE-cap − CausE-warm is a further +1.4 [0.7, 2.2] (C) and +2.8 (T).
+- **Exploration is a pure cost at 25k.** At ρ = 0.25, CausE gives up 932 clicks per world while collecting: 20.6% of
+  the clicks the all-logger collection earns. It buys no target value in either fair variant.
+- **Capacity does not explain the OPC − CausE-cap gap.** The two share one structural ceiling, the Stage 1 linear-repair
+  oracle, and no CausE-cap trial exceeded it. CausE-cap reaches 0.42 [0.35, 0.49] of it; OPC reaches 0.37 [0.31, 0.42].
+  CausE-warm has the larger ceiling (all of the loss) yet repairs only 0.15 [0.09, 0.21]. Its deficit is learning from
+  25k rows, not capacity.
+- **CausE-cap at ρ = 0 also beats DM-only in its own range**, by +0.94 [0.49, 1.38] (22/24). Both learn without
+  propensities or randomized rows, so OPC's DM-only arm is not the strongest no-propensity learner in OPC's class.
+
+**What this does and does not show.**
+- It does not show that randomized traffic beats propensities. Randomized traffic did nothing measurable here.
+- It does show that, at 25k and on these worlds, CausE's learner in OPC's class (likelihood objective plus NLL
+  selection) ranks better than OPC's (DR policy objective plus DR lower-bound selection).
+- This experiment does not separate the objective from the selection rule.
+
+**Recommendation.** Run 100k, but not as the full CausE grid (§10). The deciding question is now whether the in-class
+likelihood learner keeps its lead as OPC improves with n. A secondary question is whether randomized rows start to pay
+at 100k. The answers to the ten questions are in §9.
 
 ## 0. The question and the protocol
 
@@ -319,3 +366,290 @@ For CausE also:
 - BLOB;
 - OPC redesign;
 - richer correction architectures.
+
+## 8. Results (25k, the 30 M5 worlds)
+
+All numbers are CTR points over the logger. Greedy gain is measured against the logger's greedy value and stochastic
+gain against the logger's own value. Brackets are 95% t-intervals over worlds, paired by world where stated: 24
+biased worlds pooled, or 6 per bias type. The tables and figures are in `artifacts/full_study/cause_fair_25k/`
+(`tables.md`, `table_*.csv`, `fig*`). Rebuild them with `python -m training.analyze_cause_fair compare …` (the
+folder's README has the command).
+
+### 8.1 Runs, budgets and checks
+
+| run | code | content | wall clock (2026-10-05), workers |
+|---|---|---|---|
+| `run_cause_tune_cap_s200`, `run_cause_tune_warm_s200` | e6ba2e3 | §3.1 tuning (seeds 200/201) | 02:39–03:50 and 02:39–04:30, 2 each |
+| `run_cause_fair_cap_25k` | 78b5a42 | CausE-cap main grid: 30 worlds × 6 ρ × 20 trials | 03:52–06:01, 2 then 3 (restarted at 04:02) |
+| `run_cause_fair_warm_25k` | da83c7f | CausE-warm main grid: as above | 04:31–06:07, 3 |
+| `run_cause_fair_opc_raw_25k` | e6ba2e3 | OPC with raw DR weights (secondary reference) | 02:40–04:51 in three parts, 1 |
+| `run_cause_fair_dm_oldspace_anime` | e6ba2e3 | DM-only in its own range on anime | 02:40–03:20, 1 |
+| reused: `run_cause_dev_25k_cause_20261004` | 77440c5 | native CausE (M5), unchanged | — |
+| reused: `run_reval_stage2_{opc,base}_{mlkr,anime}`, `run_reval_stage2_oldspace_dm_mlkr` | d791849 | OPC (harmonic:0.1), DM-only, no-propensity, tempered logger | — |
+
+| arm | trials per world | its search space came from |
+|---|---|---|
+| OPC (harmonic:0.1) | 20 | the revalidation's range study on seeds 200/201 (lr 1e-4–2e-3, 5–30 epochs) |
+| DM-only, own range | 20 | its best range on the revalidation's tuning seeds (lr 1e-4–1e-3, 5–25 epochs) |
+| native CausE | 20 per variant and ρ | pre-specified (`docs/cause_baseline.md` A3); not tuned |
+| CausE-warm, CausE-cap | 20 per ρ (C and T come from the same 20 trainings) | §3.1: 40-trial wide studies on 18 tuning worlds × 2 ρ, then the pre-registered rule |
+
+**Checks.**
+- **Identical data.** In all 180 (world, ρ) cells, native, warm and cap CausE trained on the same rows: the same N_c
+  and N_t, the same click sums of the warm and uniform rows, and the same validation rows (`table_data_identity.csv`).
+  The logger's exact value agrees to 2e-8; it is computed in float32.
+- **Determinism.** The cap run was restarted with more workers. The two worlds it recomputed are bit-identical to the
+  first pass in every summary and trial column. The raw-DR run was stopped at 03:09, so that its anime worlds would not
+  overlap the tuning's on the GPU (memory), and resumed with `--skip-completed`.
+- **The ceiling.** No CausE-cap trial in any world (any ρ, either prediction) exceeds the Stage 1 linear-repair
+  oracle. The closest comes within 1.49 points of it (`table_oracle_check.csv`). This is consistent with the
+  logit-equivalence test that makes the oracle its structural ceiling (§1.3).
+- **Two fixes during the stage.**
+  - `--skip-completed` did not recognize the new families' labels (7823598). The restarted cap run therefore redid two
+    worlds, identically.
+  - The data-identity check needed a float tolerance (2592fbd).
+
+### 8.2 Target value against ρ (greedy, primary)
+
+![Greedy value against rho](../artifacts/full_study/cause_fair_25k/fig1_rho_greedy.png)
+
+*Figure 1. Greedy value against the randomized share, per bias. Mean and 95% CI over 3 datasets × 2 seeds. OPC with its
+95% CI band, DM-only in its own range, the logger (0), and the best single item, which is named at the bottom of a
+panel when it lies below the axis. Error bars at the same ρ are offset slightly.*
+
+| arm | biased worlds (24) | no bias (6) |
+|---|---|---|
+| OPC (harmonic:0.1) | +2.69 [1.84, 3.53] | −0.61 [−0.80, −0.41] |
+| OPC (raw DR) | +2.31 [1.58, 3.04] | −0.80 [−1.06, −0.54] |
+| DM-only (own range) / (OPC's range) | +2.15 [1.30, 3.01] / +2.08 | −0.55 / −0.58 |
+| no-propensity | +0.82 [0.58, 1.06] | −0.26 |
+| CausE-cap-C, ρ = 0 / .01 / .05 / .10 / .15 / .25 | +3.09 / 3.12 / 3.12 / 3.11 / 3.07 / 3.05 | −0.55 / −0.49 / −0.49 / −0.51 / −0.36 / −0.36 |
+| CausE-cap-T | +3.04 / 3.07 / 3.08 / 3.07 / 3.04 / 3.05 | as C |
+| CausE-warm-C | +1.65 / 1.79 / 1.69 / 1.74 / 1.71 / 1.66 | −0.15 … −0.07 |
+| CausE-warm-T | +0.28 / 0.29 / 0.23 / 0.24 / 0.23 / 0.24 | −0.01 |
+| native CausE-prod-C / prod-T / avg (ρ = 0 → 0.25) | −6.6 → −5.4 / −17.8 → −14.8 / −4.9 → −5.1 | −14 … −27 |
+
+- **The fair variants are flat in ρ.** CausE-cap moves by at most 0.05 points from ρ = 0, CausE-warm-C by at most 0.13,
+  CausE-warm-T by at most 0.05. Every CI covers 0 (`table_rho_effect.csv`).
+- **Only native CausE-prod-T gains from randomized rows:** +4.2 [2.4, 6.0] at ρ = 0.10 and +3.0 [1.3, 4.6] at 0.25. It
+  starts from −17.8, and its treatment rows learn only from uniform rows.
+- **C and T rank alike in CausE-cap.** They agree exactly in 42% of cells and differ by 0.03 points on average. The
+  selected models put almost all their learning into the user map (norm about 1.1). The L1 tie holds the control
+  item map on the treatment item map (gap ≈ 0). At ρ = 0 both item maps stay at the source (norm 0.001). At ρ > 0 the
+  treatment map learns from the uniform rows (norm 0.06 at ρ = 0.01 up to 0.34 at 0.25) and the control map follows,
+  without changing the ranking.
+
+### 8.3 OPC against each CausE variant (paired)
+
+![OPC minus CausE](../artifacts/full_study/cause_fair_25k/fig4_opc_minus_cause.png)
+
+*Figure 4. OPC − CausE, greedy value, paired by world (mean and 95% CI; above 0 means OPC is better).*
+
+| OPC − … (greedy) | ρ = 0 | ρ = 0.05 | ρ = 0.25 |
+|---|---|---|---|
+| CausE-cap-C | **−0.41 [−0.66, −0.16]** (OPC higher in 6/24) | −0.44 [−0.68, −0.20] (5/24) | −0.36 [−0.57, −0.15] (6/24) |
+| CausE-cap-T | −0.36 [−0.60, −0.11] (6/24) | −0.40 [−0.64, −0.16] (5/24) | −0.36 [−0.57, −0.15] (6/24) |
+| CausE-warm-C | +1.03 [0.43, 1.63] (19/24) | +1.00 [0.53, 1.46] (19/24) | +1.03 [0.61, 1.44] (19/24) |
+| CausE-warm-T | +2.40 [1.63, 3.17] (24/24) | +2.45 [1.68, 3.23] (24/24) | +2.44 [1.68, 3.21] (24/24) |
+| native CausE-prod-C | +9.32 [6.86, 11.78] (23/24) | +9.08 (23/24) | +8.11 (23/24) |
+
+By bias type (OPC − CausE-cap-C; ρ = 0, then ρ = 0.25):
+
+| bias | ρ = 0 | ρ = 0.25 |
+|---|---|---|
+| warp high | −1.19 [−1.44, −0.95] (0/6) | −1.01 [−1.34, −0.69] (0/6) |
+| group high | +0.10 [−0.14, 0.34] (3/6) | −0.01 [−0.24, 0.21] (2/6) |
+| vector high | −0.07 [−0.22, 0.08] (2/6) | −0.10 [−0.23, 0.02] (2/6) |
+| combined high | −0.47 [−1.05, 0.12] (1/6) | −0.32 [−0.86, 0.23] (2/6) |
+| no bias | −0.05 [−0.39, 0.28] (2/6) | −0.25 [−0.48, −0.02] (1/6) |
+
+- **By dataset** (biased, ρ = 0): ml −0.32 [−0.82, 0.18], kuairand −0.62 [−1.04, −0.20], anime −0.28 [−0.85, 0.30].
+  The direction is the same on all three.
+- **Against the other warm-only learners** (CausE-cap-C at ρ = 0, biased):
+  - minus DM-only (own range): +0.94 [0.49, 1.38] (22/24);
+  - minus no-propensity: +2.27 [1.50, 3.04] (24/24);
+  - minus OPC: +0.41 [0.16, 0.66] (18/24).
+- **CausE-warm against OPC by bias:** behind by +2.6 under warp, +0.6 under group and +1.1 under combined bias (OPC
+  − warm-C, ρ = 0); a tie under vector bias (−0.18 [−0.47, 0.11]). It is ahead without bias (−0.46), where it stays
+  near the logger.
+
+### 8.4 Native vs CausE-warm vs CausE-capacity-matched
+
+![Native, warm, capacity-matched](../artifacts/full_study/cause_fair_25k/fig3_cause_variants.png)
+
+*Figure 3. The three CausE variants against ρ (greedy; biased worlds pooled, and no bias).*
+
+| contrast, same ρ and prediction side (biased) | ρ = 0 | ρ = 0.25 |
+|---|---|---|
+| CausE-warm − native, C / T: **the source representation** at CausE's capacity | +8.29 [5.84, 10.75] (23/24) / +18.08 [15.94, 20.23] | +7.08 [5.05, 9.11] / +15.05 |
+| CausE-cap − CausE-warm, C / T: **OPC's linear family** instead of free vectors, given the source | +1.44 [0.66, 2.21] (20/24) / +2.76 [1.88, 3.63] (24/24) | +1.39 [0.83, 1.94] / +2.81 |
+| CausE-cap − native, C / T: both | +9.73 [7.20, 12.27] (24/24) / +20.84 | +8.47 / +17.86 |
+
+Without bias the order between the two warm-started variants flips: CausE-cap − CausE-warm is −0.41 [−0.62, −0.19]
+(C). CausE-warm stays at the logger; CausE-cap's user map moves it slightly below.
+
+### 8.5 Stochastic value (secondary)
+
+![Stochastic value, tempered](../artifacts/full_study/cause_fair_25k/fig1b_rho_stochastic_tempered.png)
+
+*Figure 1b. Stochastic value. CausE's softmax is tempered by the DR lower bound (§2). References: OPC's learned scale,
+the tempered logger and DM-only.*
+
+| arm | biased worlds | no bias |
+|---|---|---|
+| OPC (learned scale) | +6.75 [6.18, 7.33] | +5.22 |
+| tempered logger (sharpening alone) | +3.99 [3.53, 4.45] | **+5.92** |
+| DM-only (own range) | +6.23 | +5.39 |
+| CausE-cap-C tempered, ρ = 0 / 0.25 | **+7.13 [6.36, 7.89]** / +7.08 | +5.38 / +5.58 |
+| CausE-warm-C / warm-T tempered, ρ = 0 | +5.70 / +4.33 | +5.80 / +5.93 |
+| CausE raw softmax (τ = 1), any variant | −11.7 to −13.7 | −18 to −21 |
+
+- **OPC − CausE-cap-C (OPC's stochastic vs CausE's tempered value):** −0.37 [−0.61, −0.13] at ρ = 0 and −0.33 [−0.51,
+  −0.14] at 0.25. This is the same picture as the greedy value.
+- **CausE's raw softmax is not a usable policy.** Click log-odds are nearly flat across items. With the fair sharpening,
+  about 20% of the selections take the grid's top scale (2¹², effectively greedy). The tempered values sit 0.05–0.07
+  points below the greedy ones, so sharpening never adds value beyond the ranking.
+- **Without bias, sharpening alone is best:** the tempered logger and CausE-warm-T, which is the logger in effect.
+  Every learned arm loses 0.3–0.7 points there.
+
+### 8.6 Exploration cost
+
+![Final value against exploration cost](../artifacts/full_study/cause_fair_25k/fig2_exploration_cost.png)
+
+*Figure 2. Final greedy value against the expected clicks given up while collecting. OPC and DM-only sit at zero.*
+
+| ρ | uniform rows | expected clicks given up | realized | share of the all-logger collection's clicks |
+|---|---|---|---|---|
+| 0.01 | 250 | 38 | 41 | 0.9% |
+| 0.05 | 1,250 | 190 | 184 | 4.1% |
+| 0.10 | 2,500 | 380 | 376 | 8.3% |
+| 0.15 | 3,750 | 570 | 557 | 12.3% |
+| 0.25 | 6,250 | 950 | 932 | 20.6% |
+
+Means over the 30 worlds. The cost is lower where the logger is worse (combined high), because there V(π0) − V(uniform)
+is smaller. None of it buys target value in the fair variants (§8.2).
+
+### 8.7 Capacity, selection and the oracle
+
+| arm (biased) | share of the representation loss repaired | share of its own structural ceiling | ceiling | greedy selection regret |
+|---|---|---|---|---|
+| OPC (harmonic:0.1) | 0.27 [0.22, 0.33] | 0.37 [0.31, 0.42] | linear-repair oracle | 0.16 |
+| OPC (raw DR) | 0.24 | 0.32 | linear-repair oracle | 0.18 |
+| DM-only (own range) | 0.20 [0.15, 0.25] | 0.26 [0.20, 0.32] | linear-repair oracle | 0.42 |
+| no-propensity | 0.09 | 0.12 | linear-repair oracle | 0.21 |
+| CausE-cap-C, ρ = 0 / 0.25 | 0.33 [0.24, 0.41] / 0.32 | 0.42 [0.35, 0.49] / 0.42 | linear-repair oracle | 0.13 / 0.15 |
+| CausE-warm-C, ρ = 0 / 0.25 | 0.15 [0.09, 0.21] / 0.16 | = the share of the loss | target best | 0.25 / 0.17 |
+| CausE-warm-T | 0.03 | 0.03 | target best | 0.18 / 0.26 |
+| native CausE-prod-C | −1.10 / −0.96 | — | target best | 2.67 / 1.69 |
+
+- **Equal capacity: no capacity explanation.** CausE-cap and OPC share a ceiling: on average the oracle repairs 6.69
+  of the 9.43 lost points. CausE-cap reaches more of it.
+- **Unequal capacity: the larger class learns less.** CausE-warm's class contains the true click model, so its ceiling
+  is the whole loss. Its 0.15 share is a learning problem at 25k: free per-user vectors, with about 0.3–4 training
+  rows per user. CausE-cap − CausE-warm (+1.4, §8.4) is the price of that extra capacity under CausE's objective.
+  This is not a statement about OPC. OPC never ran with free vectors.
+- **Selection.** NLL selects well for CausE-cap: it loses 0.13–0.15 points against the best of the 20 trials, about
+  OPC's regret (0.16). Selecting CausE-cap by the DR lower bound of each trial's greedy policy would lose 0.19–0.27
+  points more (`table_selection_rule.csv`, a diagnostic, not CausE's protocol). For CausE-warm-T it would gain
+  0.16–0.21. Among the reference arms, DM-only's selection by its own reward model has the largest regret (0.42).
+- **Selected configurations** (main grid):
+  - CausE-cap: one-way tie in 66% of cells, cf 0.01–0.1 in 58%, mostly 100 epochs, median lr 0.011, 1.4% of trials
+    diverged.
+  - CausE-warm: symmetric tie in 56%, cf ≤ 0.1 in 89%, mostly 10 epochs, median lr 0.14, 6.4% diverged.
+
+### 8.8 Caveats and anomalies
+
+- **Scope.** This is a development stage: 25k only, 3 datasets × 2 seeds per bias type, and CIs over worlds.
+  Differences of a few tenths of a point rest on 24 paired worlds, and per-bias contrasts on 6.
+- **The selection rules differ by design.** CausE uses validation NLL, OPC the DR lower bound. The experiment does not
+  separate CausE-cap's training objective from its selection rule.
+- **The search spaces were set by different procedures.** OPC's came from its revalidation. Both new CausE variants'
+  came from the pre-registered rule on 80 configurations per family, which picked narrow spaces (6–8.5 trials per
+  tuning cell). Narrow spaces concentrate the main grid's 20 trials, which helps CausE. Native CausE's space was not
+  re-tuned.
+- **The tie choice matters for the mechanism, not for the ranking.** CausE-cap's L1 tie makes its two item maps nearly
+  equal. Its value therefore comes from the user map, and the randomized rows only move the tied item maps.
+- **The no-bias worlds.** Every learned arm sits below the logger's greedy value, by up to 0.8 points: OPC 0.61,
+  CausE-cap 0.36–0.55, CausE-warm-C 0.07–0.15. CausE-warm-T is within 0.01.
+- **The best single item** is below the logger everywhere except combined high, where one item for everyone beats the
+  biased logger by 5.2 points.
+- **The DR estimate of a greedy CausE policy** (validation, clip:10) understates its true value by about 1 point. It is
+  reported, not used.
+- **Reused rows.** Native CausE comes from M5, at code 77440c5 with identical data. OPC, DM-only, no-propensity and the
+  tempered logger come from the corrected Stage 2. Raw DR and DM-only's anime rows are new and paired by world.
+
+## 9. The ten questions
+
+All answers are for the 24 biased worlds, greedy value, unless stated.
+
+1. **How much of CausE's weakness was the missing source representation? Most of it.**
+   - Starting CausE at OPC's source vectors (CausE-warm) instead of random vectors gains +8.3 [5.8, 10.8] (C) and
+     +18.1 [15.9, 20.2] (T) at ρ = 0.
+   - Native CausE-prod-C sits at −6.6, CausE-warm-C at +1.65.
+2. **Native vs capacity-matched.** CausE-cap − native CausE-prod is +9.7 [7.2, 12.3] (C) and +20.8 (T) at ρ = 0, and
+   +8.5 / +17.9 at ρ = 0.25; CausE-cap is higher in 24/24 worlds. The split: about 8.3 from the source representation
+   and 1.4 from replacing free vectors by OPC's linear family (§8.4).
+3. **At equal capacity, randomized traffic vs propensities: neither the randomized rows nor the propensities decide.**
+   - CausE-cap beats OPC by 0.36–0.44 at every ρ, including ρ = 0, where it uses neither.
+   - The randomized rows change CausE-cap by at most 0.05 points.
+   - So, at equal capacity, the likelihood learner in OPC's class beats OPC's DR learner on these worlds. The
+     randomized share is irrelevant to that at 25k.
+4. **At which ρ does CausE reach OPC? It depends on the variant, not on ρ.**
+   - CausE-cap is above OPC at every ρ, already at 0.
+   - CausE-warm and native CausE stay below OPC at every ρ, by +0.9–1.0 (warm-C), +2.4 (warm-T) and +8–9.5 (native
+     prod-C).
+5. **How close? The fair CausE variants bracket OPC.** CausE-cap is +0.4 above it (stochastic, tempered: +0.33–0.40);
+   CausE-warm-C is 1.0 below, CausE-warm-T 2.4 below.
+6. **How much online reward is given up?** On average per world, 41 / 184 / 376 / 557 / 932 clicks at ρ = 0.01 /
+   .05 / .10 / .15 / .25: 0.9–20.6% of the all-logger collection's clicks. It buys no target value in either fair
+   variant (§8.6).
+7. **By mismatch type (OPC − CausE-cap-C at ρ = 0).**
+   - warp −1.19 [−1.44, −0.95], CausE-cap ahead in 6/6 worlds;
+   - combined −0.47 [−1.05, 0.12], not significant;
+   - group +0.10 and vector −0.07, ties.
+   - CausE-warm-C trails OPC under warp (2.6), combined (1.1) and group (0.6) bias, and ties under vector bias.
+   - No bias type shows a ρ effect in the fair variants.
+8. **No mismatch.** Every learned arm loses a little against the logger's greedy value: OPC −0.61, DM-only −0.55,
+   CausE-cap −0.55 → −0.36, CausE-warm-C −0.15 → −0.07. CausE-warm-T stays at the logger.
+   - OPC − CausE-cap is −0.05 [−0.39, 0.28] at ρ = 0 and −0.25 [−0.48, −0.02] at ρ ≥ 0.15.
+   - In stochastic value, sharpening the logger is best (+5.92). CausE-warm-T matches it (+5.93), OPC is at +5.22.
+9. **Do capacity differences explain the results? Only between CausE-warm and CausE-cap.**
+   - OPC and CausE-cap share a structural ceiling, and no CausE-cap trial exceeded it. CausE-cap reaches 0.42 of it,
+     OPC 0.37, so their gap is not about capacity.
+   - CausE-warm's larger class (ceiling = the whole loss) reaches only 0.15 of the loss. Its gap to CausE-cap
+     (+1.4) is learning from 25k rows with free per-user vectors.
+   - Selection explains little: CausE-cap's NLL regret is 0.13–0.15, OPC's 0.16.
+10. **Does OPC still beat the strongest fair CausE? No, not at 25k.**
+    - CausE-capacity-matched leads OPC by 0.41 [0.16, 0.66] at ρ = 0 and 0.36 [0.15, 0.57] at ρ = 0.25, in both
+      predictions and in the tempered stochastic value.
+    - The lead is concentrated in the warp worlds.
+    - "Strongest" picks one of 4 arms × 6 ρ after the fact, but the lead holds for every one of the 12 CausE-cap
+      cells, so it is not a selection artifact.
+    - OPC does beat CausE at native capacity (warm, native) by 1–9.5 points.
+
+## 10. Is 100k worth running?
+
+**Recommendation: yes, as a targeted run, not the full grid.**
+
+**What 25k left open.**
+- (a) Does the in-class likelihood learner (CausE-cap, ρ = 0) keep its lead over OPC as n grows? In the revalidation
+  OPC's share of the oracle repair rose from 0.38 at 25k to 0.49 at 100k. If OPC overtakes CausE-cap at 100k, the
+  25k result is a small-data effect. If not, the strongest no-propensity baseline in OPC's class is this learner, not
+  DM-only. That would matter for every OPC claim against DM-only.
+- (b) Do randomized rows start to pay at larger N? At 100k and ρ = 0.25 there would be 25k uniform rows, 2–7 per item.
+  CausE-warm-T and native prod-T did gain from uniform rows (native prod-T: +3–4 at ρ ≥ 0.10), but from very low
+  levels.
+
+**Suggested scope:**
+- CausE-cap, ρ ∈ {0, 0.05, 0.25}, and CausE-warm-T at ρ = 0.25 only;
+- on the same 30 worlds at 100k;
+- with OPC, DM-only and the tempered logger reused from the corrected Stage 2's 100k rows;
+- with the §3.1 search spaces kept fixed.
+
+**Cost.** The 25k main grids took about 2 h each on 3 workers. At 100k the training data per epoch are 4× larger, so
+roughly 5–8 h for this subset.
+
+**For a separate decision** (out of scope here: no OPC redesign in this stage):
+- an OPC-side check on whether the gap is the objective or the selection, for example OPC's policy class fitted by
+  click likelihood and selected by the DR lower bound;
+- reporting the in-class likelihood learner as an additional baseline.
