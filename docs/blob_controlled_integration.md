@@ -238,7 +238,19 @@ from statistical learnability). For each class:
 - **Reused rows** (identical worlds, logs and splits):
   - tempered logger, OPC (harmonic:0.1) and DM-only in OPC's range: the corrected Stage 2;
   - DM-only in its own validated range: the revalidation's old-space runs plus `run_cause_fair_dm_oldspace_anime`;
-  - CausE-capacity-matched at ρ = 0: `run_cause_fair_cap_25k`.
+  - CausE-capacity-matched at ρ = 0: `run_cause_fair_cap_25k`. At ρ = 0 it has no randomized rows and no
+    propensities: it is the plain click-likelihood fit in OPC's class. CausE-cap-C is the primary likelihood
+    reference; CausE-cap-T is reported beside it.
+  - CausE-warm-C at ρ = 0 (`run_cause_fair_warm_25k`): a likelihood fit with free per-user and per-item vectors, as
+    context for the capacity question.
+- **Policy replays (for the pick diagnostics only).**
+  - The reused runs did not keep their selected policies, and question 4 below needs them. OPC and CausE-cap at
+    ρ = 0 are therefore replayed with `--save-policies`. The replays are 25k only, use the same code path (unchanged
+    since those runs) and the same configurations, and run from a pinned worktree.
+  - Each replayed condition is checked trial by trial against the original run.
+    - OPC: the true value, the true greedy value, the selection estimate and the DR estimate of all 20 trials.
+    - CausE-cap: the validation NLL and the C and T values of all 20 trials.
+  - The reported numbers stay the original rows. The replays only provide the saved vectors.
 - **Metrics.**
   - true greedy CTR (primary) and the gain over the logger;
   - stochastic value (raw and tempered);
@@ -255,3 +267,37 @@ from statistical learnability). For each class:
 4. Does it extrapolate into poorly logged regions better or worse?
 5. Where does OPC differ from it given the same source?
 6. Is a difference training, selection or capacity?
+
+**Diagnostics for the mechanism questions** (fixed before the comparison's results).
+- **Accounting** (questions 3 and 6). Per world and arm, the greedy gain over the logger is split exactly:
+  - gain = ceiling − training gap − selection regret;
+  - ceiling: the value oracle of the arm's class (§3);
+  - training gap: the ceiling minus the best of the arm's own 20 trials;
+  - selection regret: the best trial minus the selected one.
+  - A paired difference between two arms splits the same way, into Δceiling, Δtraining and Δselection.
+  - The likelihood oracle of the arm's class separates the training gap further. Its distance below the value oracle
+    is what the likelihood objective gives up at infinite data. The rest is finite-sample learning.
+- **Pick diagnostics** (questions 4 and 5; `training/policy_diagnostics.py`; exact). They are computed for the
+  selected policy of each arm, for the class oracles and for the logger.
+  - Where the greedy policy recommends: the share of users whose pick is the logger's top item or in its top 10;
+    the share whose pick the logger shows less often than uniformly (P π0(a*|u) < 1); and the mean log10 P π0(a*|u).
+  - What the picks are worth there: the true click probability at the picks above and below uniform propensity.
+  - For the click models (BLOB, CausE-cap, the likelihood oracles):
+    - the optimism at the picks, Σ prior (σ(f(u, a*)) − q(u, a*));
+    - the prediction error by logging-propensity bin (P π0 below 0.1, 0.1–1, 1–10, above 10);
+    - the exact infinite-data NLL under π0, against its class's likelihood oracle.
+  - Between two arms (question 5): the users where they pick the same item. On the rest, V_A − V_B is split by which
+    of the two picks the logger shows less often.
+- "Extrapolates better" (question 4) means the true click probability of its picks below uniform propensity is
+  higher, with a smaller optimism there.
+
+**Phase 6 trigger** (fixed before the comparison's results). A targeted 5k / 100k extension runs only if one of the
+following holds.
+- **(i) Close.** The pooled paired 95% CI of BLOB − OPC or BLOB − CausE-cap-C includes 0, with |mean| < 0.25 points.
+- **(ii) Size-dependent.** The 25k ordering of BLOB and OPC is the opposite of the ordering of their infinite-data
+  references: BLOB's likelihood oracle against OPC's value oracle, pooled over the biased worlds.
+- **Scope if triggered.**
+  - Only the bias types that meet the condition, both seeds, the three datasets, at 5k and 100k.
+  - BLOB only; OPC already has 5k and 100k rows in the corrected Stage 2.
+  - The reason is recorded here before launch.
+- Otherwise the class oracles stand in for the large-N limit, and nothing more is run.

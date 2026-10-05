@@ -251,6 +251,368 @@ def tune_main(args) -> None:
           f"{t[WORLD].drop_duplicates().shape[0]} worlds")
 
 
+# ---------------------------------------------------------------------------------------------- main comparison
+TRAIN_SIZE = 25_000
+FS = Path("artifacts/full_study")
+CAP_RUN, WARM_RUN = FS / "run_cause_fair_cap_25k", FS / "run_cause_fair_warm_25k"
+DM_OWN_ANIME = FS / "run_cause_fair_dm_oldspace_anime"
+ORACLE_RUN = FS / "run_class_oracles_20261005"
+BLOB_ARMS = ("blob_nq", "blob_mnq")
+REFERENCE_ARMS = ("opc", "dm_own", "dm", "tempered_logger")
+LIKELIHOOD_ARMS = ("cap_c", "cap_t", "warm_c")
+ARMS = BLOB_ARMS + LIKELIHOOD_ARMS + REFERENCE_ARMS
+NAMES = {"blob_nq": "BLOB-NQ (supplied source)", "blob_mnq": "BLOB-MNQ (supplied source)",
+         "cap_c": "CausE-cap-C, ρ = 0 (plain likelihood, OPC's class)", "cap_t": "CausE-cap-T, ρ = 0",
+         "warm_c": "CausE-warm-C, ρ = 0 (likelihood, free vectors)", "opc": "OPC (harmonic:0.1)",
+         "dm_own": "DM-only (own range)", "dm": "DM-only (OPC's range)", "tempered_logger": "tempered logger"}
+# each arm's ranking family over the logger's vectors (§1.6, §3): its value oracle is its structural ceiling
+OWN_CLASS = {"blob_nq": "blob", "blob_mnq": "blob", "cap_c": "affine_bilinear", "cap_t": "affine_bilinear",
+             "opc": "affine_bilinear", "dm_own": "affine_bilinear", "dm": "affine_bilinear"}
+ORACLE_CLASSES = ("affine_bilinear", "blob", "bilinear")
+
+
+def blob_rows(run_dirs, seeds=(100, 101)) -> pd.DataFrame:
+    """The selected BLOB policy per world and family."""
+    from training.analyze_cause_fair import BIAS_ORDER
+
+    frames = []
+    for run in run_dirs:
+        for p in sorted(Path(run).glob("dataset=*/summary_metrics.csv")):
+            tags = _tags(p.parent.name)
+            if tags["bias"] not in BIAS_ORDER or int(tags["seed"]) not in seeds:
+                continue
+            s = pd.read_csv(p)
+            s = s[(s["train_size"] == TRAIN_SIZE) & s["method"].astype(str).str.startswith("blob")].copy()
+            s["run"], s["dataset"], s["bias"], s["seed"] = Path(run).name, tags["dataset"], tags["bias"], int(tags["seed"])
+            frames.append(s)
+    if not frames:
+        raise FileNotFoundError(f"no finished BLOB conditions under {run_dirs}")
+    s = pd.concat(frames, ignore_index=True)
+    s["arm"] = s["method"]
+    s = s.rename(columns={"policy_rewards": "V", "policy_rewards_greedy": "V_greedy",
+                          "policy_rewards_tempered": "V_tempered"})
+    s["regret_greedy"] = s["oracle_selected_value_greedy"] - s["V_greedy"]
+    s["regret"] = s["oracle_selected_value"] - s["V"]
+    return s
+
+
+def likelihood_rows() -> pd.DataFrame:
+    """CausE-capacity-matched (C and T) and CausE-warm-C at ρ = 0 from the fair comparison (not rerun): no
+    randomized rows, so they are click-likelihood fits on the same N warm rows."""
+    from training.analyze_cause_fair import cause_rows
+
+    c = cause_rows([CAP_RUN, WARM_RUN])
+    return c[(c["rho"] == 0.0) & c["arm"].isin(LIKELIHOOD_ARMS)].copy()
+
+
+def class_oracle_table(root: Path = ORACLE_RUN) -> pd.DataFrame:
+    """Per world: each class's value-oracle and likelihood-oracle greedy values, the value oracle's stochastic value
+    and the likelihood oracle's objective (the class's infinite-data NLL under π0)."""
+    frames = [pd.read_csv(p) for p in sorted(Path(root).glob("*/class_oracles.csv"))]
+    if not frames:
+        raise FileNotFoundError(f"no class_oracles.csv under {root}")
+    o = pd.concat(frames, ignore_index=True)
+    o["bias"] = o["bias_label"]
+    o["key"] = o["objective"] + "_" + o["class"]
+    wide = o.pivot_table(index=WORLD, columns="key", values=["greedy", "value", "fit_objective"], aggfunc="first")
+    wide.columns = [f"{k}_{v}" for v, k in wide.columns]
+    keep = [c for c in wide.columns if c.endswith("_greedy") or (c.startswith("value_") and c.endswith("_value"))
+            or (c.startswith("likelihood_") and c.endswith("_fit_objective"))]
+    return wide[keep].reset_index()
+
+
+def condition_table(blob: pd.DataFrame, refs: pd.DataFrame, lik: pd.DataFrame, oracles: pd.DataFrame | None,
+                    best_item: pd.DataFrame | None = None) -> pd.DataFrame:
+    """One row per world × arm: values, gains (CTR points), the shares of the representation loss and of the arm's
+    own value oracle repaired, the selection regret, and the class oracles of the world.
+
+    gain_greedy = V_greedy − V_logger_greedy; gain = V − V_logger (stochastic; for BLOB and CausE the tempered softmax
+    is gain_tempered); frac_loss = gain_greedy / (V_target_best − V_logger_greedy); frac_oracle = gain_greedy / (the
+    value oracle of the arm's class − V_logger_greedy)."""
+    from training.analyze_cause_fair import BIAS_ORDER, world_references
+
+    keep = ["dataset", "bias", "seed", "arm", "V", "V_greedy", "V_tempered", "temper_scale", "regret", "regret_greedy",
+            "sel_estimate", "sel_estimate_low", "val_nll", "val_auc", "val_dr_greedy", "val_dr_greedy_low",
+            "n_trials", "n_finite_trials", "lr", "epochs", "wa_m", "wb_m", "kappa_s", "sp_wa", "sp_wb", "wc",
+            "zeta_norm", "kappa_rms", "kappa_sd_post", "deviation_ratio", "l2_pen", "cf_pen", "cause_tie",
+            "logit_scale", "initial_reward", "logger_greedy"]
+    t = pd.concat([d[[c for c in keep if c in d.columns]] for d in (blob, lik, refs)], ignore_index=True)
+    t = t.reindex(columns=keep)
+    t = t.merge(world_references(), on=WORLD, how="left", validate="many_to_one")
+    for own, ref in (("initial_reward", "V_logger"), ("logger_greedy", "V_logger_greedy")):
+        ok = t[own].notna()
+        assert np.allclose(t.loc[ok, own], t.loc[ok, ref], atol=1e-6), own
+    t["gain_greedy"] = 100 * (t["V_greedy"] - t["V_logger_greedy"])
+    t["gain"] = 100 * (t["V"] - t["V_logger"])
+    t["gain_tempered"] = 100 * (t["V_tempered"] - t["V_logger"])
+    loss = t["ceiling"] - t["V_logger_greedy"]
+    t["representation_loss"] = 100 * loss
+    t["frac_loss"] = np.where(loss > 1e-3, t["gain_greedy"] / 100 / loss, np.nan)
+    t["regret_greedy"] = 100 * t["regret_greedy"]
+    t["regret"] = 100 * t["regret"]
+    t["best_trial_gain"] = t["gain_greedy"] + t["regret_greedy"]
+    t["own_class"] = t["arm"].map(OWN_CLASS)
+    if oracles is not None:
+        t = t.merge(oracles, on=WORLD, how="left", validate="many_to_one")
+        for cls in ORACLE_CLASSES:
+            for obj in ("value", "likelihood"):
+                col = f"{obj}_{cls}_greedy"
+                if col in t:
+                    t[f"oracle_{obj}_{cls}_gain"] = 100 * (t[col] - t["V_logger_greedy"])
+        own = np.full(len(t), np.nan)
+        own_lik = np.full(len(t), np.nan)
+        for cls in ORACLE_CLASSES:
+            m = (t["own_class"] == cls).to_numpy()
+            if f"oracle_value_{cls}_gain" in t:
+                own[m] = t.loc[m, f"oracle_value_{cls}_gain"]
+            if f"oracle_likelihood_{cls}_gain" in t:
+                own_lik[m] = t.loc[m, f"oracle_likelihood_{cls}_gain"]
+        t["own_value_oracle_gain"] = own
+        t["own_likelihood_oracle_gain"] = own_lik
+        t["frac_oracle"] = np.where(own > 0.1, t["gain_greedy"] / own, np.nan)
+        # the accounting of §5: gain = own value oracle − (oracle − the best of the arm's trials) − selection regret
+        t["training_gap"] = t["own_value_oracle_gain"] - t["best_trial_gain"]
+    t["oracle_linear_gain"] = 100 * (t["oracle_linear_greedy"] - t["V_logger_greedy"])
+    if best_item is not None:
+        t = t.merge(best_item[["dataset", "seed", "best_single_item"]], on=["dataset", "seed"], how="left")
+        t["best_item_gain"] = 100 * (t["best_single_item"] - t["V_logger_greedy"])
+    t["bias_order"] = t["bias"].map({b: i for i, b in enumerate(BIAS_ORDER)})
+    t["arm_order"] = t["arm"].map({a: i for i, a in enumerate(ARMS)})
+    return t.sort_values(["bias_order", "dataset", "seed", "arm_order"]).drop(columns=["bias_order", "arm_order"]) \
+        .reset_index(drop=True)
+
+
+SUMMARY_COLUMNS = ("gain_greedy", "gain", "gain_tempered", "frac_loss", "frac_oracle", "regret_greedy",
+                   "best_trial_gain", "training_gap", "own_value_oracle_gain", "own_likelihood_oracle_gain",
+                   "val_nll", "val_auc", "kappa_rms", "deviation_ratio", "sp_wa", "sp_wb", "temper_scale",
+                   "representation_loss", "best_item_gain")
+
+
+def _panels(t: pd.DataFrame):
+    from training.analyze_cause_fair import BIAS_ORDER
+
+    for b in BIAS_ORDER:
+        if (t["bias"] == b).any():
+            yield b, t[t["bias"] == b]
+    yield "biased (pooled)", t[t["bias"] != "none"]
+
+
+def summary_table(t: pd.DataFrame) -> pd.DataFrame:
+    """Mean and 95% CI over worlds per bias × arm, and over the 24 biased worlds pooled."""
+    rows = []
+    for bias, tb in _panels(t):
+        for arm, g in tb.groupby("arm"):
+            r = {"bias": bias, "arm": arm, "worlds": len(g)}
+            for col in SUMMARY_COLUMNS:
+                if col in g and g[col].notna().any():
+                    m, lo, hi, _n = mean_ci(g[col])
+                    r[col], r[col + "_lo"], r[col + "_hi"] = m, lo, hi
+            rows.append(r)
+    return pd.DataFrame(rows)
+
+
+def paired_table(t: pd.DataFrame, a: str, b_arms, col: str = "gain_greedy", b_col: str | None = None) -> pd.DataFrame:
+    """``a`` − each arm of ``b_arms``, paired by world: mean, 95% CI and the worlds where ``a`` is higher, per bias
+    and pooled over the biased worlds. ``b_col``: the b arms' column when it differs (a tempered softmax against
+    OPC's own stochastic policy)."""
+    b_col = b_col or col
+    va = t[t["arm"] == a].set_index(WORLD)[col]
+    rows = []
+    for arm in b_arms:
+        d = (va - t[t["arm"] == arm].set_index(WORLD)[b_col]).dropna()
+        frame = d.reset_index()
+        frame.columns = WORLD + ["d"]
+        for bias, g in _panels(frame):
+            if g.empty:
+                continue
+            m, lo, hi, n = mean_ci(g["d"])
+            rows.append({"a": a, "b": arm, "col": col, "b_col": b_col, "bias": bias, "a_minus_b": m, "ci_lo": lo,
+                         "ci_hi": hi, "worlds": n, "a_higher": int((g["d"] > 0).sum())})
+    return pd.DataFrame(rows)
+
+
+def oracle_summary(oracles: pd.DataFrame) -> pd.DataFrame:
+    """Per bias: each class's value and likelihood oracle greedy gains over the logger (CTR points), and the paired
+    differences that separate the class from the objective: value − likelihood within a class, and blob − affine
+    and affine − bilinear within an objective."""
+    from training.analyze_cause_fair import world_references
+
+    o = oracles.merge(world_references()[WORLD + ["V_logger_greedy"]], on=WORLD, how="left")
+    for cls in ORACLE_CLASSES:
+        for obj in ("value", "likelihood"):
+            o[f"{obj}:{cls}"] = 100 * (o[f"{obj}_{cls}_greedy"] - o["V_logger_greedy"])
+        o[f"value−likelihood:{cls}"] = o[f"value:{cls}"] - o[f"likelihood:{cls}"]
+    for obj in ("value", "likelihood"):
+        o[f"{obj}:blob−affine"] = o[f"{obj}:blob"] - o[f"{obj}:affine_bilinear"]
+        o[f"{obj}:affine−bilinear"] = o[f"{obj}:affine_bilinear"] - o[f"{obj}:bilinear"]
+    cols = [c for c in o.columns if ":" in c]
+    rows = []
+    for bias, g in _panels(o):
+        for c in cols:
+            m, lo, hi, n = mean_ci(g[c])
+            rows.append({"bias": bias, "quantity": c, "mean": m, "ci_lo": lo, "ci_hi": hi, "worlds": n})
+    return pd.DataFrame(rows)
+
+
+def accounting_table(t: pd.DataFrame, a: str, b: str) -> pd.DataFrame:
+    """a − b in greedy gain split, per world, into its class's ceiling (value oracles), training (the ceiling minus the
+    best of the arm's own 20 trials) and selection (the best trial minus the selected one):
+    Δgain = Δceiling − Δtraining − Δselection."""
+    cols = ["gain_greedy", "own_value_oracle_gain", "training_gap", "regret_greedy"]
+    wa = t[t["arm"] == a].set_index(WORLD)[cols]
+    wb = t[t["arm"] == b].set_index(WORLD)[cols]
+    d = (wa - wb).dropna().reset_index()
+    rows = []
+    for bias, g in _panels(d):
+        r = {"a": a, "b": b, "bias": bias, "worlds": len(g)}
+        for c, name in zip(cols, ("gain", "ceiling", "training", "selection")):
+            m, lo, hi, _ = mean_ci(g[c])
+            r[name], r[name + "_lo"], r[name + "_hi"] = m, lo, hi
+        rows.append(r)
+    return pd.DataFrame(rows)
+
+
+def diagnostics_table(diag: pd.DataFrame) -> pd.DataFrame:
+    """The pick diagnostics (training/policy_diagnostics.py) per arm and bias: means over worlds."""
+    d = diag.copy()
+    d["arm"] = d["arm"].str.replace(r"_n\d+(_r\d+)?$", "", regex=True)
+    num = [c for c in d.columns if c not in WORLD + ["run", "arm", "world_seconds"] and pd.api.types.is_numeric_dtype(d[c])]
+    rows = []
+    for bias, g in _panels(d):
+        for arm, ga in g.groupby("arm"):
+            r = {"bias": bias, "arm": arm, "worlds": ga[WORLD].drop_duplicates().shape[0]}
+            r.update({c: float(ga[c].mean()) for c in num})
+            rows.append(r)
+    return pd.DataFrame(rows)
+
+
+# ------------------------------------------------------------------------------------------------------- figures
+# one colour per entity (Okabe-Ito), as in the CausE comparison; the two BLOB families share a hue, NQ solid
+COLORS = {"blob_nq": "#D55E00", "blob_mnq": "#D55E00", "cap_c": "#CC79A7", "cap_t": "#CC79A7", "warm_c": "#56B4E9",
+          "opc": "#0072B2", "dm_own": "#E69F00", "dm": "#E69F00", "tempered_logger": "#009E73"}
+MARKERS = {"blob_nq": "o", "blob_mnq": "s", "cap_c": "D", "cap_t": "d", "warm_c": "^", "opc": "P", "dm_own": "v",
+           "dm": "v", "tempered_logger": "x"}
+FIG_ARMS = ("blob_nq", "blob_mnq", "cap_c", "warm_c", "opc", "dm_own")
+
+
+def fig_gains(s: pd.DataFrame, out: Path, col: str = "gain_greedy", name: str = "fig1_greedy_gain",
+              xlabel: str = "greedy value − logger's greedy value (CTR pts)", arms=FIG_ARMS) -> None:
+    """Per bias panel: each arm's mean and 95% CI over worlds."""
+    from training.analyze_cause_fair import BIAS_NAMES
+    from training.representation_report import _plt, _save
+
+    plt = _plt()
+    panels = [p for p in ["biased (pooled)", "none", "w-high.g-none.v-none", "w-none.g-high.v-none",
+                          "w-none.g-none.v-high", "high"] if p in set(s["bias"])]
+    arms = [a for a in arms if a in set(s["arm"])]
+    fig, axes = plt.subplots(1, len(panels), figsize=(2.2 * len(panels) + 1.6, 0.36 * len(arms) + 1.2), sharey=True)
+    axes = np.atleast_1d(axes)
+    data = []
+    for ax, panel in zip(axes, panels):
+        g = s[s["bias"] == panel].set_index("arm")
+        for i, arm in enumerate(arms):
+            if arm not in g.index or col not in g or not np.isfinite(g.loc[arm, col]):
+                continue
+            r = g.loc[arm]
+            ax.errorbar([r[col]], [i], xerr=[[r[col] - r[col + "_lo"]], [r[col + "_hi"] - r[col]]], color=COLORS[arm],
+                        marker=MARKERS[arm], markersize=5, capsize=2, elinewidth=1, linestyle="none")
+            data.append({"panel": panel, "arm": arm, "mean": r[col], "lo": r[col + "_lo"], "hi": r[col + "_hi"]})
+        ax.axvline(0, color="black", linewidth=0.8)
+        ax.set_title("biased worlds (24)" if panel == "biased (pooled)" else BIAS_NAMES.get(panel, panel) + " (6)")
+        ax.set_yticks(range(len(arms)))
+        ax.set_yticklabels([NAMES[a] for a in arms])
+        ax.invert_yaxis()
+    fig.supxlabel(xlabel, fontsize=9)
+    fig.suptitle("Target value at 25k (mean and 95% CI over worlds); BLOB and the likelihood learners ignore "
+                 "propensities", y=1.02, fontsize=9.5)
+    _save(fig, out, name, pd.DataFrame(data))
+
+
+def fig_accounting(acc: pd.DataFrame, out: Path) -> None:
+    """BLOB − OPC and BLOB − CausE-cap, split into the class ceiling, training and selection (Δgain = Δceiling −
+    Δtraining − Δselection), per bias panel."""
+    from training.analyze_cause_fair import BIAS_NAMES
+    from training.representation_report import _plt, _save
+
+    plt = _plt()
+    pairs = [(a, b) for a, b in acc[["a", "b"]].drop_duplicates().itertuples(index=False)]
+    panels = [p for p in ["biased (pooled)", "none", "w-high.g-none.v-none", "w-none.g-high.v-none",
+                          "w-none.g-none.v-high", "high"] if p in set(acc["bias"])]
+    parts = (("gain", "net difference", "#000000"), ("ceiling", "class ceiling (value oracles)", "#0072B2"),
+             ("training", "− training gap (ceiling − best of 20 trials)", "#E69F00"),
+             ("selection", "− selection regret (best − selected)", "#009E73"))
+    fig, axes = plt.subplots(1, len(pairs), figsize=(6.2 * len(pairs), 3.2), sharey=True)
+    axes = np.atleast_1d(axes)
+    data = []
+    for ax, (a, b) in zip(axes, pairs):
+        g = acc[(acc["a"] == a) & (acc["b"] == b)].set_index("bias")
+        x = np.arange(len(panels))
+        for j, (col, label, color) in enumerate(parts):
+            sign = -1.0 if col in ("training", "selection") else 1.0
+            vals = np.array([sign * g.loc[p, col] if p in g.index else np.nan for p in panels])
+            lo = np.array([sign * g.loc[p, col + ("_hi" if sign < 0 else "_lo")] if p in g.index else np.nan for p in panels])
+            hi = np.array([sign * g.loc[p, col + ("_lo" if sign < 0 else "_hi")] if p in g.index else np.nan for p in panels])
+            xx = x + (j - 1.5) * 0.19
+            ax.bar(xx, vals, width=0.17, color=color, label=label, edgecolor="white", linewidth=0.5)
+            ax.errorbar(xx, vals, yerr=[vals - lo, hi - vals], fmt="none", ecolor="#444444", elinewidth=0.7, capsize=1.5)
+            data += [{"a": a, "b": b, "panel": p, "part": col, "signed": v} for p, v in zip(panels, vals)]
+        ax.axhline(0, color="black", linewidth=0.8)
+        ax.set_xticks(x)
+        ax.set_xticklabels(["biased\n(24)" if p == "biased (pooled)" else BIAS_NAMES.get(p, p).replace(" ", "\n")
+                            for p in panels])
+        ax.set_title(f"{NAMES[a]} − {NAMES[b]}")
+    axes[0].set_ylabel("CTR points (greedy)")
+    axes[-1].legend(loc="center left", bbox_to_anchor=(1.0, 0.5), frameon=False)
+    fig.suptitle("Where the difference comes from: structural ceiling, training and selection (mean and 95% CI over "
+                 "worlds)", y=1.03, fontsize=9.5)
+    _save(fig, out, "fig2_accounting", pd.DataFrame(data))
+
+
+def compare_main(args) -> None:
+    from training.analyze_cause_fair import BEST_ITEM, reference_rows
+
+    out = Path(args.out)
+    out.mkdir(parents=True, exist_ok=True)
+    blob = blob_rows(args.blob_runs)
+    refs = reference_rows(dm_own_runs=[DM_OWN_ANIME])
+    refs = refs[refs["arm"].isin(REFERENCE_ARMS)]
+    lik = likelihood_rows()
+    oracles = class_oracle_table(Path(args.oracles)) if args.oracles else None
+    t = condition_table(blob, refs, lik, oracles, pd.read_csv(BEST_ITEM))
+    t.to_csv(out / "table_conditions.csv", index=False, float_format="%.8g")
+    s = summary_table(t)
+    s.to_csv(out / "table_summary.csv", index=False, float_format="%.6g")
+    others = [a for a in ARMS if a in set(t["arm"])]
+    pairs = []
+    for a in [x for x in BLOB_ARMS if x in set(t["arm"])]:
+        pairs += [paired_table(t, a, [b for b in others if b != a]),
+                  paired_table(t, a, [b for b in others if b != a], col="gain"),
+                  paired_table(t, a, [b for b in ("cap_c", "warm_c") if b in set(t["arm"])], col="gain_tempered"),
+                  paired_table(t, a, [b for b in ("opc", "tempered_logger") if b in set(t["arm"])], col="gain_tempered",
+                               b_col="gain")]
+    pairs.append(paired_table(t, "opc", [b for b in ("cap_c", "dm_own") if b in set(t["arm"])]))
+    p = pd.concat(pairs, ignore_index=True)
+    p.to_csv(out / "table_paired.csv", index=False, float_format="%.6g")
+    acc = []
+    if oracles is not None:
+        oracle_summary(oracles).to_csv(out / "table_class_oracles.csv", index=False, float_format="%.6g")
+        acc = [accounting_table(t, a, b) for a in BLOB_ARMS for b in ("opc", "cap_c") if {a, b} <= set(t["arm"])]
+        if acc:
+            pd.concat(acc, ignore_index=True).to_csv(out / "table_accounting.csv", index=False, float_format="%.6g")
+    fig_gains(s, out)
+    fig_gains(s, out, col="gain_tempered", name="fig1b_tempered_gain",
+              xlabel="stochastic value − logger's value (CTR pts); BLOB and CausE tempered", arms=("blob_nq", "blob_mnq",
+                                                                                                   "cap_c", "warm_c"))
+    if oracles is not None and acc:
+        fig_accounting(pd.concat(acc, ignore_index=True), out)
+    if args.diagnostics:
+        diag = pd.read_csv(Path(args.diagnostics) / "policy_diagnostics.csv")
+        diagnostics_table(diag).to_csv(out / "table_pick_diagnostics.csv", index=False, float_format="%.6g")
+        pp = pd.read_csv(Path(args.diagnostics) / "policy_pairs.csv")
+        pp.to_csv(out / "policy_pairs.csv", index=False, float_format="%.8g")
+    print(f"wrote {out}: {len(t)} rows; arms {sorted(t['arm'].unique())}")
+
+
 def main(argv=None) -> None:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     sub = ap.add_subparsers(dest="command", required=True)
@@ -259,9 +621,16 @@ def main(argv=None) -> None:
     tune.add_argument("--out", required=True)
     tune.add_argument("--k", type=int, default=10, help="trials per simulated study (default 10)")
     tune.add_argument("--resamples", type=int, default=300)
+    comp = sub.add_parser("compare", help="the bounded comparison's tables")
+    comp.add_argument("--blob-runs", nargs="+", required=True)
+    comp.add_argument("--oracles", default=str(ORACLE_RUN), help="the class-oracle run ('' to skip)")
+    comp.add_argument("--diagnostics", default=None, help="the policy_diagnostics output folder")
+    comp.add_argument("--out", required=True)
     args = ap.parse_args(argv)
     if args.command == "tune":
         tune_main(args)
+    else:
+        compare_main(args)
 
 
 if __name__ == "__main__":
