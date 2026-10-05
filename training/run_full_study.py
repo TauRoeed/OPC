@@ -30,6 +30,7 @@ from training.trainer_trials import (
     _training_device,
 )
 
+from training.blob_trials import add_blob_arguments, blob_options_from_args
 from training.cause_trials import add_cause_arguments, cause_options_from_args
 
 VALID_STUDY_METHODS = ("opc", "no_propensity")  # the default arms
@@ -38,7 +39,7 @@ VALID_STUDY_METHODS = ("opc", "no_propensity")  # the default arms
 BASELINE_METHODS = ("dm", "tempered_logger")
 # Opt-in prior-work baselines: cause = native CausE on the fixed-budget warm/uniform data
 # (training/cause_trials.py; one summary method per prediction and rho, cause_<prediction>_r<rho per mille>).
-PRIOR_WORK_METHODS = ("cause",)
+PRIOR_WORK_METHODS = ("cause", "blob")
 ALL_STUDY_METHODS = VALID_STUDY_METHODS + BASELINE_METHODS + PRIOR_WORK_METHODS
 # Where the regression reward model's data come from: 'external' = a separate reg slice
 # (--shared-regression-size, the same at every train size); 'train' = each train size's own
@@ -128,9 +129,10 @@ def _summary_has_methods(summary_path: Path, methods) -> bool:
     if "method" not in summary.columns:
         return False
     have = set(summary["method"].astype(str))
-    # the CausE arm writes one row per prediction and rho, labeled by family: cause_*, causewarm_*, causecap_*
-    return all(any(h.split("_")[0] in ("cause", "causewarm", "causecap") for h in have) if m == "cause" else m in have
-               for m in methods)
+    # the CausE arm writes one row per prediction and rho, labeled by family: cause_*, causewarm_*, causecap_*;
+    # the BLOB arm one row per variational family, blob_*
+    prefixes = {"cause": ("cause", "causewarm", "causecap"), "blob": ("blob",)}
+    return all(any(h.split("_")[0] in prefixes[m] for h in have) if m in prefixes else m in have for m in methods)
 
 
 def _load_cached_method_df(run_dir: Path, method: str) -> pd.DataFrame:
@@ -403,6 +405,7 @@ def _run_condition(
     opc_gradient: str = STUDY_OPC_GRADIENT,
     search_space: dict | None = None,
     cause_options: dict | None = None,
+    blob_options: dict | None = None,
 ):
     """One condition. ``methods`` may add the opt-in baselines (``BASELINE_METHODS``); their
     summaries and trials come back as a 6th item ``{method: (summary_df, trials_df)}`` when
@@ -719,6 +722,22 @@ def _run_condition(
             device=torch.device("cpu") if cause_meta.get("device") == "cpu" else _training_device(require_cuda=require_cuda),
         ))
 
+    blob_meta = None
+    if "blob" in methods:  # BLOB-supplied-source on the same N warm rows (training/blob_trials.py)
+        from training.blob_trials import BLOB_DEFAULTS, blob_trainer_trial
+
+        our_x, our_a = dataset["our_x"], dataset["our_a"]
+        blob_constants = {"initial_reward": _dataset_log_constants(dataset, our_x, our_a)["initial_reward"],
+                          "logger_greedy": _policy_greedy_reward_from_embeddings(dataset, our_x, our_a)}
+        blob_meta = {**BLOB_DEFAULTS, **(blob_options or {})}
+        blob_meta["n_trials"] = int(blob_meta.get("n_trials") or n_trials)
+        extra.update(blob_trainer_trial(
+            train_sizes=train_sizes, dataset=dataset, split_cache=split_cache, seed=int(seed), n_trials=int(n_trials),
+            log_constants=blob_constants, options=blob_options, sampler=str(sampler), stage=str(stage),
+            run_idx=LOGGED_RUN_IDX,
+            device=torch.device("cpu") if blob_meta.get("device") == "cpu" else _training_device(require_cuda=require_cuda),
+        ))
+
     # Unified long logs for post-hoc analysis.
     trials_frames = []
     runs_frames = []
@@ -809,6 +828,7 @@ def _run_condition(
         "q_bad_value": shared_regression_bundle.get("q_bad_value", q_bad_value),
         "rand_ctr": rand_ctr_meta or {},
         "cause": cause_meta,
+        "blob": blob_meta,
     }
     if return_extra:
         return opc_df, noprop_df, opc_trials, noprop_trials, meta, extra
@@ -875,6 +895,7 @@ def main():
     add_world_arguments(parser)
     add_search_space_arguments(parser)
     add_cause_arguments(parser)
+    add_blob_arguments(parser)
     parser.add_argument(
         "--logging-uniform-mix",
         type=float,
@@ -1276,6 +1297,7 @@ def main():
                                 opc_gradient=str(args.opc_gradient),
                                 search_space=search_space_from_args(args),
                                 cause_options=cause_options_from_args(args),
+                                blob_options=blob_options_from_args(args),
                             )
                         except Exception as e:
                             failures.append({"run_key": run_key, "error": repr(e)})
