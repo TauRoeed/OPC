@@ -580,16 +580,18 @@ Per world, gain = ceiling − training gap − selection regret (§4); a paired 
 
 - **Training is most of BLOB's deficit**, about three quarters of it. Selection accounts for the rest.
   - The best of BLOB-NQ's 20 trials reaches +1.98, against +2.84 for OPC and +3.22 for CausE-cap.
-  - As a share of their class's value oracle these are 0.21 against 0.37 and 0.42.
+  - The selected policies reach 0.21 (BLOB-NQ), 0.37 (OPC) and 0.42 (CausE-cap) of their class's value-oracle
+    gain.
 - **Against its own infinite-data likelihood limit**, BLOB-NQ's best trial reaches 36% (1.98 of 5.49), against
   CausE-cap's 62% (3.22 of 5.21).
   - Under warp, where that limit equals the value ceiling (+7.2 in both classes), BLOB-NQ reaches 22% (+1.60) and
     CausE-cap 59% (+4.25).
   - The whole warp difference, −2.65, is training; selection there is +0.00.
 - **Selection matters only under combined bias.** There it is 1.56 of BLOB's 3.33-point deficit against
-  CausE-cap; elsewhere it is within ±0.2.
+  CausE-cap. Under the single bias types it is within ±0.2. Without bias BLOB's selection is the better one, by 0.45
+  points.
 - **OPC − CausE-cap (reused rows) is training too.** OPC's 0.41 deficit is +0.38 training and +0.03 selection,
-  nearly all of it under warp. This is the open question the CausE comparison left: the likelihood fit learns the
+  mostly under warp. This is the open question the CausE comparison left: the likelihood fit learns the
   warp faster from 25k rows than OPC's DR objective does.
 
 ### 5.7 Where the policies recommend: extrapolation
@@ -655,7 +657,7 @@ Exact pick diagnostics of each selected policy, means over the 24 biased worlds 
      at its picks (§5.7).
    - Its caution protects it without bias and costs it under bias.
 5. **Where does OPC differ from it given the same source? In moving users to items the logger shows less often.**
-   - 88% of OPC's lead (+1.11 of +1.27) comes from the users for whom OPC's pick is the rarer one.
+   - Most of OPC's lead (+1.11 of +1.27) comes from the users for whom OPC's pick is the rarer one.
    - By bias, OPC leads under combined (+2.86), warp (+1.45) and group (+0.62), ties under vector (−0.13 [−0.34,
      +0.09] for BLOB − OPC), and trails without bias (−0.43).
 6. **Is any difference training, selection or capacity? Mostly training, then selection; not capacity.**
