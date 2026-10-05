@@ -258,6 +258,10 @@ def main(argv=None) -> None:
     ap.add_argument("--runs", nargs="+", required=True, help="run directories holding *_selected_policy.npz files")
     ap.add_argument("--emb-dir", default="BPR/embeddings")
     ap.add_argument("--ctr", type=float, default=0.05)
+    ap.add_argument("--datasets", nargs="+", default=None,
+                    help="only these datasets (the output is resumable by world, so a dataset can be added later)")
+    ap.add_argument("--expect", type=int, default=None,
+                    help="skip a world with fewer saved policies than this (an arm still running)")
     ap.add_argument("--out", required=True)
     args = ap.parse_args(argv)
     out = Path(args.out)
@@ -278,7 +282,10 @@ def main(argv=None) -> None:
         prev = pd.read_csv(diag_path)
         done = set(zip(prev["dataset"], prev["bias"], prev["seed"]))
     for (ds, bias, seed), items in sorted(worlds.items()):
-        if (ds, bias, seed) in done:
+        if (ds, bias, seed) in done or (args.datasets and ds not in args.datasets):
+            continue
+        if args.expect is not None and len(items) < args.expect:
+            print(f"{ds} {bias} {seed}: {len(items)} policies, expected {args.expect}; skipped", flush=True)
             continue
         t0 = time.time()
         seed_everything(seed)
