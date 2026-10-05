@@ -86,4 +86,4 @@ def test_paired_contrast_across_columns():
                      "gain_tempered": 6.0 + s - 100})
     p = paired_table(pd.DataFrame(rows), "opc", ["cap_c"], col="gain", b_col="gain_tempered").set_index("bias")
     assert p.loc["high", "a_minus_b_gain_tempered"] == pytest.approx(0.5)
-    assert p.loc["high", "a_higher"] == 2
+    assert p.loc["high", "a_higher"] == 1  # 7 - 6 > 0; 7 - 7 is not
