@@ -13,7 +13,8 @@ Offline policy comparison experiments with matrix-factorization embeddings.
 **Code Atlas (PDF snapshot of the published page, version 10, code at 7558220 on `cause-fair`):** [`docs/opc_code_atlas.pdf`](docs/opc_code_atlas.pdf)  
 **CausE baseline (specification, OPC mapping, budget protocol):** [`docs/cause_baseline.md`](docs/cause_baseline.md)  
 **CausE vs OPC, bounded development comparison (report before scaling):** [`docs/cause_dev_report_20261004.md`](docs/cause_dev_report_20261004.md)  
-**CausE vs the revalidated OPC, the fair 25k comparison (CausE-warm, CausE-capacity-matched):** [`docs/cause_fair_comparison_25k.md`](docs/cause_fair_comparison_25k.md)
+**CausE vs the revalidated OPC, the fair 25k comparison (CausE-warm, CausE-capacity-matched):** [`docs/cause_fair_comparison_25k.md`](docs/cause_fair_comparison_25k.md)  
+**Handoff and checkpoint before the next representation-mismatch phase (branch map, status, open questions, roadmap):** [`docs/representation_mismatch_handoff_20261005.md`](docs/representation_mismatch_handoff_20261005.md)
 
 Main flow:
 1. Fit/generate BPR artifacts (user/item factors + metadata arrays).
