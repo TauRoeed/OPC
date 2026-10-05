@@ -440,4 +440,32 @@ without clearly dominating.**
 - **The released graph's step-by-step replay is unchanged** (`tests/test_blob_tf_reference.py`), since the default
   L scale is 1.
 - **The controlled study's comparison tables regenerate byte for byte** with the extended analysis.
-- Suites: see §8.1.
+- **Suites** at 30553ab (the code of a7317ef; later commits change only documents and results):
+  - With the GPU: 595 passed in 3 min 08 s.
+  - With it hidden (`CUDA_VISIBLE_DEVICES=`): 565 passed and 11 skipped in 3 min 17 s.
+  - The 4 warnings are the existing ones: sklearn's lbfgs convergence on toy data and a tensor-to-scalar warning in
+    a BLOB initialization test.
+
+### 8.1 Reproducing this phase
+
+Each run ran from a pinned, clean worktree at the commit named; outputs go to `artifacts/full_study/run_<run-tag>`.
+
+The calibration, at f9b258b (§3):
+
+```bash
+python -m training.run_full_study_parallel --run-tag blob_calib_s200 --emb-dir BPR/embeddings --out-dir artifacts/full_study --datasets ml kuairand anime --bias-configs high/none/none none/none/high high --seeds 200 201 --ctr-levels 0.05 --train-sizes 25000 --n-trials 30 --sampler random --stage development --slim --methods blob --blob-families nq --blob-lr-range 3e-3 3e-1 --blob-epochs 10 30 100 300 1000 --blob-wa-m -1 1 3 --blob-wb-m -6 -3 0 --blob-kappa-s 0.1 --blob-variants released L1000 L100 L10 S100 --blob-seed-tag calibration --blob-pick-diagnostics --max-workers 3 --num-gpus 1
+```
+
+```bash
+python -m training.analyze_blob calib --runs artifacts/full_study/run_blob_calib_s200 --out artifacts/full_study/blob_prior_calibration/calibration
+```
+
+The main grid, at d59ab80 (§4):
+
+```bash
+python -m training.run_full_study_parallel --run-tag blob_pnorm_main_25k --emb-dir BPR/embeddings --out-dir artifacts/full_study --datasets ml kuairand anime --bias-configs none high/none/none none/high/none none/none/high high --seeds 100 101 --ctr-levels 0.05 --train-sizes 25000 --n-trials 20 --sampler random --stage development --slim --methods blob --blob-families nq --blob-variants L10 --blob-lr-range 3e-3 3e-1 --blob-epochs 10 30 100 300 1000 --blob-wa-m -1 1 3 --blob-wb-m -6 -3 0 --blob-kappa-s 0.1 --blob-pick-diagnostics --save-policies --max-workers 3 --num-gpus 1
+```
+
+The pick diagnostics and the comparison (§4–§7) are the two commands in
+`artifacts/full_study/blob_prior_calibration/README.md`. The comparator rows and policies are the controlled study's,
+unchanged.

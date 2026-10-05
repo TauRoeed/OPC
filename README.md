@@ -10,7 +10,7 @@ Offline policy comparison experiments with matrix-factorization embeddings.
 **Code handoff since c072f9b (for Roee):** [`docs/roee_handoff_20260928.md`](docs/roee_handoff_20260928.md)  
 **Representation repair, stage write-ups:** [`docs/representation_repair_dev_20260927.md`](docs/representation_repair_dev_20260927.md) · follow-up: [`docs/representation_repair_followup_20260927.md`](docs/representation_repair_followup_20260927.md)  
 **Objective and weighting decision record:** [`docs/decision_record_opc_objective_weighting.md`](docs/decision_record_opc_objective_weighting.md)  
-**Code Atlas (PDF snapshot of the published page, version 11, code at de1d335 on `blob-controlled-integration`; exported by `scripts/export_atlas_pdf.py`):** [`docs/opc_code_atlas.pdf`](docs/opc_code_atlas.pdf)  
+**Code Atlas (PDF snapshot of the published page, version 12, code at 30553ab on `blob-prior-calibration`; exported by `scripts/export_atlas_pdf.py`):** [`docs/opc_code_atlas.pdf`](docs/opc_code_atlas.pdf)  
 **CausE baseline (specification, OPC mapping, budget protocol):** [`docs/cause_baseline.md`](docs/cause_baseline.md)  
 **CausE vs OPC, bounded development comparison (report before scaling):** [`docs/cause_dev_report_20261004.md`](docs/cause_dev_report_20261004.md)  
 **CausE vs the revalidated OPC, the fair 25k comparison (CausE-warm, CausE-capacity-matched):** [`docs/cause_fair_comparison_25k.md`](docs/cause_fair_comparison_25k.md)  
