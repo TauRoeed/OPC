@@ -12,6 +12,27 @@ BLOB (Bayesian Latent Organic Bandit; Sakhi, Bonner, Rohde & Vasile, KDD 2020) c
 This stage is diagnostic: BLOB is a model-based source-to-target adaptation baseline in the environment we already
 understand. No new representation corruption is introduced.
 
+**Summary of the results** (§5–§7; 25k, the 30 development worlds; CTR points over the logger's greedy value).
+- **The reproduction holds.** BLOB's released code reproduces every BLO and BLOB entry of the paper's Table 3
+  within 0.02 CTR points. The PyTorch port replays the released TensorFlow graph step by step.
+- **BLOB-supplied-source is the weakest model-based learner on biased worlds.** Given the logger's own vectors as
+  its source and the same 25k rows, BLOB-NQ gains +1.42 [0.85, 1.98]. It trails:
+  - the plain likelihood learner (CausE-cap at ρ = 0) by 1.67 [1.06, 2.29], higher in 2 of 24 worlds;
+  - OPC by 1.27 [0.76, 1.77];
+  - DM-only by 0.74.
+  Without bias it loses least (+0.38 against CausE-cap, 6/6).
+- **Neither capacity nor the likelihood principle explains it; finite-sample learning does.**
+  - BLOB's class equals OPC's within 0.07 points of structural value.
+  - Its infinite-data likelihood limit (+5.49) is no lower than the plain learner's (+5.21).
+  - About three quarters of its deficit is training, what its trials reach. The rest is NLL selection, mostly under
+    combined bias.
+  - Its K × K deviation from the source stays at about 2.5% of the source term.
+- **BLOB extrapolates less, not better.** It keeps 64% of users on the logger's top item, against 38–42% for
+  CausE-cap and OPC. Its moves are worth what theirs are worth, and its click model is the least accurate in every
+  propensity bin. Most of OPC's lead over BLOB (+1.11 of +1.27) comes from users OPC moves to items the logger
+  shows less often.
+- **No 5k / 100k extension was needed** (the pre-registered trigger did not fire). BLOB need not be in every cell.
+
 **Sources.**
 - Paper: arXiv 2008.12504, KDD 2020, DOI 10.1145/3394486.3403121.
 - Code: `criteo-research/blob` at e15cb38, cloned to `~/code/BLOB` and left unmodified. The bandit layer is
