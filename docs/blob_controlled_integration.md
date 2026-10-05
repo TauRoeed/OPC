@@ -161,7 +161,8 @@ softmax(⟨x_u, a_a⟩ / T). Nothing else.
 - **Secondary metric:** its softmax, raw (τ = 1) and with the fair tempering of the CausE comparison (logits × s,
   with s chosen by the DR lower bound on validation, using q̂ fit on the same N rows).
 
-**Search** (20 random trials per world and family, OPC's count; the space is fixed on tuning seeds 200/201):
+**Search.** The main grid draws 20 random trials per world and family, OPC's count. They come from a space chosen
+on separate tuning worlds by the rule below. The wide tuning space:
 - lr log-uniform in [1e-4, 3e-2] (released 1e-3);
 - epochs {10, 30, 100, 300} (released 800–1,200 at a different N);
 - the prior means μ_wa {−1 (released), 1, 3} and μ_wb {−6 (released), −3, 0}: how strongly the source-aligned term and
@@ -169,6 +170,38 @@ softmax(⟨x_u, a_a⟩ / T). Nothing else.
 - σ_κ {0.01 (released), 0.1, 1}: how free the per-item intercepts are.
 
 The rest of the priors stay as released.
+
+**Tuning protocol.** This is the CausE comparison's protocol (§3 of `docs/cause_fair_comparison_25k.md`), adapted to
+BLOB's dimensions. It was written at 12:45 on 2026-10-05, while the tuning ran. At that point only the log lines of
+one finished cell (its timing and best validation NLL) had been seen, and no value.
+- **Tuning worlds:**
+  - seeds 200/201 (never in the main grid) × ml, kuairand, anime × warp high, vector high, combined high; N = 25,000;
+  - 40 trials per world and family over the wide space (`run_blob_tune_s200`, code e21e9cf);
+  - the trial configurations depend on the seed and the family, not on the world.
+- **A candidate sub-space's score:**
+  - a 10-trial study is simulated inside the sub-space, by 300 resamples of the logged trials;
+  - it selects the finite trial with the lowest validation NLL;
+  - the score is that trial's true greedy gain over the logger's greedy value, averaged over the 18 worlds.
+  - k is 10 rather than 20 because each candidate keeps only part of the 40 trials.
+- **Candidates,** per family:
+  1. The prior structure, one dimension at a time with the others searched: σ_κ fixed at 0.01, 0.1 or 1; μ_wa fixed
+     at −1, 1 or 3; μ_wb fixed at −6, −3 or 0. The wide space is also a candidate.
+  2. On the best of these:
+     - the 1.5-decade lr windows [1e-4, 3e-3], [3e-4, 1e-2] and [1e-3, 3e-2];
+     - the epoch windows {10, 30, 100}, {30, 100, 300} and {100, 300};
+     - the best lr window combined with the best epoch window.
+  - A candidate needs at least 5 trials per cell on average.
+- **Decision rule:** the eligible candidate with the best score is the family's main space.
+- **Edges:**
+  - In the chosen space, for each searched dimension and value, compute the mean gap between a usable trial's true
+    greedy gain and its cell's best trial (lr per half-decade).
+  - Suppose the best value lies at an edge of the wide range and beats the adjacent value by more than 0.25 points.
+    Then the range is extended one step past that edge in a supplementary 40-trial tuning run on the same worlds,
+    and the rule is applied again.
+  - One step is a half-decade for lr, 300 → 1,000 for epochs, a decade for σ_κ, and +2 / +3 for μ_wa / μ_wb.
+- **Families:** both released families run in the main grid, each with its own chosen space and 20 trials. The
+  primary BLOB row is the family with the higher score in its chosen space. The other is reported beside it.
+- Nothing is tuned on the 30 main worlds.
 
 **Capacity, against the other arms** (§1.6; as score functions for the greedy ranking):
 
