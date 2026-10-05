@@ -11,6 +11,7 @@ Usage: python -m training.analyze_blob tune --runs artifacts/full_study/run_blob
 from __future__ import annotations
 
 import argparse
+import re
 from pathlib import Path
 
 import numpy as np
@@ -745,6 +746,40 @@ def tables_md(t: pd.DataFrame, s: pd.DataFrame, p: pd.DataFrame, acc: pd.DataFra
     return "\n\n".join(out) + "\n"
 
 
+PAIRS = (("opc", "blob_nq"), ("opc", "blob_mnq"), ("causecap_c_r000", "blob_nq"), ("opc", "causecap_c_r000"),
+         ("oracle_affine_bilinear_value", "opc"), ("oracle_blob_likelihood", "blob_nq"))
+
+
+def _short(name: str) -> str:
+    return re.sub(r"_n\d+(_r\d+)?$", "", name.split("/")[-1])
+
+
+def pairs_summary(pp: pd.DataFrame, pairs=PAIRS) -> pd.DataFrame:
+    """Per bias and ordered pair (A, B) of policies: the share of users where they pick the same item, V_A − V_B
+    (CTR points), and on the users where they disagree, the shares where A's or B's pick is the one the logger shows
+    less often, with each part's contribution to V_A − V_B."""
+    d = pp.copy()
+    d["sa"], d["sb"] = d["a"].map(_short), d["b"].map(_short)
+    rows = []
+    for a, b in pairs:
+        fwd = d[(d["sa"] == a) & (d["sb"] == b)].copy()
+        rev = d[(d["sa"] == b) & (d["sb"] == a)].copy()
+        rev = rev.assign(value_diff=-rev["value_diff"], value_diff_a_rarer=-rev["value_diff_b_rarer"],
+                         value_diff_b_rarer=-rev["value_diff_a_rarer"], users_a_rarer=rev["users_b_rarer"],
+                         users_b_rarer=rev["users_a_rarer"])
+        g = pd.concat([fwd, rev], ignore_index=True)
+        if g.empty:
+            continue
+        for bias, gb in _panels(g):
+            r = {"a": a, "b": b, "bias": bias, "worlds": len(gb)}
+            for col, scale in (("agree", 1.0), ("value_diff", 100.0), ("users_a_rarer", 1.0),
+                               ("value_diff_a_rarer", 100.0), ("users_b_rarer", 1.0), ("value_diff_b_rarer", 100.0)):
+                m, lo, hi, _n = mean_ci(scale * gb[col])
+                r[col], r[col + "_lo"], r[col + "_hi"] = m, lo, hi
+            rows.append(r)
+    return pd.DataFrame(rows)
+
+
 def data_identity_table(blob: pd.DataFrame, lik: pd.DataFrame) -> pd.DataFrame:
     """Per world and BLOB family: the click sum of its N training rows against CausE-cap's warm rows at ρ = 0 (the
     rows OPC trains on), and its validation size against CausE-cap's."""
@@ -806,6 +841,7 @@ def compare_main(args) -> None:
         fig_picks(dt, out)
         pp = pd.read_csv(Path(args.diagnostics) / "policy_pairs.csv")
         pp.to_csv(out / "policy_pairs.csv", index=False, float_format="%.8g")
+        pairs_summary(pp).to_csv(out / "table_pick_pairs.csv", index=False, float_format="%.6g")
     print(f"wrote {out}: {len(t)} rows; arms {sorted(t['arm'].unique())}")
 
 
