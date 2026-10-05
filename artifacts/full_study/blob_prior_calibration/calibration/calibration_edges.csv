@@ -1,0 +1,5 @@
+family,dimension,best_value,best_below_best,neighbour,margin,at_wide_edge,extend
+nq,lr,3e-2-1e-1,-1.1452,,,False,False
+nq,epochs,1000,-0.960944,300,0.0305071,True,False
+nq,wa_m,1,-1.19051,,,False,False
+nq,wb_m,0,-0.731463,-3,0.365999,True,True

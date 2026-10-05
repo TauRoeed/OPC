@@ -1,0 +1,5 @@
+variant,range,available,gain_greedy
+released,extended 3e-3-3e-1,30,1.7855
+released,previous 3e-3-1e-1,25,1.73683
+L10,extended 3e-3-3e-1,30,3.64667
+L10,previous 3e-3-1e-1,25,3.65064

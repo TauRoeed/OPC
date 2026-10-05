@@ -185,3 +185,64 @@ become unintentionally stronger with catalog size.
 - **B, the gap substantially closes.** Calibrated BLOB becomes competitive but does not dominate.
 - **C, the ordering changes.** Calibrated BLOB is the strongest or tied strongest in important regimes. In that case,
   stop and analyze before any simulator change.
+
+## 3. Calibration result and the frozen choice
+
+**Run.** `run_blob_calib_s200`, code f9b258b on a pinned worktree, 2026-10-05 20:35–21:31, 3 workers. 18 tuning worlds
+× 30 configurations × 5 variants = 2,700 trials; none diverged. Tables are in
+`artifacts/full_study/blob_prior_calibration/calibration/`: `calibration_decision.csv`, `calibration_mechanism.csv`,
+`calibration_lr_*.csv` and `calibration_edges.csv`. Rebuild them with
+`python -m training.analyze_blob calib --runs artifacts/full_study/run_blob_calib_s200 --out …`.
+
+**Scores** (a simulated 20-trial study selected by validation NLL; greedy gain over the logger's greedy value, CTR points,
+mean over the 18 worlds; paired 95% CIs over worlds):
+
+| variant | score | − released | − P₀ = 100 | best of 20 | selection regret |
+|---|---|---|---|---|---|
+| A. released | +1.79 | — | −1.74 [−2.70, −0.78] | +2.52 | 0.73 |
+| C. P₀ = 1,000 | +2.85 | +1.06 [+0.42, +1.70] | −0.68 [−1.03, −0.32] | +3.16 | 0.32 |
+| B. P₀ = 100 (derived) | +3.52 | +1.74 [+0.78, +2.70] | — | +3.80 | 0.28 |
+| **D. P₀ = 10** | **+3.65** | +1.86 [+0.84, +2.88] | **+0.12 [+0.05, +0.20]** | +3.91 | 0.26 |
+| E. prior only, s_ζ at P₀ = 100 | +3.48 | +1.70 [+0.73, +2.66] | −0.04 [−0.12, +0.04] | +3.65 | 0.17 |
+
+**The rule's choice is BLOB-Pnorm with P₀ = 10, the arm `blob_l10_nq`.** It beats the derived P₀ = 100 by 0.12 points.
+The pre-registered tie-break keeps P₀ = 100 only for a margin below 0.10, so it does not apply. The two are close (CI
+[0.05, 0.20]), and the choice is a weaker prior than the derived one: L = chol(Ψ̃ᵀΨ̃/10), √(P/10) = 18.8, 27.5 and 32.9
+times the released L.
+
+**What the variants do** (the NLL-selected trial of each world, means over the 18 worlds):
+
+| variant | correction ‖ΔM‖ / ‖s+(w_a) I‖ | users on the logger's top item | median pick rank | validation NLL | population NLL under π0 (exact) |
+|---|---|---|---|---|---|
+| released | 0.03 | 60% | 0.2 | 0.3962 | 0.3894 |
+| P₀ = 1,000 | 0.11 | 52% | 0.8 | 0.3940 | 0.3874 |
+| P₀ = 100 | 0.24 | 43% | 2.4 | 0.3928 | 0.3862 |
+| P₀ = 10 | 0.28 | 42% | 3.5 | 0.3926 | 0.3860 |
+| prior only, P₀ = 100 | 0.21 | 44% | 2.5 | 0.3928 | 0.3862 |
+
+- **The catalog-size prior is what held BLOB back on the tuning worlds.** Weakening the prior toward the paper's P₀
+  regime raises the correction from 3% to 24–28% of the source term and moves more users off the logger's choice
+  (60% → 42–43%). The click model fits better: the exact population NLL falls by 0.003, and validation AUC rises
+  from 0.678 to 0.692.
+- **The effect is the prior, not the optimizer geometry.** The prior-only variant (E) scores like the
+  L-normalized one at the same prior (−0.04 [−0.12, +0.04]). Released L with the P₀ = 100 prior on ζ adapts as much
+  within this budget, though with a larger ζ (‖ζ‖ ≈ 77 against 10).
+- **The learning-rate caveat is resolved.**
+  - The one-step extension (lr up to 3e-1) changed the released prior's score by +0.05 (1.74 within the previous
+    range, 1.79 extended) and P₀ = 10's by −0.004.
+  - The chosen variant's best half-decade is 3e-2–1e-1, an interior value. The new top half-decade, 1e-1–3e-1, is its
+    worst.
+  - The previous range was not what limited BLOB.
+- **Edges.** In the chosen variant's trials, μ_wb's best value is its top, 0, beating −3 by 0.37 points. 1,000 epochs
+  is the top value too, but within 0.03 of 300. A larger μ_wb means a larger initial correction scale, the same
+  direction as the weaker prior. As fixed in §2, the space is not widened again; it is a limitation.
+
+**Frozen for the main grid (Phase 5):**
+- the arm `blob_l10_nq`, BLOB-Pnorm-NQ with P₀ = 10, L = chol(Ψ̃ᵀΨ̃/10);
+- σ_κ = 0.1;
+- lr log-uniform on [3e-3, 3e-1], epochs {10, 30, 100, 300, 1,000}, μ_wa {−1, 1, 3}, μ_wb {−6, −3, 0};
+- 20 trials per world, no seed tag, on the 30 main worlds, once;
+- pick diagnostics and saved policies.
+
+The derived P₀ = 100 is not run on the main worlds. On the tuning worlds it is 0.12 points below P₀ = 10, with
+the same mechanism.
