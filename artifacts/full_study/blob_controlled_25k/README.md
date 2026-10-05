@@ -45,7 +45,7 @@ python -m training.analyze_blob compare --blob-runs artifacts/full_study/run_blo
 | `table_paired.csv` | paired differences (BLOB − each arm; OPC − CausE-cap, DM) |
 | `table_class_oracles.csv` | the class oracles per bias: value and likelihood objectives, class and objective contrasts |
 | `table_accounting.csv` | Δgain = Δceiling − Δtraining − Δselection |
-| `table_pick_diagnostics.csv`, `policy_pairs.csv` | where the selected policies recommend; pairwise agreement and its value |
+| `table_pick_diagnostics.csv`, `table_pick_pairs.csv`, `policy_pairs.csv` | where the selected policies recommend; pairwise agreement and its value |
 | `table_data_identity.csv` | BLOB's training and validation rows against CausE-cap's warm rows |
 | `diagnostics/policy_diagnostics.csv`, `diagnostics/policy_pairs.csv` | the pick diagnostics of every saved policy, the logger and BLOB's prior mean, per world |
 | `class_oracles/class_oracles_<ds>.csv` | every class-oracle fit kept (class × objective × world), copied from `run_class_oracles_20261005`, with its settings |
