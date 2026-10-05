@@ -417,3 +417,123 @@ following holds.
   - BLOB only; OPC already has 5k and 100k rows in the corrected Stage 2.
   - The reason is recorded here before launch.
 - Otherwise the class oracles stand in for the large-N limit, and nothing more is run.
+
+## 5. Results (25k, the 30 main worlds)
+
+All numbers are CTR points over the logger: greedy gain is measured against the logger's greedy value, and
+stochastic gain against the logger's own value. Brackets are 95% t-intervals over worlds, paired by world where
+stated: the 24 biased worlds pooled, or 6 per bias type. The tables and figures are in
+`artifacts/full_study/blob_controlled_25k/` (`tables.md`, `table_*.csv`, `fig*`). Its README has the commands that
+rebuild them. Development stage.
+
+### 5.1 Runs and checks
+
+| run | code | content | wall clock (2026-10-05), workers |
+|---|---|---|---|
+| `run_blob_tune_s200` | e21e9cf | §3.1 tuning, first round: 18 tuning worlds × 2 families × 40 trials | 12:31–14:06, 2 |
+| `run_blob_tune_s200_supp_nq`, `_supp_mnq` | 152502b | §3.2 supplementary round: 18 worlds × 40 trials, extended spaces | 14:11–15:04, 3 + 1 |
+| `run_blob_main_25k_nq`, `_mnq` | ca842cc | main grid: 30 worlds × 20 trials per family, pick diagnostics, saved policies | 15:07–17:19, 3 + 1 |
+| `run_replay_opc_25k_{mlkr,anime}` | d0a8a77 | OPC (harmonic:0.1) replayed at 25k with saved policies (§4) | 12:59–13:46, 2 + 1 |
+| `run_replay_cap_rho0_25k_{mlkr,anime}` | d0a8a77 | CausE-cap at ρ = 0 replayed with saved policies (§4) | 12:59–13:37, 2 then 1 |
+| `run_class_oracles_20261005` | d0a8a77 | class oracles, 3 classes × 2 objectives, 30 worlds, saved policies | 12:57–… (paused, see below) |
+| reused: Stage 2 runs, `run_cause_fair_cap_25k`, `run_cause_fair_warm_25k`, `run_cause_fair_dm_oldspace_anime` | — | OPC, DM-only, the tempered logger, CausE-cap, CausE-warm | — |
+
+**Checks.**
+- **Identical data.** In all 30 worlds, each BLOB family trained on N = 25,000 rows with the same click sum as
+  CausE-cap's warm rows at ρ = 0, which are OPC's training rows, and selected on the same 20,000 validation rows
+  (`table_data_identity.csv`). The comparison refuses to run otherwise.
+- **The replays are exact.** In every replayed world (60: OPC and CausE-cap × 30), all 20 trials reproduce the
+  original run's values exactly: true value, true greedy value, the selection estimate and the DR estimate for OPC;
+  the validation NLL and the C and T values for CausE-cap. Every saved policy's greedy value, recomputed by the
+  diagnostics, equals the run's own.
+- **No BLOB trial diverged:** 1,200 main-grid trials, and none of the 2,880 tuning trials.
+- **Two class-oracle fits measure the same class.** The class oracle of OPC's family (value objective) is within
+  0.15 points of the Stage 1 linear-repair oracle, always slightly below it. All ceilings below use the class
+  oracles, fit the same way for every class.
+- **GPU scheduling.** The class-oracle jobs for kuairand and anime were paused (SIGSTOP) during the BLOB runs: they
+  starved BLOB's small training steps of GPU time slices, slowing each step 3–4×. The anime job ran again
+  alongside the main grid from 15:55, and the kuairand job after it. The computation is deterministic, so this
+  changes timing only.
+- **Tests.** Three study-level tests still listed the arms from before BLOB (31018af added it to the method list).
+  They were fixed in b0a337b (§8).
+
+### 5.2 Target value (greedy, primary)
+
+| arm | biased (24) | no bias (6) | warp (6) | group (6) | vector (6) | combined (6) |
+|---|---|---|---|---|---|---|
+| **BLOB-NQ** (supplied source; primary) | **+1.42** [+0.85, +1.98] | −0.17 | +1.58 | +0.70 | +0.84 | +2.56 |
+| BLOB-MNQ (supplied source) | +0.94 [+0.53, +1.35] | −0.11 | +0.71 | +0.54 | +0.75 | +1.75 |
+| CausE-cap-C, ρ = 0 (plain likelihood, OPC's class) | +3.09 [+2.10, +4.08] | −0.55 | +4.23 | +1.22 | +1.03 | +5.89 |
+| CausE-warm-C, ρ = 0 (likelihood, free vectors) | +1.65 [+0.82, +2.49] | −0.15 | +0.46 | +0.72 | +1.15 | +4.30 |
+| OPC (harmonic:0.1) | +2.69 [+1.84, +3.53] | −0.61 | +3.03 | +1.32 | +0.96 | +5.42 |
+| DM-only (own range) | +2.15 [+1.30, +3.01] | −0.55 | +2.09 | +0.81 | +0.64 | +5.07 |
+| tempered logger | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 |
+
+**Paired differences** (mean [95% CI]; worlds where the first arm is higher):
+
+| a − b | biased (24) | no bias | warp | group | vector | combined |
+|---|---|---|---|---|---|---|
+| BLOB-NQ − CausE-cap-C | −1.67 [−2.29, −1.06] (2/24) | +0.38 [+0.20, +0.56] (6/6) | −2.65 [−3.44, −1.86] (0/6) | −0.52 [−0.85, −0.19] (0/6) | −0.20 [−0.51, +0.12] (2/6) | −3.33 [−3.85, −2.81] (0/6) |
+| BLOB-NQ − OPC | −1.27 [−1.77, −0.76] (2/24) | +0.43 [+0.15, +0.72] (5/6) | −1.45 [−2.12, −0.79] (0/6) | −0.62 [−1.02, −0.23] (0/6) | −0.13 [−0.34, +0.09] (2/6) | −2.86 [−3.80, −1.93] (0/6) |
+| BLOB-NQ − DM-only (own range) | −0.74 [−1.31, −0.16] (9/24) | +0.38 [+0.32, +0.44] (6/6) | −0.52 [−1.22, +0.19] (1/6) | −0.11 [−0.52, +0.30] (3/6) | +0.19 [−0.14, +0.53] (5/6) | −2.51 [−4.20, −0.81] (0/6) |
+| BLOB-NQ − CausE-warm-C | −0.24 [−0.84, +0.37] (6/24) | −0.03 [−0.17, +0.11] (4/6) | +1.12 [−0.61, +2.85] (5/6) | −0.02 [−0.23, +0.19] (1/6) | −0.31 [−0.61, −0.00] (0/6) | −1.73 [−3.11, −0.36] (0/6) |
+| BLOB-NQ − BLOB-MNQ | +0.48 [+0.21, +0.75] (21/24) | −0.06 [−0.20, +0.08] (3/6) | +0.87 [+0.17, +1.57] (6/6) | +0.16 [−0.07, +0.39] (4/6) | +0.09 [−0.03, +0.21] (5/6) | +0.81 [−0.10, +1.72] (6/6) |
+| OPC − CausE-cap-C (reused rows) | −0.41 [−0.66, −0.16] (6/24) | −0.05 [−0.39, +0.28] (2/6) | −1.19 [−1.44, −0.95] (0/6) | +0.10 [−0.14, +0.34] (3/6) | −0.07 [−0.22, +0.08] (2/6) | −0.47 [−1.05, +0.12] (1/6) |
+
+- **BLOB-supplied-source is the weakest of the model-based learners on biased worlds.**
+  - It gains 1.42 points over the logger, 24 of 24 worlds.
+  - It trails the plain likelihood learner (CausE-cap) by 1.67, OPC by 1.27 and DM-only by 0.74 points.
+  - It is level with CausE-warm.
+  - It repairs 0.15 [0.11, 0.20] of the representation loss, against 0.33 for CausE-cap, 0.28 for OPC and 0.20 for
+    DM-only.
+- **The gap follows the bias type.**
+  - Largest under warp (−2.65 against CausE-cap) and combined bias (−3.33).
+  - Smaller under group (−0.52).
+  - A tie under vector bias, where no arm repairs much (CIs include 0 against CausE-cap, OPC and DM-only).
+- **Without bias BLOB loses least.** It gives up 0.17 points against the logger, where CausE-cap and OPC give up
+  0.55–0.61; BLOB − CausE-cap is +0.38 (6/6). BLOB stays closest to the source (§5.4), which costs little where the
+  source is right.
+- **BLOB-NQ beats BLOB-MNQ** by 0.48 (21/24). MNQ's tuned space fixes μ_wa = 5, a dominant source term (§3.2), and
+  its K × K deviation stays at about 0 (§5.4).
+
+### 5.3 Stochastic value
+
+| arm | biased (24) | no bias | warp | group | vector | combined |
+|---|---|---|---|---|---|---|
+| BLOB-NQ, tempered | +5.45 [+4.90, +6.00] | +5.79 | +6.07 | +5.49 | +5.21 | +5.03 |
+| BLOB-MNQ, tempered | +4.99 [+4.50, +5.47] | +5.81 | +5.18 | +5.34 | +5.20 | +4.23 |
+| CausE-cap-C, tempered | +7.13 [+6.36, +7.89] | +5.38 | +8.59 | +5.97 | +5.56 | +8.39 |
+| OPC (its learned scale) | +6.75 [+6.18, +7.33] | +5.22 | +7.49 | +6.08 | +5.52 | +7.93 |
+| tempered logger | +3.99 [+3.53, +4.45] | +5.92 | +4.45 | +4.70 | +4.51 | +2.30 |
+
+- **The ordering is the greedy one.** BLOB-NQ − CausE-cap-C is −1.68 [−2.26, −1.09] (1/24), and BLOB-NQ − OPC is
+  −1.30 [−1.80, −0.81] (1/24).
+- **Without bias BLOB's tempered policy leads OPC** by 0.57 [0.43, 0.70] (6/6). It is about level with the tempered
+  logger, which leads every learned arm there.
+- **A click model's raw softmax (τ = 1) is not a policy.** It is 12 points below the logger for every likelihood
+  arm. BLOB's logits are the most compressed: its tempering scale is about 1,400, against about 800 for CausE-cap.
+  The fair tempering is therefore necessary for any stochastic comparison.
+
+### 5.4 What BLOB learns from the same source
+
+- **Its start is the logger.** At its prior mean (ζ = 0, κ = 0), BLOB ranks by the source after the released column
+  normalization of Ψ. On ml that policy is worth the logger's greedy value within 0.15 points, and keeps 77–90% of
+  users on the logger's top item. BLOB's gains are therefore learned, not an artifact of the normalization.
+- **The selected models stay close to the source.**
+  - BLOB-NQ: the K × K deviation is 2.5% of the source term on average, s+(w_b)‖L ζᵀ‖ / (s+(w_a)√K) = 0.025. The
+    per-item intercepts have an RMS of 0.011 against a source term of s+(w_a) ≈ 5.7.
+  - BLOB-MNQ: the deviation is about 0 (μ_wa = 5).
+- **The gain comes from the deviation, and the deviation stays small.** Across the 480 BLOB-NQ trials on biased
+  worlds, the quarter with the largest deviation gains +1.33 points on average. The other three quarters, with almost
+  no deviation, gain between −0.05 and +0.72. The largest deviations are still only about 4% of the source term.
+- **It fits the logged clicks worse than the plain likelihood learner.** Validation NLL is 0.399 against 0.394 for
+  CausE-cap, and AUC 0.688 against 0.701 (biased worlds).
+- **Selection costs more than for the others.**
+  - NLL selection loses 0.56 (NQ) and 0.61 (MNQ) points against the best of the 20 trials, against 0.13
+    (CausE-cap) and 0.16 (OPC).
+  - The loss is concentrated in the combined-bias worlds (1.7–2.0 points) and is near 0 elsewhere.
+  - Selection does not explain the gap: the best of BLOB-NQ's 20 trials reaches +1.98, below CausE-cap's selected
+    +3.09.
+- **Selected configurations.**
+  - NQ: σ_κ = 0.1 by construction; 100 or 300 epochs in 26 of 30 worlds; μ_wb = 0 in 23; lr median 0.012.
+  - MNQ: σ_κ = 0.1 in 26 of 30 worlds (NLL selection mostly avoids the free intercepts); μ_wb = −6 in 22.
