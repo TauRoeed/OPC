@@ -3,6 +3,10 @@
 *Development stage. Branch `blob-controlled-integration`, from `representation-mismatch-next` (364c07b). §1–§3 were
 written before any comparison ran. Results follow in later sections. Nothing here is confirmatory.*
 
+*Follow-up (2026-10-05, `docs/blob_prior_calibration.md`). The released prior on BLOB's correction tightens as 1/P with
+catalog size. With L computed at a fixed reference size, BLOB-Pnorm-NQ (P₀ = 10) gains +2.82 on biased worlds. That
+is level with OPC and 0.28 below CausE-cap. Every result below is for the published BLOB and stays as it was.*
+
 **The question.** Given the same useful source representation and the same N logged target interactions, how does
 BLOB (Bayesian Latent Organic Bandit; Sakhi, Bonner, Rohde & Vasile, KDD 2020) compare with:
 - the plain likelihood learner (CausE-capacity-matched at ρ = 0);
