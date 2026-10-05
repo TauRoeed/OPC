@@ -148,3 +148,54 @@ def test_supplied_source_has_unit_rms_users():
     assert np.sqrt(np.mean(omega.astype(np.float64) ** 2)) == pytest.approx(1.0, rel=1e-5)
     np.testing.assert_allclose(psi, ds["our_a"].astype(np.float32))
     np.testing.assert_allclose(omega * np.sqrt(np.mean(ds["our_x"] ** 2)), ds["our_x"], rtol=1e-5)
+
+
+def _reference_fit(model, x, a, y, *, epochs, lrs, batch_size, order_seed, noise_seed, device):
+    """The loop as first written (a boolean-mask gradient reset and the per-step copy of the learning rates): the
+    sync-free loop must give bit-identical parameters."""
+    xt = torch.as_tensor(x, device=device)
+    at = torch.as_tensor(a, device=device)
+    yt = torch.as_tensor(y, device=device)
+    params = model.params_in_order()
+    m = [torch.zeros_like(p) for p in params]
+    v = [torch.zeros_like(p) for p in params]
+    lr_cpu = torch.as_tensor(np.asarray(lrs, dtype=np.float32))
+    gen = torch.Generator(device="cpu").manual_seed(order_seed)
+    noise_gen = torch.Generator(device=device).manual_seed(noise_seed)
+    alive = torch.ones(model.T, dtype=torch.bool, device=device)
+    t = 0
+    for _ in range(epochs):
+        order = torch.randperm(len(y), generator=gen).to(device)
+        for s in range(0, len(y), batch_size):
+            idx = order[s:s + batch_size]
+            noise = torch.randn(model.T, int(idx.shape[0]), 4, generator=noise_gen, device=device)
+            loss = model.neg_elbo(xt[idx], at[idx], yt[idx], len(y), noise)
+            alive &= torch.isfinite(loss)
+            for p in params:
+                p.grad = None
+            torch.where(alive, loss, torch.zeros_like(loss)).sum().backward()
+            with torch.no_grad():
+                for p in params:
+                    p.grad[~alive] = 0.0
+                    p.grad.nan_to_num_(0.0)
+                t += 1
+                scale = float(np.sqrt(1.0 - 0.999 ** t) / (1.0 - 0.9 ** t))
+                for p, mi, vi in zip(params, m, v):
+                    g = p.grad
+                    mi.mul_(0.9).add_(g, alpha=0.1)
+                    vi.mul_(0.999).addcmul_(g, g, value=0.001)
+                    lr = lr_cpu.to(p.device).reshape((-1,) + (1,) * (p.dim() - 1)) * scale
+                    p.sub_(lr * mi / (torch.sqrt(vi) + 1e-8))
+
+
+@pytest.mark.parametrize("device", ["cpu"] + (["cuda"] if torch.cuda.is_available() else []))
+def test_sync_free_loop_is_bit_identical_to_the_first_loop(device):
+    psi, x, a, y = _data(2)
+    priors = [BlobPriors(), BlobPriors(wb_m=0.0, kappa_s=0.5), BlobPriors(wa_m=2.0)]
+    lrs = [3e-3, 1e3, 1e-2]  # the middle trial diverges and is frozen
+    new = BlobBanditBatch(psi, priors, family="nq").to(device)
+    ref = BlobBanditBatch(psi, priors, family="nq").to(device)
+    fit_blob_batch(new, x, a, y, epochs=3, lrs=lrs, batch_size=64, order_seed=5, noise_seed=6, device=device)
+    _reference_fit(ref, x, a, y, epochs=3, lrs=lrs, batch_size=64, order_seed=5, noise_seed=6, device=device)
+    for p, q in zip(new.params_in_order(), ref.params_in_order()):
+        assert torch.equal(p.detach().nan_to_num(), q.detach().nan_to_num())

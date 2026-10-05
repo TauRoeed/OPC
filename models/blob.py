@@ -389,18 +389,20 @@ class TFAdamBatch(TFAdam):
     def __init__(self, params, lrs, **kw):
         super().__init__(params, lr=1.0, **kw)
         self.lrs = torch.as_tensor(np.asarray(lrs, dtype=np.float32))
+        # each parameter's learning rates, on its device and broadcastable over it (copied once, not every step)
+        self._lrs = [self.lrs.to(p.device).reshape((-1,) + (1,) * (p.dim() - 1)) for p in self.params]
 
     @torch.no_grad()
     def step(self):
         self.t += 1
         scale = float(np.sqrt(1.0 - self.beta2 ** self.t) / (1.0 - self.beta1 ** self.t))
-        for p, m, v in zip(self.params, self.m, self.v):
+        for p, m, v, lrs in zip(self.params, self.m, self.v, self._lrs):
             if p.grad is None:
                 continue
             g = p.grad
             m.mul_(self.beta1).add_(g, alpha=1.0 - self.beta1)
             v.mul_(self.beta2).addcmul_(g, g, value=1.0 - self.beta2)
-            lr = self.lrs.to(p.device).reshape((-1,) + (1,) * (p.dim() - 1)) * scale
+            lr = lrs * scale
             p.sub_(lr * m / (torch.sqrt(v) + self.eps))
 
 
@@ -431,11 +433,11 @@ def fit_blob_batch(model: BlobBanditBatch, x: np.ndarray, a: np.ndarray, y: np.n
             alive &= torch.isfinite(loss)
             opt.zero_grad()
             torch.where(alive, loss, torch.zeros_like(loss)).sum().backward()
-            with torch.no_grad():
+            with torch.no_grad():  # a frozen trial's gradient is 0; multiplying by the mask needs no host sync
+                keep = alive.to(torch.float32)
                 for p in params:
                     if p.grad is not None:
-                        p.grad[~alive] = 0.0
-                        p.grad.nan_to_num_(0.0)
+                        p.grad.nan_to_num_(0.0).mul_(keep.reshape((-1,) + (1,) * (p.grad.dim() - 1)))
             opt.step()
             steps += 1
     return {"steps": steps, "finite": (alive & model.finite()).cpu().numpy()}
