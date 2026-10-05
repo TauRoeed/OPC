@@ -609,6 +609,17 @@ def variant_contrasts(t: pd.DataFrame, col: str = "gain_greedy") -> pd.DataFrame
     return pd.DataFrame(rows)
 
 
+def cause_minus_references(t: pd.DataFrame, col: str = "gain_greedy") -> pd.DataFrame:
+    """Each fair CausE arm at each rho minus OPC, DM-only (own range) and no-propensity, paired by world. At rho = 0
+    CausE uses neither randomized rows nor propensities; CausE-cap there is a click-likelihood fit in OPC's class."""
+    rows = []
+    for arm in [a for a in FAIR_ARMS if a in set(t["arm"])]:
+        for rho in RHOS:
+            d = paired_table(t, arm, [a for a in ("opc", "dm_own", "no_prop") if a in set(t["arm"])], col=col, a_rho=rho)
+            rows.append(d.assign(a_rho=rho))
+    return pd.concat(rows, ignore_index=True) if rows else pd.DataFrame()
+
+
 # ------------------------------------------------------------------------------------------------------- figures
 # one colour per entity (Okabe-Ito); the prediction side of a CausE family by line style and marker
 COLORS = {"opc": "#0072B2", "opc_raw": "#0072B2", "dm_own": "#E69F00", "dm": "#E69F00", "tempered_logger": "#009E73",
@@ -925,6 +936,7 @@ def compare_main(args) -> None:
               ignore_index=True).to_csv(out / "table_paired_references.csv", index=False, float_format="%.6g")
     rho_effect_table(t).to_csv(out / "table_rho_effect.csv", index=False, float_format="%.6g")
     variant_contrasts(t).to_csv(out / "table_variant_contrasts.csv", index=False, float_format="%.6g")
+    cause_minus_references(t).to_csv(out / "table_cause_minus_references.csv", index=False, float_format="%.6g")
     trials = load_cause_trials(*args.cause_runs)
     trials.to_csv(out / "cause_trials_long.csv.gz", index=False, float_format="%.8g")
     oc = oracle_check(trials)
