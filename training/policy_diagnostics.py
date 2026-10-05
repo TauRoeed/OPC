@@ -247,7 +247,12 @@ def _world_options(run: Path) -> dict:
         for name in ("run_manifest.json", "class_oracle_settings.json"):
             if (d / name).exists():
                 return json.loads((d / name).read_text())["world_options"]
-    raise FileNotFoundError(f"no run_manifest.json or class_oracle_settings.json for {run}")
+    # a study run still in progress has no manifest yet: its conditions' run_meta.json record the same options
+    metas = sorted(run.glob("dataset=*/run_meta.json"))
+    if metas:
+        params = json.loads(metas[0].read_text())["params"]
+        return {k: v for k, v in params.items() if k not in ("bias", "ctr", "logging_uniform_mix")}
+    raise FileNotFoundError(f"no run_manifest.json, class_oracle_settings.json or run_meta.json for {run}")
 
 
 def main(argv=None) -> None:
