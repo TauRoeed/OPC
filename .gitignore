@@ -16,3 +16,4 @@ BPR/embeddings/test_split/
 datasets/**/*.hdf5
 datasets/**/*.dat
 datasets/**/*.csv
+/artifacts/full_study/blob_prior_calibration/logs/

@@ -406,16 +406,21 @@ FS = Path("artifacts/full_study")
 CAP_RUN, WARM_RUN = FS / "run_cause_fair_cap_25k", FS / "run_cause_fair_warm_25k"
 DM_OWN_ANIME = FS / "run_cause_fair_dm_oldspace_anime"
 ORACLE_RUN = FS / "run_class_oracles_20261005"
-BLOB_ARMS = ("blob_nq", "blob_mnq")
+# the catalog-normalized BLOB-NQ variants of docs/blob_prior_calibration.md (L computed at catalog size P0)
+CALIB_ARMS = ("blob_l100_nq", "blob_l1000_nq", "blob_l10_nq")
+BLOB_ARMS = ("blob_nq", "blob_mnq") + CALIB_ARMS
 REFERENCE_ARMS = ("opc", "dm_own", "dm", "tempered_logger")
 LIKELIHOOD_ARMS = ("cap_c", "cap_t", "warm_c")
 ARMS = BLOB_ARMS + LIKELIHOOD_ARMS + REFERENCE_ARMS
 NAMES = {"blob_nq": "BLOB-NQ (supplied source)", "blob_mnq": "BLOB-MNQ (supplied source)",
+         "blob_l100_nq": "BLOB-Pnorm-NQ (P₀ = 100)", "blob_l1000_nq": "BLOB-Pnorm-NQ (P₀ = 1,000)",
+         "blob_l10_nq": "BLOB-Pnorm-NQ (P₀ = 10)",
          "cap_c": "CausE-cap-C, ρ = 0 (plain likelihood, OPC's class)", "cap_t": "CausE-cap-T, ρ = 0",
          "warm_c": "CausE-warm-C, ρ = 0 (likelihood, free vectors)", "opc": "OPC (harmonic:0.1)",
          "dm_own": "DM-only (own range)", "dm": "DM-only (OPC's range)", "tempered_logger": "tempered logger"}
 # each arm's ranking family over the logger's vectors (§1.6, §3): its value oracle is its structural ceiling
-OWN_CLASS = {"blob_nq": "blob", "blob_mnq": "blob", "cap_c": "affine_bilinear", "cap_t": "affine_bilinear",
+OWN_CLASS = {"blob_nq": "blob", "blob_mnq": "blob", "blob_l100_nq": "blob", "blob_l1000_nq": "blob", "blob_l10_nq": "blob",
+             "cap_c": "affine_bilinear", "cap_t": "affine_bilinear",
              "opc": "affine_bilinear", "dm_own": "affine_bilinear", "dm": "affine_bilinear"}
 ORACLE_CLASSES = ("affine_bilinear", "blob", "bilinear")
 
@@ -637,11 +642,13 @@ def diagnostics_table(diag: pd.DataFrame) -> pd.DataFrame:
 
 # ------------------------------------------------------------------------------------------------------- figures
 # one colour per entity (Okabe-Ito), as in the CausE comparison; the two BLOB families share a hue, NQ solid
-COLORS = {"blob_nq": "#D55E00", "blob_mnq": "#D55E00", "cap_c": "#CC79A7", "cap_t": "#CC79A7", "warm_c": "#56B4E9",
+COLORS = {"blob_nq": "#D55E00", "blob_mnq": "#D55E00", "blob_l100_nq": "#882255", "blob_l1000_nq": "#882255",
+          "blob_l10_nq": "#882255", "cap_c": "#CC79A7", "cap_t": "#CC79A7", "warm_c": "#56B4E9",
           "opc": "#0072B2", "dm_own": "#E69F00", "dm": "#E69F00", "tempered_logger": "#009E73"}
-MARKERS = {"blob_nq": "o", "blob_mnq": "s", "cap_c": "D", "cap_t": "d", "warm_c": "^", "opc": "P", "dm_own": "v",
+MARKERS = {"blob_nq": "o", "blob_mnq": "s", "blob_l100_nq": "h", "blob_l1000_nq": "h", "blob_l10_nq": "h", "cap_c": "D",
+           "cap_t": "d", "warm_c": "^", "opc": "P", "dm_own": "v",
            "dm": "v", "tempered_logger": "x"}
-FIG_ARMS = ("blob_nq", "blob_mnq", "cap_c", "warm_c", "opc", "dm_own")
+FIG_ARMS = ("blob_nq", "blob_mnq") + CALIB_ARMS + ("cap_c", "warm_c", "opc", "dm_own")
 
 
 def fig_gains(s: pd.DataFrame, out: Path, col: str = "gain_greedy", name: str = "fig1_greedy_gain",
@@ -685,9 +692,14 @@ def fig_accounting(acc: pd.DataFrame, out: Path) -> None:
     from training.representation_report import _plt, _save
 
     plt = _plt()
-    short = {"blob_nq": "BLOB-NQ", "blob_mnq": "BLOB-MNQ", "opc": "OPC", "cap_c": "CausE-cap-C (ρ = 0)"}
+    short = {"blob_nq": "BLOB-NQ", "blob_mnq": "BLOB-MNQ", "opc": "OPC", "cap_c": "CausE-cap-C (ρ = 0)",
+             "blob_l100_nq": "BLOB-Pnorm (P₀ = 100)", "blob_l1000_nq": "BLOB-Pnorm (P₀ = 1,000)",
+             "blob_l10_nq": "BLOB-Pnorm (P₀ = 10)"}
     have = {(a, b) for a, b in acc[["a", "b"]].drop_duplicates().itertuples(index=False)}
-    pairs = [x for x in (("blob_nq", "opc"), ("blob_nq", "cap_c"), ("opc", "cap_c")) if x in have]
+    calib = [a for a in CALIB_ARMS if any(x[0] == a for x in have)]
+    wanted = ((calib[0], "opc"), (calib[0], "cap_c"), (calib[0], "blob_nq")) if calib else \
+        (("blob_nq", "opc"), ("blob_nq", "cap_c"), ("opc", "cap_c"))
+    pairs = [x for x in wanted if x in have]
     panels = [p for p in ["biased (pooled)", "none", "w-high.g-none.v-none", "w-none.g-high.v-none",
                           "w-none.g-none.v-high", "high"] if p in set(acc["bias"])]
     parts = (("gain", "net difference", "#000000"), ("ceiling", "class ceiling (value oracles)", "#0072B2"),
@@ -725,6 +737,9 @@ PICK_ARMS = {"logger": ("logger", "#7F7F7F", "x"),
              "opc": ("OPC (harmonic:0.1)", "#0072B2", "P"),
              "causecap_c_r000": ("CausE-cap-C, ρ = 0", "#CC79A7", "D"),
              "blob_nq": ("BLOB-NQ", "#D55E00", "o"), "blob_mnq": ("BLOB-MNQ", "#D55E00", "s"),
+             "blob_l100_nq": ("BLOB-Pnorm-NQ (P₀ = 100)", "#882255", "h"),
+             "blob_l1000_nq": ("BLOB-Pnorm-NQ (P₀ = 1,000)", "#882255", "h"),
+             "blob_l10_nq": ("BLOB-Pnorm-NQ (P₀ = 10)", "#882255", "h"),
              "oracle_affine_bilinear_value": ("value oracle, OPC's class", "#0072B2", "*"),
              "oracle_blob_value": ("value oracle, BLOB's class", "#D55E00", "*"),
              "oracle_affine_bilinear_likelihood": ("likelihood oracle, OPC's class", "#CC79A7", "*"),
@@ -865,7 +880,9 @@ def tables_md(t: pd.DataFrame, s: pd.DataFrame, p: pd.DataFrame, acc: pd.DataFra
 
 PAIRS = (("opc", "blob_nq"), ("opc", "blob_mnq"), ("causecap_c_r000", "blob_nq"), ("opc", "causecap_c_r000"),
          ("blob_nq", "blob_prior_mean"), ("blob_mnq", "blob_prior_mean"), ("blob_prior_mean", "logger"),
-         ("oracle_affine_bilinear_value", "opc"), ("oracle_blob_likelihood", "blob_nq"))
+         ("oracle_affine_bilinear_value", "opc"), ("oracle_blob_likelihood", "blob_nq")) + tuple(
+    pair for arm in CALIB_ARMS for pair in (("opc", arm), ("causecap_c_r000", arm), (arm, "blob_nq"),
+                                            (arm, "blob_prior_mean"), ("oracle_blob_likelihood", arm)))
 
 
 def _short(name: str) -> str:
@@ -942,6 +959,7 @@ def compare_main(args) -> None:
         orc = oracle_summary(oracles)
         orc.to_csv(out / "table_class_oracles.csv", index=False, float_format="%.6g")
         acc = [accounting_table(t, a, b) for a in BLOB_ARMS for b in ("opc", "cap_c") if {a, b} <= set(t["arm"])]
+        acc += [accounting_table(t, a, "blob_nq") for a in CALIB_ARMS if {a, "blob_nq"} <= set(t["arm"])]
         acc += [accounting_table(t, "opc", "cap_c")] if {"opc", "cap_c"} <= set(t["arm"]) else []
         if acc:
             pd.concat(acc, ignore_index=True).to_csv(out / "table_accounting.csv", index=False, float_format="%.6g")
