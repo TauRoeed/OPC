@@ -1,5 +1,14 @@
 # CausE vs OPC: bounded development comparison (report before scaling)
 
+> **Update, 2026-10-05.** The fair comparison is in
+> [`docs/cause_fair_comparison_25k.md`](cause_fair_comparison_25k.md). It compares against the revalidated OPC (the
+> corrected Stage 2 25k rows) and adds CausE-warm and CausE-capacity-matched; the latter is §11 here, now run.
+> - This report's OPC side used the pre-revalidation configuration (old search range, fixed logit scale) and is
+>   superseded.
+> - Its native CausE rows are reused there unchanged: the data are identical and the code is 77440c5.
+> - The CausE code is now on the remote: the archive `origin/cause-baseline` (d31a5dd) and the working branch
+>   `cause-fair`.
+
 *Development stage, 2026-10-04. The code is on the local branch `cause-baseline`, not pushed. Specification and mapping:
 `docs/cause_baseline.md`. Everything here is development evidence: 3 datasets × 5 bias settings × 2 development seeds, at 25k
 interactions.*

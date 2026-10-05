@@ -12,7 +12,8 @@ Offline policy comparison experiments with matrix-factorization embeddings.
 **Objective and weighting decision record:** [`docs/decision_record_opc_objective_weighting.md`](docs/decision_record_opc_objective_weighting.md)  
 **Code Atlas (PDF snapshot of the published page, version 9, code at 34a37cb):** [`docs/opc_code_atlas.pdf`](docs/opc_code_atlas.pdf)  
 **CausE baseline (specification, OPC mapping, budget protocol):** [`docs/cause_baseline.md`](docs/cause_baseline.md)  
-**CausE vs OPC, bounded development comparison (report before scaling):** [`docs/cause_dev_report_20261004.md`](docs/cause_dev_report_20261004.md)
+**CausE vs OPC, bounded development comparison (report before scaling):** [`docs/cause_dev_report_20261004.md`](docs/cause_dev_report_20261004.md)  
+**CausE vs the revalidated OPC, the fair 25k comparison (CausE-warm, CausE-capacity-matched):** [`docs/cause_fair_comparison_25k.md`](docs/cause_fair_comparison_25k.md)
 
 Main flow:
 1. Fit/generate BPR artifacts (user/item factors + metadata arrays).
