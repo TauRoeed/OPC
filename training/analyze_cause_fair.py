@@ -496,6 +496,82 @@ def paired_table(t: pd.DataFrame, a: str, b_arms, *, col: str = "gain_greedy", a
     return pd.DataFrame(rows)
 
 
+def data_identity_check(cause: pd.DataFrame) -> pd.DataFrame:
+    """Every CausE family must train on the same rows at the same (world, rho): the native M5 rows and the new runs
+    share the warm prefix, the uniform pool and the validation rows. Per (world, rho): whether each budget field
+    differs across the families (counts and click sums exactly; the logger's exact values beyond 1e-6, since they
+    are computed in float32 and equal only up to summation order, ~1e-8)."""
+    exact = ["n_control", "n_treatment", "control_reward_sum", "treatment_reward_sum", "opc_collection_reward_sum",
+             "val_size"]
+    floats = ["initial_reward", "logger_greedy"]
+    g = cause.groupby(CELL)
+    out = (g[[f for f in exact if f in cause]].nunique() > 1)
+    for f in floats:
+        if f in cause:
+            out[f] = (g[f].max() - g[f].min()) > 1e-6
+    out = out.astype(int).rename(columns=lambda c: f"{c}_differs")
+    out["families"] = g["arm"].apply(lambda a: ",".join(sorted({x.split("_")[0] for x in a})))
+    return out.reset_index()
+
+
+def oracle_check(trials: pd.DataFrame) -> pd.DataFrame:
+    """Is the Stage 1 linear-repair oracle a ceiling for the capacity-matched family (§4)? Per world: the best greedy
+    value of any CausE-cap trial (any rho, either prediction) and of any OPC trial, against the oracle's greedy value
+    (both in CTR points over the logger's greedy value)."""
+    w = world_references()
+    rows = []
+    cap = trials[trials["family"] == "cap"]
+    if not cap.empty:
+        best = cap.groupby(WORLD)["value_greedy"].max().rename("best_trial").reset_index().assign(arm="cap")
+        rows.append(best)
+    opc = []
+    for run in STAGE2_RUNS[:2]:
+        for cond in sorted(Path(run).glob("dataset=*")):
+            tags = _tags(cond.name)
+            if tags["bias"] not in BIAS_ORDER or int(tags["seed"]) not in (100, 101):
+                continue
+            t = pd.read_csv(cond / "trials_long.csv", usecols=["method", "train_size", "actual_reward_greedy"])
+            t = t[(t["method"] == "opc") & (t["train_size"] == TRAIN_SIZE)]
+            opc.append({"dataset": tags["dataset"], "bias": tags["bias"], "seed": int(tags["seed"]),
+                        "best_trial": float(t["actual_reward_greedy"].max()), "arm": "opc"})
+    rows.append(pd.DataFrame(opc))
+    out = pd.concat(rows, ignore_index=True).merge(w, on=WORLD, how="left")
+    out["best_trial_gain"] = 100 * (out["best_trial"] - out["V_logger_greedy"])
+    out["oracle_gain"] = 100 * (out["oracle_linear_greedy"] - out["V_logger_greedy"])
+    out["best_minus_oracle"] = out["best_trial_gain"] - out["oracle_gain"]
+    return out[["arm", "dataset", "bias", "seed", "best_trial_gain", "oracle_gain", "best_minus_oracle"]]
+
+
+def selection_rule_table(trials: pd.DataFrame) -> pd.DataFrame:
+    """Diagnostic, not CausE's protocol: per family, prediction and rho, the true greedy gain of the trial selected by
+    validation NLL (CausE's rule), by the 95% DR lower bound of the trial's greedy policy (OPC's kind of score), and
+    of the best trial (the oracle choice among the 20), averaged over the biased worlds and over no bias."""
+    keys = ["family", "prediction"] + CELL
+    usable = trials[trials["usable"]].copy()
+    usable["biased"] = usable["bias"] != "none"
+    rows = []
+    for key, g in usable.groupby(keys):
+        r = dict(zip(keys, key))
+        r["biased"] = bool(g["biased"].iloc[0])
+        r["nll"] = float(g.loc[g["val_nll"].idxmin(), "gain_greedy"])
+        if g["val_dr_greedy_low"].notna().any():
+            r["dr_lower_bound"] = float(g.loc[g["val_dr_greedy_low"].idxmax(), "gain_greedy"])
+        r["best_of_trials"] = float(g["gain_greedy"].max())
+        rows.append(r)
+    d = pd.DataFrame(rows)
+    out = []
+    for (family, p, rho, biased), g in d.groupby(["family", "prediction", "rho", "biased"]):
+        r = {"family": family, "prediction": p, "rho": rho, "worlds": "biased" if biased else "no bias", "n": len(g)}
+        for col in ("nll", "dr_lower_bound", "best_of_trials"):
+            if col in g:
+                r[col] = float(g[col].mean())
+        if "dr_lower_bound" in g:
+            m, lo, hi, _n = mean_ci(g["dr_lower_bound"] - g["nll"])
+            r.update({"dr_minus_nll": m, "ci_lo": lo, "ci_hi": hi})
+        out.append(r)
+    return pd.DataFrame(out)
+
+
 def rho_effect_table(t: pd.DataFrame, arms=FAIR_ARMS + NATIVE_ARMS, col: str = "gain_greedy") -> pd.DataFrame:
     """Each CausE arm at rho minus the same arm at rho = 0 (no randomized rows), paired by world."""
     rows = []
