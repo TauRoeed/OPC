@@ -200,9 +200,10 @@ def test_study_runs_the_baseline_arms(tmp_path):
     )
 
     assert VALID_STUDY_METHODS == ("opc", "no_propensity")  # the default arms are unchanged
-    # cause is the opt-in prior-work arm (tests/test_cause_trials.py); this test runs the other arms
-    assert set(ALL_STUDY_METHODS) == {"opc", "no_propensity", "dm", "tempered_logger", "cause"}
-    arms = tuple(m for m in ALL_STUDY_METHODS if m != "cause")
+    # cause and blob are the opt-in prior-work arms (tests/test_cause_trials.py, tests/test_blob.py); this test runs
+    # the other arms
+    assert set(ALL_STUDY_METHODS) == {"opc", "no_propensity", "dm", "tempered_logger", "cause", "blob"}
+    arms = tuple(m for m in ALL_STUDY_METHODS if m not in ("cause", "blob"))
     with pytest.raises(ValueError):
         _normalize_study_methods(["opc", "oracle"])
     _toy_embeddings(tmp_path)

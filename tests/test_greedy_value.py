@@ -49,8 +49,9 @@ def test_study_logs_the_greedy_value(tmp_path):
     opc, nop, _, _, meta, extra = _run_condition(
         dataset_name="toy", emb_dir=tmp_path, bias="medium", ctr=0.05, seed=0, train_sizes=[1000], n_trials=3,
         batch_size=None, val_size=1000, val_frac=0.15, val_min=1000, val_max=None, policy_reward_mode="exact",
-        policy_reward_mc_sim=8, slim=True, shared_regression_size=2000, run_dir=run_dir, methods=ALL_STUDY_METHODS,
-        return_extra=True)
+        policy_reward_mc_sim=8, slim=True, shared_regression_size=2000, run_dir=run_dir,
+        # every arm but BLOB, which needs --sampler random (tests/test_blob.py runs it end to end)
+        methods=tuple(m for m in ALL_STUDY_METHODS if m != "blob"), return_extra=True)
     trials = pd.read_csv(run_dir / "trials_long.csv")
     assert trials["actual_reward_greedy"].notna().all()
     summary = _finalize_summary_df(opc, nop, meta, extra=extra)

@@ -46,7 +46,9 @@ def test_study_arms_use_the_tempered_policies(toy, tmp_path):
     root, _ = toy
     kw = dict(dataset_name="toy", emb_dir=root, bias="medium", ctr=0.05, seed=0, train_sizes=[1000], n_trials=3,
               batch_size=None, val_size=1000, val_frac=0.15, val_min=1000, val_max=None, policy_reward_mode="exact",
-              policy_reward_mc_sim=8, slim=True, shared_regression_size=2000, methods=ALL_STUDY_METHODS, return_extra=True)
+              policy_reward_mc_sim=8, slim=True, shared_regression_size=2000, return_extra=True,
+              # every arm but BLOB, which needs --sampler random (tests/test_blob.py runs it end to end)
+              methods=tuple(m for m in ALL_STUDY_METHODS if m != "blob"))
     runs = {}
     for on in (False, True):
         run_dir = tmp_path / f"pt{int(on)}"
