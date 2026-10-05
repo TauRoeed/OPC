@@ -41,7 +41,7 @@ DIVERGED_NLL = 1e9
 BLOB_DEFAULTS = {"families": ["nq"], "n_trials": None, "lr_range": list(BLOB_LR_RANGE), "epochs": list(BLOB_EPOCHS),
                  "wa_m": list(BLOB_WA_M), "wb_m": list(BLOB_WB_M), "kappa_s": list(BLOB_KAPPA_S), "batch_size": 1024,
                  "temper": True, "norm": True, "alias_loc": True, "device": "auto", "source_scale": "rms",
-                 "pick_diagnostics": False, "policy_dir": None}
+                 "pick_diagnostics": False, "policy_dir": None, "seed_tag": None}
 
 
 def blob_method_label(family: str) -> str:
@@ -64,6 +64,9 @@ def add_blob_arguments(parser) -> None:
     g.add_argument("--blob-batch-size", type=int, default=BLOB_DEFAULTS["batch_size"])
     g.add_argument("--blob-no-temper", action="store_true", help="Skip the fair tempering of the selected trial.")
     g.add_argument("--blob-device", default="auto", choices=["auto", "cpu"])
+    g.add_argument("--blob-seed-tag", default=None,
+                   help="Draw an independent set of trials (configurations, batch order and noise), e.g. for a "
+                        "supplementary tuning run on the same worlds.")
     g.add_argument("--blob-pick-diagnostics", action="store_true",
                    help="Record every trial's pick-level diagnostics (training/policy_diagnostics.py).")
 
@@ -74,7 +77,7 @@ def blob_options_from_args(args) -> dict:
             "wa_m": [float(x) for x in args.blob_wa_m], "wb_m": [float(x) for x in args.blob_wb_m],
             "kappa_s": [float(x) for x in args.blob_kappa_s], "batch_size": int(args.blob_batch_size),
             "temper": not bool(args.blob_no_temper), "device": str(args.blob_device),
-            "pick_diagnostics": bool(args.blob_pick_diagnostics)}
+            "pick_diagnostics": bool(args.blob_pick_diagnostics), "seed_tag": args.blob_seed_tag}
 
 
 def supplied_source(dataset: dict, scale: str = "rms") -> tuple[np.ndarray, np.ndarray]:
@@ -172,7 +175,9 @@ def blob_trainer_trial(
             lookup = _scores_lookup_from_bundle(bundle, torch.device("cuda" if torch.cuda.is_available() else "cpu"))
         for family in opts["families"]:
             label = blob_method_label(family)
-            labels_seed = ("blob", family, n)
+            # a seed tag draws an independent set of trials (configurations, batch order, noise), e.g. for a
+            # supplementary tuning run on the same worlds
+            labels_seed = ("blob", family, n) + ((str(opts["seed_tag"]),) if opts.get("seed_tag") else ())
             study = optuna.create_study(direction="minimize", sampler=optuna_sampler(seed, *labels_seed, kind="random"))
             asked = [study.ask(dist) for _ in range(n_trials)]
             groups: dict[int, list] = {}

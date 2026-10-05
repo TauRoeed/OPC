@@ -86,9 +86,32 @@ def simulate_protocol(t: pd.DataFrame, space: dict | None = None, *, k: int = 10
 # selected greedy gain over the tuning worlds. Candidates: the wide space and each prior dimension fixed at one value
 # (the others searched); then, on the best of those, 1.5-decade lr windows, epoch windows and the best of each
 # combined. A candidate needs at least MIN_AVAILABLE trials per cell on average.
-STRUCTURES = {"wide": {}, **{f"{dim} {v:g}": {dim: {v}} for dim in ("kappa_s", "wa_m", "wb_m") for v in WIDE[dim]}}
-LR_WINDOWS = ((1e-4, 3e-3), (3e-4, 1e-2), (1e-3, 3e-2))
-EPOCH_WINDOWS = ((10, 30, 100), (30, 100, 300), (100, 300))
+PRIOR_DIMS = ("kappa_s", "wa_m", "wb_m")
+LR_GRID = (1e-4, 3e-4, 1e-3, 3e-3, 1e-2, 3e-2, 1e-1, 3e-1)  # the half-decade grid of the lr windows
+# The edge rule's supplementary space (§3.1): each flagged dimension one step past its edge, per family
+SUPPLEMENT = {"mnq": {"epochs": (3, 10, 30, 100, 300), "wa_m": (-1.0, 1.0, 3.0, 5.0), "wb_m": (-9.0, -6.0, -3.0, 0.0)},
+              "nq": {"lr": (1e-4, 1e-1), "epochs": (10, 30, 100, 300, 1000)}}
+SPACES = {"wide": None, "supplement": SUPPLEMENT}
+
+
+def family_space(family: str, spaces: dict | None = None) -> dict:
+    """A family's search space: the wide space with its extensions, if any."""
+    return {**WIDE, **((spaces or {}).get(family, {}))}
+
+
+def candidate_lists(space: dict) -> tuple[dict, tuple, tuple]:
+    """(structures, lr windows, epoch windows) of a space: each prior dimension fixed at one of its values; the
+    1.5-decade lr windows on the half-decade grid; three consecutive epoch values, and the top two."""
+    structures = {"wide": {}, **{f"{dim} {v:g}": {dim: {v}} for dim in PRIOR_DIMS for v in space[dim]}}
+    lo, hi = space["lr"]
+    grid = [g for g in LR_GRID if lo * (1 - 1e-9) <= g <= hi * (1 + 1e-9)]
+    lr_windows = tuple((grid[i], grid[i + 3]) for i in range(len(grid) - 3))
+    ep = sorted(space["epochs"])
+    epoch_windows = tuple(tuple(ep[i:i + 3]) for i in range(len(ep) - 2)) + (tuple(ep[-2:]),)
+    return structures, lr_windows, epoch_windows
+
+
+STRUCTURES, LR_WINDOWS, EPOCH_WINDOWS = candidate_lists(WIDE)
 MIN_AVAILABLE = 5.0
 EDGE_MARGIN = 0.25  # CTR points: an edge value must beat its neighbour by more than this to extend the range
 
@@ -103,12 +126,14 @@ def _score(t: pd.DataFrame, space: dict, k: int, resamples: int) -> dict:
             "_per_world": sim.groupby(WORLD)["gain_greedy"].mean()}
 
 
-def tuning_decision(t: pd.DataFrame, *, k: int = 10, resamples: int = 300) -> pd.DataFrame:
+def tuning_decision(t: pd.DataFrame, *, k: int = 10, resamples: int = 300, spaces: dict | None = None) -> pd.DataFrame:
     """Per family: every candidate's mean selected greedy gain under the k-trial protocol, its paired difference from
-    the wide space (95% CI over worlds) and the chosen candidate (``chosen``)."""
+    the wide space (95% CI over worlds) and the chosen candidate (``chosen``). ``spaces``: per-family extensions of
+    the wide space (the candidates are built over them)."""
     out = []
     for family, tf in t.groupby("family"):
         rows = []
+        structures, lr_windows, epoch_windows = candidate_lists(family_space(family, spaces))
 
         def add(stage, name, space):
             r = _score(tf, space, k, resamples)
@@ -120,14 +145,14 @@ def tuning_decision(t: pd.DataFrame, *, k: int = 10, resamples: int = 300) -> pd
             return max(rs, key=lambda r: (r["available"] >= MIN_AVAILABLE, r["gain_greedy"]))
 
         wide = add("structure", "wide", {})
-        for name, space in list(STRUCTURES.items())[1:]:
+        for name, space in list(structures.items())[1:]:
             add("structure", name, space)
         base = best_of([r for r in rows if r["stage"] == "structure"])
-        base_space = STRUCTURES[base["candidate"]]
+        base_space = structures[base["candidate"]]
         best_lr = best_of([add("lr window", f"{base['candidate']}; lr {lo:g}-{hi:g}", {**base_space, "lr": (lo, hi)})
-                           for lo, hi in LR_WINDOWS])
+                           for lo, hi in lr_windows])
         best_ep = best_of([add("epoch window", f"{base['candidate']}; epochs {','.join(map(str, ep))}",
-                               {**base_space, "epochs": set(ep)}) for ep in EPOCH_WINDOWS])
+                               {**base_space, "epochs": set(ep)}) for ep in epoch_windows])
         both = {**eval(best_lr["space"]), "epochs": eval(best_ep["space"])["epochs"]}
         add("lr and epochs", f"{best_lr['candidate']}; {best_ep['candidate'].split('; ')[-1]}", both)
         ref = wide["_per_world"]
@@ -147,31 +172,39 @@ def tuning_decision(t: pd.DataFrame, *, k: int = 10, resamples: int = 300) -> pd
     return pd.DataFrame(out)[cols]
 
 
-LR_EDGES = (-4.0, -3.5, -3.0, -2.5, -2.0, np.log10(3e-2))  # half-decades of the wide lr range
+LR_BIN_EDGES = (-4.0, -3.5, -3.0, -2.5, -2.0, np.log10(3e-2), -1.0, np.log10(3e-1))  # half-decades
+LR_BIN_LABELS = ("1e-4-3e-4", "3e-4-1e-3", "1e-3-3e-3", "3e-3-1e-2", "1e-2-3e-2", "3e-2-1e-1", "1e-1-3e-1")
 
 
-def _values(t: pd.DataFrame, dim: str) -> pd.Series:
+def _lr_bins(hi: float) -> tuple[tuple, tuple]:
+    n = sum(1 for e in LR_BIN_EDGES[:-1] if e < np.log10(hi) - 1e-9)
+    return LR_BIN_EDGES[:n + 1], LR_BIN_LABELS[:n]
+
+
+def _values(t: pd.DataFrame, dim: str, lr_hi: float = WIDE["lr"][1]) -> pd.Series:
     if dim == "lr":
-        return pd.cut(np.log10(t["lr"]), LR_EDGES, include_lowest=True,
-                      labels=["1e-4-3e-4", "3e-4-1e-3", "1e-3-3e-3", "3e-3-1e-2", "1e-2-3e-2"]).astype(str)
+        edges, labels = _lr_bins(lr_hi)
+        return pd.cut(np.log10(t["lr"]), edges, include_lowest=True, labels=list(labels)).astype(str)
     if dim == "log10_lr_steps":
         return pd.cut(t["log10_lr_steps"], [-np.inf, -1, 0, 1, 2, np.inf]).astype(str)
     return t[dim].astype(float).map(lambda v: f"{v:g}")
 
 
-def _ordered_values(dim: str) -> list[str]:
+def _ordered_values(dim: str, space: dict = WIDE) -> list[str]:
     if dim == "lr":
-        return ["1e-4-3e-4", "3e-4-1e-3", "1e-3-3e-3", "3e-3-1e-2", "1e-2-3e-2"]
-    return [f"{v:g}" for v in WIDE[dim]]
+        return list(_lr_bins(space["lr"][1])[1])
+    return [f"{v:g}" for v in sorted(space[dim])]
 
 
-def marginal_table(t: pd.DataFrame, space: dict | None = None, dims=DIMENSIONS + ("log10_lr_steps",)) -> pd.DataFrame:
+def marginal_table(t: pd.DataFrame, space: dict | None = None, dims=DIMENSIONS + ("log10_lr_steps",),
+                   spaces: dict | None = None) -> pd.DataFrame:
     """Per family, dimension and value, inside ``space``: trials, the share that diverged, the mean and median gap
     between a usable trial's true greedy gain and its cell's best trial in the space (0 = as good as the best), and
     the shares of cells whose NLL-selected and best-true trials have this value."""
     sub = t[in_space(t, space)].copy()
     rows = []
     for family, tf in sub.groupby("family"):
+        lr_hi = family_space(family, spaces)["lr"][1]
         tf = tf.copy()
         tf["below_best"] = tf["gain_greedy"] - tf[tf["usable"]].groupby(WORLD)["gain_greedy"].transform("max")
         usable = tf[tf["usable"]]
@@ -179,7 +212,7 @@ def marginal_table(t: pd.DataFrame, space: dict | None = None, dims=DIMENSIONS +
         best = usable.loc[usable.groupby(WORLD)["gain_greedy"].idxmax()]
         n_cells = len(sel)
         for dim in dims:
-            v_all, v_sel, v_best = (_values(x, dim) for x in (tf, sel, best))
+            v_all, v_sel, v_best = (_values(x, dim, lr_hi) for x in (tf, sel, best))
             for value in sorted(v_all.unique(), key=lambda s: (len(s), s)):
                 g = tf[v_all == value]
                 gu = g[g["usable"]]
@@ -192,21 +225,22 @@ def marginal_table(t: pd.DataFrame, space: dict | None = None, dims=DIMENSIONS +
     return pd.DataFrame(rows)
 
 
-def edge_check(t: pd.DataFrame, chosen: dict) -> pd.DataFrame:
+def edge_check(t: pd.DataFrame, chosen: dict, spaces: dict | None = None) -> pd.DataFrame:
     """The edge rule (§3): in each family's chosen space, per searched dimension, the value with the smallest mean gap
-    to the cell's best; ``extend`` when it lies at an edge of the wide range and beats its neighbour by more than
-    EDGE_MARGIN points."""
+    to the cell's best; ``extend`` when it lies at an edge of the family's (wide or extended) range and beats its
+    neighbour by more than EDGE_MARGIN points."""
     rows = []
     for family, space in chosen.items():
-        m = marginal_table(t[t["family"] == family], space, dims=DIMENSIONS)
+        full = family_space(family, spaces)
+        m = marginal_table(t[t["family"] == family], space, dims=DIMENSIONS, spaces=spaces)
         for dim in DIMENSIONS:
             g = m[m["dimension"] == dim].set_index("value")["below_best_mean"].dropna()
             if len(g) < 2:  # fixed in the chosen space
                 continue
-            order = [v for v in _ordered_values(dim) if v in g.index]
+            order = [v for v in _ordered_values(dim, full) if v in g.index]
             best = g.idxmax()
             i = order.index(best)
-            wide_order = _ordered_values(dim)
+            wide_order = _ordered_values(dim, full)
             at_edge = best in (wide_order[0], wide_order[-1])
             neighbour = order[i + 1] if i == 0 else order[i - 1] if i == len(order) - 1 else None
             margin = float(g[best] - g[neighbour]) if neighbour is not None else np.nan
@@ -230,16 +264,19 @@ def selected_table(t: pd.DataFrame) -> pd.DataFrame:
 def tune_main(args) -> None:
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
+    spaces = SPACES[args.spaces]
     t = load_blob_trials(*args.runs)
     t.to_csv(out / "tuning_trials_long.csv.gz", index=False, float_format="%.8g")
-    marginal_table(t).to_csv(out / "tuning_marginals_wide.csv", index=False, float_format="%.6g")
-    selected_table(t).to_csv(out / "tuning_selected.csv", index=False, float_format="%.6g")
-    decision = tuning_decision(t, k=args.k, resamples=args.resamples)
+    marginal_table(t, spaces=spaces).to_csv(out / "tuning_marginals_wide.csv", index=False, float_format="%.6g")
+    if args.spaces == "wide":  # with pooled runs a cell has two selections; the per-run check is the wide analysis'
+        selected_table(t).to_csv(out / "tuning_selected.csv", index=False, float_format="%.6g")
+    decision = tuning_decision(t, k=args.k, resamples=args.resamples, spaces=spaces)
     decision.to_csv(out / "tuning_decision.csv", index=False, float_format="%.6g")
     chosen = {r["family"]: eval(r["space"]) for _, r in decision[decision["chosen"]].iterrows()}
-    pd.concat([marginal_table(t[t["family"] == f], space).assign(space="chosen") for f, space in chosen.items()],
+    pd.concat([marginal_table(t[t["family"] == f], space, spaces=spaces).assign(space="chosen")
+               for f, space in chosen.items()],
               ignore_index=True).to_csv(out / "tuning_marginals_chosen.csv", index=False, float_format="%.6g")
-    edges = edge_check(t, chosen)
+    edges = edge_check(t, chosen, spaces)
     edges.to_csv(out / "tuning_edges.csv", index=False, float_format="%.6g")
     for _, r in decision[decision["chosen"]].iterrows():
         wide = decision[(decision["family"] == r["family"]) & (decision["candidate"] == "wide")]["gain_greedy"].iloc[0]
@@ -780,6 +817,8 @@ def main(argv=None) -> None:
     tune.add_argument("--out", required=True)
     tune.add_argument("--k", type=int, default=10, help="trials per simulated study (default 10)")
     tune.add_argument("--resamples", type=int, default=300)
+    tune.add_argument("--spaces", choices=list(SPACES), default="wide",
+                      help="the candidates' space: the wide space, or the edge rule's supplementary extension")
     comp = sub.add_parser("compare", help="the bounded comparison's tables")
     comp.add_argument("--blob-runs", nargs="+", required=True)
     comp.add_argument("--oracles", default=str(ORACLE_RUN), help="the class-oracle run ('' to skip)")

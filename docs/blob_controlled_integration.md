@@ -203,6 +203,62 @@ one finished cell (its timing and best validation NLL) had been seen, and no val
   primary BLOB row is the family with the higher score in its chosen space. The other is reported beside it.
 - Nothing is tuned on the 30 main worlds.
 
+### 3.1 Tuning, first round (`run_blob_tune_s200`)
+
+**Run.** Code e21e9cf on a pinned worktree, 2026-10-05 12:31–14:06, 2 workers.
+- 18 tuning worlds × 2 families × 40 trials (1,440 trials); no trial diverged.
+- Tables: `artifacts/full_study/blob_controlled_25k/tuning/` (`tuning_decision.csv`, `tuning_edges.csv`,
+  `tuning_marginals_*.csv`, `tuning_selected.csv`).
+- From 13:35 the class-oracle jobs for kuairand and anime were paused (SIGSTOP), because they starved the BLOB
+  steps of GPU time slices. A step took 14–20 ms with them paused and 70–85 ms with them running. The computation
+  is deterministic, so the pause changes timing only.
+
+**The rule's result** (selected greedy gain over the logger's greedy value, CTR points; 10-trial studies):
+
+| family | wide space | chosen candidate | its gain | minus wide [95% CI] | trials per cell |
+|---|---|---|---|---|---|
+| MNQ | 0.41 | σ_κ = 0.1; lr 3e-4–1e-2; epochs {10, 30, 100} | 1.73 | +1.32 [+0.81, +1.84] | 7.0 |
+| NQ | 1.03 | σ_κ = 0.1; lr 1e-3–3e-2 | 1.39 | +0.36 [−0.46, +1.17] | 5.0 |
+
+- **σ_κ = 0.1 is the best structure for both families.**
+  - Free intercepts (σ_κ = 1) are the worst by about 2 points: the selection regret grows to about 3 points.
+  - The released σ_κ = 0.01 sits between them.
+- **NLL selection is costly for BLOB.** Over all 40 trials, the selected trial is 1.05 (MNQ) and 0.86 (NQ) points
+  below the best trial of its world. NLL selects 300-epoch trials in about 80% of the worlds, while the best trials
+  are spread over the epoch values.
+
+**The edge rule fires**, so a supplementary round is required before the main grid. In each family's chosen space,
+these values sit at an edge of the wide range and beat their neighbour by more than 0.25 points:
+
+| family | dimension | best value (edge) | margin over the neighbour (pts) | extension (one step) |
+|---|---|---|---|---|
+| NQ | lr | 1e-2–3e-2 (top) | 2.25 | lr up to 1e-1 |
+| NQ | epochs | 300 (top) | 2.09 | + 1,000 |
+| MNQ | epochs | 10 (bottom) | 0.49 | + 3 |
+| MNQ | μ_wa | 3 (top) | 0.50 | + 5 |
+| MNQ | μ_wb | −6 (bottom) | 0.65 | + −9 |
+
+- NQ's two flags mean more training: a larger total step lr × steps. MNQ's mean less training and a start closer to
+  the source, with a larger s+(w_a) and a smaller K × K deviation.
+- The MNQ margins rest on about 2–3 trials per value per cell; the rule applies regardless.
+- One step below 10 epochs is 3, on the grid's factor of about 3. "+2 / +3" for the μ's applies at either edge, so
+  μ_wb goes to −9.
+
+**Supplementary round (fixed before it runs).**
+- **Runs.** `run_blob_tune_s200_supp_nq` and `run_blob_tune_s200_supp_mnq`: the same 18 worlds, 40 new trials per
+  world and family.
+  - The trials are drawn from the family's extended space, with the other dimensions as in the wide space.
+  - They are independent of the first round: `--blob-seed-tag supplement` gives new configurations, batch orders
+    and noise.
+- **Re-applying the rule.** The rule runs on the first and the supplementary trials pooled, 80 per cell.
+  - The candidates are rebuilt over the extended space: each prior value fixed; the 1.5-decade lr windows on the
+    half-decade grid, which adds 3e-3–1e-1 for NQ; three consecutive epoch values, and the top two.
+  - The 10-trial score, eligibility (at least 5 trials per cell) and the choice are unchanged
+    (`training/analyze_blob.py tune --spaces supplement`).
+- **No second extension.** If the edge rule fires again, the range is not extended further, and the boundary is
+  reported as a limitation.
+- **Check.** The supplementary trials alone, analyzed the same way.
+
 **Capacity, against the other arms** (§1.6; as score functions for the greedy ranking):
 
 | arm | ranking family over the logger's vectors | free parameters (K = 32) |
