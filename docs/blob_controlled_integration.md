@@ -778,4 +778,11 @@ Exact pick diagnostics of each selected policy, means over the 24 biased worlds 
 - `tests/test_analyze_blob.py`: the simulated protocol, the decision rule and the edge rule on synthetic trials.
 - Three study-level tests had not been updated when BLOB joined the method list (31018af). Fixed in b0a337b: the
   every-arm runs leave BLOB out, since it needs `--sampler random`.
-- Suites at the final commit: see §8.1.
+
+### 8.1 Suites
+
+- **Full suites at 7f07e33.** With the GPU: 589 passed. With it hidden (`CUDA_VISIBLE_DEVICES=`): 559 passed, 11
+  skipped.
+- **Later commits** add docs, the results artifacts, the run registry rows and the standalone Atlas PDF export
+  script, `scripts/export_atlas_pdf.py`, which no test imports.
+- **Before the fix in b0a337b**, the CPU suite had 3 failures: the three study-level tests above.
