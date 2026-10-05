@@ -36,12 +36,14 @@ Stage 1 oracle (`run_oracle_repair_20260927`) and the best single items (`../cau
 |---|---|
 | `table_conditions.csv` | one row per world × arm (× ρ for CausE): true greedy, stochastic and tempered values; gains over the logger (CTR points); the fractions of the representation loss and of the arm's structural oracle repaired; selection estimates and regrets; the data composition, collection rewards and exploration cost; the selected hyperparameters |
 | `table_summary.csv` | mean and 95% CI over the 6 dataset × seed worlds per bias (and pooled over the 24 biased worlds), arm and ρ |
-| `table_paired_opc.csv` | OPC − each CausE arm, paired by world: greedy, stochastic and (fair variants) tempered |
+| `table_paired_opc.csv` | OPC − each CausE arm, paired by world: greedy, stochastic, and OPC's stochastic − the fair variants' tempered value |
 | `table_paired_references.csv` | OPC − raw-DR OPC, DM-only (both ranges), no-propensity and the tempered logger |
 | `table_rho_effect.csv` | each CausE arm at ρ minus the same arm at ρ = 0 |
-| `table_variant_contrasts.csv` | CausE-warm − native CausE-prod, CausE-cap − CausE-warm, at equal ρ and prediction side |
+| `table_variant_contrasts.csv` | CausE-warm − native CausE-prod, CausE-cap − CausE-warm and CausE-cap − native, at equal ρ and prediction side |
+| `table_cause_minus_references.csv` | each fair CausE arm at each ρ minus OPC, DM-only (own range) and no-propensity |
 | `table_selection_rule.csv` | diagnostic: CausE's NLL selection vs the DR lower bound of each trial's greedy policy vs the best trial |
 | `table_oracle_check.csv` | the best CausE-cap and OPC trial of every world against the Stage 1 linear-repair oracle |
 | `table_data_identity.csv` | every CausE family trained on the same rows at each (world, ρ) |
 | `cause_trials_long.csv.gz` | every main-grid CausE-warm / CausE-cap trial |
+| `tables.md` | the report's main tables (docs §8) as markdown, generated from the CSVs above |
 | `fig1_rho_greedy`, `fig1b_rho_stochastic_tempered`, `fig2_exploration_cost`, `fig3_cause_variants`, `fig4_opc_minus_cause` (`.png`, `.pdf`, `.csv`) | the figures of §6 and their plotted values |
