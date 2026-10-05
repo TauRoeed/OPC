@@ -1,0 +1,30 @@
+{
+  "classes": [
+    "affine_bilinear",
+    "blob",
+    "bilinear"
+  ],
+  "objectives": [
+    "value",
+    "likelihood"
+  ],
+  "lrs": [
+    0.003,
+    0.01,
+    0.03
+  ],
+  "steps": 3000,
+  "fit_users": 20000,
+  "batch_users": 2048,
+  "ctr": 0.05,
+  "world_options": {
+    "centering": 0.0,
+    "logging_spread": 0.5,
+    "best_ctr": 0.3,
+    "group_source": "cluster",
+    "pop_strength": 0.0,
+    "logger_greedy_share": 0.8,
+    "ctr_reference": "logger"
+  },
+  "commit": "d0a8a77"
+}

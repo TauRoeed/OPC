@@ -1,0 +1,73 @@
+a,b,panel,part,signed
+blob_nq,opc,biased (pooled),gain,-1.2668011261209482
+blob_nq,opc,none,gain,0.4332474250171683
+blob_nq,opc,w-high.g-none.v-none,gain,-1.4549137910594425
+blob_nq,opc,w-none.g-high.v-none,gain,-0.6240250409437814
+blob_nq,opc,w-none.g-none.v-high,gain,-0.12658017312937495
+blob_nq,opc,high,gain,-2.8616854993511933
+blob_nq,opc,biased (pooled),ceiling,0.07265667349046123
+blob_nq,opc,none,ceiling,-0.004299006123709148
+blob_nq,opc,w-high.g-none.v-none,ceiling,0.005007766383935556
+blob_nq,opc,w-none.g-high.v-none,ceiling,0.11309997573834656
+blob_nq,opc,w-none.g-none.v-high,ceiling,0.11802082772510869
+blob_nq,opc,high,ceiling,0.05449812411445413
+blob_nq,opc,biased (pooled),training,-0.9354419214330268
+blob_nq,opc,none,training,0.14130984470334765
+blob_nq,opc,w-high.g-none.v-none,training,-1.6169851602196819
+blob_nq,opc,w-none.g-high.v-none,training,-0.6309705131981777
+blob_nq,opc,w-none.g-none.v-high,training,-0.15551561110940584
+blob_nq,opc,high,training,-1.3382964012048422
+blob_nq,opc,biased (pooled),selection,-0.4040158781783824
+blob_nq,opc,none,selection,0.29623658643752976
+blob_nq,opc,w-high.g-none.v-none,selection,0.1570636027763042
+blob_nq,opc,w-none.g-high.v-none,selection,-0.10615450348395034
+blob_nq,opc,w-none.g-none.v-high,selection,-0.08908538974507774
+blob_nq,opc,high,selection,-1.5778872222608056
+blob_nq,cap_c,biased (pooled),gain,-1.6739819847610178
+blob_nq,cap_c,none,gain,0.37886542063112666
+blob_nq,cap_c,w-high.g-none.v-none,gain,-2.6486121330254604
+blob_nq,cap_c,w-none.g-high.v-none,gain,-0.5209091916538705
+blob_nq,cap_c,w-none.g-none.v-high,gain,-0.19561131976421386
+blob_nq,cap_c,high,gain,-3.3307952946005255
+blob_nq,cap_c,biased (pooled),ceiling,0.07265667349046123
+blob_nq,cap_c,none,ceiling,-0.004299006123709148
+blob_nq,cap_c,w-high.g-none.v-none,ceiling,0.005007766383935556
+blob_nq,cap_c,w-none.g-high.v-none,ceiling,0.11309997573834656
+blob_nq,cap_c,w-none.g-none.v-high,ceiling,0.11802082772510869
+blob_nq,cap_c,high,ceiling,0.05449812411445413
+blob_nq,cap_c,biased (pooled),training,-1.3114921204541112
+blob_nq,cap_c,none,training,-0.0620755254370294
+blob_nq,cap_c,w-high.g-none.v-none,training,-2.652787721007909
+blob_nq,cap_c,w-none.g-high.v-none,training,-0.6399250463604499
+blob_nq,cap_c,w-none.g-none.v-high,training,-0.13101690860231804
+blob_nq,cap_c,high,training,-1.822238805845769
+blob_nq,cap_c,biased (pooled),selection,-0.43514653779736756
+blob_nq,cap_c,none,selection,0.44523995219186513
+blob_nq,cap_c,w-high.g-none.v-none,selection,-0.0008321784014877117
+blob_nq,cap_c,w-none.g-high.v-none,selection,0.0059158789682327755
+blob_nq,cap_c,w-none.g-none.v-high,selection,-0.18261523888700448
+blob_nq,cap_c,high,selection,-1.5630546128692107
+opc,cap_c,biased (pooled),gain,-0.40718085864006953
+opc,cap_c,none,gain,-0.05438200438604157
+opc,cap_c,w-high.g-none.v-none,gain,-1.1936983419660185
+opc,cap_c,w-none.g-high.v-none,gain,0.10311584928991098
+opc,cap_c,w-none.g-none.v-high,gain,-0.06903114663483893
+opc,cap_c,high,gain,-0.46910979524933155
+opc,cap_c,biased (pooled),ceiling,0.0
+opc,cap_c,none,ceiling,0.0
+opc,cap_c,w-high.g-none.v-none,ceiling,0.0
+opc,cap_c,w-none.g-high.v-none,ceiling,0.0
+opc,cap_c,w-none.g-none.v-high,ceiling,0.0
+opc,cap_c,high,ceiling,0.0
+opc,cap_c,biased (pooled),training,-0.37605019902108444
+opc,cap_c,none,training,-0.20338537014037705
+opc,cap_c,w-high.g-none.v-none,training,-1.0358025607882269
+opc,cap_c,w-none.g-high.v-none,training,-0.008954533162272127
+opc,cap_c,w-none.g-none.v-high,training,0.024498702507087817
+opc,cap_c,high,training,-0.4839424046409267
+opc,cap_c,biased (pooled),selection,-0.031130659618985177
+opc,cap_c,none,selection,0.14900336575433548
+opc,cap_c,w-high.g-none.v-none,selection,-0.15789578117779193
+opc,cap_c,w-none.g-high.v-none,selection,0.1120703824521831
+opc,cap_c,w-none.g-none.v-high,selection,-0.09352984914192675
+opc,cap_c,high,selection,0.014832609391594864

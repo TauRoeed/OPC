@@ -1,0 +1,79 @@
+bias,quantity,mean,ci_lo,ci_hi,worlds
+none,value:affine_bilinear,-0.0123396,-0.0192262,-0.00545296,6
+none,likelihood:affine_bilinear,-0.0195337,-0.0497121,0.0106447,6
+none,value−likelihood:affine_bilinear,0.00719413,-0.018875,0.0332633,6
+none,value:blob,-0.0166386,-0.0225173,-0.0107599,6
+none,likelihood:blob,-0.0140431,-0.0369993,0.00891308,6
+none,value−likelihood:blob,-0.00259545,-0.0207335,0.0155426,6
+none,value:bilinear,-0.0408378,-0.0661984,-0.0154771,6
+none,likelihood:bilinear,-0.159175,-0.365313,0.0469625,6
+none,value−likelihood:bilinear,0.118337,-0.0670189,0.303693,6
+none,value:blob−affine,-0.00429901,-0.0072757,-0.00132232,6
+none,value:affine−bilinear,0.0284982,0.00979318,0.0472032,6
+none,likelihood:blob−affine,0.00549058,-0.0102247,0.0212058,6
+none,likelihood:affine−bilinear,0.139641,-0.0368729,0.316156,6
+w-high.g-none.v-none,value:affine_bilinear,7.14855,5.10756,9.18953,6
+w-high.g-none.v-none,likelihood:affine_bilinear,7.1917,5.08849,9.29491,6
+w-high.g-none.v-none,value−likelihood:affine_bilinear,-0.0431501,-0.114983,0.0286832,6
+w-high.g-none.v-none,value:blob,7.15355,5.11084,9.19626,6
+w-high.g-none.v-none,likelihood:blob,7.20515,5.11127,9.29903,6
+w-high.g-none.v-none,value−likelihood:blob,-0.0515968,-0.115314,0.0121207,6
+w-high.g-none.v-none,value:bilinear,7.07941,5.04413,9.1147,6
+w-high.g-none.v-none,likelihood:bilinear,6.91067,4.6856,9.13574,6
+w-high.g-none.v-none,value−likelihood:bilinear,0.168747,-0.0396539,0.377148,6
+w-high.g-none.v-none,value:blob−affine,0.00500777,-0.00650049,0.016516,6
+w-high.g-none.v-none,value:affine−bilinear,0.0691325,0.0477603,0.0905047,6
+w-high.g-none.v-none,likelihood:blob−affine,0.0134544,-0.000716686,0.0276256,6
+w-high.g-none.v-none,likelihood:affine−bilinear,0.28103,0.134731,0.427328,6
+w-none.g-high.v-none,value:affine_bilinear,3.9526,2.64334,5.26187,6
+w-none.g-high.v-none,likelihood:affine_bilinear,2.71885,1.67008,3.76761,6
+w-none.g-high.v-none,value−likelihood:affine_bilinear,1.23376,0.822695,1.64482,6
+w-none.g-high.v-none,value:blob,4.0657,2.75326,5.37814,6
+w-none.g-high.v-none,likelihood:blob,2.46727,1.57005,3.36449,6
+w-none.g-high.v-none,value−likelihood:blob,1.59843,0.841712,2.35515,6
+w-none.g-high.v-none,value:bilinear,3.86099,2.54807,5.17391,6
+w-none.g-high.v-none,likelihood:bilinear,2.35425,1.24658,3.46191,6
+w-none.g-high.v-none,value−likelihood:bilinear,1.50674,1.08335,1.93013,6
+w-none.g-high.v-none,value:blob−affine,0.1131,0.0660074,0.160193,6
+w-none.g-high.v-none,value:affine−bilinear,0.0916156,0.059593,0.123638,6
+w-none.g-high.v-none,likelihood:blob−affine,-0.251577,-0.81266,0.309506,6
+w-none.g-high.v-none,likelihood:affine−bilinear,0.364599,0.270895,0.458303,6
+w-none.g-none.v-high,value:affine_bilinear,3.42976,2.00834,4.85118,6
+w-none.g-none.v-high,likelihood:affine_bilinear,2.30522,1.51853,3.09192,6
+w-none.g-none.v-high,value−likelihood:affine_bilinear,1.12453,0.381911,1.86716,6
+w-none.g-none.v-high,value:blob,3.54778,2.16004,4.93552,6
+w-none.g-none.v-high,likelihood:blob,2.56305,1.68329,3.44281,6
+w-none.g-none.v-high,value−likelihood:blob,0.984733,0.246596,1.72287,6
+w-none.g-none.v-high,value:bilinear,3.36892,1.94805,4.78979,6
+w-none.g-none.v-high,likelihood:bilinear,1.99869,1.24198,2.7554,6
+w-none.g-none.v-high,value−likelihood:bilinear,1.37023,0.563976,2.17649,6
+w-none.g-none.v-high,value:blob−affine,0.118021,0.078088,0.157954,6
+w-none.g-none.v-high,value:affine−bilinear,0.0608379,0.047252,0.0744238,6
+w-none.g-none.v-high,likelihood:blob−affine,0.257823,0.00128639,0.51436,6
+w-none.g-none.v-high,likelihood:affine−bilinear,0.306535,0.228513,0.384557,6
+high,value:affine_bilinear,11.9675,10.4599,13.475,6
+high,likelihood:affine_bilinear,8.61027,7.60344,9.61711,6
+high,value−likelihood:affine_bilinear,3.35718,2.0571,4.65727,6
+high,value:blob,12.022,10.5234,13.5205,6
+high,likelihood:blob,9.72527,9.21429,10.2362,6
+high,value−likelihood:blob,2.29668,1.02787,3.5655,6
+high,value:bilinear,11.8207,10.2848,13.3565,6
+high,likelihood:bilinear,7.71977,6.79205,8.64749,6
+high,value−likelihood:bilinear,4.1009,2.71891,5.48289,6
+high,value:blob−affine,0.0544981,-0.0141964,0.123193,6
+high,value:affine−bilinear,0.146783,0.103054,0.190511,6
+high,likelihood:blob−affine,1.115,0.32351,1.90648,6
+high,likelihood:affine−bilinear,0.890502,0.654838,1.12617,6
+biased (pooled),value:affine_bilinear,6.62459,5.04171,8.20747,24
+biased (pooled),likelihood:affine_bilinear,5.20651,3.92064,6.49238,24
+biased (pooled),value−likelihood:affine_bilinear,1.41808,0.814065,2.0221,24
+biased (pooled),value:blob,6.69725,5.1268,8.26769,24
+biased (pooled),likelihood:blob,5.49019,4.07112,6.90925,24
+biased (pooled),value−likelihood:blob,1.20706,0.722837,1.69129,24
+biased (pooled),value:bilinear,6.5325,4.96001,8.10499,24
+biased (pooled),likelihood:bilinear,4.74584,3.51526,5.97643,24
+biased (pooled),value−likelihood:bilinear,1.78665,1.09345,2.47986,24
+biased (pooled),value:blob−affine,0.0726567,0.0461059,0.0992074,24
+biased (pooled),value:affine−bilinear,0.0920922,0.0737875,0.110397,24
+biased (pooled),likelihood:blob−affine,0.283674,-0.00676026,0.574109,24
+biased (pooled),likelihood:affine−bilinear,0.460666,0.338762,0.58257,24

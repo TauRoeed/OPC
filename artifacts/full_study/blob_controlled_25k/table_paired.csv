@@ -1,0 +1,253 @@
+a,b,col,b_col,bias,a_minus_b,ci_lo,ci_hi,worlds,a_higher
+blob_nq,blob_mnq,gain_greedy,gain_greedy,none,-0.0600521,-0.203688,0.0835839,6,3
+blob_nq,blob_mnq,gain_greedy,gain_greedy,w-high.g-none.v-none,0.868174,0.170184,1.56616,6,6
+blob_nq,blob_mnq,gain_greedy,gain_greedy,w-none.g-high.v-none,0.157062,-0.0715972,0.385722,6,4
+blob_nq,blob_mnq,gain_greedy,gain_greedy,w-none.g-none.v-high,0.0883376,-0.0321305,0.208806,6,5
+blob_nq,blob_mnq,gain_greedy,gain_greedy,high,0.810456,-0.1019,1.72281,6,6
+blob_nq,blob_mnq,gain_greedy,gain_greedy,biased (pooled),0.481007,0.211064,0.750951,24,21
+blob_nq,cap_c,gain_greedy,gain_greedy,none,0.378865,0.198978,0.558753,6,6
+blob_nq,cap_c,gain_greedy,gain_greedy,w-high.g-none.v-none,-2.64861,-3.43919,-1.85804,6,0
+blob_nq,cap_c,gain_greedy,gain_greedy,w-none.g-high.v-none,-0.520909,-0.853905,-0.187913,6,0
+blob_nq,cap_c,gain_greedy,gain_greedy,w-none.g-none.v-high,-0.195611,-0.510788,0.119566,6,2
+blob_nq,cap_c,gain_greedy,gain_greedy,high,-3.3308,-3.84743,-2.81417,6,0
+blob_nq,cap_c,gain_greedy,gain_greedy,biased (pooled),-1.67398,-2.28567,-1.06229,24,2
+blob_nq,cap_t,gain_greedy,gain_greedy,none,0.378915,0.199006,0.558825,6,6
+blob_nq,cap_t,gain_greedy,gain_greedy,w-high.g-none.v-none,-2.63832,-3.42146,-1.85518,6,0
+blob_nq,cap_t,gain_greedy,gain_greedy,w-none.g-high.v-none,-0.52104,-0.854058,-0.188021,6,0
+blob_nq,cap_t,gain_greedy,gain_greedy,w-none.g-none.v-high,-0.19557,-0.510612,0.119471,6,2
+blob_nq,cap_t,gain_greedy,gain_greedy,high,-3.13909,-3.77803,-2.50014,6,0
+blob_nq,cap_t,gain_greedy,gain_greedy,biased (pooled),-1.6235,-2.21467,-1.03234,24,2
+blob_nq,warm_c,gain_greedy,gain_greedy,none,-0.0276692,-0.165804,0.110466,6,4
+blob_nq,warm_c,gain_greedy,gain_greedy,w-high.g-none.v-none,1.11845,-0.608297,2.8452,6,5
+blob_nq,warm_c,gain_greedy,gain_greedy,w-none.g-high.v-none,-0.0216707,-0.233967,0.190626,6,1
+blob_nq,warm_c,gain_greedy,gain_greedy,w-none.g-none.v-high,-0.306795,-0.610854,-0.00273714,6,0
+blob_nq,warm_c,gain_greedy,gain_greedy,high,-1.73445,-3.11285,-0.356049,6,0
+blob_nq,warm_c,gain_greedy,gain_greedy,biased (pooled),-0.236116,-0.843405,0.371172,24,6
+blob_nq,opc,gain_greedy,gain_greedy,none,0.433247,0.148797,0.717697,6,5
+blob_nq,opc,gain_greedy,gain_greedy,w-high.g-none.v-none,-1.45491,-2.12399,-0.785842,6,0
+blob_nq,opc,gain_greedy,gain_greedy,w-none.g-high.v-none,-0.624025,-1.02177,-0.22628,6,0
+blob_nq,opc,gain_greedy,gain_greedy,w-none.g-none.v-high,-0.12658,-0.339151,0.0859902,6,2
+blob_nq,opc,gain_greedy,gain_greedy,high,-2.86169,-3.79658,-1.92679,6,0
+blob_nq,opc,gain_greedy,gain_greedy,biased (pooled),-1.2668,-1.77012,-0.76348,24,2
+blob_nq,dm_own,gain_greedy,gain_greedy,none,0.376189,0.31568,0.436697,6,6
+blob_nq,dm_own,gain_greedy,gain_greedy,w-high.g-none.v-none,-0.517201,-1.2227,0.188299,6,1
+blob_nq,dm_own,gain_greedy,gain_greedy,w-none.g-high.v-none,-0.11392,-0.523724,0.295884,6,3
+blob_nq,dm_own,gain_greedy,gain_greedy,w-none.g-none.v-high,0.194546,-0.137706,0.526798,6,5
+blob_nq,dm_own,gain_greedy,gain_greedy,high,-2.50577,-4.20285,-0.808684,6,0
+blob_nq,dm_own,gain_greedy,gain_greedy,biased (pooled),-0.735585,-1.31427,-0.156902,24,9
+blob_nq,dm,gain_greedy,gain_greedy,none,0.402067,0.33946,0.464675,6,6
+blob_nq,dm,gain_greedy,gain_greedy,w-high.g-none.v-none,-0.42485,-1.12255,0.272855,6,2
+blob_nq,dm,gain_greedy,gain_greedy,w-none.g-high.v-none,-0.0742642,-0.499322,0.350794,6,3
+blob_nq,dm,gain_greedy,gain_greedy,w-none.g-none.v-high,0.271547,-0.0593124,0.602407,6,5
+blob_nq,dm,gain_greedy,gain_greedy,high,-2.43193,-4.16618,-0.697675,6,0
+blob_nq,dm,gain_greedy,gain_greedy,biased (pooled),-0.664874,-1.24637,-0.0833787,24,10
+blob_nq,tempered_logger,gain_greedy,gain_greedy,none,-0.173324,-0.30123,-0.0454183,6,0
+blob_nq,tempered_logger,gain_greedy,gain_greedy,w-high.g-none.v-none,1.57765,0.275121,2.88017,6,6
+blob_nq,tempered_logger,gain_greedy,gain_greedy,w-none.g-high.v-none,0.69886,0.292821,1.1049,6,6
+blob_nq,tempered_logger,gain_greedy,gain_greedy,w-none.g-none.v-high,0.838297,0.442669,1.23392,6,6
+blob_nq,tempered_logger,gain_greedy,gain_greedy,high,2.56064,0.515661,4.60563,6,6
+blob_nq,tempered_logger,gain_greedy,gain_greedy,biased (pooled),1.41886,0.853337,1.98439,24,24
+blob_nq,blob_mnq,gain,gain,none,-0.0485517,-0.130404,0.0333006,6,1
+blob_nq,blob_mnq,gain,gain,w-high.g-none.v-none,0.0924349,-0.118046,0.302915,6,4
+blob_nq,blob_mnq,gain,gain,w-none.g-high.v-none,-0.104915,-0.208096,-0.00173425,6,0
+blob_nq,blob_mnq,gain,gain,w-none.g-none.v-high,-0.069255,-0.115448,-0.0230625,6,1
+blob_nq,blob_mnq,gain,gain,high,-0.0652415,-0.157671,0.0271884,6,1
+blob_nq,blob_mnq,gain,gain,biased (pooled),-0.0367442,-0.09496,0.0214715,24,6
+blob_nq,cap_c,gain,gain,none,0.389029,0.115796,0.662261,6,6
+blob_nq,cap_c,gain,gain,w-high.g-none.v-none,-1.13978,-1.54492,-0.734637,6,0
+blob_nq,cap_c,gain,gain,w-none.g-high.v-none,-0.305425,-0.675357,0.0645061,6,2
+blob_nq,cap_c,gain,gain,w-none.g-none.v-high,0.0907096,-0.0843144,0.265734,6,4
+blob_nq,cap_c,gain,gain,high,-0.643033,-0.785084,-0.500981,6,0
+blob_nq,cap_c,gain,gain,biased (pooled),-0.499382,-0.723802,-0.274961,24,6
+blob_nq,cap_t,gain,gain,none,0.389035,0.115769,0.6623,6,6
+blob_nq,cap_t,gain,gain,w-high.g-none.v-none,-1.09126,-1.42797,-0.754557,6,0
+blob_nq,cap_t,gain,gain,w-none.g-high.v-none,-0.305421,-0.675377,0.0645342,6,2
+blob_nq,cap_t,gain,gain,w-none.g-none.v-high,0.0907044,-0.0843182,0.265727,6,4
+blob_nq,cap_t,gain,gain,high,-0.644945,-0.823958,-0.465932,6,0
+blob_nq,cap_t,gain,gain,biased (pooled),-0.487731,-0.702708,-0.272753,24,6
+blob_nq,warm_c,gain,gain,none,0.0578338,-0.0597343,0.175402,6,3
+blob_nq,warm_c,gain,gain,w-high.g-none.v-none,-0.216983,-0.519914,0.0859488,6,1
+blob_nq,warm_c,gain,gain,w-none.g-high.v-none,-0.32297,-0.744124,0.0981835,6,2
+blob_nq,warm_c,gain,gain,w-none.g-none.v-high,-0.138396,-0.397249,0.120457,6,2
+blob_nq,warm_c,gain,gain,high,-0.128217,-0.446179,0.189745,6,2
+blob_nq,warm_c,gain,gain,biased (pooled),-0.201641,-0.330179,-0.0731043,24,7
+blob_nq,opc,gain,gain,none,-23.5766,-24.1889,-22.9643,6,0
+blob_nq,opc,gain,gain,w-high.g-none.v-none,-21.3902,-23.0218,-19.7586,6,0
+blob_nq,opc,gain,gain,w-none.g-high.v-none,-20.8433,-22.1119,-19.5747,6,0
+blob_nq,opc,gain,gain,w-none.g-none.v-high,-19.5628,-21.0194,-18.1062,6,0
+blob_nq,opc,gain,gain,high,-14.4218,-17.532,-11.3115,6,0
+blob_nq,opc,gain,gain,biased (pooled),-19.0545,-20.4611,-17.6479,24,0
+blob_nq,dm_own,gain,gain,none,-23.7474,-24.3659,-23.1289,6,0
+blob_nq,dm_own,gain,gain,w-high.g-none.v-none,-20.4624,-22.127,-18.7978,6,0
+blob_nq,dm_own,gain,gain,w-none.g-high.v-none,-20.3518,-21.6957,-19.0079,6,0
+blob_nq,dm_own,gain,gain,w-none.g-none.v-high,-19.2414,-20.7049,-17.7779,6,0
+blob_nq,dm_own,gain,gain,high,-14.0596,-16.4756,-11.6437,6,0
+blob_nq,dm_own,gain,gain,biased (pooled),-18.5288,-19.8415,-17.2162,24,0
+blob_nq,dm,gain,gain,none,-23.7416,-24.353,-23.1302,6,0
+blob_nq,dm,gain,gain,w-high.g-none.v-none,-20.3899,-22.0857,-18.6941,6,0
+blob_nq,dm,gain,gain,w-none.g-high.v-none,-20.3278,-21.6492,-19.0064,6,0
+blob_nq,dm,gain,gain,w-none.g-none.v-high,-19.1814,-20.633,-17.7299,6,0
+blob_nq,dm,gain,gain,high,-13.992,-16.4001,-11.5838,6,0
+blob_nq,dm,gain,gain,biased (pooled),-18.4728,-19.7878,-17.1578,24,0
+blob_nq,tempered_logger,gain,gain,none,-24.2752,-24.9181,-23.6322,6,0
+blob_nq,tempered_logger,gain,gain,w-high.g-none.v-none,-18.3527,-20.5361,-16.1693,6,0
+blob_nq,tempered_logger,gain,gain,w-none.g-high.v-none,-19.4641,-21.2249,-17.7033,6,0
+blob_nq,tempered_logger,gain,gain,w-none.g-none.v-high,-18.5531,-20.0723,-17.0339,6,0
+blob_nq,tempered_logger,gain,gain,high,-8.7873,-10.7768,-6.79781,6,0
+blob_nq,tempered_logger,gain,gain,biased (pooled),-16.2893,-18.2945,-14.2842,24,0
+blob_nq,cap_c,gain_tempered,gain_tempered,none,0.406436,0.22281,0.590062,6,6
+blob_nq,cap_c,gain_tempered,gain_tempered,w-high.g-none.v-none,-2.51565,-3.17978,-1.85153,6,0
+blob_nq,cap_c,gain_tempered,gain_tempered,w-none.g-high.v-none,-0.474646,-0.771054,-0.178238,6,0
+blob_nq,cap_c,gain_tempered,gain_tempered,w-none.g-none.v-high,-0.355343,-0.634797,-0.0758884,6,1
+blob_nq,cap_c,gain_tempered,gain_tempered,high,-3.36014,-3.83969,-2.88059,6,0
+blob_nq,cap_c,gain_tempered,gain_tempered,biased (pooled),-1.67644,-2.26163,-1.09126,24,1
+blob_nq,warm_c,gain_tempered,gain_tempered,none,-0.00731967,-0.186901,0.172261,6,3
+blob_nq,warm_c,gain_tempered,gain_tempered,w-high.g-none.v-none,1.13443,-0.579635,2.8485,6,5
+blob_nq,warm_c,gain_tempered,gain_tempered,w-none.g-high.v-none,-0.0232099,-0.223442,0.177022,6,1
+blob_nq,warm_c,gain_tempered,gain_tempered,w-none.g-none.v-high,-0.376112,-0.83272,0.0804971,6,0
+blob_nq,warm_c,gain_tempered,gain_tempered,high,-1.74142,-3.10318,-0.379668,6,0
+blob_nq,warm_c,gain_tempered,gain_tempered,biased (pooled),-0.251577,-0.862456,0.359301,24,6
+blob_nq,opc,gain_tempered,gain,none,0.565787,0.434585,0.69699,6,6
+blob_nq,opc,gain_tempered,gain,w-high.g-none.v-none,-1.41742,-2.0899,-0.744947,6,0
+blob_nq,opc,gain_tempered,gain,w-none.g-high.v-none,-0.587848,-0.973063,-0.202633,6,0
+blob_nq,opc,gain_tempered,gain,w-none.g-none.v-high,-0.313193,-0.621117,-0.00526882,6,1
+blob_nq,opc,gain_tempered,gain,high,-2.90087,-3.80427,-1.99748,6,0
+blob_nq,opc,gain_tempered,gain,biased (pooled),-1.30483,-1.7967,-0.812969,24,1
+blob_nq,tempered_logger,gain_tempered,gain,none,-0.132774,-0.29842,0.0328725,6,1
+blob_nq,tempered_logger,gain_tempered,gain,w-high.g-none.v-none,1.62004,0.296919,2.94316,6,6
+blob_nq,tempered_logger,gain_tempered,gain,w-none.g-high.v-none,0.791341,0.318234,1.26445,6,6
+blob_nq,tempered_logger,gain_tempered,gain,w-none.g-none.v-high,0.696455,0.189326,1.20358,6,5
+blob_nq,tempered_logger,gain_tempered,gain,high,2.73359,0.6854,4.78179,6,6
+blob_nq,tempered_logger,gain_tempered,gain,biased (pooled),1.46036,0.868114,2.0526,24,23
+blob_mnq,blob_nq,gain_greedy,gain_greedy,none,0.0600521,-0.0835839,0.203688,6,3
+blob_mnq,blob_nq,gain_greedy,gain_greedy,w-high.g-none.v-none,-0.868174,-1.56616,-0.170184,6,0
+blob_mnq,blob_nq,gain_greedy,gain_greedy,w-none.g-high.v-none,-0.157062,-0.385722,0.0715972,6,2
+blob_mnq,blob_nq,gain_greedy,gain_greedy,w-none.g-none.v-high,-0.0883376,-0.208806,0.0321305,6,1
+blob_mnq,blob_nq,gain_greedy,gain_greedy,high,-0.810456,-1.72281,0.1019,6,0
+blob_mnq,blob_nq,gain_greedy,gain_greedy,biased (pooled),-0.481007,-0.750951,-0.211064,24,3
+blob_mnq,cap_c,gain_greedy,gain_greedy,none,0.438918,0.159557,0.718278,6,6
+blob_mnq,cap_c,gain_greedy,gain_greedy,w-high.g-none.v-none,-3.51679,-4.07738,-2.95619,6,0
+blob_mnq,cap_c,gain_greedy,gain_greedy,w-none.g-high.v-none,-0.677971,-1.07381,-0.282128,6,0
+blob_mnq,cap_c,gain_greedy,gain_greedy,w-none.g-none.v-high,-0.283949,-0.648355,0.0804575,6,2
+blob_mnq,cap_c,gain_greedy,gain_greedy,high,-4.14125,-4.99947,-3.28303,6,0
+blob_mnq,cap_c,gain_greedy,gain_greedy,biased (pooled),-2.15499,-2.91739,-1.39259,24,2
+blob_mnq,cap_t,gain_greedy,gain_greedy,none,0.438967,0.159574,0.718361,6,6
+blob_mnq,cap_t,gain_greedy,gain_greedy,w-high.g-none.v-none,-3.50649,-4.05906,-2.95392,6,0
+blob_mnq,cap_t,gain_greedy,gain_greedy,w-none.g-high.v-none,-0.678102,-1.07385,-0.282356,6,0
+blob_mnq,cap_t,gain_greedy,gain_greedy,w-none.g-none.v-high,-0.283908,-0.648195,0.0803787,6,2
+blob_mnq,cap_t,gain_greedy,gain_greedy,high,-3.94954,-4.72788,-3.1712,6,0
+blob_mnq,cap_t,gain_greedy,gain_greedy,biased (pooled),-2.10451,-2.83993,-1.36909,24,2
+blob_mnq,warm_c,gain_greedy,gain_greedy,none,0.0323829,-0.0775557,0.142321,6,5
+blob_mnq,warm_c,gain_greedy,gain_greedy,w-high.g-none.v-none,0.250275,-1.50024,2.00079,6,2
+blob_mnq,warm_c,gain_greedy,gain_greedy,w-none.g-high.v-none,-0.178733,-0.29911,-0.0583558,6,0
+blob_mnq,warm_c,gain_greedy,gain_greedy,w-none.g-none.v-high,-0.395133,-0.803547,0.013281,6,0
+blob_mnq,warm_c,gain_greedy,gain_greedy,high,-2.5449,-4.18937,-0.90044,6,0
+blob_mnq,warm_c,gain_greedy,gain_greedy,biased (pooled),-0.717124,-1.3703,-0.0639438,24,2
+blob_mnq,opc,gain_greedy,gain_greedy,none,0.4933,0.270085,0.716514,6,6
+blob_mnq,opc,gain_greedy,gain_greedy,w-high.g-none.v-none,-2.32309,-2.74935,-1.89682,6,0
+blob_mnq,opc,gain_greedy,gain_greedy,w-none.g-high.v-none,-0.781087,-1.23971,-0.32246,6,0
+blob_mnq,opc,gain_greedy,gain_greedy,w-none.g-none.v-high,-0.214918,-0.517741,0.0879058,6,2
+blob_mnq,opc,gain_greedy,gain_greedy,high,-3.67214,-4.59505,-2.74923,6,0
+blob_mnq,opc,gain_greedy,gain_greedy,biased (pooled),-1.74781,-2.37023,-1.12538,24,2
+blob_mnq,dm_own,gain_greedy,gain_greedy,none,0.436241,0.254355,0.618127,6,6
+blob_mnq,dm_own,gain_greedy,gain_greedy,w-high.g-none.v-none,-1.38537,-2.0858,-0.684945,6,0
+blob_mnq,dm_own,gain_greedy,gain_greedy,w-none.g-high.v-none,-0.270982,-0.653314,0.11135,6,2
+blob_mnq,dm_own,gain_greedy,gain_greedy,w-none.g-none.v-high,0.106208,-0.304018,0.516433,6,3
+blob_mnq,dm_own,gain_greedy,gain_greedy,high,-3.31622,-5.12215,-1.51029,6,0
+blob_mnq,dm_own,gain_greedy,gain_greedy,biased (pooled),-1.21659,-1.90397,-0.529214,24,5
+blob_mnq,dm,gain_greedy,gain_greedy,none,0.462119,0.282237,0.642002,6,6
+blob_mnq,dm,gain_greedy,gain_greedy,w-high.g-none.v-none,-1.29302,-2.00382,-0.582231,6,0
+blob_mnq,dm,gain_greedy,gain_greedy,w-none.g-high.v-none,-0.231326,-0.637979,0.175326,6,2
+blob_mnq,dm,gain_greedy,gain_greedy,w-none.g-none.v-high,0.183209,-0.230951,0.59737,6,4
+blob_mnq,dm,gain_greedy,gain_greedy,high,-3.24238,-5.08139,-1.40338,6,0
+blob_mnq,dm,gain_greedy,gain_greedy,biased (pooled),-1.14588,-1.83523,-0.456536,24,6
+blob_mnq,tempered_logger,gain_greedy,gain_greedy,none,-0.113272,-0.175374,-0.0511708,6,0
+blob_mnq,tempered_logger,gain_greedy,gain_greedy,w-high.g-none.v-none,0.709471,0.032121,1.38682,6,6
+blob_mnq,tempered_logger,gain_greedy,gain_greedy,w-none.g-high.v-none,0.541797,0.24565,0.837945,6,6
+blob_mnq,tempered_logger,gain_greedy,gain_greedy,w-none.g-none.v-high,0.749959,0.435261,1.06466,6,6
+blob_mnq,tempered_logger,gain_greedy,gain_greedy,high,1.75019,0.0449583,3.45542,6,6
+blob_mnq,tempered_logger,gain_greedy,gain_greedy,biased (pooled),0.937854,0.529046,1.34666,24,24
+blob_mnq,blob_nq,gain,gain,none,0.0485517,-0.0333006,0.130404,6,5
+blob_mnq,blob_nq,gain,gain,w-high.g-none.v-none,-0.0924349,-0.302915,0.118046,6,2
+blob_mnq,blob_nq,gain,gain,w-none.g-high.v-none,0.104915,0.00173425,0.208096,6,6
+blob_mnq,blob_nq,gain,gain,w-none.g-none.v-high,0.069255,0.0230625,0.115448,6,5
+blob_mnq,blob_nq,gain,gain,high,0.0652415,-0.0271884,0.157671,6,5
+blob_mnq,blob_nq,gain,gain,biased (pooled),0.0367442,-0.0214715,0.09496,24,18
+blob_mnq,cap_c,gain,gain,none,0.43758,0.127524,0.747637,6,6
+blob_mnq,cap_c,gain,gain,w-high.g-none.v-none,-1.23221,-1.5986,-0.865828,6,0
+blob_mnq,cap_c,gain,gain,w-none.g-high.v-none,-0.20051,-0.541531,0.140511,6,2
+blob_mnq,cap_c,gain,gain,w-none.g-none.v-high,0.159965,0.00102382,0.318905,6,5
+blob_mnq,cap_c,gain,gain,high,-0.577791,-0.767243,-0.388339,6,0
+blob_mnq,cap_c,gain,gain,biased (pooled),-0.462637,-0.708324,-0.216951,24,7
+blob_mnq,cap_t,gain,gain,none,0.437586,0.127498,0.747675,6,6
+blob_mnq,cap_t,gain,gain,w-high.g-none.v-none,-1.1837,-1.53234,-0.835051,6,0
+blob_mnq,cap_t,gain,gain,w-none.g-high.v-none,-0.200506,-0.541551,0.140539,6,2
+blob_mnq,cap_t,gain,gain,w-none.g-none.v-high,0.159959,0.00101747,0.318901,6,5
+blob_mnq,cap_t,gain,gain,high,-0.579703,-0.751167,-0.408239,6,0
+blob_mnq,cap_t,gain,gain,biased (pooled),-0.450987,-0.688302,-0.213671,24,7
+blob_mnq,warm_c,gain,gain,none,0.106385,-0.0138977,0.226669,6,5
+blob_mnq,warm_c,gain,gain,w-high.g-none.v-none,-0.309418,-0.812414,0.193579,6,2
+blob_mnq,warm_c,gain,gain,w-none.g-high.v-none,-0.218055,-0.604168,0.168059,6,2
+blob_mnq,warm_c,gain,gain,w-none.g-none.v-high,-0.0691412,-0.320815,0.182532,6,4
+blob_mnq,warm_c,gain,gain,high,-0.0629754,-0.321165,0.195214,6,3
+blob_mnq,warm_c,gain,gain,biased (pooled),-0.164897,-0.308912,-0.0208825,24,11
+blob_mnq,opc,gain,gain,none,-23.528,-24.1999,-22.8562,6,0
+blob_mnq,opc,gain,gain,w-high.g-none.v-none,-21.4826,-23.1903,-19.775,6,0
+blob_mnq,opc,gain,gain,w-none.g-high.v-none,-20.7384,-21.9886,-19.4881,6,0
+blob_mnq,opc,gain,gain,w-none.g-none.v-high,-19.4935,-20.972,-18.015,6,0
+blob_mnq,opc,gain,gain,high,-14.3565,-17.3978,-11.3153,6,0
+blob_mnq,opc,gain,gain,biased (pooled),-19.0178,-20.4325,-17.603,24,0
+blob_mnq,dm_own,gain,gain,none,-23.6989,-24.3748,-23.0229,6,0
+blob_mnq,dm_own,gain,gain,w-high.g-none.v-none,-20.5549,-22.2914,-18.8184,6,0
+blob_mnq,dm_own,gain,gain,w-none.g-high.v-none,-20.2469,-21.575,-18.9188,6,0
+blob_mnq,dm_own,gain,gain,w-none.g-none.v-high,-19.1722,-20.6575,-17.6869,6,0
+blob_mnq,dm_own,gain,gain,high,-13.9944,-16.3502,-11.6386,6,0
+blob_mnq,dm_own,gain,gain,biased (pooled),-18.4921,-19.813,-17.1712,24,0
+blob_mnq,dm,gain,gain,none,-23.693,-24.3622,-23.0239,6,0
+blob_mnq,dm,gain,gain,w-high.g-none.v-none,-20.4823,-22.2507,-18.714,6,0
+blob_mnq,dm,gain,gain,w-none.g-high.v-none,-20.2229,-21.5284,-18.9173,6,0
+blob_mnq,dm,gain,gain,w-none.g-none.v-high,-19.1122,-20.5871,-17.6372,6,0
+blob_mnq,dm,gain,gain,high,-13.9267,-16.2755,-11.578,6,0
+blob_mnq,dm,gain,gain,biased (pooled),-18.436,-19.7593,-17.1127,24,0
+blob_mnq,tempered_logger,gain,gain,none,-24.2266,-24.9136,-23.5396,6,0
+blob_mnq,tempered_logger,gain,gain,w-high.g-none.v-none,-18.4452,-20.6489,-16.2415,6,0
+blob_mnq,tempered_logger,gain,gain,w-none.g-high.v-none,-19.3592,-21.0989,-17.6195,6,0
+blob_mnq,tempered_logger,gain,gain,w-none.g-none.v-high,-18.4839,-20.0299,-16.9379,6,0
+blob_mnq,tempered_logger,gain,gain,high,-8.72206,-10.649,-6.79509,6,0
+blob_mnq,tempered_logger,gain,gain,biased (pooled),-16.2526,-18.2611,-14.2441,24,0
+blob_mnq,cap_c,gain_tempered,gain_tempered,none,0.425744,0.196078,0.65541,6,6
+blob_mnq,cap_c,gain_tempered,gain_tempered,w-high.g-none.v-none,-3.40985,-3.93747,-2.88223,6,0
+blob_mnq,cap_c,gain_tempered,gain_tempered,w-none.g-high.v-none,-0.626001,-0.991669,-0.260332,6,0
+blob_mnq,cap_c,gain_tempered,gain_tempered,w-none.g-none.v-high,-0.365173,-0.595967,-0.134379,6,1
+blob_mnq,cap_c,gain_tempered,gain_tempered,high,-4.1601,-5.04477,-3.27542,6,0
+blob_mnq,cap_c,gain_tempered,gain_tempered,biased (pooled),-2.14028,-2.88987,-1.39069,24,1
+blob_mnq,warm_c,gain_tempered,gain_tempered,none,0.0119882,-0.0971444,0.121121,6,4
+blob_mnq,warm_c,gain_tempered,gain_tempered,w-high.g-none.v-none,0.240243,-1.51406,1.99454,6,2
+blob_mnq,warm_c,gain_tempered,gain_tempered,w-none.g-high.v-none,-0.174565,-0.301713,-0.0474171,6,0
+blob_mnq,warm_c,gain_tempered,gain_tempered,w-none.g-none.v-high,-0.385942,-0.749717,-0.0221663,6,0
+blob_mnq,warm_c,gain_tempered,gain_tempered,high,-2.54138,-4.22206,-0.860703,6,0
+blob_mnq,warm_c,gain_tempered,gain_tempered,biased (pooled),-0.715411,-1.37054,-0.0602876,24,2
+blob_mnq,opc,gain_tempered,gain,none,0.585095,0.374269,0.795922,6,6
+blob_mnq,opc,gain_tempered,gain,w-high.g-none.v-none,-2.31161,-2.76939,-1.85384,6,0
+blob_mnq,opc,gain_tempered,gain,w-none.g-high.v-none,-0.739203,-1.18966,-0.28875,6,0
+blob_mnq,opc,gain_tempered,gain,w-none.g-none.v-high,-0.323023,-0.579435,-0.0666114,6,1
+blob_mnq,opc,gain_tempered,gain,high,-3.70083,-4.63102,-2.77064,6,0
+blob_mnq,opc,gain_tempered,gain,biased (pooled),-1.76867,-2.38605,-1.15129,24,1
+blob_mnq,tempered_logger,gain_tempered,gain,none,-0.113466,-0.179567,-0.047365,6,0
+blob_mnq,tempered_logger,gain_tempered,gain,w-high.g-none.v-none,0.725848,0.0325571,1.41914,6,6
+blob_mnq,tempered_logger,gain_tempered,gain,w-none.g-high.v-none,0.639986,0.317098,0.962874,6,6
+blob_mnq,tempered_logger,gain_tempered,gain,w-none.g-none.v-high,0.686625,0.220784,1.15246,6,5
+blob_mnq,tempered_logger,gain_tempered,gain,high,1.93363,0.217346,3.64992,6,6
+blob_mnq,tempered_logger,gain_tempered,gain,biased (pooled),0.996523,0.564625,1.42842,24,23
+opc,cap_c,gain_greedy,gain_greedy,none,-0.054382,-0.391708,0.282944,6,2
+opc,cap_c,gain_greedy,gain_greedy,w-high.g-none.v-none,-1.1937,-1.43647,-0.95093,6,0
+opc,cap_c,gain_greedy,gain_greedy,w-none.g-high.v-none,0.103116,-0.136116,0.342348,6,3
+opc,cap_c,gain_greedy,gain_greedy,w-none.g-none.v-high,-0.0690311,-0.222742,0.08468,6,2
+opc,cap_c,gain_greedy,gain_greedy,high,-0.46911,-1.0541,0.115877,6,1
+opc,cap_c,gain_greedy,gain_greedy,biased (pooled),-0.407181,-0.658873,-0.155489,24,6
+opc,dm_own,gain_greedy,gain_greedy,none,-0.0570588,-0.331226,0.217108,6,1
+opc,dm_own,gain_greedy,gain_greedy,w-high.g-none.v-none,0.937713,0.553348,1.32208,6,6
+opc,dm_own,gain_greedy,gain_greedy,w-none.g-high.v-none,0.510105,0.236737,0.783473,6,6
+opc,dm_own,gain_greedy,gain_greedy,w-none.g-none.v-high,0.321126,0.152931,0.489321,6,6
+opc,dm_own,gain_greedy,gain_greedy,high,0.355919,-0.902816,1.61465,6,4
+opc,dm_own,gain_greedy,gain_greedy,biased (pooled),0.531216,0.255933,0.806498,24,22

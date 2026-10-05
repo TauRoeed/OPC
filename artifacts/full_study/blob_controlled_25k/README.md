@@ -47,6 +47,8 @@ python -m training.analyze_blob compare --blob-runs artifacts/full_study/run_blo
 | `table_accounting.csv` | Δgain = Δceiling − Δtraining − Δselection |
 | `table_pick_diagnostics.csv`, `policy_pairs.csv` | where the selected policies recommend; pairwise agreement and its value |
 | `table_data_identity.csv` | BLOB's training and validation rows against CausE-cap's warm rows |
+| `diagnostics/policy_diagnostics.csv`, `diagnostics/policy_pairs.csv` | the pick diagnostics of every saved policy, the logger and BLOB's prior mean, per world |
+| `class_oracles/class_oracles_<ds>.csv` | every class-oracle fit kept (class × objective × world), copied from `run_class_oracles_20261005`, with its settings |
 | `fig1_greedy_gain.*`, `fig1b_tempered_gain.*` | target value per arm and bias |
 | `fig2_accounting.*` | the accounting |
 | `fig3_picks.*` | the pick diagnostics |
