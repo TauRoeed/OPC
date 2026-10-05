@@ -315,6 +315,16 @@ def main(argv=None) -> None:
         picks["logger"] = logger
         rows.append({"dataset": ds, "bias": bias, "seed": seed, "run": "", "arm": "logger",
                      **{k: v for k, v in logger.items() if not k.startswith("_")}})
+        # BLOB-supplied-source at its prior mean (zero deviation, zero intercepts): its ranking is the source's after
+        # the released column normalization of Ψ, the point BLOB's training starts from
+        from models.blob import prepare_psi
+        from training.blob_trials import supplied_source
+
+        omega, psi = supplied_source(dataset)
+        start = greedy_pick_diagnostics(dataset, omega, prepare_psi(psi)[0], ref=ref, return_picks=True)
+        picks["blob_prior_mean"] = start
+        rows.append({"dataset": ds, "bias": bias, "seed": seed, "run": "", "arm": "blob_prior_mean",
+                     **{k: v for k, v in start.items() if not k.startswith("_")}})
         frame = pd.DataFrame(rows).assign(world_seconds=time.time() - t0)
         frame.to_csv(diag_path, mode="a", header=not diag_path.exists(), index=False, float_format="%.8g")
         pairs = pairwise_table(prior, picks, int(dataset["n_actions"])).assign(dataset=ds, bias=bias, seed=seed)

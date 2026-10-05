@@ -607,7 +607,9 @@ def fig_accounting(acc: pd.DataFrame, out: Path) -> None:
     _save(fig, out, "fig2_accounting", pd.DataFrame(data))
 
 
-PICK_ARMS = {"logger": ("logger", "#7F7F7F", "x"), "opc": ("OPC (harmonic:0.1)", "#0072B2", "P"),
+PICK_ARMS = {"logger": ("logger", "#7F7F7F", "x"),
+             "blob_prior_mean": ("BLOB at its prior mean (training's start)", "#D55E00", "x"),
+             "opc": ("OPC (harmonic:0.1)", "#0072B2", "P"),
              "causecap_c_r000": ("CausE-cap-C, ρ = 0", "#CC79A7", "D"),
              "blob_nq": ("BLOB-NQ", "#D55E00", "o"), "blob_mnq": ("BLOB-MNQ", "#D55E00", "s"),
              "oracle_affine_bilinear_value": ("value oracle, OPC's class", "#0072B2", "*"),
@@ -749,6 +751,7 @@ def tables_md(t: pd.DataFrame, s: pd.DataFrame, p: pd.DataFrame, acc: pd.DataFra
 
 
 PAIRS = (("opc", "blob_nq"), ("opc", "blob_mnq"), ("causecap_c_r000", "blob_nq"), ("opc", "causecap_c_r000"),
+         ("blob_nq", "blob_prior_mean"), ("blob_mnq", "blob_prior_mean"), ("blob_prior_mean", "logger"),
          ("oracle_affine_bilinear_value", "opc"), ("oracle_blob_likelihood", "blob_nq"))
 
 
