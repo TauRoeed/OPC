@@ -591,8 +591,10 @@ def rho_effect_table(t: pd.DataFrame, arms=FAIR_ARMS + NATIVE_ARMS, col: str = "
 
 def variant_contrasts(t: pd.DataFrame, col: str = "gain_greedy") -> pd.DataFrame:
     """At equal rho and prediction side, paired by world: CausE-warm − native CausE-prod (the source representation,
-    given CausE's capacity), CausE-cap − CausE-warm (OPC's linear family instead of free vectors, given the source)."""
-    pairs = (("warm_c", "native_prod_c"), ("warm_t", "native_prod_t"), ("cap_c", "warm_c"), ("cap_t", "warm_t"))
+    given CausE's capacity), CausE-cap − CausE-warm (OPC's linear family instead of free vectors, given the source)
+    and CausE-cap − native CausE-prod (both)."""
+    pairs = (("warm_c", "native_prod_c"), ("warm_t", "native_prod_t"), ("cap_c", "warm_c"), ("cap_t", "warm_t"),
+             ("cap_c", "native_prod_c"), ("cap_t", "native_prod_t"))
     rows = []
     for a, b in pairs:
         for rho in sorted(t.loc[t["arm"] == a, "rho"].dropna().unique()):
