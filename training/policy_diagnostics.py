@@ -3,10 +3,12 @@
 
 For a greedy policy a*(u) = argmax_a ux_u · ia_a (ties to the first item, as ``calc_greedy_reward``):
 - **where it recommends,** relative to the logger π0 = (1 − m) softmax(x·a / T) + m / P:
-  - the shares of users whose pick is the logger's top item or in its top 10;
+  - the shares of users whose pick is the logger's top item or in its top 10, the median rank of the pick under the
+    logger's scores and the share ranked 100 or lower;
   - the share whose pick the logger shows less often than uniformly, π0(a*|u) < 1/P;
   - the mean log10(P π0(a*|u));
-- **what the picks are worth:** the true click probability at the picks inside and outside the logger's top 10;
+- **what the picks are worth:** the true click probability at the picks that are and are not the logger's top item,
+  inside and outside its top 10, and above and below uniform propensity;
 - **concentration:** the number of distinct items picked and the share of the most-picked one;
 - **for a click model σ(ux·ia + offset):**
   - the optimism at its picks, Σ prior (σ(f(u, a*)) − q(u, a*));
@@ -73,8 +75,12 @@ class _Truth:
             return self.q_all[u0:u1]
         return torch.sigmoid((self.env_x[u0:u1] @ self.env_a_t) * self.scale + self.offset)
 
-    def pi0(self, u0: int, u1: int) -> torch.Tensor:
-        p = torch.softmax((self.x[u0:u1] @ self.a_t) / self.temperature, dim=1)
+    def logger_scores(self, u0: int, u1: int) -> torch.Tensor:
+        return self.x[u0:u1] @ self.a_t
+
+    def pi0(self, u0: int, u1: int, scores: torch.Tensor | None = None) -> torch.Tensor:
+        z = self.logger_scores(u0, u1) if scores is None else scores
+        p = torch.softmax(z / self.temperature, dim=1)
         return p if self.mix <= 0 else (1.0 - self.mix) * p + self.mix / self.n_actions
 
 
@@ -118,6 +124,7 @@ def greedy_pick_diagnostics(dataset: dict, ux: np.ndarray, ia: np.ndarray, *, of
         err_sum, bias_sum, pairs, logged = (np.zeros(nb) for _ in range(4))
         ce_total, optimism = 0.0, 0.0
     picks = np.empty(n, dtype=np.int64)
+    rank_pick = np.empty(n, dtype=np.int64)
     q_pick = np.empty(n)
     pi0_pick = np.empty(n)
     prev = torch.get_float32_matmul_precision()
@@ -128,8 +135,11 @@ def greedy_pick_diagnostics(dataset: dict, ux: np.ndarray, ia: np.ndarray, *, of
             scores = pol_x[u0:u1] @ pol_a_t
             best = scores.argmax(dim=1)
             q = truth.q(u0, u1)
-            pi0 = truth.pi0(u0, u1)
+            z = truth.logger_scores(u0, u1)
+            pi0 = truth.pi0(u0, u1, z)
             picks[u0:u1] = best.cpu().numpy()
+            # the pick's rank under the logger's scores (0 = the logger's own top item)
+            rank_pick[u0:u1] = (z > z.gather(1, best[:, None])).sum(dim=1).cpu().numpy()
             q_pick[u0:u1] = q.gather(1, best[:, None])[:, 0].double().cpu().numpy()
             pi0_pick[u0:u1] = pi0.gather(1, best[:, None])[:, 0].double().cpu().numpy()
             if click:
@@ -160,10 +170,15 @@ def greedy_pick_diagnostics(dataset: dict, ux: np.ndarray, ia: np.ndarray, *, of
     counts = np.bincount(picks, weights=prior, minlength=P)
 
     def mean_where(x, mask):
-        s = float(prior[mask].sum())
-        return float(np.dot(prior[mask], x[mask]) / s) if s > 0 else np.nan
+        w = float(prior[mask].sum())
+        return float(np.dot(prior[mask], x[mask]) / w) if w > 0 else np.nan
 
+    order = np.argsort(rank_pick, kind="stable")
+    cum = np.cumsum(prior[order])
     out = {"value_greedy": float(np.dot(prior, q_pick)), "agree_logger_top1": float(prior[is_top1].sum()),
+           "pick_rank_median": float(rank_pick[order][np.searchsorted(cum, 0.5)]),
+           "pick_rank_ge100": float(prior[rank_pick >= 100].sum()),
+           "q_at_picks_top1": mean_where(q_pick, is_top1), "q_at_picks_not_top1": mean_where(q_pick, ~is_top1),
            "in_logger_top10": float(prior[in_top].sum()), "pick_below_uniform": float(prior[below].sum()),
            "pick_log10_rel_pi0": float(np.dot(prior, np.log10(np.maximum(pi0_pick * P, 1e-300)))),
            "q_at_picks_in_top10": mean_where(q_pick, in_top), "q_at_picks_off_top10": mean_where(q_pick, ~in_top),
@@ -274,7 +289,9 @@ def main(argv=None) -> None:
         for run, path in items:
             pol = load_selected_policy(path)
             arm = path.name[: -len(POLICY_SUFFIX)]
-            d = greedy_pick_diagnostics(dataset, pol["ux"], pol["ia"], offset=pol["offset"], ref=ref, return_picks=True)
+            # a value oracle's logits rank and sharpen; they are not a calibrated click model
+            offset = None if (arm.startswith("oracle_") and "_value_" in arm) else pol["offset"]
+            d = greedy_pick_diagnostics(dataset, pol["ux"], pol["ia"], offset=offset, ref=ref, return_picks=True)
             if "value_greedy" in pol:  # the run's own value of the same policy: the world and replay check
                 d["run_value_greedy"] = float(pol["value_greedy"])
                 if abs(d["run_value_greedy"] - d["value_greedy"]) > 1e-7:

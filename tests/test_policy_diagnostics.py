@@ -65,6 +65,14 @@ def test_greedy_diagnostics_match_dense_numpy(toy):
     assert sum(d[f"logged_{n}"] for n in BIN_NAMES) == pytest.approx(1.0, abs=1e-6)
     below = pi0[rows, picks] * P < 1
     assert d["pick_below_uniform"] == pytest.approx(prior[below].sum(), abs=1e-9)
+    z = np.asarray(toy["our_x"], np.float32) @ np.asarray(toy["our_a"], np.float32).T
+    rank = (z > z[rows, picks][:, None]).sum(1)
+    assert d["pick_rank_ge100"] == pytest.approx(prior[rank >= 100].sum(), abs=1e-9)
+    order = np.argsort(rank, kind="stable")
+    assert d["pick_rank_median"] == rank[order][np.searchsorted(np.cumsum(prior[order]), 0.5)]
+    top1 = rank == 0
+    assert d["agree_logger_top1"] == pytest.approx(prior[top1].sum(), abs=1e-9)
+    assert d["q_at_picks_not_top1"] == pytest.approx(prior[~top1] @ q[rows, picks][~top1] / prior[~top1].sum(), rel=1e-6)
 
 
 def test_the_logger_agrees_with_itself_and_pairs_are_consistent(toy):

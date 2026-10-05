@@ -521,7 +521,7 @@ def fig_gains(s: pd.DataFrame, out: Path, col: str = "gain_greedy", name: str = 
         ax.set_title("biased worlds (24)" if panel == "biased (pooled)" else BIAS_NAMES.get(panel, panel) + " (6)")
         ax.set_yticks(range(len(arms)))
         ax.set_yticklabels([NAMES[a] for a in arms])
-        ax.invert_yaxis()
+    axes[0].invert_yaxis()  # once: the panels share the y axis
     fig.supxlabel(xlabel, fontsize=9)
     fig.suptitle("Target value at 25k (mean and 95% CI over worlds); BLOB and the likelihood learners ignore "
                  "propensities", y=1.02, fontsize=9.5)
@@ -568,6 +568,146 @@ def fig_accounting(acc: pd.DataFrame, out: Path) -> None:
     _save(fig, out, "fig2_accounting", pd.DataFrame(data))
 
 
+PICK_ARMS = {"logger": ("logger", "#7F7F7F", "x"), "opc": ("OPC (harmonic:0.1)", "#0072B2", "P"),
+             "causecap_c_r000": ("CausE-cap-C, ρ = 0", "#CC79A7", "D"),
+             "blob_nq": ("BLOB-NQ", "#D55E00", "o"), "blob_mnq": ("BLOB-MNQ", "#D55E00", "s"),
+             "oracle_affine_bilinear_value": ("value oracle, OPC's class", "#0072B2", "*"),
+             "oracle_blob_value": ("value oracle, BLOB's class", "#D55E00", "*"),
+             "oracle_affine_bilinear_likelihood": ("likelihood oracle, OPC's class", "#CC79A7", "*"),
+             "oracle_blob_likelihood": ("likelihood oracle, BLOB's class", "#D55E00", "X")}
+
+
+def fig_picks(dt: pd.DataFrame, out: Path, panel: str = "biased (pooled)") -> None:
+    """Where each selected policy recommends and what it is worth there (training/policy_diagnostics.py), over the
+    biased worlds: the share of users whose pick is not the logger's top item, the true click probability at those
+    picks and at the logger's top item, and for the click models the optimism at the picks."""
+    from training.representation_report import _plt, _save
+
+    plt = _plt()
+    d = dt[dt["bias"] == panel].set_index("arm")
+    arms = [a for a in PICK_ARMS if a in d.index]
+    d = d.assign(moved_off_top1=1.0 - d["agree_logger_top1"])
+    metrics = (("moved_off_top1", "share of users whose pick is not\nthe logger's top item", 1.0, None),
+               ("q_at_picks_not_top1", "true CTR at those picks (filled) and\nat the logger's top item (open), %",
+                100.0, "q_at_picks_top1"),
+               ("optimism_at_pick", "click model's optimism at its picks,\nΣ prior (σ(f) − q), CTR pts", 100.0, None))
+    fig, axes = plt.subplots(1, len(metrics), figsize=(11.5, 0.34 * len(arms) + 1.3), sharey=True)
+    data = []
+    for ax, (col, label, scale, col2) in zip(axes, metrics):
+        for i, arm in enumerate(arms):
+            name, color, marker = PICK_ARMS[arm]
+            if col in d and np.isfinite(d.loc[arm, col]):
+                ax.plot([scale * d.loc[arm, col]], [i], marker=marker, color=color, markersize=6, linestyle="none")
+                data.append({"panel": panel, "arm": arm, "metric": col, "value": scale * d.loc[arm, col]})
+            if col2 and col2 in d and np.isfinite(d.loc[arm, col2]):
+                ax.plot([scale * d.loc[arm, col2]], [i], marker=marker, color=color, markersize=6, linestyle="none",
+                        markerfacecolor="none")
+                data.append({"panel": panel, "arm": arm, "metric": col2, "value": scale * d.loc[arm, col2]})
+        if col == "optimism_at_pick":
+            ax.axvline(0, color="black", linewidth=0.8)
+        ax.set_xlabel(label)
+        ax.set_yticks(range(len(arms)))
+        ax.set_yticklabels([PICK_ARMS[a][0] for a in arms])
+    axes[0].invert_yaxis()
+    fig.suptitle("Where the selected policies recommend and what it is worth there (exact; means over the 24 biased "
+                 "worlds)", y=1.02, fontsize=9.5)
+    _save(fig, out, "fig3_picks", pd.DataFrame(data))
+
+
+TABLE_PANELS = ("biased (pooled)", "none", "w-high.g-none.v-none", "w-none.g-high.v-none", "w-none.g-none.v-high",
+                "high")
+
+
+def _panel_name(p: str) -> str:
+    from training.analyze_cause_fair import BIAS_NAMES
+
+    return "biased (24)" if p == "biased (pooled)" else BIAS_NAMES.get(p, p) + " (6)"
+
+
+def _cell(s: pd.DataFrame, panel: str, arm: str, col: str, ci: bool = True, digits: int = 2, sign: bool = True) -> str:
+    from training.analyze_cause_fair import _fmt
+
+    g = s[(s["bias"] == panel) & (s["arm"] == arm)]
+    if g.empty or col not in g or not np.isfinite(g[col].iloc[0]):
+        return "—"
+    r = g.iloc[0]
+    return _fmt(r[col], r.get(col + "_lo", np.nan) if ci else np.nan, r.get(col + "_hi", np.nan) if ci else np.nan,
+                digits, sign)
+
+
+def tables_md(t: pd.DataFrame, s: pd.DataFrame, p: pd.DataFrame, acc: pd.DataFrame | None,
+              orc: pd.DataFrame | None) -> str:
+    """The report's tables (docs/blob_controlled_integration.md §5) as markdown."""
+    from training.analyze_cause_fair import _fmt, _md
+
+    arms = [a for a in ARMS if a in set(t["arm"])]
+    out = []
+    for col, title in (("gain_greedy", "Greedy value − the logger's greedy value (primary)"),
+                       ("gain", "Stochastic value − the logger's value (BLOB and CausE: raw softmax, τ = 1)"),
+                       ("gain_tempered", "Stochastic value − the logger's value, BLOB and CausE tempered by the DR "
+                                         "lower bound (OPC: its learned scale)")):
+        rows = []
+        for arm in arms:
+            c = "gain" if (col == "gain_tempered" and arm not in BLOB_ARMS + LIKELIHOOD_ARMS) else col
+            if col == "gain_tempered" and arm not in BLOB_ARMS + LIKELIHOOD_ARMS + ("opc", "tempered_logger"):
+                continue
+            rows.append({"arm": NAMES[arm], **{_panel_name(pn): _cell(s, pn, arm, c, ci=pn == "biased (pooled)")
+                                                for pn in TABLE_PANELS}})
+        out.append(f"**{title}** (CTR points; mean over worlds, 95% CI for the pooled biased worlds)\n\n"
+                   + _md(pd.DataFrame(rows)))
+    for col, title in (("gain_greedy", "Paired differences, greedy value"),
+                       ("gain_tempered", "Paired differences, stochastic value (BLOB tempered)")):
+        rows = []
+        for (a, b), g in p[(p["col"] == col)].groupby(["a", "b"], sort=False):
+            r = {"a − b": f"{NAMES[a]} − {NAMES[b]}"}
+            for pn in TABLE_PANELS:
+                x = g[g["bias"] == pn]
+                r[_panel_name(pn)] = (f"{_fmt(x['a_minus_b'].iloc[0], x['ci_lo'].iloc[0], x['ci_hi'].iloc[0])} "
+                                      f"({int(x['a_higher'].iloc[0])}/{int(x['worlds'].iloc[0])})") if len(x) else "—"
+            rows.append(r)
+        if rows:
+            out.append(f"**{title}** (CTR points; mean [95% CI] over worlds; in parentheses the worlds where a is "
+                       "higher)\n\n" + _md(pd.DataFrame(rows)))
+    rows = []
+    for arm in arms:
+        rows.append({"arm": NAMES[arm],
+                     "share of the representation loss": _cell(s, "biased (pooled)", arm, "frac_loss", sign=False),
+                     "share of its class's value oracle": _cell(s, "biased (pooled)", arm, "frac_oracle", sign=False),
+                     "class ceiling (pts)": _cell(s, "biased (pooled)", arm, "own_value_oracle_gain", ci=False),
+                     "best of its 20 trials (pts)": _cell(s, "biased (pooled)", arm, "best_trial_gain", ci=False),
+                     "selection regret (pts)": _cell(s, "biased (pooled)", arm, "regret_greedy", ci=False,
+                                                     sign=False)})
+    out.append("**Shares repaired, ceilings, best trials and selection regret, biased worlds** (greedy; mean [95% CI] "
+               "over the 24 worlds)\n\n" + _md(pd.DataFrame(rows)))
+    if orc is not None and len(orc):
+        rows = []
+        for q in orc["quantity"].unique():
+            g = orc[orc["quantity"] == q]
+            r = {"quantity": q}
+            for pn in TABLE_PANELS:
+                x = g[g["bias"] == pn]
+                r[_panel_name(pn)] = _fmt(x["mean"].iloc[0], x["ci_lo"].iloc[0] if pn == "biased (pooled)" else np.nan,
+                                          x["ci_hi"].iloc[0] if pn == "biased (pooled)" else np.nan) if len(x) else "—"
+            rows.append(r)
+        out.append("**Class oracles** (truth-trained, no logged data; greedy gain over the logger's greedy value, CTR "
+                   "points; value = the value oracle, likelihood = the infinite-data likelihood fit under π0)\n\n"
+                   + _md(pd.DataFrame(rows)))
+    if acc is not None and len(acc):
+        rows = []
+        for (a, b), g in acc.groupby(["a", "b"], sort=False):
+            for pn in TABLE_PANELS:
+                x = g[g["bias"] == pn]
+                if x.empty:
+                    continue
+                x = x.iloc[0]
+                rows.append({"a − b": f"{NAMES[a]} − {NAMES[b]}", "worlds": _panel_name(pn),
+                             **{k: _fmt(x[k], x[k + "_lo"], x[k + "_hi"]) for k in ("gain", "ceiling", "training",
+                                                                                    "selection")}})
+        out.append("**Accounting: Δgain = Δceiling − Δtraining − Δselection** (greedy, CTR points; mean [95% CI] over "
+                   "worlds)\n\n" + _md(pd.DataFrame(rows)))
+    return "\n\n".join(out) + "\n"
+
+
 def compare_main(args) -> None:
     from training.analyze_cause_fair import BEST_ITEM, reference_rows
 
@@ -593,12 +733,15 @@ def compare_main(args) -> None:
     pairs.append(paired_table(t, "opc", [b for b in ("cap_c", "dm_own") if b in set(t["arm"])]))
     p = pd.concat(pairs, ignore_index=True)
     p.to_csv(out / "table_paired.csv", index=False, float_format="%.6g")
-    acc = []
+    acc, orc = [], None
     if oracles is not None:
-        oracle_summary(oracles).to_csv(out / "table_class_oracles.csv", index=False, float_format="%.6g")
+        orc = oracle_summary(oracles)
+        orc.to_csv(out / "table_class_oracles.csv", index=False, float_format="%.6g")
         acc = [accounting_table(t, a, b) for a in BLOB_ARMS for b in ("opc", "cap_c") if {a, b} <= set(t["arm"])]
+        acc += [accounting_table(t, "opc", "cap_c")] if {"opc", "cap_c"} <= set(t["arm"]) else []
         if acc:
             pd.concat(acc, ignore_index=True).to_csv(out / "table_accounting.csv", index=False, float_format="%.6g")
+    (out / "tables.md").write_text(tables_md(t, s, p, pd.concat(acc, ignore_index=True) if acc else None, orc))
     fig_gains(s, out)
     fig_gains(s, out, col="gain_tempered", name="fig1b_tempered_gain",
               xlabel="stochastic value − logger's value (CTR pts); BLOB and CausE tempered", arms=("blob_nq", "blob_mnq",
@@ -607,7 +750,9 @@ def compare_main(args) -> None:
         fig_accounting(pd.concat(acc, ignore_index=True), out)
     if args.diagnostics:
         diag = pd.read_csv(Path(args.diagnostics) / "policy_diagnostics.csv")
-        diagnostics_table(diag).to_csv(out / "table_pick_diagnostics.csv", index=False, float_format="%.6g")
+        dt = diagnostics_table(diag)
+        dt.to_csv(out / "table_pick_diagnostics.csv", index=False, float_format="%.6g")
+        fig_picks(dt, out)
         pp = pd.read_csv(Path(args.diagnostics) / "policy_pairs.csv")
         pp.to_csv(out / "policy_pairs.csv", index=False, float_format="%.8g")
     print(f"wrote {out}: {len(t)} rows; arms {sorted(t['arm'].unique())}")
