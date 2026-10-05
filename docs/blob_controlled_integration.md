@@ -133,7 +133,7 @@ The fixture comes from `scripts/blob_reference/make_tf_fixture.py`, which execut
 block verbatim and fetches each step's noise. It matches the per-step losses to 2e-5 (relative), the final variables
 and the point estimate β̂, κ̂ to 1e-4, and the released initialization exactly.
 
-**Result** (2026-10-05 11:30–14:23, one repetition, CPU TensorFlow 1.15; `artifacts/blob_reference/` holds the CSV and
+**Result** (2026-10-05 12:19–14:23, one repetition, CPU TensorFlow 1.15; `artifacts/blob_reference/` holds the CSV and
 the log). CTR in %; in brackets the evaluation's 2.5–97.5% quantiles, which cover the A/B test's evaluation noise
 only, not the variation between training repetitions.
 
