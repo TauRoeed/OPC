@@ -48,6 +48,7 @@ This script is a copy of the authors' `simulate_abtest_with_bandit.py`.
 cp repro_table3.py ~/code/BLOB/ && cd ~/code/BLOB && <py36 env>/bin/python repro_table3.py 100 0,50
 ```
 
-The output goes to `results/repro_table3_P100.csv`. The run of 2026-10-05 is copied to
+The output goes to `results/repro_table3_P100.csv`. The run of 2026-10-05 (in `~/code/BLOB_audit/run_repro`, a copy of the
+release, with the environment `~/code/BLOB_audit/envs/blob-py36`) is copied to
 `artifacts/blob_reference/repro_table3_P100.csv`, and its comparison with the paper is in
 `docs/blob_controlled_integration.md` §2.

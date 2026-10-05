@@ -133,7 +133,29 @@ The fixture comes from `scripts/blob_reference/make_tf_fixture.py`, which execut
 block verbatim and fetches each step's noise. It matches the per-step losses to 2e-5 (relative), the final variables
 and the point estimate β̂, κ̂ to 1e-4, and the released initialization exactly.
 
-**Status:** *running (results below when complete).*
+**Result** (2026-10-05 11:30–14:23, one repetition, CPU TensorFlow 1.15; `artifacts/blob_reference/` holds the CSV and
+the log). CTR in %; in brackets the evaluation's 2.5–97.5% quantiles, which cover the A/B test's evaluation noise
+only, not the variation between training repetitions.
+
+| agent | flips 0: reproduced | paper | flips 50: reproduced | paper |
+|---|---|---|---|---|
+| BLO (organic) | 2.42 [2.37, 2.48] | 2.42 | 0.76 [0.73, 0.79] | 0.76 |
+| BLOB-NQ | 2.42 [2.37, 2.48] | 2.42 | 1.57 [1.53, 1.62] | 1.57 |
+| BLOB-MNQ | 2.38 [2.33, 2.44] | 2.40 | 1.57 [1.53, 1.61] | 1.56 |
+| logistic regression (bandit) | 1.38 [1.34, 1.42] | 1.37 | 1.38 [1.34, 1.42] | 1.21 |
+| random | 1.09 [1.05, 1.13] | 1.09 | 1.11 [1.07, 1.15] | 1.11 |
+
+- **BLOB and BLO reproduce Table 3.** Every BLO and BLOB entry is within 0.02 points of the paper, in both scenarios.
+  The paper's central result reproduces as well: with the organic signal intact (flips 0), BLOB matches BLO; when 50
+  of the 100 products' organic behaviour is permuted (flips 50), BLO falls below random and BLOB keeps about 2× the
+  bandit-only baseline.
+- **One discrepancy, in a baseline.** Logistic regression at flips 50 gives 1.38, against the paper's 1.21. It does
+  not depend on the organic data, so the same value at flips 0 and 50 is what its definition implies. The paper's
+  drop to 1.21 may come from repetition-to-repetition variation or from a configuration the release does not record.
+  It does not involve BLOB.
+- The faithful implementation used for our comparison is the PyTorch port, not this TensorFlow run. The port is
+  verified against the released graph step by step (above); this run verifies that the released configuration
+  produces the published numbers.
 
 ## 3. BLOB-supplied-source: the controlled variant
 
