@@ -108,6 +108,11 @@ def test_skip_completed_recognises_cause_labels(tmp_path):
     assert _summary_has_methods(path, ("opc", "cause"))
     pd.DataFrame({"method": ["opc"]}).to_csv(path, index=False)
     assert not _summary_has_methods(path, ("opc", "cause"))
+    for label in ("causewarm_c_r050", "causecap_t_r000"):  # the warm-started families (docs/cause_fair_comparison_25k.md)
+        pd.DataFrame({"method": [label]}).to_csv(path, index=False)
+        assert _summary_has_methods(path, ("cause",))
+    pd.DataFrame({"method": ["causes_x"]}).to_csv(path, index=False)
+    assert not _summary_has_methods(path, ("cause",))
 
 
 def test_a_cause_only_run_gives_the_same_cause_results(runs, tmp_path):

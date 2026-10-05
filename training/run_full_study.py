@@ -128,7 +128,9 @@ def _summary_has_methods(summary_path: Path, methods) -> bool:
     if "method" not in summary.columns:
         return False
     have = set(summary["method"].astype(str))
-    return all(any(h.startswith("cause_") for h in have) if m == "cause" else m in have for m in methods)
+    # the CausE arm writes one row per prediction and rho, labeled by family: cause_*, causewarm_*, causecap_*
+    return all(any(h.split("_")[0] in ("cause", "causewarm", "causecap") for h in have) if m == "cause" else m in have
+               for m in methods)
 
 
 def _load_cached_method_df(run_dir: Path, method: str) -> pd.DataFrame:
