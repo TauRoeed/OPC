@@ -493,13 +493,20 @@ def paired_table(t: pd.DataFrame, a: str, b_arms, *, col: str = "gain_greedy", a
 
 def data_identity_check(cause: pd.DataFrame) -> pd.DataFrame:
     """Every CausE family must train on the same rows at the same (world, rho): the native M5 rows and the new runs
-    share the warm prefix, the uniform pool and the validation rows. Per (world, rho): the number of distinct values
-    of each budget field across the families (1 everywhere = identical data)."""
-    fields = ["n_control", "n_treatment", "control_reward_sum", "treatment_reward_sum", "opc_collection_reward_sum",
-              "initial_reward", "logger_greedy", "val_size"]
-    g = cause.groupby(CELL)[[f for f in fields if f in cause]].nunique()
-    g["families"] = cause.groupby(CELL)["arm"].apply(lambda a: ",".join(sorted({x.split("_")[0] for x in a})))
-    return g.reset_index()
+    share the warm prefix, the uniform pool and the validation rows. Per (world, rho): whether each budget field
+    differs across the families (counts and click sums exactly; the logger's exact values beyond 1e-6, since they
+    are computed in float32 and equal only up to summation order, ~1e-8)."""
+    exact = ["n_control", "n_treatment", "control_reward_sum", "treatment_reward_sum", "opc_collection_reward_sum",
+             "val_size"]
+    floats = ["initial_reward", "logger_greedy"]
+    g = cause.groupby(CELL)
+    out = (g[[f for f in exact if f in cause]].nunique() > 1)
+    for f in floats:
+        if f in cause:
+            out[f] = (g[f].max() - g[f].min()) > 1e-6
+    out = out.astype(int).rename(columns=lambda c: f"{c}_differs")
+    out["families"] = g["arm"].apply(lambda a: ",".join(sorted({x.split("_")[0] for x in a})))
+    return out.reset_index()
 
 
 def oracle_check(trials: pd.DataFrame) -> pd.DataFrame:
@@ -639,8 +646,14 @@ def _panels(s: pd.DataFrame, panels) -> tuple:
     return plt, fig, np.atleast_1d(axes)
 
 
-def _ci_line(ax, g: pd.DataFrame, col: str, label: str, **style) -> None:
-    ax.errorbar(g["rho"], g[col], yerr=[g[col] - g[col + "_lo"], g[col + "_hi"] - g[col]], markersize=3.5,
+# horizontal offsets so that the error bars of series at the same rho do not hide each other (C and T often coincide)
+DODGE = {"warm_c": -0.0045, "warm_t": -0.0015, "cap_c": 0.0015, "cap_t": 0.0045, "native_prod_c": -0.006,
+         "native_prod_t": 0.006}
+
+
+def _ci_line(ax, g: pd.DataFrame, col: str, label: str, arm: str | None = None, **style) -> None:
+    x = g["rho"] + DODGE.get(arm, 0.0)
+    ax.errorbar(x, g[col], yerr=[g[col] - g[col + "_lo"], g[col + "_hi"] - g[col]], markersize=3.5,
                 linewidth=1.4, capsize=2, elinewidth=0.8, label=label, **style)
 
 
@@ -658,8 +671,16 @@ def _reference_lines(ax, sb: pd.DataFrame, col: str, arms=("opc", "dm_own"), bes
         data.append(g)
     ax.axhline(0, color="black", linewidth=0.8, label="logger")
     if best_item and "best_item_gain" in sb and sb["best_item_gain"].notna().any():
-        ax.axhline(float(sb["best_item_gain"].dropna().iloc[0]), color=COLORS["best_item"], linestyle=(0, (4, 3)),
-                   linewidth=1.0, label="best single item (no personalization)")
+        v = float(sb["best_item_gain"].dropna().iloc[0])
+        lo, hi = ax.get_ylim()
+        if v >= lo:
+            ax.axhline(v, color=COLORS["best_item"], linestyle=(0, (4, 3)), linewidth=1.0,
+                       label="best single item (no personalization)")
+        else:  # far below every method: name it at the panel's bottom instead of stretching the axis
+            ax.annotate(f"best single item: {v:+.1f} ↓", xy=(0.03, 0.02), xycoords="axes fraction", fontsize=7.5,
+                        color=COLORS["best_item"], va="bottom")
+            ax.plot([], [], color=COLORS["best_item"], linestyle=(0, (4, 3)), linewidth=1.0,
+                    label="best single item (no personalization)")
     return data
 
 
@@ -675,7 +696,7 @@ def fig_rho(s: pd.DataFrame, out: Path, *, col: str = "gain_greedy", name: str =
             g = sb[sb["arm"] == arm].sort_values("rho")
             if g.empty or col not in g:
                 continue
-            _ci_line(ax, g, col, NAMES[arm], **_arm_style(arm))
+            _ci_line(ax, g, col, NAMES[arm], arm, **_arm_style(arm))
             data.append(g.assign(panel=bias))
         data += [d.assign(panel=bias) for d in _reference_lines(ax, sb, col, refs, best_item=col == "gain_greedy")]
         ax.set_title(BIAS_NAMES.get(bias, bias))
@@ -736,7 +757,7 @@ def fig_variants(s: pd.DataFrame, out: Path) -> None:
             g = sb[sb["arm"] == arm].sort_values("rho")
             if g.empty:
                 continue
-            _ci_line(ax, g, "gain_greedy", NAMES[arm], **_arm_style(arm))
+            _ci_line(ax, g, "gain_greedy", NAMES[arm], arm, **_arm_style(arm))
             data.append(g.assign(panel=panel))
         ax.axhline(0, color="black", linewidth=0.8, label="logger")
         ax.set_title("biased worlds (24)" if panel != "none" else "no bias (6)")
@@ -763,7 +784,7 @@ def fig_opc_minus(p: pd.DataFrame, out: Path, arms=FAIR_ARMS) -> None:
             g = pb[pb["b"] == arm].sort_values("rho").rename(columns={"ci_lo": col + "_lo", "ci_hi": col + "_hi"})
             if g.empty:
                 continue
-            _ci_line(ax, g, col, NAMES[arm], **_arm_style(arm))
+            _ci_line(ax, g, col, NAMES[arm], arm, **_arm_style(arm))
             data.append(g.assign(panel=bias))
         ax.axhline(0, color="black", linewidth=0.8)
         ax.set_title(BIAS_NAMES.get(bias, bias))
@@ -778,6 +799,107 @@ def fig_opc_minus(p: pd.DataFrame, out: Path, arms=FAIR_ARMS) -> None:
     _save(fig, out, "fig4_opc_minus_cause", pd.concat(data, ignore_index=True) if data else pd.DataFrame())
 
 
+# ------------------------------------------------------------------------------------------------ report tables
+RHOS = (0.0, 0.01, 0.05, 0.10, 0.15, 0.25)
+PANELS = ("biased (pooled)",) + BIAS_ORDER
+
+
+def _fmt(m, lo=np.nan, hi=np.nan, digits: int = 2, sign: bool = True) -> str:
+    if m is None or not np.isfinite(m):
+        return "—"
+    f = f"{{:+.{digits}f}}" if sign else f"{{:.{digits}f}}"
+    if np.isfinite(lo) and np.isfinite(hi):
+        return f"{f.format(m)} [{f.format(lo)}, {f.format(hi)}]"
+    return f.format(m)
+
+
+def _md(df: pd.DataFrame) -> str:
+    cols = list(df.columns)
+    lines = ["| " + " | ".join(map(str, cols)) + " |", "|" + "---|" * len(cols)]
+    lines += ["| " + " | ".join(str(v) for v in row) + " |" for row in df.itertuples(index=False)]
+    return "\n".join(lines)
+
+
+def _cell(s: pd.DataFrame, panel: str, arm: str, rho, col: str, ci: bool = True, digits: int = 2) -> str:
+    g = s[(s["bias"] == panel) & (s["arm"] == arm)]
+    g = g[g["rho"].isna()] if rho is None else g[np.isclose(g["rho"].astype(float), rho)]
+    if g.empty or col not in g:
+        return "—"
+    r = g.iloc[0]
+    return _fmt(r[col], r.get(col + "_lo", np.nan) if ci else np.nan, r.get(col + "_hi", np.nan) if ci else np.nan,
+                digits)
+
+
+def tables_md(t: pd.DataFrame, s: pd.DataFrame, p: pd.DataFrame) -> str:
+    """The report's tables (docs/cause_fair_comparison_25k.md §8) as markdown."""
+    out = []
+    refs = [a for a in ("opc", "opc_raw", "dm_own", "dm", "no_prop", "tempered_logger") if a in set(t["arm"])]
+    cause = [a for a in FAIR_ARMS + NATIVE_ARMS if a in set(t["arm"])]
+    for col, title in (("gain_greedy", "Greedy value − the logger's greedy value"),
+                       ("gain", "Stochastic value − the logger's value (CausE: its raw softmax, τ = 1)"),
+                       ("gain_tempered", "Stochastic value − the logger's value, CausE tempered by the DR lower bound")):
+        for panel in ("biased (pooled)", "none"):
+            rows = []
+            for arm in refs:
+                if col == "gain_tempered" and arm not in ("opc", "tempered_logger", "dm_own"):
+                    continue
+                c = "gain" if col == "gain_tempered" else col
+                rows.append({"arm": NAMES[arm], "no randomized rows": _cell(s, panel, arm, None, c),
+                             **{f"ρ = {r:g}": "" for r in RHOS}})
+            for arm in cause:
+                if col == "gain_tempered" and arm not in FAIR_ARMS:
+                    continue
+                rows.append({"arm": NAMES[arm], "no randomized rows": "",
+                             **{f"ρ = {r:g}": _cell(s, panel, arm, r, col, ci=r in (0.0, 0.25)) for r in RHOS}})
+            name = "biased worlds (24)" if panel != "none" else "no bias (6)"
+            out.append(f"**{title}, {name}** (CTR points; mean over worlds, 95% CI at ρ = 0 and 0.25)\n\n"
+                       + _md(pd.DataFrame(rows)))
+    # per bias, the strongest comparison: OPC vs each fair CausE arm, paired
+    for col, title in (("a_minus_b_gain_greedy", "OPC − CausE, greedy value, paired by world"),
+                       ("a_minus_b_gain_tempered", "OPC − CausE, stochastic value (CausE tempered), paired by world")):
+        rows = []
+        for panel in PANELS:
+            for arm in [a for a in FAIR_ARMS if a in set(p["b"])]:
+                g = p[(p["bias"] == panel) & (p["b"] == arm) & p[col].notna()] if col in p else pd.DataFrame()
+                if g.empty:
+                    continue
+                r = {"bias": BIAS_NAMES.get(panel, panel), "CausE": NAMES[arm]}
+                for rho in RHOS:
+                    x = g[np.isclose(g["rho"].astype(float), rho)]
+                    r[f"ρ = {rho:g}"] = (f"{_fmt(x[col].iloc[0], x['ci_lo'].iloc[0], x['ci_hi'].iloc[0])} "
+                                         f"({int(x['a_higher'].iloc[0])}/{int(x['worlds'].iloc[0])})") if len(x) else "—"
+                rows.append(r)
+        if rows:
+            out.append(f"**{title}** (CTR points; mean [95% CI]; in parentheses the worlds where OPC is higher)\n\n"
+                       + _md(pd.DataFrame(rows)))
+    # fractions, regret and the structural ceilings (biased worlds)
+    rows = []
+    for arm in refs + cause:
+        for rho in ([None] if arm in refs else [0.0, 0.25]):
+            panel = "biased (pooled)"
+            rows.append({"arm": NAMES[arm] + ("" if rho is None else f", ρ = {rho:g}"),
+                         "share of the representation loss repaired": _cell(s, panel, arm, rho, "frac_loss", digits=2),
+                         "share of its own structural oracle": _cell(s, panel, arm, rho, "frac_oracle", digits=2),
+                         "own ceiling": "linear-repair oracle" if OWN_ORACLE.get(arm) == "linear" else "target best",
+                         "selection regret, greedy (pts)": _cell(s, panel, arm, rho, "regret_greedy", ci=False)})
+    out.append("**Shares of the loss repaired, structural ceilings and selection regret, biased worlds** (greedy; "
+               "mean [95% CI] over the 24 worlds)\n\n" + _md(pd.DataFrame(rows)))
+    # exploration cost
+    rows = []
+    for rho in RHOS:
+        g = t[(t["arm"] == "cap_c") & np.isclose(t["rho"].astype(float), rho)] if "cap_c" in set(t["arm"]) else \
+            t[(t["arm"] == "native_prod_c") & np.isclose(t["rho"].astype(float), rho)]
+        if g.empty:
+            continue
+        rows.append({"ρ": f"{rho:g}", "uniform rows N_t": f"{g['n_treatment'].mean():,.0f}",
+                     "expected clicks given up (mean over worlds)": f"{g['exploration_cost_expected'].mean():,.0f}",
+                     "realized clicks given up": f"{g['exploration_cost_realised'].mean():,.0f}",
+                     "share of OPC's collection clicks": f"{(g['exploration_cost_realised'] / g['opc_collection_reward_sum']).mean():.1%}"})
+    out.append("**Exploration cost of the CausE budget** (all 30 worlds; OPC and DM-only collect no randomized rows)\n\n"
+               + _md(pd.DataFrame(rows)))
+    return "\n\n".join(out) + "\n"
+
+
 def compare_main(args) -> None:
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
@@ -786,7 +908,7 @@ def compare_main(args) -> None:
     best_item = pd.read_csv(BEST_ITEM)
     ident = data_identity_check(cause)
     ident.to_csv(out / "table_data_identity.csv", index=False)
-    differing = ident[[c for c in ident.columns if c not in CELL + ["families"]]].gt(1).any(axis=1)
+    differing = ident[[c for c in ident.columns if c.endswith("_differs")]].gt(0).any(axis=1)
     if differing.any():
         raise AssertionError(f"CausE families trained on different data in {int(differing.sum())} (world, rho) cells")
     t = condition_table(cause, refs, best_item)
@@ -816,6 +938,7 @@ def compare_main(args) -> None:
     fig_cost(t, out)
     fig_variants(s, out)
     fig_opc_minus(p[p["a_minus_b_gain_greedy"].notna()], out)
+    (out / "tables.md").write_text(tables_md(t, s, p))
     print(f"wrote {out}: {len(t)} rows; arms {sorted(t['arm'].unique())}")
 
 
