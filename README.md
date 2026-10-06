@@ -3,8 +3,9 @@
 Offline policy comparison experiments with matrix-factorization embeddings.
 
 **Start here (2026-10-06):** [`docs/handoff_20261006.md`](docs/handoff_20261006.md): the branch map, what is current,
-the headline 25k results, the known issues from the code review, and the open decisions. What each compared arm
-optimizes: [`docs/training_objectives_audit.md`](docs/training_objectives_audit.md).
+the headline 25k results, the code review and its fixes, and the open decisions. What each compared arm optimizes:
+[`docs/training_objectives_audit.md`](docs/training_objectives_audit.md). Rerunning, resuming and extending a run:
+[below](#rerunning-resuming-and-extending-a-run-since-2026-10-06).
 
 **Loss / Optuna details:** [`docs/training_losses.md`](docs/training_losses.md)  
 **Research notes:** [`docs/research_workplan.md`](docs/research_workplan.md)  
@@ -14,7 +15,7 @@ optimizes: [`docs/training_objectives_audit.md`](docs/training_objectives_audit.
 **Code handoff since c072f9b (for Roee):** [`docs/roee_handoff_20260928.md`](docs/roee_handoff_20260928.md)  
 **Representation repair, stage write-ups:** [`docs/representation_repair_dev_20260927.md`](docs/representation_repair_dev_20260927.md) · follow-up: [`docs/representation_repair_followup_20260927.md`](docs/representation_repair_followup_20260927.md)  
 **Objective and weighting decision record:** [`docs/decision_record_opc_objective_weighting.md`](docs/decision_record_opc_objective_weighting.md)  
-**Code Atlas (PDF snapshot of the published page, version 13, branch `handoff-20261006`, code as tested at 30553ab; exported by `scripts/export_atlas_pdf.py`):** [`docs/opc_code_atlas.pdf`](docs/opc_code_atlas.pdf)  
+**Code Atlas (PDF snapshot of the published page, version 14, branch `handoff-20261006`, code as tested at d704f03; exported by `scripts/export_atlas_pdf.py`):** [`docs/opc_code_atlas.pdf`](docs/opc_code_atlas.pdf)  
 **CausE baseline (specification, OPC mapping, budget protocol):** [`docs/cause_baseline.md`](docs/cause_baseline.md)  
 **CausE vs OPC, bounded development comparison (report before scaling):** [`docs/cause_dev_report_20261004.md`](docs/cause_dev_report_20261004.md)  
 **CausE vs the revalidated OPC, the fair 25k comparison (CausE-warm, CausE-capacity-matched):** [`docs/cause_fair_comparison_25k.md`](docs/cause_fair_comparison_25k.md)  
@@ -22,7 +23,7 @@ optimizes: [`docs/training_objectives_audit.md`](docs/training_objectives_audit.
 **BLOB in the controlled environment (the published model, its reproduction, BLOB-supplied-source vs the likelihood learner, DM-only and OPC at 25k):** [`docs/blob_controlled_integration.md`](docs/blob_controlled_integration.md)  
 **BLOB's catalog-size prior: the derivation, the pre-registered calibration and the 25k check of BLOB-Pnorm:** [`docs/blob_prior_calibration.md`](docs/blob_prior_calibration.md)  
 **What BLOB-NQ, CausE-capacity-matched (ρ = 0) and OPC each optimize (audit of the executable objectives):** [`docs/training_objectives_audit.md`](docs/training_objectives_audit.md)  
-**Handoff and status, 2026-10-06 (branch map, results, code-review findings, open decisions):** [`docs/handoff_20261006.md`](docs/handoff_20261006.md)
+**Handoff and status, 2026-10-06 (branch map, results, the code review and its fixes, verification, open decisions):** [`docs/handoff_20261006.md`](docs/handoff_20261006.md)
 
 Main flow:
 1. Fit/generate BPR artifacts (user/item factors + metadata arrays).
@@ -194,8 +195,8 @@ Each condition builds a world from the dataset's BPR vectors
 
 The truth is identical across bias configurations for a dataset and seed. Every
 calibrated value is written to `run_meta.json → world`. Inspect a dataset with
-`python -m training.characterize_world --datasets ml` (currently broken: it raises a TypeError since 2026-09-26; see
-Known issues).
+`python -m training.characterize_world --datasets ml` (writes `artifacts/world/summary.csv` and `calibration.json`;
+the worlds are built exactly as the study builds them, `--logger-greedy-share` included).
 
 ### Small Local Run
 
@@ -412,34 +413,53 @@ python -m training.run_full_study_parallel $COMMON --run-tag blob_nq_25k --metho
 
 Each condition:
 
-`artifacts/full_study/run_<run-tag>/dataset=...__bias=...__ctr=...__seed=.../` (bias label: `medium`, or `w-high.g-none.v-low` for mixed levels)
+`artifacts/full_study/run_<run-tag>/dataset=...__bias=...__ctr=...__seed=.../` (bias label: `medium`, or
+`w-high.g-none.v-low` for mixed levels; `__mix=<a>` when `--logging-uniform-mix` mixes the logger)
 
 Common files:
 
-- `summary_metrics.csv` — per-method summary (also the skip-completed marker).
-- `opc_trials_long.csv` / `no_prop_trials_long.csv` — Optuna trial logs.
-- `opc_runs_long.csv` / `no_prop_runs_long.csv` — per-run logs.
-- `<arm>_trials.csv` for the prior-work arms (e.g. `causecap_c_r000_trials.csv`, `blob_nq_trials.csv`) — every trial,
-  written fresh per condition.
+- `summary_metrics.csv` — one row per (label, train size): the method for OPC, no-propensity, DM-only and the tempered
+  logger (they also hold the logger's row at train size 0), one per CausE prediction and rho, one per BLOB family and
+  prior variant. `arm_config_key` hashes the settings that produced the row (the completion marker of
+  `--skip-completed`).
+- `opc_trials_long.csv` / `no_prop_trials_long.csv` / `dm_trials_long.csv` / `tempered_logger_trials_long.csv` — each
+  arm's Optuna trials, one row per trial; `trials_long.csv` joins them (the arms the summary holds).
+- `opc_runs_long.csv` / `no_prop_runs_long.csv` / … — per-run logs; `runs_long.csv` joins them.
+- `<label>_trials.csv` for the prior-work arms (e.g. `causecap_c_r000_trials.csv`, `blob_nq_trials.csv`) — every trial.
 - `*_selected_policy.npz` with `--save-policies` — each arm's selected policy vectors (`training/policy_diagnostics.py`).
-- `run_meta.json` — exact parameters (includes `train_weights`, `select_weights`, policy losses) and the calibrated `world`.
+- `run_meta.json` — exact parameters (includes `train_weights`, `select_weights`, policy losses), the calibrated
+  `world`, and per label (`labels`) its arm, configuration key, code commit and time, with each key's settings
+  (`arm_configs`).
 
 At run root:
 
 - `all_summary_metrics.csv` — merged summaries.
-- `run_manifest.json` — global manifest.
-- `failures.csv` — failed conditions (if any).
+- `run_manifest.json` — the latest invocation's settings (arms, CausE / BLOB options when requested, code commit).
+- `run_invocations.jsonl` — one line per invocation of the run tag: its manifest, the conditions it ran or skipped, and
+  its failures.
+- `failures.csv` — the latest invocation's failed conditions (removed when it had none).
 
 Analyze: `python -m training.analyze_full_study --run-dir artifacts/full_study/run_<tag>`.
 
-## Known issues (code review, 2026-10-06)
+## Rerunning, resuming and extending a run (since 2026-10-06)
 
-None of these changes a reported number; none is fixed yet. Details and locations: `docs/handoff_20261006.md` §5.
+A run tag's condition folders accumulate rows from any number of invocations of either runner
+(`training/run_state.py`):
 
-- `python -m training.characterize_world` crashes: `WorldConfig` is given `logger_greedy_share`.
-- The per-arm `*_trials_long.csv` / `*_runs_long.csv` logs are appended, so a condition rerun in the same folder
-  (an OOM-backoff retry, a crash) repeats its earlier trials in `trials_long.csv`; de-duplicate on
-  (method, train_size, trial_number), keeping the last row, as the main analyses do.
-- `--skip-completed` treats any `cause*` or `blob*` row as the whole arm: run another CausE family or BLOB variant
-  under its own run tag.
-- With `--logging-uniform-mix > 0`, `training.policy_diagnostics` computes π0 without the mix.
+- **`--skip-completed` (default)** runs only what a folder lacks. A requested arm is done when every label it writes has
+  a summary row for every requested train size made with the same settings (`arm_config_key`); then it is skipped. A
+  CausE arm missing some rhos runs only those; a BLOB arm missing a prior variant or family runs only that one.
+- **Resume** an interrupted run with the same command: finished arms are skipped, an interrupted arm reruns, and its
+  earlier attempt's trial rows are replaced, never repeated.
+- **Extend** a run by adding another arm, CausE family, BLOB variant or rho under the same run tag: the new rows join
+  the folder and every other row stays.
+- **Rows made with other settings** for a requested label stop the invocation before anything runs, with a list of
+  the differing settings. Use a new `--run-tag`, or `--no-skip-completed`, which reruns the requested arms and replaces
+  their rows (other arms' rows are always kept).
+- Rows written before 2026-10-06 carry no `arm_config_key` and count as matching.
+- A CausE rho or a BLOB family added later gives exactly the rows of one run of the whole arm. A BLOB prior variant
+  added later trains as it would alone. Variants trained in one invocation share float32 batches and agree with that
+  to about 1e-6 relative, which can flip a near-tie of the selection.
+- Trial logs written before the fix may repeat a resumed condition's trials. One run does:
+  `run_reval_sndr_exact_harm0.1_s201`, two kuairand conditions, whose copies are identical. Every loader keeps one
+  row per (method, train_size, run, trial_number) (`training.run_state.read_trials_long`).
