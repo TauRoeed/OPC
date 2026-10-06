@@ -270,4 +270,118 @@ These are hypotheses, not desired outcomes.
       V(θ_value*) − V(selected) = [V(θ_value*) − V(θ_obj*)] + [V(θ_obj*) − V(best trial)] + [V(best trial) − V(selected)]
                                     objective mismatch          finite-sample training gap    selection gap (native or common)
 
-- **Decision gate** (§ to come): the eight questions of the phase directive, answered from these tables.
+- **Decision gate** (§19): the eight questions of the phase directive, answered from these tables.
+
+### 10.1 Reporting details fixed after the first tuning worlds, before the main grid (2026-10-07)
+
+These were added while the tuning grid ran, after its first worlds had been read and before any main-grid result
+existed. None changes a training objective, a search space or a selection rule.
+
+- **One set of configurations per seed.** The paired sampler is seeded by (seed, seed label, train size), not by the
+  world. Every world with the same seed therefore trains the same 20 configurations, in every arm. The historical OPC
+  arm was searched the same way. The tuning grid thus holds 40 distinct configurations, each on 9 worlds, and the main
+  grid 40, each on 15. The tuning tables report the distinct configurations behind every bin (`configs`).
+- **The supplementary round, if the edge rule fires.** It draws new configurations with the seed tag
+  `shared_supplement` (`--shared-seed-tag`), still paired across the shared arms, as BLOB's supplementary round did
+  (`docs/blob_controlled_integration.md` §3.1). The rule is applied again to the first and supplementary trials pooled
+  (the gap to each world's best trial over both rounds), and the supplementary trials alone are analyzed the same way
+  as a check.
+- **Candidates as a whole.** Besides the best of the 20 trials, the mean greedy gain of all 20 trials is reported per
+  arm and world. The maximum of 20 favours an arm whose trials spread more.
+- **The stochastic value.** It is reported for OPC (its deployable softmax policy) and for the reused comparators: OPC
+  and DM-only with their own softmax, CausE-cap and BLOB-Pnorm with their DR-tempered softmax (as in their studies).
+  The likelihood arms' softmax at the click model's scale is not reported as a policy value; their policy is the greedy
+  one (§1).
+- **The same world as the comparators.** Per world, the analysis checks that the logger's greedy value is the one in
+  the reused comparator rows.
+- **Population profile.** Per bias and optimum: the greedy gain, L_log, L_uniform and L_clip10 (the value optimum after
+  its recalibration under L_log, §6), the correction size, and per pair of optima the two distances.
+
+## 11. Tuning, first round (`run_shared_tune_s200`)
+
+**Run.**
+- Code 052462c from the main checkout. Its workers loaded the code at launch, and every condition records 052462c,
+  not dirty.
+- 2026-10-06 23:55 – 2026-10-07 01:38, 3 workers, beside the population-oracle jobs (§12).
+- 18 tuning worlds × 4 arms × 20 paired trials = 1,440 trials; none diverged.
+- Tables: `artifacts/full_study/shared_objective_study/tuning/` (`tuning_summary.csv`, `tuning_selected.csv`,
+  `tuning_marginals.csv`, `tuning_edges.csv`, `tuning_weights.csv`, `tuning_trials_long.csv.gz`).
+
+**Greedy gain over the logger on the tuning worlds** (CTR points, mean over the 18 worlds, 95% CI for the native
+selection). These are tuning worlds, used only to fix the search spaces:
+
+| arm | native | common DR | best of 20 | mean of 20 | native regret | common regret |
+|---|---|---|---|---|---|---|
+| `shared_likelihood` | +3.82 [+2.46, +5.17] | +3.61 | +3.86 | +2.58 | 0.05 | 0.25 |
+| `shared_iw_likelihood` | −0.51 [−1.50, +0.49] | +0.38 | +0.53 | −0.43 | 1.04 | 0.15 |
+| `shared_iw_likelihood_clip10` | +0.53 [+0.14, +0.92] | +0.62 | +0.77 | −0.47 | 0.24 | 0.15 |
+| `shared_opc` | +3.27 [+2.01, +4.53] | +3.22 | +3.45 | +2.74 | 0.18 | 0.23 |
+
+Native selection per bias (6 worlds each):
+
+| arm | warp | vector | combined |
+|---|---|---|---|
+| `shared_likelihood` | +4.00 | +0.75 | +6.71 |
+| `shared_iw_likelihood` | +0.28 | −1.82 | +0.02 |
+| `shared_iw_likelihood_clip10` | +0.73 | −0.09 | +0.94 |
+| `shared_opc` | +2.70 | +0.86 | +6.25 |
+
+- The penalized likelihood leads here, mostly under warp (+4.00 against OPC's +2.70); under vector bias OPC is level.
+- Both weighted likelihoods stay near the logger: even their best trials reach only +0.53 (raw) and +0.77 (clip 10).
+  The raw arm's native selection (validation IW-NLL) loses 1.04 points to its best trial.
+- On the training rows the uniform-reference weights have an ESS of about 0.2% of n (`tuning_weights.csv`).
+
+**The edge rule** (§8). Per arm and dimension: the bin with the smallest mean gap to each world's best trial of the
+arm, how many distinct configurations it rests on (§10.1), and its margin over the neighbouring bin, in CTR points:
+
+| arm | dimension | best bin (configurations) | edge | margin over the neighbour | extend |
+|---|---|---|---|---|---|
+| `shared_likelihood` | lr | [0.001, 0.0032) (8) | high | 0.23 | no |
+| `shared_likelihood` | epochs | 25–30 (7) | high | 0.08 | no |
+| `shared_likelihood` | λ | 0.01 (9) | interior | — | no |
+| `shared_likelihood` | batch size | 512 (10) | low | 0.58 | no (not extendable) |
+| `shared_likelihood` | lr decay | [0.9, 1.0] (16) | high | 0.33 | no (not extendable) |
+| `shared_iw_likelihood` | lr | [0.0001, 0.00032) (15) | low | 0.39 | **yes** |
+| `shared_iw_likelihood` | epochs | 5–11 (11) | low | 0.02 | no (not extendable) |
+| `shared_iw_likelihood` | λ | 0.1 (14) | interior | — | no |
+| `shared_iw_likelihood` | batch size | 2,048 (14) | high | 0.61 | no (not extendable) |
+| `shared_iw_likelihood` | lr decay | [0.8, 0.9) (24) | low | 1.01 | no (not extendable) |
+| `shared_iw_likelihood_clip10` | lr | [0.0001, 0.00032) (15) | low | 0.50 | **yes** |
+| `shared_iw_likelihood_clip10` | epochs | 5–11 (11) | low | 0.11 | no (not extendable) |
+| `shared_iw_likelihood_clip10` | λ | 0.1 (14) | interior | — | no |
+| `shared_iw_likelihood_clip10` | batch size | 2,048 (14) | high | 0.82 | no (not extendable) |
+| `shared_iw_likelihood_clip10` | lr decay | [0.8, 0.9) (24) | low | 1.16 | no (not extendable) |
+| `shared_opc` | lr | [0.001, 0.0032) (8) | high | 0.18 | no |
+| `shared_opc` | epochs | 25–30 (7) | high | 0.07 | no |
+| `shared_opc` | λ | 0.01 (9) | interior | — | no |
+| `shared_opc` | batch size | 512 (10) | low | 0.22 | no (not extendable) |
+| `shared_opc` | lr decay | [0.9, 1.0] (16) | high | 0.15 | no (not extendable) |
+
+**Decision.**
+- The rule fires for the two weighted likelihoods only, on the learning rate at the bottom. Their best bin,
+  1e-4–3.2e-4, beats the next by 0.39 (raw) and 0.50 (clip 10) points.
+- Their lr range is extended one half-decade down: **3.16e-5–2e-3**. All other ranges stay as in §7.
+- Not extended:
+  - The likelihood's and OPC's top lr bins lead by 0.23 and 0.18, inside the 0.25 margin; their top epoch bins by 0.08
+    and 0.07.
+  - Every arm's best λ is interior: 0.01 for the likelihood and OPC, 0.1 for the weighted likelihoods.
+  - The weighted likelihoods' best epochs (5–11), batch size (2,048) and lr decay (0.8–0.9) lie at edges the protocol
+    does not extend (§8).
+- The only arm-specific range is thus the weighted likelihoods' learning rate. Their gradients carry the heavy-tailed
+  weights, and in tuning their smallest learning rates did best.
+
+### 11.1 Supplementary round and main-grid spaces (fixed before either runs)
+
+- **Supplementary round** `run_shared_tune_s200_supp`:
+  - the two weighted-likelihood arms only, on the same 18 worlds;
+  - 20 new paired trials per world (seed tag `shared_supplement`), lr 3.16e-5–2e-3, every other dimension as in the
+    first round.
+  - The rule is applied again to the first and supplementary trials pooled, with the supplement alone as a check.
+  - No second extension: a second firing is reported, and the boundary stays.
+- **Order.** The round cannot change the main grid: by §8 an extension changes only that arm's main-grid range, and
+  there is no second one. The main grid therefore runs first and the supplementary round after it.
+- **Main-grid spaces** (§7 otherwise):
+  - `shared_iw_likelihood` and `shared_iw_likelihood_clip10`: lr 3.16e-5–2e-3;
+  - `shared_likelihood` and `shared_opc`: lr 1e-4–2e-3.
+  - Trial k's draws map the same uniform numbers onto each arm's range (`--shared-arm-space`), so the four arms stay
+    paired.
