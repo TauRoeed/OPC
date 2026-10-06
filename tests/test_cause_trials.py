@@ -102,17 +102,28 @@ def test_cause_is_deterministic(runs):
         pd.testing.assert_frame_equal(trials.drop(columns=drop), again[5][label][1].drop(columns=drop))
 
 
-def test_skip_completed_recognises_cause_labels(tmp_path):
+def test_skip_completed_needs_the_exact_cause_labels(tmp_path):
+    """A CausE request is complete only with every label it writes: its family's predictions at each of its rhos
+    (before 2026-10-06 any cause* row counted, so a second family in the same folder was skipped)."""
     path = tmp_path / "summary_metrics.csv"
-    pd.DataFrame({"method": ["opc", "cause_prod_c_r000"]}).to_csv(path, index=False)
-    assert _summary_has_methods(path, ("opc", "cause"))
-    pd.DataFrame({"method": ["opc"]}).to_csv(path, index=False)
-    assert not _summary_has_methods(path, ("opc", "cause"))
-    for label in ("causewarm_c_r050", "causecap_t_r000"):  # the warm-started families (docs/cause_fair_comparison_25k.md)
-        pd.DataFrame({"method": [label]}).to_csv(path, index=False)
-        assert _summary_has_methods(path, ("cause",))
-    pd.DataFrame({"method": ["causes_x"]}).to_csv(path, index=False)
-    assert not _summary_has_methods(path, ("cause",))
+    native = {"rhos": [0.0], "variants": ["prod"]}
+    write = lambda labels: pd.DataFrame({"method": labels, "train_size": N}).to_csv(path, index=False)
+    write(["opc", "cause_prod_c_r000"])
+    assert not _summary_has_methods(path, ("opc", "cause"), cause_options=native)  # prod_t is missing
+    write(["opc", "cause_prod_c_r000", "cause_prod_t_r000"])
+    assert _summary_has_methods(path, ("opc", "cause"), cause_options=native, train_sizes=[N])
+    assert not _summary_has_methods(path, ("cause",), cause_options=native, train_sizes=[N, 2 * N])  # another size
+    assert not _summary_has_methods(path, ("cause",), cause_options={**native, "rhos": [0.0, 0.25]})  # another rho
+    for family, labels in (("warm", ["causewarm_c_r050", "causewarm_t_r050"]),
+                           ("cap", ["causecap_c_r000", "causecap_t_r000"])):  # docs/cause_fair_comparison_25k.md
+        rho = 0.05 if family == "warm" else 0.0
+        write(labels)
+        assert _summary_has_methods(path, ("cause",), cause_options={"family": family, "rhos": [rho]})
+        assert not _summary_has_methods(path, ("cause",), cause_options={**native, "rhos": [rho]})  # the native family
+        other = "cap" if family == "warm" else "warm"
+        assert not _summary_has_methods(path, ("cause",), cause_options={"family": other, "rhos": [rho]})
+    write(["causes_x"])
+    assert not _summary_has_methods(path, ("cause",), cause_options=native)
 
 
 def test_a_cause_only_run_gives_the_same_cause_results(runs, tmp_path):

@@ -1,13 +1,11 @@
 import argparse
-import json
 import multiprocessing as mp
 import os
+import re
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from concurrent.futures.process import BrokenProcessPool
 from datetime import datetime
 from pathlib import Path
-
-import pandas as pd
 
 
 def _resolve_num_gpus(explicit: int | None) -> int:
@@ -65,7 +63,6 @@ def _parallel_worker_init(worker_slot, num_gpus: int) -> None:
 from BPR.bpr_config import DEFAULT_DATASETS
 from models.models import POLICY_TRANSFORMS, REWARD_FEATURES
 from utils.importance_weights import weight_spec_label
-from utils.provenance import code_commit
 from utils.seeding import DEFAULT_CPU_THREADS, pin_cpu_threads
 from training.memory_budget import describe_plan, device_capacities, plan_worker_groups
 from training.run_full_study import (
@@ -73,71 +70,46 @@ from training.run_full_study import (
     DEFAULT_CROSSFIT_FOLDS,
     DEFAULT_REWARD_DATA,
     DEFAULT_VAL_SIZE,
+    METHODS_HELP,
     OPC_GRADIENTS,
     REWARD_DATA_MODES,
     RUN_STAGES,
+    SKIP_COMPLETED_HELP,
     STUDY_OPC_GRADIENT,
     STUDY_POLICY_LOSSES,
     STUDY_TRAIN_WEIGHTS,
     VALID_STUDY_METHODS,
-    _collect_existing_summaries,
-    _condition_run_key,
-    _finalize_summary_df,
     _normalize_study_methods,
     _study_budget_from_args,
-    _summary_has_methods,
-    _no_prop_policy_loss_types,
     _resolve_val_size_configs,
     _run_condition,
     add_search_space_arguments,
-    search_space_from_args,
+    condition_configs,
+    execute_condition,
+    finish_invocation,
+    plan_conditions,
+    study_manifest,
 )
-from training.blob_trials import add_blob_arguments, blob_options_from_args
-from training.cause_trials import add_cause_arguments, cause_options_from_args
+from training.blob_trials import add_blob_arguments
+from training.cause_trials import add_cause_arguments
+from training.run_state import utc_now
 from training.trainer_trials import (
-    resolve_search_space,
     DEFAULT_SELECT_WEIGHTS,
     DEFAULT_QHAT_ACTION_CHUNK,
     DEFAULT_QHAT_USER_CHUNK,
+    SN_SCOPES,
     VALID_OPTUNA_SELECTION,
+    VALID_POLICY_LOSSES,
     VALID_REWARD_MODELS,
 )
 from utils.representation_bias import add_world_arguments, resolve_bias_configs, world_options_from_args
 from utils.seeding import OPTUNA_SAMPLERS
 
-
-def _iter_run_configs(args, out_dir: Path, val_size_configs: list):
-    """Yield run configs in order: seed → dataset → ctr → [val] → bias.
-
-    ``val`` nest/key suffix only when ``--val-size`` / ``--val-sizes`` is set
-    (label != ``frac``).
-    """
-    multi_val = len(val_size_configs) > 1
-    bias_configs = resolve_bias_configs(args.bias_configs)
-    world_options = world_options_from_args(args)
-    for seed in args.seeds:
-        for dataset_name in args.datasets:
-            for ctr in args.ctr_levels:
-                for val_size_cfg, val_label in val_size_configs:
-                    val_root = (
-                        out_dir / f"val_{val_label}"
-                        if multi_val
-                        else out_dir
-                    )
-                    for bias in bias_configs:
-                        # Tag folder with val only for real fixed/swept vals.
-                        run_key = _condition_run_key(dataset_name, bias, ctr, seed, world_options, val_label,
-                                                     reward_data=getattr(args, "reward_data", "external"),
-                                                     crossfit_folds=int(getattr(args, "crossfit_folds", 0) or 0))
-                        yield {
-                            "dataset_name": dataset_name,
-                            "bias": bias,
-                            "ctr": float(ctr),
-                            "seed": int(seed),
-                            "run_key": run_key,
-                            "run_dir": str(val_root / run_key),
-                            "val_size": val_size_cfg,
-                        }
+# what an out-of-memory error or a killed worker says; "oom" and "killed" only as words ("room", "bloom" are not)
+_OOM_PATTERN = re.compile(
+    r"out of memory|cudaerror|cublas|cudnn_status_alloc_failed|failed to allocate|cannot allocate memory|"
+    r"terminated abruptly|sigkill|brokenprocesspool|\boom\b|\bkilled\b"
+)
 
 
 def _is_oom_like(exc: BaseException) -> bool:
@@ -150,22 +122,7 @@ def _is_oom_like(exc: BaseException) -> bool:
     name = type(exc).__name__.lower()
     if "outofmemory" in name or name == "memoryerror":
         return True
-    msg = f"{type(exc).__name__}: {exc}".lower()
-    needles = (
-        "out of memory",
-        "cuda out of memory",
-        "cudaerror",
-        "cublas",
-        "cudnn_status_alloc_failed",
-        "failed to allocate",
-        "cannot allocate memory",
-        "killed",
-        "terminated abruptly",
-        "sigkill",
-        "brokenprocesspool",
-        "oom",
-    )
-    return any(n in msg for n in needles)
+    return _OOM_PATTERN.search(f"{type(exc).__name__}: {exc}".lower()) is not None
 
 
 def _default_executor_factory(workers, mp_ctx, worker_slot, num_gpus):
@@ -361,80 +318,9 @@ def _run_with_memory_cap(run_configs, *, max_workers, min_workers, num_gpus, mem
 
 
 def _execute_run(config: dict):
+    """One condition in a worker: its pending arms, merged into the folder (``run_full_study.execute_condition``)."""
     os.environ["OPC_IN_PARALLEL"] = "1"
-    run_dir = Path(config["run_dir"])
-    run_dir.mkdir(parents=True, exist_ok=True)
-    opc_df, noprop_df, opc_trials, noprop_trials, meta, extra = _run_condition(
-        dataset_name=config["dataset_name"],
-        emb_dir=Path(config["emb_dir"]),
-        bias=config["bias"],
-        ctr=config["ctr"],
-        seed=config["seed"],
-        train_sizes=config["train_sizes"],
-        n_trials=config["n_trials"],
-        batch_size=config["batch_size"],
-        val_size=config["val_size"],
-        val_frac=config["val_frac"],
-        val_min=config["val_min"],
-        val_max=config["val_max"],
-        policy_reward_mode=config["policy_reward_mode"],
-        policy_reward_mc_sim=config["policy_reward_mc_sim"],
-        slim=bool(config.get("slim", False)),
-        deterministic=bool(config.get("deterministic", True)),
-        cpu_threads=int(config.get("cpu_threads", DEFAULT_CPU_THREADS)),
-        run_dir=run_dir,
-        policy_loss_types=tuple(config["policy_loss_types"]),
-        search_use_log_trick=bool(config.get("search_use_log_trick", True)),
-        shared_regression_size=int(config.get("shared_regression_size", 50_000)),
-        qhat_user_chunk=int(config.get("qhat_user_chunk", DEFAULT_QHAT_USER_CHUNK)),
-        qhat_action_chunk=int(
-            config.get("qhat_action_chunk", DEFAULT_QHAT_ACTION_CHUNK)
-        ),
-        require_cuda=bool(config.get("require_cuda", False)),
-        optuna_batch_sizes=config.get("optuna_batch_sizes"),
-        methods=tuple(config.get("study_methods", VALID_STUDY_METHODS)),
-        logging_uniform_mix=float(config.get("logging_uniform_mix", 0.0)),
-        optuna_selection=str(config.get("optuna_selection", "ci_low")),
-        reward_model=str(config.get("reward_model", "regression")),
-        reward_features=str(config.get("reward_features", "interaction")),
-        train_weights=config.get("train_weights"),
-        select_weights=config.get("select_weights"),
-        log_select_weights=config.get("log_select_weights") or (),
-        policy_transform=str(config.get("policy_transform", "linear")),
-        world_options=config.get("world_options"),
-        learn_logit_scale=bool(config.get("learn_logit_scale", False)),
-        return_extra=True,
-        reward_data=str(config.get("reward_data", "external")),
-        crossfit_folds=int(config.get("crossfit_folds", 0) or 0),
-        post_temper=bool(config.get("post_temper", False)),
-        sn_scope=str(config.get("sn_scope", "batch")),
-        sampler=str(config.get("sampler", "tpe")),
-        stage=str(config.get("stage", "development")),
-        opc_gradient=str(config.get("opc_gradient", STUDY_OPC_GRADIENT)),
-        search_space=config.get("search_space"),
-        cause_options=config.get("cause_options"),
-        blob_options=config.get("blob_options"),
-        save_policies=bool(config.get("save_policies", False)),
-    )
-
-    summary_df = _finalize_summary_df(
-        opc_df,
-        noprop_df,
-        meta,
-        extra=extra,
-        dataset=config["dataset_name"],
-        seed=config["seed"],
-    )
-
-    summary_df.to_csv(run_dir / "summary_metrics.csv", index=False)
-    opc_trials.to_csv(run_dir / "opc_trials.csv", index=False)
-    noprop_trials.to_csv(run_dir / "no_prop_trials.csv", index=False)
-    for label, (_, trials) in extra.items():
-        trials.to_csv(run_dir / f"{label}_trials.csv", index=False)
-    with open(run_dir / "run_meta.json", "w", encoding="utf-8") as f:
-        json.dump(meta, f, indent=2)
-
-    return {"run_key": config["run_key"]}
+    return execute_condition(config, run_condition=_run_condition)
 
 
 def main():
@@ -567,13 +453,14 @@ def main():
         "--policy-losses",
         nargs="+",
         default=list(STUDY_POLICY_LOSSES),
+        choices=list(VALID_POLICY_LOSSES),
         help="OPC training loss: dr (default; the working development default, not the final paper choice), "
         "or sndr with --sn-scope batch (legacy, the default before f5cade9) / global, kept for "
         "reproducibility. No-prop stays naive.",
     )
     parser.add_argument(
         "--sn-scope",
-        choices=["batch", "global", "exact"],
+        choices=list(SN_SCOPES),
         default="batch",
         help="Normalizer of the sndr / kl correction: batch (default, legacy: the minibatch mean weight), "
         "global (the full-data mean weight, computed at the start of every epoch and held fixed; a "
@@ -619,13 +506,13 @@ def main():
         "--qhat-user-chunk",
         type=int,
         default=DEFAULT_QHAT_USER_CHUNK,
-        help="User/context block for lazy q_hat (default 5000).",
+        help="User/context block for lazy q_hat (default %(default)s).",
     )
     parser.add_argument(
         "--qhat-action-chunk",
         type=int,
         default=DEFAULT_QHAT_ACTION_CHUNK,
-        help="Action block for lazy q_hat (default 5000).",
+        help="Action block for lazy q_hat (default %(default)s).",
     )
     parser.add_argument(
         "--require-cuda",
@@ -705,9 +592,7 @@ def main():
         nargs="+",
         default=list(VALID_STUDY_METHODS),
         choices=list(ALL_STUDY_METHODS),
-        help="Which arms to run (default: opc no_propensity). Opt-in baselines: dm (policy trained "
-        "and selected on q_hat alone) and tempered_logger (the logger's logits x s, s chosen by "
-        "the DR selection score). One arm alone reruns it next to the cached others.",
+        help=METHODS_HELP,
     )
     parser.add_argument(
         "--learn-logit-scale",
@@ -743,7 +628,7 @@ def main():
         "--skip-completed",
         action=argparse.BooleanOptionalAction,
         default=True,
-        help="Skip conditions whose summary_metrics.csv already exists (default: true).",
+        help=SKIP_COMPLETED_HELP,
     )
     parser.add_argument("--fail-fast", action="store_true", default=False)
     args = parser.parse_args()
@@ -759,13 +644,11 @@ def main():
         parser.error(str(e))
     world_options = world_options_from_args(args)
 
-    emb_dir = Path(args.emb_dir)
     run_tag = args.run_tag or datetime.now().strftime("%Y%m%d_%H%M%S")
     out_dir = Path(args.out_dir) / f"run_{run_tag}"
     out_dir.mkdir(parents=True, exist_ok=True)
     print(f"Writing outputs to: {out_dir}")
-
-    run_configs = []
+    started = utc_now()
     # Ensure val_* roots exist before workers start.
     for _, val_label in val_size_configs:
         val_root = (
@@ -781,56 +664,10 @@ def main():
         + f"bias {bias_configs}; world options: {world_options}",
         flush=True,
     )
-    for base_cfg in _iter_run_configs(args, out_dir, val_size_configs):
-        summary_path = Path(base_cfg["run_dir"]) / "summary_metrics.csv"
-        if args.skip_completed and summary_path.exists() and _summary_has_methods(summary_path, methods):
-            print(f"Skipping completed: {base_cfg['run_key']} ({', '.join(methods)})")
-            continue
-        cfg = {
-            **base_cfg,
-            "emb_dir": str(emb_dir),
-            "train_sizes": list(args.train_sizes),
-            "n_trials": int(args.n_trials),
-            "batch_size": int(args.batch_size) if args.batch_size is not None else None,
-            "optuna_batch_sizes": args.optuna_batch_sizes,
-            "val_frac": float(args.val_frac),
-            "val_min": int(args.val_min),
-            "val_max": args.val_max,
-            "policy_reward_mode": args.policy_reward_mode,
-            "policy_reward_mc_sim": int(args.policy_reward_mc_sim),
-            "world_options": world_options,
-            "slim": bool(args.slim),
-            "deterministic": bool(args.deterministic),
-            "cpu_threads": int(args.cpu_threads),
-            "policy_loss_types": list(policy_loss_types),
-            "study_methods": list(methods),
-            "search_use_log_trick": search_use_log_trick,
-            "shared_regression_size": int(args.shared_regression_size),
-            "qhat_user_chunk": int(args.qhat_user_chunk),
-            "qhat_action_chunk": int(args.qhat_action_chunk),
-            "require_cuda": bool(args.require_cuda),
-            "logging_uniform_mix": float(args.logging_uniform_mix),
-            "optuna_selection": str(args.optuna_selection),
-            "reward_model": str(args.reward_model),
-            "reward_features": str(args.reward_features),
-            "train_weights": args.train_weights,
-            "select_weights": args.select_weights,
-            "log_select_weights": list(args.log_select_weights),
-            "policy_transform": args.policy_transform,
-            "learn_logit_scale": bool(args.learn_logit_scale),
-            "reward_data": args.reward_data,
-            "crossfit_folds": int(args.crossfit_folds),
-            "post_temper": bool(args.post_temper),
-            "sn_scope": str(args.sn_scope),
-            "sampler": str(args.sampler),
-            "stage": str(args.stage),
-            "opc_gradient": str(args.opc_gradient),
-            "search_space": search_space_from_args(args),
-            "cause_options": cause_options_from_args(args),
-            "blob_options": blob_options_from_args(args),
-            "save_policies": bool(args.save_policies),
-        }
-        run_configs.append(cfg)
+    configs = condition_configs(args, out_dir, methods=methods, bias_configs=bias_configs, world_options=world_options,
+                                val_size_configs=val_size_configs, policy_loss_types=policy_loss_types,
+                                search_use_log_trick=search_use_log_trick)
+    run_configs, skipped = plan_conditions(configs, methods, skip_completed=bool(args.skip_completed))
 
     max_train = max(args.train_sizes) if args.train_sizes else 0
     max_val = max(args.val_sizes) if args.val_sizes else int(args.val_min)
@@ -852,76 +689,27 @@ def main():
         f"over {num_gpus} GPU(s)",
         flush=True,
     )
-    failures = _run_with_memory_cap(
-        run_configs,
-        max_workers=workers,
-        min_workers=min_workers,
-        num_gpus=num_gpus,
-        memory_cap=bool(args.memory_cap),
-        fail_fast=bool(args.fail_fast),
-        oom_backoff=bool(args.oom_backoff),
-    )
-
-    collected_rows = _collect_existing_summaries(out_dir)
-    if collected_rows:
-        merged = pd.concat(collected_rows, ignore_index=True)
-        merged.to_csv(out_dir / "all_summary_metrics.csv", index=False)
-        with open(out_dir / "run_manifest.json", "w", encoding="utf-8") as f:
-            json.dump(
-                {
-                    "run_tag": run_tag,
-                    "created_at": datetime.utcnow().isoformat() + "Z",
-                    "datasets": args.datasets,
-                    "bias_configs": bias_configs,
-                    "world_options": world_options,
-                    "ctr_levels": args.ctr_levels,
-                    "seeds": args.seeds,
-                    "train_sizes": args.train_sizes,
-                    "val_size_fixed": args.val_size,
-                    "val_sizes": args.val_sizes,
-                    "val_frac": args.val_frac,
-                    "policy_loss_types": list(policy_loss_types),
-                    "no_log_trick": bool(args.no_log_trick),
-                    "shared_regression_size": int(args.shared_regression_size),
-                    "qhat_user_chunk": int(args.qhat_user_chunk),
-                    "qhat_action_chunk": int(args.qhat_action_chunk),
-                    "require_cuda": bool(args.require_cuda),
-                    "logging_uniform_mix": float(args.logging_uniform_mix),
-                    "optuna_selection": str(args.optuna_selection),
-                    "reward_model": str(args.reward_model),
-                    "reward_features": str(args.reward_features),
-                    "train_weights": args.train_weights,
-                    "select_weights": args.select_weights,
-                    "policy_transform": args.policy_transform,
-                    "learn_logit_scale": bool(args.learn_logit_scale),
-                    "reward_data": args.reward_data,
-                    "crossfit_folds": int(args.crossfit_folds),
-                    "post_temper": bool(args.post_temper),
-                    "sn_scope": str(args.sn_scope),
-                    "sampler": str(args.sampler),
-                    "stage": str(args.stage),
-                    "opc_gradient": str(args.opc_gradient),
-                    "cause_options": cause_options_from_args(args),
-                    "blob_options": blob_options_from_args(args),
-                    "save_policies": bool(args.save_policies),
-                    "val_min": args.val_min,
-                    "val_max": args.val_max,
-                    "policy_reward_mode": args.policy_reward_mode,
-                    "policy_reward_mc_sim": args.policy_reward_mc_sim,
-                    "optuna_batch_sizes": args.optuna_batch_sizes,
-                    "max_workers": args.max_workers,
-                    "min_workers": min_workers,
-                    "oom_backoff": bool(args.oom_backoff),
-                    "num_gpus": num_gpus,
-                    "code_commit": code_commit(),
-                    "search_space": {k: (list(v) if v is not None else None)
-                                     for k, v in resolve_search_space(search_space_from_args(args)).items()},
-                },
-                f,
-                indent=2,
-            )
-    if failures:
-        pd.DataFrame(failures).to_csv(out_dir / "failures.csv", index=False)
+    manifest = study_manifest(args, runner="parallel", run_tag=run_tag, methods=methods, bias_configs=bias_configs,
+                              world_options=world_options, policy_loss_types=policy_loss_types,
+                              val_size_configs=val_size_configs,
+                              extra={"max_workers": args.max_workers, "min_workers": min_workers,
+                                     "oom_backoff": bool(args.oom_backoff), "memory_cap": bool(args.memory_cap),
+                                     "num_gpus": num_gpus})
+    failures = []
+    try:
+        failures = _run_with_memory_cap(
+            run_configs,
+            max_workers=workers,
+            min_workers=min_workers,
+            num_gpus=num_gpus,
+            memory_cap=bool(args.memory_cap),
+            fail_fast=bool(args.fail_fast),
+            oom_backoff=bool(args.oom_backoff),
+        )
+    finally:
+        failed = {f["run_key"] for f in failures}
+        finish_invocation(out_dir, manifest, started=started, skipped=skipped, failures=failures,
+                          ran=[c["run_key"] for c in run_configs if c["run_key"] not in failed])
 
 
 if __name__ == "__main__":

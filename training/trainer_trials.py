@@ -1097,12 +1097,11 @@ def _aggregate_runs_by_validation_score(dicts, score_key: str = "selection_val_s
 
 
 def _append_csv(path, df: pd.DataFrame):
-    """Append rows to a CSV, writing header only if the file doesn't exist yet."""
-    if path is None or df is None or df.empty:
-        return
-    p = Path(path)
-    p.parent.mkdir(parents=True, exist_ok=True)
-    df.to_csv(p, mode="a", header=not p.exists(), index=False)
+    """Append rows to a CSV log, writing the header once (training/run_state.py ``append_csv``: rows with other
+    columns rewrite the file with the union of the columns instead of shifting them)."""
+    from training.run_state import append_csv
+
+    append_csv(path, df)
 
 
 def _study_trials_long(
@@ -3687,40 +3686,9 @@ def regression_trainer_trial(
                         continue
                     row[k] = _scalar_for_run_log(v_)
                 if slim and ridx == win_idx:
-                    train_size_int = int(train_size)
-                    if (
-                        split_cache is not None
-                        and (train_size_int, ridx) in split_cache
-                    ):
-                        train_data = split_cache[(train_size_int, ridx)]["train_data"]
-                    else:
-                        v = resolve_validation_size(
-                            train_size_int,
-                            val_size=val_size,
-                            val_frac=val_frac,
-                            val_min=val_min,
-                            val_max=val_max,
-                        )
-                        sim_seed = (ridx + 1) * (train_size_int + 17)
-                        simulation_data = _simulate_from_embedding_policy(
-                            dataset,
-                            our_x_orig,
-                            our_a_orig,
-                            train_size_int + v,
-                            random_state=sim_seed,
-                        )
-                        train_idx, _ = _random_partition_indices(
-                            train_size_int + v,
-                            (train_size_int, v),
-                            _partition_seed(sim_seed),
-                        )
-                        train_data = get_train_data(
-                            n_actions,
-                            train_size_int,
-                            simulation_data,
-                            train_idx,
-                            our_x_orig,
-                        )
+                    # the weight diagnostics of the rows this run trained on: the size's split above (one run per
+                    # size), not a re-simulation (which, without a split cache, drew different rows)
+                    assert ridx == run, (ridx, run)
                     train_actions = train_data["a"]
                     train_users = train_data["x_idx"]
                     pscore_tr = np.asarray(train_data.get("pscore"), dtype=np.float32)

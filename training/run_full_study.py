@@ -1,5 +1,5 @@
 import argparse
-import json
+import sys
 from datetime import datetime
 from pathlib import Path
 
@@ -8,6 +8,29 @@ import torch
 import pandas as pd
 
 from training.metrics_utils import add_paired_method_pct_columns
+from training.run_state import (
+    CONFIG_KEY_COLUMN,
+    ROW_KEY,
+    _read_json,
+    arm_config,
+    arm_labels,
+    arm_log_paths,
+    atomic_write_csv,
+    atomic_write_json,
+    condition_lock,
+    condition_plan,
+    config_key,
+    dedupe_runs,
+    merge_run_meta,
+    merge_summary,
+    read_csv_or_none,
+    read_summary,
+    rebuild_long_logs,
+    record_invocation,
+    replace_rows,
+    reset_arm_logs,
+    utc_now,
+)
 from training.trainer_trials import (
     DEFAULT_SEARCH_SPACE,
     VALID_OPTUNA_SELECTION,
@@ -67,6 +90,15 @@ STUDY_TRAIN_WEIGHTS = "harmonic:0.1"
 DEFAULT_REWARD_DATA = "train"
 DEFAULT_CROSSFIT_FOLDS = 5
 DEFAULT_VAL_SIZE = 20_000
+METHODS_HELP = ("Which arms to run (default: opc no_propensity). Opt-in baselines: dm (policy trained and selected on "
+                "q_hat alone) and tempered_logger (the logger's logits x s, s chosen by the DR selection score); "
+                "prior-work baselines cause and blob. Arms run into an existing run tag add their rows next to the "
+                "folder's other arms.")
+SKIP_COMPLETED_HELP = ("Run only the work a condition folder does not hold yet (default: on): a requested arm is done when "
+                       "every label it writes has a summary row for every requested train size made with the same "
+                       "settings; only the other arms run. Rows of a requested arm made with other settings stop the "
+                       "invocation before anything runs. --no-skip-completed reruns every requested arm and replaces "
+                       "its rows; other arms' rows are always kept (training/run_state.py).")
 
 
 def _study_budget_from_args(args) -> tuple[str, int]:
@@ -120,19 +152,30 @@ def _crossfit_bundles(dataset, train_data, user_fold, folds, **fit_kw) -> list:
     return bundles
 
 
-def _summary_has_methods(summary_path: Path, methods) -> bool:
-    """True when ``summary_metrics.csv`` already holds every requested method (skip-completed)."""
+def _summary_has_methods(summary_path: Path, methods, *, cause_options: dict | None = None,
+                         blob_options: dict | None = None, train_sizes=None) -> bool:
+    """True when ``summary_metrics.csv`` holds every label the requested arms write (training/run_state.py
+    ``arm_labels``: the CausE family's predictions at each rho, each BLOB family and prior variant, as given by the
+    options), for every train size in ``train_sizes`` (any size when None). The runners' skip-completed check also
+    compares each row's configuration key (``run_state.condition_plan``)."""
     try:
-        summary = pd.read_csv(summary_path)
+        summary = read_summary(summary_path)
     except Exception:
         return False
-    if "method" not in summary.columns:
+    if summary is None or summary.empty or "method" not in summary.columns:
         return False
-    have = set(summary["method"].astype(str))
-    # the CausE arm writes one row per prediction and rho, labeled by family: cause_*, causewarm_*, causecap_*;
-    # the BLOB arm one row per variational family, blob_*
-    prefixes = {"cause": ("cause", "causewarm", "causecap"), "blob": ("blob",)}
-    return all(any(h.split("_")[0] in prefixes[m] for h in have) if m in prefixes else m in have for m in methods)
+    have = summary["method"].astype(str)
+    for m in methods:
+        labels = arm_labels(m, cause_options, blob_options) if m in ALL_STUDY_METHODS else (str(m),)
+        for label in labels:
+            rows = summary[have == label]
+            if rows.empty:
+                return False
+            if train_sizes is not None:
+                sizes = set(pd.to_numeric(rows["train_size"], errors="coerce").dropna().astype(int))
+                if not {int(n) for n in train_sizes} <= sizes:
+                    return False
+    return True
 
 
 def _load_cached_method_df(run_dir: Path, method: str) -> pd.DataFrame:
@@ -152,7 +195,7 @@ def _load_cached_method_df(run_dir: Path, method: str) -> pd.DataFrame:
         raise FileNotFoundError(
             f"Cannot rerun only one method without cached {method} results in {run_dir}"
         )
-    runs = pd.read_csv(runs_path)
+    runs = dedupe_runs(pd.read_csv(runs_path))  # a rerun's rows, not an interrupted attempt's
     if runs.empty:
         raise FileNotFoundError(f"Cached runs file is empty: {runs_path}")
     if "is_winning_run" in runs.columns:
@@ -161,7 +204,7 @@ def _load_cached_method_df(run_dir: Path, method: str) -> pd.DataFrame:
         raise ValueError(f"Missing train_size in cached runs: {runs_path}")
     rows = {}
     for train_size, grp in runs.groupby("train_size"):
-        row = grp.iloc[0].to_dict()
+        row = grp.iloc[-1].to_dict()
         row.pop("train_size", None)
         row.pop("method", None)
         rows[int(train_size)] = row
@@ -234,11 +277,16 @@ def _load_optional_array(path: Path):
 
 
 def _condition_run_key(dataset_name: str, bias: str, ctr: float, seed: int, world_options: dict | None,
-                       val_label: str = "frac", reward_data: str = "external", crossfit_folds: int = 0) -> str:
+                       val_label: str = "frac", reward_data: str = "external", crossfit_folds: int = 0,
+                       logging_uniform_mix: float = 0.0) -> str:
     """Folder name of one condition: dataset, bias, CTR, seed, the world options that differ from
-    the defaults (``world_run_key_suffix``), the reward-model data when not external (and its
-    cross-fitting folds), and the validation size when fixed."""
+    the defaults (``world_run_key_suffix``), the logger's uniform mix when on (another logger: its
+    conditions never share a folder with the unmixed one's), the reward-model data when not external
+    (and its cross-fitting folds), and the validation size when fixed."""
     key = f"dataset={dataset_name}__bias={bias}__ctr={ctr:g}__seed={seed}" + world_run_key_suffix(world_options)
+    mix = float(np.clip(float(logging_uniform_mix or 0.0), 0.0, 1.0))
+    if mix > 0.0:
+        key = f"{key}__mix={mix:g}"
     if str(reward_data) != "external":
         key = f"{key}__qhat={reward_data}"
     if int(crossfit_folds or 0) > 0:
@@ -407,6 +455,7 @@ def _run_condition(
     cause_options: dict | None = None,
     blob_options: dict | None = None,
     save_policies: bool = False,
+    rebuild_logs: bool = True,
 ):
     """One condition. ``methods`` may add the opt-in baselines (``BASELINE_METHODS``); their
     summaries and trials come back as a 6th item ``{method: (summary_df, trials_df)}`` when
@@ -424,7 +473,9 @@ def _run_condition(
     ``opc_gradient``: ``direct`` (default) or ``log-trick``, how OPC's loss is differentiated
     (``OPC_GRADIENTS``); the other arms are fixed (no-propensity and DM direct, tempered untrained).
     Defaults are the working development method (``STUDY_POLICY_LOSSES``, ``STUDY_OPC_GRADIENT``,
-    ``STUDY_TRAIN_WEIGHTS``); ``train_weights=None`` means ``STUDY_TRAIN_WEIGHTS``."""
+    ``STUDY_TRAIN_WEIGHTS``); ``train_weights=None`` means ``STUDY_TRAIN_WEIGHTS``. ``rebuild_logs``: rebuild
+    ``trials_long.csv`` / ``runs_long.csv`` from the arms' logs here (``execute_condition`` does it itself, after the
+    summary, so an interrupted arm never shows up in them)."""
     if str(stage) not in RUN_STAGES:
         raise ValueError(f"stage must be one of {RUN_STAGES}, got {stage!r}")
     if str(opc_gradient) not in OPC_GRADIENTS:
@@ -545,16 +596,13 @@ def _run_condition(
             for n in train_sizes
         }
 
-    opc_log_paths = {
-        "trials": run_dir / "opc_trials_long.csv",
-        "runs": run_dir / "opc_runs_long.csv",
-    }
-    noprop_log_paths = {
-        "trials": run_dir / "no_prop_trials_long.csv",
-        "runs": run_dir / "no_prop_runs_long.csv",
-    }
+    # Per-arm trial and run logs, appended one train size at a time. Each arm first drops its own rows for the sizes it
+    # is about to run (an earlier or interrupted attempt's), so a rerun never repeats them (training/run_state.py).
+    opc_log_paths = arm_log_paths(run_dir, "opc")
+    noprop_log_paths = arm_log_paths(run_dir, "no_propensity")
 
     if run_opc:
+        reset_arm_logs(opc_log_paths, "opc", train_sizes)
         opc_df, opc_trials = regression_trainer_trial(
             train_sizes=train_sizes,
             dataset=dataset,
@@ -609,6 +657,7 @@ def _run_condition(
             opc_trials = pd.DataFrame()
 
     if run_no_prop:
+        reset_arm_logs(noprop_log_paths, "no_propensity", train_sizes)
         noprop_df, noprop_trials = no_propensity_trainer_trial(
             train_sizes=train_sizes,
             dataset=dataset,
@@ -662,7 +711,8 @@ def _run_condition(
     extra_log_paths = {}
     # (the loop variable is not `label`: that name holds the bias label written to run_meta.json below)
     for method in (m for m in BASELINE_METHODS if m in methods):
-        extra_log_paths[method] = {"trials": run_dir / f"{method}_trials_long.csv", "runs": run_dir / f"{method}_runs_long.csv"}
+        extra_log_paths[method] = arm_log_paths(run_dir, method)
+        reset_arm_logs(extra_log_paths[method], method, train_sizes)
         arm = {"dm": dict(policy_loss_types=("dm",), select_estimator="dm", learn_logit_scale=bool(learn_logit_scale),
                           post_temper=bool(post_temper)),
                "tempered_logger": dict(policy_loss_types=("sndr",), temper_only=True)}[method]
@@ -745,23 +795,10 @@ def _run_condition(
             device=torch.device("cpu") if blob_meta.get("device") == "cpu" else _training_device(require_cuda=require_cuda),
         ))
 
-    # Unified long logs for post-hoc analysis.
-    trials_frames = []
-    runs_frames = []
-    for p in (opc_log_paths["trials"], noprop_log_paths["trials"], *(v["trials"] for v in extra_log_paths.values())):
-        if p.exists():
-            trials_frames.append(pd.read_csv(p))
-    for p in (opc_log_paths["runs"], noprop_log_paths["runs"], *(v["runs"] for v in extra_log_paths.values())):
-        if p.exists():
-            runs_frames.append(pd.read_csv(p))
-    if trials_frames:
-        pd.concat(trials_frames, ignore_index=True).to_csv(
-            run_dir / "trials_long.csv", index=False
-        )
-    if runs_frames:
-        pd.concat(runs_frames, ignore_index=True).to_csv(
-            run_dir / "runs_long.csv", index=False
-        )
+    # Unified long logs for post-hoc analysis: every arm's logs in the folder (also arms run by earlier invocations),
+    # one row per trial / run.
+    if rebuild_logs:
+        rebuild_long_logs(run_dir)
 
     meta = {
         "dataset": dataset_name,
@@ -892,6 +929,291 @@ def _finalize_summary_df(opc_df, noprop_df, meta: dict, *, extra: dict | None = 
     if {"opc", "no_propensity"}.issubset(set(summary_df.get("method", pd.Series(dtype=str)))):
         return add_paired_method_pct_columns(summary_df)
     return summary_df
+
+
+# ------------------------------------------------------------------------------- one invocation, both runners
+def condition_configs(args, out_dir: Path, *, methods, bias_configs, world_options, val_size_configs,
+                      policy_loss_types, search_use_log_trick) -> list[dict]:
+    """One config per condition, in run order seed → dataset → CTR → [validation size] → bias: everything
+    ``execute_condition`` needs. ``study_methods`` is the requested arms until ``plan_conditions`` narrows it to the
+    arms a condition still needs."""
+    multi_val = len(val_size_configs) > 1
+    common = {
+        "emb_dir": str(args.emb_dir),
+        "train_sizes": [int(n) for n in args.train_sizes],
+        "n_trials": int(args.n_trials),
+        "batch_size": int(args.batch_size) if args.batch_size is not None else None,
+        "optuna_batch_sizes": args.optuna_batch_sizes,
+        "val_frac": float(args.val_frac),
+        "val_min": int(args.val_min),
+        "val_max": args.val_max,
+        "policy_reward_mode": args.policy_reward_mode,
+        "policy_reward_mc_sim": int(args.policy_reward_mc_sim),
+        "world_options": world_options,
+        "slim": bool(args.slim),
+        "deterministic": bool(args.deterministic),
+        "cpu_threads": int(args.cpu_threads),
+        "policy_loss_types": list(policy_loss_types),
+        "study_methods": list(methods),
+        "search_use_log_trick": bool(search_use_log_trick),
+        "shared_regression_size": int(args.shared_regression_size),
+        "qhat_user_chunk": int(args.qhat_user_chunk),
+        "qhat_action_chunk": int(args.qhat_action_chunk),
+        "require_cuda": bool(args.require_cuda),
+        "logging_uniform_mix": float(args.logging_uniform_mix),
+        "optuna_selection": str(args.optuna_selection),
+        "reward_model": str(args.reward_model),
+        "reward_features": str(args.reward_features),
+        "train_weights": args.train_weights,
+        "select_weights": args.select_weights,
+        "log_select_weights": list(args.log_select_weights),
+        "policy_transform": args.policy_transform,
+        "learn_logit_scale": bool(args.learn_logit_scale),
+        "reward_data": args.reward_data,
+        "crossfit_folds": int(args.crossfit_folds),
+        "post_temper": bool(args.post_temper),
+        "sn_scope": str(args.sn_scope),
+        "sampler": str(args.sampler),
+        "stage": str(args.stage),
+        "opc_gradient": str(args.opc_gradient),
+        "search_space": search_space_from_args(args),
+        "cause_options": cause_options_from_args(args),
+        "blob_options": blob_options_from_args(args),
+        "save_policies": bool(args.save_policies),
+        "skip_completed": bool(args.skip_completed),
+    }
+    configs = []
+    for seed in args.seeds:
+        for dataset_name in args.datasets:
+            for ctr in args.ctr_levels:
+                for val_size_cfg, val_label in val_size_configs:
+                    val_root = out_dir / f"val_{val_label}" if multi_val else out_dir
+                    for bias in bias_configs:
+                        run_key = _condition_run_key(dataset_name, bias, ctr, seed, world_options, val_label,
+                                                     reward_data=args.reward_data,
+                                                     crossfit_folds=int(args.crossfit_folds or 0),
+                                                     logging_uniform_mix=float(args.logging_uniform_mix))
+                        configs.append({"dataset_name": dataset_name, "bias": bias, "ctr": float(ctr),
+                                        "seed": int(seed), "run_key": run_key, "run_dir": str(val_root / run_key),
+                                        "val_size": val_size_cfg, **common})
+    return configs
+
+
+def plan_conditions(configs: list[dict], methods, *, skip_completed: bool) -> tuple[list[dict], list[str]]:
+    """The configs to run, each with ``study_methods`` set to the arms its folder still needs (all requested arms
+    with ``skip_completed`` off), and the run keys skipped as complete (training/run_state.py). A requested label and
+    train size whose row was made with other settings stops the invocation before anything runs, listing the
+    conflicts, unless ``skip_completed`` is off: then that arm reruns and its rows are replaced."""
+    todo, skipped, conflicts = [], [], []
+    for cfg in configs:
+        plan = condition_plan(cfg, methods, skip_completed=skip_completed)
+        if plan["conflicts"]:
+            if skip_completed:
+                conflicts += plan["detail"]
+                continue
+            for line in plan["detail"]:
+                print(f"Replacing rows made with other settings (--no-skip-completed): {line}", flush=True)
+        if not plan["pending"]:
+            print(f"Skipping completed: {cfg['run_key']} ({', '.join(methods)})", flush=True)
+            skipped.append(cfg["run_key"])
+            continue
+        if plan["complete"] or plan["options"]:
+            print(f"Partly complete: {cfg['run_key']}: running {', '.join(plan['pending'])}"
+                  + "".join(f"; {k} {v}" for k, v in plan["options"].items())
+                  + (f"; already done: {', '.join(plan['complete'])}" if plan["complete"] else ""), flush=True)
+        todo.append({**cfg, **plan["options"], "requested_methods": list(methods),
+                     "study_methods": list(plan["pending"])})
+    if conflicts:
+        raise SystemExit("These condition folders already hold rows of the requested arms made with other settings:\n  "
+                         + "\n  ".join(conflicts)
+                         + "\nNothing was run. Use a new --run-tag, or --no-skip-completed to rerun the requested arms "
+                           "and replace their rows.")
+    return todo, skipped
+
+
+def _condition_kwargs(cfg: dict) -> dict:
+    """``_run_condition``'s keyword arguments from a condition config."""
+    return dict(
+        dataset_name=cfg["dataset_name"],
+        emb_dir=Path(cfg["emb_dir"]),
+        bias=cfg["bias"],
+        ctr=cfg["ctr"],
+        seed=cfg["seed"],
+        train_sizes=cfg["train_sizes"],
+        n_trials=cfg["n_trials"],
+        batch_size=cfg["batch_size"],
+        val_size=cfg["val_size"],
+        val_frac=cfg["val_frac"],
+        val_min=cfg["val_min"],
+        val_max=cfg["val_max"],
+        policy_reward_mode=cfg["policy_reward_mode"],
+        policy_reward_mc_sim=cfg["policy_reward_mc_sim"],
+        slim=bool(cfg.get("slim", False)),
+        deterministic=bool(cfg.get("deterministic", True)),
+        cpu_threads=int(cfg.get("cpu_threads", DEFAULT_CPU_THREADS)),
+        policy_loss_types=tuple(cfg["policy_loss_types"]),
+        search_use_log_trick=bool(cfg.get("search_use_log_trick", True)),
+        shared_regression_size=int(cfg.get("shared_regression_size", 50_000)),
+        qhat_user_chunk=int(cfg.get("qhat_user_chunk", DEFAULT_QHAT_USER_CHUNK)),
+        qhat_action_chunk=int(cfg.get("qhat_action_chunk", DEFAULT_QHAT_ACTION_CHUNK)),
+        require_cuda=bool(cfg.get("require_cuda", False)),
+        optuna_batch_sizes=cfg.get("optuna_batch_sizes"),
+        logging_uniform_mix=float(cfg.get("logging_uniform_mix", 0.0)),
+        optuna_selection=str(cfg.get("optuna_selection", "ci_low")),
+        reward_model=str(cfg.get("reward_model", "regression")),
+        reward_features=str(cfg.get("reward_features", "interaction")),
+        train_weights=cfg.get("train_weights"),
+        select_weights=cfg.get("select_weights"),
+        log_select_weights=cfg.get("log_select_weights") or (),
+        policy_transform=str(cfg.get("policy_transform", "linear")),
+        world_options=cfg.get("world_options"),
+        learn_logit_scale=bool(cfg.get("learn_logit_scale", False)),
+        reward_data=str(cfg.get("reward_data", "external")),
+        crossfit_folds=int(cfg.get("crossfit_folds", 0) or 0),
+        post_temper=bool(cfg.get("post_temper", False)),
+        sn_scope=str(cfg.get("sn_scope", "batch")),
+        sampler=str(cfg.get("sampler", "tpe")),
+        stage=str(cfg.get("stage", "development")),
+        opc_gradient=str(cfg.get("opc_gradient", STUDY_OPC_GRADIENT)),
+        search_space=cfg.get("search_space"),
+        cause_options=cfg.get("cause_options"),
+        blob_options=cfg.get("blob_options"),
+        save_policies=bool(cfg.get("save_policies", False)),
+    )
+
+
+def execute_condition(cfg: dict, *, run_condition=None) -> dict:
+    """Run a condition config's arms (``study_methods``) and merge their rows into its folder (training/run_state.py):
+    ``summary_metrics.csv`` and the per-label ``<label>_trials.csv`` keep every row this run does not produce,
+    ``trials_long.csv`` / ``runs_long.csv`` are rebuilt from every arm's logs, and ``run_meta.json`` records each
+    label's configuration. Holds the folder's lock; with ``skip_completed`` it re-checks which arms are still needed
+    (another invocation may have finished some meanwhile). ``run_condition`` defaults to ``_run_condition``."""
+    run_condition = run_condition or _run_condition
+    run_dir = Path(cfg["run_dir"])
+    run_dir.mkdir(parents=True, exist_ok=True)
+    methods = list(cfg["study_methods"])
+    with condition_lock(run_dir):
+        if cfg.get("skip_completed"):
+            plan = condition_plan(cfg, methods, skip_completed=True)
+            if plan["conflicts"]:
+                raise RuntimeError("rows made with other settings appeared meanwhile: " + "; ".join(plan["detail"]))
+            methods = plan["pending"]
+            if not methods:
+                print(f"Completed meanwhile by another invocation: {cfg['run_key']}", flush=True)
+                return {"run_key": cfg["run_key"], "ran": []}
+            cfg = {**cfg, **plan["options"]}
+        opc_df, noprop_df, opc_trials, noprop_trials, meta, extra = run_condition(
+            **_condition_kwargs(cfg), run_dir=run_dir, methods=tuple(methods), return_extra=True, rebuild_logs=False)
+        ran = set(methods)
+        summary_new = _finalize_summary_df(opc_df if "opc" in ran else None,
+                                           noprop_df if "no_propensity" in ran else None,
+                                           meta, extra=extra, dataset=cfg["dataset_name"], seed=cfg["seed"])
+        label_arm = {label: m for m in methods
+                     for label in arm_labels(m, cfg.get("cause_options"), cfg.get("blob_options"))}
+        produced = set(summary_new["method"].astype(str)) if "method" in summary_new.columns else set()
+        if produced != set(label_arm):
+            raise RuntimeError(f"{cfg['run_key']}: the arms wrote {sorted(produced)}, expected {sorted(label_arm)}")
+        configs = {m: arm_config(m, cfg) for m in methods}
+        keys = {m: config_key(c) for m, c in configs.items()}
+        summary_new = summary_new.assign(**{CONFIG_KEY_COLUMN: [keys[label_arm[str(x)]] for x in summary_new["method"]]})
+        summary = merge_summary(read_summary(run_dir / "summary_metrics.csv"), summary_new)
+        atomic_write_csv(summary, run_dir / "summary_metrics.csv")
+        if "opc" in ran:  # the last train size's trials, as before (trials_long.csv holds every size)
+            atomic_write_csv(opc_trials, run_dir / "opc_trials.csv")
+        if "no_propensity" in ran:
+            atomic_write_csv(noprop_trials, run_dir / "no_prop_trials.csv")
+        for label, (_, trials) in extra.items():
+            path = run_dir / f"{label}_trials.csv"
+            atomic_write_csv(replace_rows(read_csv_or_none(path), trials, ROW_KEY), path)
+        rebuild_long_logs(run_dir, summary)
+        commit, now = code_commit(), utc_now()
+        labels = {label: {"arm": m, "config_key": keys[m], "code_commit": commit.get("commit"),
+                          "code_dirty": commit.get("dirty"), "written_at": now} for label, m in label_arm.items()}
+        atomic_write_json(merge_run_meta(_read_json(run_dir / "run_meta.json"), meta, labels,
+                                         {keys[m]: configs[m] for m in methods}), run_dir / "run_meta.json")
+    return {"run_key": cfg["run_key"], "ran": methods}
+
+
+def study_manifest(args, *, runner: str, run_tag: str, methods, bias_configs, world_options, policy_loss_types,
+                   val_size_configs, extra: dict | None = None) -> dict:
+    """``run_manifest.json`` of an invocation (both runners): every setting that shapes the results, the arms, and the
+    CausE / BLOB options when those arms were requested."""
+    return {
+        "run_tag": run_tag,
+        "runner": runner,
+        "created_at": utc_now(),
+        "datasets": args.datasets,
+        "bias_configs": bias_configs,
+        "world_options": world_options,
+        "ctr_levels": args.ctr_levels,
+        "seeds": args.seeds,
+        "train_sizes": args.train_sizes,
+        "n_trials": int(args.n_trials),
+        "batch_size": args.batch_size,
+        "val_size_fixed": args.val_size,
+        "val_sizes": args.val_sizes,
+        "val_frac": args.val_frac,
+        "val_min": args.val_min,
+        "val_max": args.val_max,
+        "val_size_configs": [{"val_size": v, "label": lbl} for v, lbl in val_size_configs],
+        "policy_reward_mode": args.policy_reward_mode,
+        "policy_reward_mc_sim": args.policy_reward_mc_sim,
+        "optuna_batch_sizes": args.optuna_batch_sizes,
+        "study_methods": list(methods),
+        "policy_loss_types": list(policy_loss_types),
+        "no_prop_policy_loss_types": list(_no_prop_policy_loss_types(policy_loss_types)),
+        "no_log_trick": bool(args.no_log_trick),
+        "shared_regression_size": int(args.shared_regression_size),
+        "qhat_user_chunk": int(args.qhat_user_chunk),
+        "qhat_action_chunk": int(args.qhat_action_chunk),
+        "require_cuda": bool(args.require_cuda),
+        "logging_uniform_mix": float(args.logging_uniform_mix),
+        "optuna_selection": str(args.optuna_selection),
+        "reward_model": str(args.reward_model),
+        "reward_features": str(args.reward_features),
+        "train_weights": args.train_weights,
+        "select_weights": args.select_weights,
+        "log_select_weights": list(args.log_select_weights),
+        "policy_transform": args.policy_transform,
+        "learn_logit_scale": bool(args.learn_logit_scale),
+        "reward_data": args.reward_data,
+        "crossfit_folds": int(args.crossfit_folds),
+        "post_temper": bool(args.post_temper),
+        "sn_scope": str(args.sn_scope),
+        "sampler": str(args.sampler),
+        "stage": str(args.stage),
+        "opc_gradient": str(args.opc_gradient),
+        "search_space": {k: (list(v) if v is not None else None)
+                         for k, v in resolve_search_space(search_space_from_args(args)).items()},
+        "cause_options": cause_options_from_args(args) if "cause" in methods else None,
+        "blob_options": blob_options_from_args(args) if "blob" in methods else None,
+        "save_policies": bool(args.save_policies),
+        "slim": bool(args.slim),
+        "deterministic": bool(args.deterministic),
+        "cpu_threads": int(args.cpu_threads),
+        "skip_completed": bool(args.skip_completed),
+        "code_commit": code_commit(),
+        **(extra or {}),
+    }
+
+
+def finish_invocation(out_dir: Path, manifest: dict, *, started: str, ran: list, skipped: list,
+                      failures: list) -> None:
+    """After an invocation: ``all_summary_metrics.csv`` from every condition's summary, ``run_manifest.json`` (this
+    invocation), ``failures.csv`` (this invocation's failures; removed when there are none) and one line in
+    ``run_invocations.jsonl`` (the history of the run tag)."""
+    out_dir = Path(out_dir)
+    collected = _collect_existing_summaries(out_dir)
+    if collected:
+        atomic_write_csv(pd.concat(collected, ignore_index=True), out_dir / "all_summary_metrics.csv")
+        atomic_write_json(manifest, out_dir / "run_manifest.json")
+    failures_path = out_dir / "failures.csv"
+    if failures:
+        atomic_write_csv(pd.DataFrame(failures), failures_path)
+    elif failures_path.exists():
+        failures_path.unlink()
+    record_invocation(out_dir, {"started_at": started, "finished_at": utc_now(), "argv": list(sys.argv),
+                                "ran": ran, "skipped": skipped, "failures": failures, "manifest": manifest})
 
 
 def main():
@@ -1140,13 +1462,13 @@ def main():
         "--qhat-user-chunk",
         type=int,
         default=DEFAULT_QHAT_USER_CHUNK,
-        help="User/context block size for lazy q_hat / softmax (default 5000).",
+        help="User/context block size for lazy q_hat / softmax (default %(default)s).",
     )
     parser.add_argument(
         "--qhat-action-chunk",
         type=int,
         default=DEFAULT_QHAT_ACTION_CHUNK,
-        help="Action block size for lazy q_hat / softmax (default 5000).",
+        help="Action block size for lazy q_hat / softmax (default %(default)s).",
     )
     parser.add_argument(
         "--require-cuda",
@@ -1158,9 +1480,7 @@ def main():
         nargs="+",
         default=list(VALID_STUDY_METHODS),
         choices=list(ALL_STUDY_METHODS),
-        help="Which arms to run (default: opc no_propensity). Opt-in baselines: dm (policy trained "
-        "and selected on q_hat alone) and tempered_logger (the logger's logits x s, s chosen by "
-        "the DR selection score). One arm alone reruns it next to the cached others.",
+        help=METHODS_HELP,
     )
     parser.add_argument(
         "--learn-logit-scale",
@@ -1196,7 +1516,7 @@ def main():
         "--skip-completed",
         action=argparse.BooleanOptionalAction,
         default=True,
-        help="Skip conditions whose summary_metrics.csv already exists (default: true).",
+        help=SKIP_COMPLETED_HELP,
     )
     parser.add_argument("--fail-fast", action="store_true", default=False)
     args = parser.parse_args()
@@ -1211,7 +1531,6 @@ def main():
     world_options = world_options_from_args(args)
     args.reward_data, args.crossfit_folds = _study_budget_from_args(args)
 
-    emb_dir = Path(args.emb_dir)
     run_tag = args.run_tag or datetime.now().strftime("%Y%m%d_%H%M%S")
     out_dir = Path(args.out_dir) / f"run_{run_tag}"
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -1226,180 +1545,33 @@ def main():
     print(f"Importance weights: training {args.train_weights}, selection and post-hoc {args.select_weights}")
     print(f"Search use_log_trick: {search_use_log_trick}")
 
-    all_summary_rows = []
-    failures = []
-
+    started = utc_now()
     print(
         "Run order: seed → dataset → ctr → "
         + ("val → " if any(lbl != "frac" for _, lbl in val_size_configs) else "")
         + "bias"
     )
-
-    for seed in args.seeds:
-        for dataset_name in args.datasets:
-            for ctr in args.ctr_levels:
-                for val_size_cfg, val_label in val_size_configs:
-                    val_root = (
-                        out_dir
-                        if len(val_size_configs) == 1
-                        else out_dir / f"val_{val_label}"
-                    )
-                    val_root.mkdir(parents=True, exist_ok=True)
-
-                    for bias in bias_configs:
-                        run_key = _condition_run_key(dataset_name, bias, ctr, seed, world_options, val_label,
-                                                     reward_data=args.reward_data, crossfit_folds=args.crossfit_folds)
-
-                        print(f"\n=== Running {run_key} ===")
-                        run_dir = val_root / run_key
-                        run_dir.mkdir(parents=True, exist_ok=True)
-                        summary_path = run_dir / "summary_metrics.csv"
-                        if args.skip_completed and summary_path.exists() and _summary_has_methods(summary_path, methods):
-                            print(f"Skipping completed: {run_key} ({', '.join(methods)})")
-                            try:
-                                all_summary_rows.append(pd.read_csv(summary_path))
-                            except Exception:
-                                pass
-                            continue
-
-                        try:
-                            opc_df, noprop_df, opc_trials, noprop_trials, meta, extra = _run_condition(
-                                dataset_name=dataset_name,
-                                emb_dir=emb_dir,
-                                bias=bias,
-                                ctr=ctr,
-                                seed=seed,
-                                train_sizes=args.train_sizes,
-                                n_trials=args.n_trials,
-                                batch_size=args.batch_size,
-                                val_size=val_size_cfg,
-                                val_frac=args.val_frac,
-                                val_min=args.val_min,
-                                val_max=args.val_max,
-                                policy_reward_mode=args.policy_reward_mode,
-                                policy_reward_mc_sim=args.policy_reward_mc_sim,
-                                run_dir=run_dir,
-                                slim=bool(args.slim),
-                                deterministic=bool(args.deterministic),
-                                cpu_threads=int(args.cpu_threads),
-                                policy_loss_types=policy_loss_types,
-                                search_use_log_trick=search_use_log_trick,
-                                shared_regression_size=args.shared_regression_size,
-                                qhat_user_chunk=args.qhat_user_chunk,
-                                qhat_action_chunk=args.qhat_action_chunk,
-                                require_cuda=bool(args.require_cuda),
-                                optuna_batch_sizes=args.optuna_batch_sizes,
-                                methods=methods,
-                                logging_uniform_mix=float(args.logging_uniform_mix),
-                                optuna_selection=str(args.optuna_selection),
-                                reward_model=str(args.reward_model),
-                                reward_features=str(args.reward_features),
-                                train_weights=args.train_weights,
-                                select_weights=args.select_weights,
-                                log_select_weights=args.log_select_weights,
-                                policy_transform=args.policy_transform,
-                                world_options=world_options,
-                                learn_logit_scale=bool(args.learn_logit_scale),
-                                return_extra=True,
-                                reward_data=args.reward_data,
-                                crossfit_folds=int(args.crossfit_folds),
-                                post_temper=bool(args.post_temper),
-                                sn_scope=str(args.sn_scope),
-                                sampler=str(args.sampler),
-                                stage=str(args.stage),
-                                opc_gradient=str(args.opc_gradient),
-                                search_space=search_space_from_args(args),
-                                cause_options=cause_options_from_args(args),
-                                blob_options=blob_options_from_args(args),
-                                save_policies=bool(args.save_policies),
-                            )
-                        except Exception as e:
-                            failures.append({"run_key": run_key, "error": repr(e)})
-                            print(f"FAILED {run_key}: {e}")
-                            if args.fail_fast:
-                                raise
-                            continue
-
-                        summary_df = _finalize_summary_df(
-                            opc_df,
-                            noprop_df,
-                            meta,
-                            extra=extra,
-                            dataset=dataset_name,
-                            seed=seed,
-                        )
-
-                        summary_df.to_csv(run_dir / "summary_metrics.csv", index=False)
-                        opc_trials.to_csv(run_dir / "opc_trials.csv", index=False)
-                        noprop_trials.to_csv(run_dir / "no_prop_trials.csv", index=False)
-                        for label, (_, trials) in extra.items():
-                            trials.to_csv(run_dir / f"{label}_trials.csv", index=False)
-
-                        with open(run_dir / "run_meta.json", "w", encoding="utf-8") as f:
-                            json.dump(meta, f, indent=2)
-
-                        all_summary_rows.append(summary_df)
-
-    collected_rows = _collect_existing_summaries(out_dir)
-    if collected_rows:
-        merged = pd.concat(collected_rows, ignore_index=True)
-        merged.to_csv(out_dir / "all_summary_metrics.csv", index=False)
-        with open(out_dir / "run_manifest.json", "w", encoding="utf-8") as f:
-            json.dump(
-                {
-                    "run_tag": run_tag,
-                    "created_at": datetime.utcnow().isoformat() + "Z",
-                    "datasets": args.datasets,
-                    "bias_configs": bias_configs,
-                    "world_options": world_options,
-                    "ctr_levels": args.ctr_levels,
-                    "seeds": args.seeds,
-                    "train_sizes": args.train_sizes,
-                    "val_size_fixed": args.val_size,
-                    "val_sizes": args.val_sizes,
-                    "val_frac": args.val_frac,
-                    "val_min": args.val_min,
-                    "val_max": args.val_max,
-                    "policy_reward_mode": args.policy_reward_mode,
-                    "policy_reward_mc_sim": args.policy_reward_mc_sim,
-                    "optuna_batch_sizes": args.optuna_batch_sizes,
-                    "policy_loss_types": list(policy_loss_types),
-                    "study_methods": list(methods),
-                    "no_prop_policy_loss_types": list(
-                        _no_prop_policy_loss_types(policy_loss_types)
-                    ),
-                    "no_log_trick": bool(args.no_log_trick),
-                    "shared_regression_size": int(args.shared_regression_size),
-                    "qhat_user_chunk": int(args.qhat_user_chunk),
-                    "qhat_action_chunk": int(args.qhat_action_chunk),
-                    "require_cuda": bool(args.require_cuda),
-                    "val_size_configs": [
-                        {"val_size": v, "label": lbl} for v, lbl in val_size_configs
-                    ],
-                    "logging_uniform_mix": float(args.logging_uniform_mix),
-                    "optuna_selection": str(args.optuna_selection),
-                    "reward_model": str(args.reward_model),
-                    "reward_features": str(args.reward_features),
-                    "train_weights": args.train_weights,
-                    "select_weights": args.select_weights,
-                    "policy_transform": args.policy_transform,
-                    "learn_logit_scale": bool(args.learn_logit_scale),
-                    "reward_data": args.reward_data,
-                    "crossfit_folds": int(args.crossfit_folds),
-                    "post_temper": bool(args.post_temper),
-                    "sn_scope": str(args.sn_scope),
-                    "sampler": str(args.sampler),
-                    "stage": str(args.stage),
-                    "code_commit": code_commit(),
-                    "search_space": {k: (list(v) if v is not None else None)
-                                     for k, v in resolve_search_space(search_space_from_args(args)).items()},
-                    "opc_gradient": str(args.opc_gradient),
-                },
-                f,
-                indent=2,
-            )
-    if failures:
-        pd.DataFrame(failures).to_csv(out_dir / "failures.csv", index=False)
+    configs = condition_configs(args, out_dir, methods=methods, bias_configs=bias_configs, world_options=world_options,
+                                val_size_configs=val_size_configs, policy_loss_types=policy_loss_types,
+                                search_use_log_trick=search_use_log_trick)
+    todo, skipped = plan_conditions(configs, methods, skip_completed=bool(args.skip_completed))
+    manifest = study_manifest(args, runner="serial", run_tag=run_tag, methods=methods, bias_configs=bias_configs,
+                              world_options=world_options, policy_loss_types=policy_loss_types,
+                              val_size_configs=val_size_configs)
+    ran, failures = [], []
+    try:
+        for cfg in todo:
+            print(f"\n=== Running {cfg['run_key']} ({', '.join(cfg['study_methods'])}) ===", flush=True)
+            try:
+                execute_condition(cfg)
+                ran.append(cfg["run_key"])
+            except Exception as e:
+                failures.append({"run_key": cfg["run_key"], "error": repr(e)})
+                print(f"FAILED {cfg['run_key']}: {e}", flush=True)
+                if args.fail_fast:
+                    raise
+    finally:
+        finish_invocation(out_dir, manifest, started=started, ran=ran, skipped=skipped, failures=failures)
 
 
 if __name__ == "__main__":
