@@ -75,6 +75,7 @@ SHARED_OBJECTIVE_ARMS = {
 }
 SHARED_OBJECTIVE_METHODS = tuple(SHARED_OBJECTIVE_ARMS)
 SHARED_DEFAULTS = {"lambdas": list(LAMBDA_GRID)}
+SHARED_SEED_TAG = "shared"  # the paired search's seed label; another tag draws independent trials (a supplementary round)
 ALL_STUDY_METHODS = VALID_STUDY_METHODS + BASELINE_METHODS + PRIOR_WORK_METHODS + SHARED_OBJECTIVE_METHODS
 # Where the regression reward model's data come from: 'external' = a separate reg slice
 # (--shared-regression-size, the same at every train size); 'train' = each train size's own
@@ -324,15 +325,67 @@ def add_search_space_arguments(parser) -> None:
 
 
 def add_shared_arguments(parser) -> None:
-    """``--shared-lambdas`` (both runners): the source anchor's candidate strengths for the shared-objective arms."""
+    """``--shared-lambdas`` (both runners): the source anchor's candidate strengths for the shared-objective arms;
+    ``--shared-arm-space`` / ``--shared-arm-lambdas``: one arm's own range or grid, when the tuning protocol's edge
+    rule extends it (docs/shared_objective_study.md §8; every other arm keeps the common space)."""
     g = parser.add_argument_group("shared-objective arms (opt-in: --methods " + " ".join(SHARED_OBJECTIVE_METHODS) + ")")
     g.add_argument("--shared-lambdas", type=float, nargs="+", default=list(LAMBDA_GRID),
                    help="Candidate strengths of the source anchor λ R(θ), searched per trial and the same for every "
                         "shared arm (default %(default)s; docs/shared_objective_study.md §2).")
+    g.add_argument("--shared-arm-space", nargs="+", default=[], metavar="ARM:DIM=LO,HI",
+                   help="One shared arm's own search range, DIM one of lr, num_epochs, lr_decay (e.g. "
+                        "shared_opc:lr=1e-4,6.32e-3); its draws map the same random numbers onto its range.")
+    g.add_argument("--shared-arm-lambdas", nargs="+", default=[], metavar="ARM=V1,V2,...",
+                   help="One shared arm's own λ grid (e.g. shared_likelihood=0,0.001,0.01,0.1,1,10).")
+    g.add_argument("--shared-seed-tag", default=SHARED_SEED_TAG,
+                   help="Seed label of the paired search (default %(default)s). Another tag draws new, independent "
+                        "configurations, seeds and batch orders, still paired across the shared arms: a supplementary "
+                        "tuning round (docs/shared_objective_study.md §8).")
+
+
+SHARED_SPACE_DIMENSIONS = ("lr", "num_epochs", "lr_decay")
+
+
+def parse_shared_arm_options(spaces=(), lambdas=()) -> dict:
+    """{"spaces": {arm: {dim: (lo, hi)}}, "arm_lambdas": {arm: [...]}} from the --shared-arm-* entries."""
+    out = {"spaces": {}, "arm_lambdas": {}}
+    for entry in spaces:
+        try:
+            arm, rest = str(entry).split(":", 1)
+            dim, rng = rest.split("=", 1)
+            lo, hi = (float(v) for v in rng.split(","))
+        except ValueError:
+            raise ValueError(f"--shared-arm-space entries are ARM:DIM=LO,HI, got {entry!r}") from None
+        if arm not in SHARED_OBJECTIVE_ARMS or dim not in SHARED_SPACE_DIMENSIONS:
+            raise ValueError(f"--shared-arm-space: unknown arm or dimension in {entry!r}")
+        out["spaces"].setdefault(arm, {})[dim] = (int(lo), int(hi)) if dim == "num_epochs" else (lo, hi)
+    for entry in lambdas:
+        try:
+            arm, values = str(entry).split("=", 1)
+            grid = [float(v) for v in values.split(",")]
+        except ValueError:
+            raise ValueError(f"--shared-arm-lambdas entries are ARM=V1,V2,..., got {entry!r}") from None
+        if arm not in SHARED_OBJECTIVE_ARMS:
+            raise ValueError(f"--shared-arm-lambdas: unknown arm in {entry!r}")
+        out["arm_lambdas"][arm] = grid
+    return {k: v for k, v in out.items() if v}
 
 
 def shared_options_from_args(args) -> dict:
-    return {"lambdas": [float(x) for x in getattr(args, "shared_lambdas", LAMBDA_GRID)]}
+    opts = {"lambdas": [float(x) for x in getattr(args, "shared_lambdas", LAMBDA_GRID)]}
+    opts.update(parse_shared_arm_options(getattr(args, "shared_arm_space", ()), getattr(args, "shared_arm_lambdas", ())))
+    tag = str(getattr(args, "shared_seed_tag", SHARED_SEED_TAG))
+    if tag != SHARED_SEED_TAG:  # recorded only when it differs, so the default's configuration keys stay as they were
+        opts["seed_tag"] = tag
+    return opts
+
+
+def shared_arm_settings(method: str, shared_options: dict | None, search_space: dict | None) -> tuple[dict, list]:
+    """One shared arm's search space (the common one with the arm's own ranges on top) and λ grid."""
+    opts = {**SHARED_DEFAULTS, **(shared_options or {})}
+    space = {**(search_space or {}), **{k: tuple(v) for k, v in (opts.get("spaces") or {}).get(method, {}).items()}}
+    lambdas = [float(x) for x in (opts.get("arm_lambdas") or {}).get(method, opts["lambdas"])]
+    return space, lambdas
 
 
 def search_space_from_args(args) -> dict | None:
@@ -795,6 +848,7 @@ def _run_condition(
         reset_arm_logs(extra_log_paths[method], method, train_sizes)
         arm = SHARED_OBJECTIVE_ARMS[method]
         likelihood_arm = arm["shared_objective"] != "opc"
+        arm_space, arm_lambdas = shared_arm_settings(method, shared_options, search_space)
         extra[method] = regression_trainer_trial(
             train_sizes=train_sizes,
             dataset=dataset,
@@ -835,10 +889,11 @@ def _run_condition(
             size_crossfit=size_crossfit,
             sn_scope=str(sn_scope),
             sampler=str(sampler),
-            seed_label="shared",  # trial k: the same configuration, seed and batch order in all four arms
-            search_space=search_space,
+            # trial k: the same configuration, seed and batch order in all four arms
+            seed_label=str((shared_options or {}).get("seed_tag", SHARED_SEED_TAG)),
+            search_space=arm_space or None,
             policy_dir=str(run_dir) if save_policies else None,
-            anchor_lambdas=tuple(shared_meta["lambdas"]),
+            anchor_lambdas=tuple(arm_lambdas),
             **arm,
         )
 

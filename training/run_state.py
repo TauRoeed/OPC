@@ -101,10 +101,14 @@ def arm_config(method: str, cfg: dict) -> dict:
     if method in OPC_FAMILY_ARMS:
         out.update({k: cfg.get(k) for k in OPC_FAMILY_SETTINGS})
         out["search_space"] = resolve_search_space(cfg.get("search_space"))
-        if method.startswith("shared_"):  # the source anchor's candidate strengths (docs/shared_objective_study.md)
-            from models.shared_objectives import LAMBDA_GRID
+        if method.startswith("shared_"):  # the arm's own space and λ grid (docs/shared_objective_study.md §2, §8)
+            from training.run_full_study import shared_arm_settings
 
-            out["shared"] = {"lambdas": [float(x) for x in LAMBDA_GRID], **(cfg.get("shared_options") or {})}
+            space, lambdas = shared_arm_settings(method, cfg.get("shared_options"), cfg.get("search_space"))
+            out["search_space"] = resolve_search_space(space or None)
+            out["shared"] = {"lambdas": lambdas}
+            if (cfg.get("shared_options") or {}).get("seed_tag"):  # a supplementary round's independent draws
+                out["shared"]["seed_tag"] = str(cfg["shared_options"]["seed_tag"])
     elif method == "cause":
         from training.cause_trials import CAUSE_DEFAULTS
 

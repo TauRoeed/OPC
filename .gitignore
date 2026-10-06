@@ -17,3 +17,4 @@ datasets/**/*.hdf5
 datasets/**/*.dat
 datasets/**/*.csv
 /artifacts/full_study/blob_prior_calibration/logs/
+/artifacts/full_study/shared_logs/

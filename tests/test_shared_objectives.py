@@ -302,3 +302,71 @@ def test_the_runner_refuses_to_post_temper_the_shared_arms(toy, tmp_path):
                        batch_size=None, val_size=1000, val_frac=0.15, val_min=1000, val_max=None,
                        policy_reward_mode="exact", policy_reward_mc_sim=8, run_dir=tmp_path, slim=True,
                        shared_regression_size=2000, methods=("shared_opc",), post_temper=True)
+
+
+def test_an_arm_with_its_own_range_keeps_the_pairing_by_quantile(toy, tmp_path):
+    """The edge rule may give one arm a wider range (docs/shared_objective_study.md §8): its trial k draws the same
+    uniform number as the other arms', mapped onto its own range."""
+    from training.run_full_study import parse_shared_arm_options, shared_arm_settings
+
+    opts = parse_shared_arm_options(["shared_opc:lr=1e-4,6.32e-3", "shared_opc:num_epochs=5,60"],
+                                    ["shared_likelihood=0,0.01,10"])
+    assert opts == {"spaces": {"shared_opc": {"lr": (1e-4, 6.32e-3), "num_epochs": (5, 60)}},
+                    "arm_lambdas": {"shared_likelihood": [0.0, 0.01, 10.0]}}
+    common = {"lr": (1e-4, 2e-3), "num_epochs": (5, 30)}
+    space, lams = shared_arm_settings("shared_opc", {"lambdas": [0.0, 1.0], **opts}, common)
+    assert space == {"lr": (1e-4, 6.32e-3), "num_epochs": (5, 60)} and lams == [0.0, 1.0]
+    assert shared_arm_settings("shared_likelihood", {"lambdas": [0.0, 1.0], **opts}, common) == (common, [0.0, 0.01, 10.0])
+    with pytest.raises(ValueError):
+        parse_shared_arm_options(["shared_opc:momentum=0,1"])
+    _, ds = toy
+    _, base = _trainer(ds, tmp_path, "shared_likelihood", seed_label="shared", shared_objective="likelihood",
+                       search_space=common)
+    _, wide = _trainer(ds, tmp_path, "shared_opc", seed_label="shared", shared_objective="opc", search_space=space)
+    u = lambda lr, lo, hi: (np.log(lr) - np.log(lo)) / (np.log(hi) - np.log(lo))
+    np.testing.assert_allclose(u(base["param_lr"], 1e-4, 2e-3), u(wide["param_lr"], 1e-4, 6.32e-3), rtol=1e-9)
+    assert (base["param_anchor_lambda"] == wide["param_anchor_lambda"]).all()
+
+
+def test_a_supplementary_round_draws_new_paired_trials(toy, tmp_path, monkeypatch):
+    """--shared-seed-tag (docs/shared_objective_study.md §8): another tag gives new configurations, still the same in
+    every shared arm, and its own configuration key; the default tag leaves the options and keys as they were."""
+    import argparse
+
+    import training.run_full_study as rfs
+    from training.run_state import arm_config, config_key
+
+    parser = argparse.ArgumentParser()
+    rfs.add_shared_arguments(parser)
+    default = rfs.shared_options_from_args(parser.parse_args([]))
+    supp = rfs.shared_options_from_args(parser.parse_args(["--shared-seed-tag", "shared_supplement"]))
+    assert default == {"lambdas": list(LAMBDA_GRID)} and supp == {**default, "seed_tag": "shared_supplement"}
+    key = lambda opts: config_key(arm_config("shared_opc", {"n_trials": 20, "shared_options": opts}))
+    assert key(default) == key({"lambdas": list(LAMBDA_GRID)}) and key(supp) != key(default)
+
+    root, ds = toy
+    seen = []
+
+    def capture(**kw):
+        seen.append((kw["method_label"], kw["seed_label"]))
+        raise KeyboardInterrupt  # stop after the first arm: only the label is under test
+
+    monkeypatch.setattr(rfs, "regression_trainer_trial", capture)
+    for opts in (default, supp):
+        with pytest.raises(KeyboardInterrupt):
+            rfs._run_condition(dataset_name="toy", emb_dir=root, bias="medium", ctr=0.05, seed=0, train_sizes=[N],
+                               n_trials=2, batch_size=None, val_size=1000, val_frac=0.15, val_min=1000, val_max=None,
+                               policy_reward_mode="exact", policy_reward_mc_sim=8, run_dir=tmp_path, slim=True,
+                               shared_regression_size=2000, methods=("shared_opc",), shared_options=opts)
+    assert seen == [("shared_opc", "shared"), ("shared_opc", "shared_supplement")]
+
+    params = ["param_lr", "param_num_epochs", "param_batch_size", "param_lr_decay", "param_anchor_lambda"]
+    monkeypatch.undo()
+    for sub in ("first", "supp"):
+        (tmp_path / sub).mkdir()
+    _, first = _trainer(ds, tmp_path / "first", "shared_opc", seed_label="shared", shared_objective="opc")
+    _, again = _trainer(ds, tmp_path / "supp", "shared_likelihood", seed_label="shared_supplement",
+                        shared_objective="likelihood")
+    _, other = _trainer(ds, tmp_path / "supp", "shared_opc", seed_label="shared_supplement", shared_objective="opc")
+    pd.testing.assert_frame_equal(again[params], other[params])  # paired within the round
+    assert not np.allclose(first["param_lr"], other["param_lr"])  # new configurations

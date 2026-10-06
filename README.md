@@ -23,7 +23,8 @@ the headline 25k results, the code review and its fixes, and the open decisions.
 **BLOB in the controlled environment (the published model, its reproduction, BLOB-supplied-source vs the likelihood learner, DM-only and OPC at 25k):** [`docs/blob_controlled_integration.md`](docs/blob_controlled_integration.md)  
 **BLOB's catalog-size prior: the derivation, the pre-registered calibration and the 25k check of BLOB-Pnorm:** [`docs/blob_prior_calibration.md`](docs/blob_prior_calibration.md)  
 **What BLOB-NQ, CausE-capacity-matched (ρ = 0) and OPC each optimize (audit of the executable objectives):** [`docs/training_objectives_audit.md`](docs/training_objectives_audit.md)  
-**Handoff and status, 2026-10-06 (branch map, results, the code review and its fixes, verification, open decisions):** [`docs/handoff_20261006.md`](docs/handoff_20261006.md)
+**Handoff and status, 2026-10-06 (branch map, results, the code review and its fixes, verification, open decisions):** [`docs/handoff_20261006.md`](docs/handoff_20261006.md)  
+**Three training objectives on one global correction model (penalized likelihood, uniform-weighted likelihood, OPC's value objective; branch `representation-mismatch-research-next`):** [`docs/shared_objective_study.md`](docs/shared_objective_study.md)
 
 Main flow:
 1. Fit/generate BPR artifacts (user/item factors + metadata arrays).
@@ -408,6 +409,33 @@ python -m training.run_full_study_parallel $COMMON --run-tag blob_nq_25k --metho
 - **Pick diagnostics of saved policies, and the comparison tables:** `python -m training.policy_diagnostics` and
   `python -m training.analyze_blob {tune,calib,compare}`; `python -m training.analyze_cause_fair {tune,compare}`. The
   exact invocations behind each committed table are in `artifacts/full_study/{cause_fair_25k,blob_controlled_25k,blob_prior_calibration}/README.md`.
+
+### The shared-objective arms (docs/shared_objective_study.md)
+
+One global correction model (OPC's policy class: (I + D)x + b per side and a learned logit scale), one source-anchor
+regularizer λ R(θ) with λ searched per trial, three objectives, one paired random search (trial k is the same
+configuration, seed and batch order in every arm):
+
+| arm | objective | native selection |
+|---|---|---|
+| `shared_likelihood` | Bernoulli NLL of the click logits s g / T + c | validation NLL |
+| `shared_iw_likelihood` | the NLL weighted by 1 / (P p) toward the uniform action distribution | validation IW-NLL |
+| `shared_iw_likelihood_clip10` | the same, weights clipped at 10 | validation IW-NLL, clipped |
+| `shared_opc` | OPC's DR value objective (λ = 0: the OPC arm exactly) | DR lower bound |
+
+```bash
+python -m training.run_full_study_parallel $COMMON --run-tag shared_main_25k --learn-logit-scale --lr-range 1e-4 2e-3 --epochs-range 5 30 --methods shared_likelihood shared_iw_likelihood shared_iw_likelihood_clip10 shared_opc --save-policies
+```
+
+- `--shared-lambdas` sets the λ grid (default 0, 0.001, 0.01, 0.1, 1). `--shared-arm-space ARM:DIM=LO,HI` and
+  `--shared-arm-lambdas ARM=...` give one arm its own range when the tuning protocol's edge rule extends it.
+  `--shared-seed-tag` draws a new, independent set of paired trials (a supplementary tuning round).
+- Every trial logs the common selector `diag_dr_greedy_low` (the DR lower bound of its greedy policy), the correction
+  size `diag_anchor_R`, the decisions changed from the logger's and the validation NLLs. Every summary row logs the data
+  identity and the uniform-reference weights' diagnostics (ESS, quantiles, clipped share).
+- Population optima of the same class for the weighted objectives: `python -m training.class_oracles ... --classes
+  bilinear affine_bilinear --objectives uniform_likelihood clip10_likelihood --save-policies --out DIR`.
+- Tables and figures: `python -m training.analyze_shared_objectives {tune,oracles,compare}`.
 
 ## Outputs
 
