@@ -152,7 +152,7 @@ init: D = 0, b_u = b_c = b_t = 0, so every vector starts at its source vector; �
 | target item update | Through the treatment map only: (D_t, b_t) moves every item's target vector at once |
 | discrepancy | The L1 tie of CausE in the treatment–control difference, ‖(D_t − D_c)a_k + (b_t − b_c)‖₁: CausE's eq. 16 residual restricted to the global linear family. Direction as in 1.2 |
 | per-row biases | None. The per-user bias would not change any ranking. Per-item biases would add item offsets, which OPC's class does not have |
-| ρ = 0 | No S_t rows. Under the one-way tie (D_t, b_t) gets no data gradient and stays at 0, so the T ranking uses the source items with the adapted user map. Under the symmetric tie it follows the control map. C is a likelihood fit of the user and control-item maps on the N warm rows: OPC's class, fit to the clicks, without propensities |
+| ρ = 0 | No S_t rows. Under the one-way tie (D_t, b_t) gets no data gradient and stays at 0, so the T ranking uses the source items with the adapted user map. Under the symmetric tie it follows the control map. C is a likelihood fit of the user and control-item maps on the N warm rows: OPC's class, fit to the clicks, without propensities. It is a penalized fit: the L2 term shrinks every map toward the source, and the one-way tie becomes an L1 anchor of the control-item map to the source items (2026-10-06 audit, `docs/training_objectives_audit.md` §3) |
 | evaluation | **CausE-cap-C** (θ^c) and **CausE-cap-T** (θ^t); greedy argmax_j z; stochastic softmax_j z (§2) |
 
 **Relationship to OPC.**
@@ -435,7 +435,9 @@ panel when it lies below the axis. Error bars at the same ρ are offset slightly
   starts from −17.8, and its treatment rows learn only from uniform rows.
 - **C and T rank alike in CausE-cap.** They agree exactly in 42% of cells and differ by 0.03 points on average. The
   selected models put almost all their learning into the user map (norm about 1.1). The L1 tie holds the control
-  item map on the treatment item map (gap ≈ 0). At ρ = 0 both item maps stay at the source (norm 0.001). At ρ > 0 the
+  item map on the treatment item map (gap ≈ 0). At ρ = 0 both item maps stay at the source (norm ≤ 0.001) in the 18 worlds
+  whose selected model has the one-way tie with cf > 0; in the other 12 the control map moved (norm 0.32–1.33;
+  `docs/training_objectives_audit.md` §3, added 2026-10-06). At ρ > 0 the
   treatment map learns from the uniform rows (norm 0.06 at ρ = 0.01 up to 0.34 at 0.25) and the control map follows,
   without changing the ranking.
 

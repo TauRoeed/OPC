@@ -3,6 +3,9 @@
 *A repository checkpoint before the next research phase: what exists, where it is, what it shows and what is open.
 All results are development evidence. Nothing here is confirmatory.*
 
+*Superseded as the entry point by `docs/handoff_20261006.md` (the BLOB phases, the training-objectives audit and a code
+review). This document's sections on the simulator fix, the OPC configuration and the CausE variants still hold.*
+
 ## 1. Branch and commit map (verified from `origin` on 2026-10-05)
 
 | branch | HEAD | contents | status |

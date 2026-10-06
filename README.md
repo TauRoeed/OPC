@@ -2,6 +2,10 @@
 
 Offline policy comparison experiments with matrix-factorization embeddings.
 
+**Start here (2026-10-06):** [`docs/handoff_20261006.md`](docs/handoff_20261006.md): the branch map, what is current,
+the headline 25k results, the known issues from the code review, and the open decisions. What each compared arm
+optimizes: [`docs/training_objectives_audit.md`](docs/training_objectives_audit.md).
+
 **Loss / Optuna details:** [`docs/training_losses.md`](docs/training_losses.md)  
 **Research notes:** [`docs/research_workplan.md`](docs/research_workplan.md)  
 **Simulator:** [`docs/representation_bias.md`](docs/representation_bias.md)  
@@ -10,12 +14,15 @@ Offline policy comparison experiments with matrix-factorization embeddings.
 **Code handoff since c072f9b (for Roee):** [`docs/roee_handoff_20260928.md`](docs/roee_handoff_20260928.md)  
 **Representation repair, stage write-ups:** [`docs/representation_repair_dev_20260927.md`](docs/representation_repair_dev_20260927.md) · follow-up: [`docs/representation_repair_followup_20260927.md`](docs/representation_repair_followup_20260927.md)  
 **Objective and weighting decision record:** [`docs/decision_record_opc_objective_weighting.md`](docs/decision_record_opc_objective_weighting.md)  
-**Code Atlas (PDF snapshot of the published page, version 12, code at 30553ab on `blob-prior-calibration`; exported by `scripts/export_atlas_pdf.py`):** [`docs/opc_code_atlas.pdf`](docs/opc_code_atlas.pdf)  
+**Code Atlas (PDF snapshot of the published page, version 13, branch `handoff-20261006`, code as tested at 30553ab; exported by `scripts/export_atlas_pdf.py`):** [`docs/opc_code_atlas.pdf`](docs/opc_code_atlas.pdf)  
 **CausE baseline (specification, OPC mapping, budget protocol):** [`docs/cause_baseline.md`](docs/cause_baseline.md)  
 **CausE vs OPC, bounded development comparison (report before scaling):** [`docs/cause_dev_report_20261004.md`](docs/cause_dev_report_20261004.md)  
 **CausE vs the revalidated OPC, the fair 25k comparison (CausE-warm, CausE-capacity-matched):** [`docs/cause_fair_comparison_25k.md`](docs/cause_fair_comparison_25k.md)  
 **Handoff and checkpoint before the next representation-mismatch phase (branch map, status, open questions, roadmap):** [`docs/representation_mismatch_handoff_20261005.md`](docs/representation_mismatch_handoff_20261005.md)  
-**BLOB in the controlled environment (the published model, its reproduction, BLOB-supplied-source vs the likelihood learner, DM-only and OPC at 25k):** [`docs/blob_controlled_integration.md`](docs/blob_controlled_integration.md)
+**BLOB in the controlled environment (the published model, its reproduction, BLOB-supplied-source vs the likelihood learner, DM-only and OPC at 25k):** [`docs/blob_controlled_integration.md`](docs/blob_controlled_integration.md)  
+**BLOB's catalog-size prior: the derivation, the pre-registered calibration and the 25k check of BLOB-Pnorm:** [`docs/blob_prior_calibration.md`](docs/blob_prior_calibration.md)  
+**What BLOB-NQ, CausE-capacity-matched (ρ = 0) and OPC each optimize (audit of the executable objectives):** [`docs/training_objectives_audit.md`](docs/training_objectives_audit.md)  
+**Handoff and status, 2026-10-06 (branch map, results, code-review findings, open decisions):** [`docs/handoff_20261006.md`](docs/handoff_20261006.md)
 
 Main flow:
 1. Fit/generate BPR artifacts (user/item factors + metadata arrays).
@@ -32,7 +39,7 @@ Main flow:
 | No-propensity train | always `naive` (no IW, no DM/DR, no clip) |
 | Optuna objective | `ci_low` = DR/naive mean − t·SE |
 | Importance weights | `--train-weights` default `harmonic:0.1` (Metelli et al. 2021), re-tuned on corrected logs against raw, clip, Su shrinkage and harmonic grids (2026-10-04, revalidation §2.7): the working development default, not the final paper choice. `shrink:100` (Su et al. 2020) is a robustness alternative (within noise of the default on the whole Stage 2 grid), and `none` (raw DR) the unregularized reference. **Regime dependence:** with a misspecified reward model (`--reward-features concat`) harmonic:0.1 and shrink:100 lose about 4.5 points at 100k while raw DR loses nothing; raw DR costs 0.77 points with a well-specified q̂ (revalidation §3C). Use `--train-weights none` as well wherever q̂ may be misspecified. `--select-weights` (selection + post-hoc) keeps `clip:10` with the 95% lower bound (revalidated post hoc). Neither is Optuna-searched. `--policy-losses sndr --sn-scope batch --opc-gradient log-trick --train-weights shrink:100` reproduces the defaults before f5cade9; the H1 runner keeps those settings |
-| Study arms (`--methods`) | `opc no_propensity`; opt-in baselines `dm` (policy trained and selected on `q̂` alone) and `tempered_logger` (the logger's logits × s, s chosen by the DR score) |
+| Study arms (`--methods`) | `opc no_propensity`; opt-in baselines `dm` (policy trained and selected on `q̂` alone) and `tempered_logger` (the logger's logits × s, s chosen by the DR score); opt-in prior-work baselines `cause` (CausE: `--cause-family native\|warm\|cap`, one row per prediction and ρ) and `blob` (BLOB-supplied-source: `--blob-families nq mnq`, `--blob-variants released L<P0>`); see "Prior-work baselines" below |
 | Logit scale (`--learn-logit-scale`) | off; on, every trained policy also learns s in softmax(s·u·a/T), starting at 1. The study configuration turns it on (revalidated: a fixed scale loses 0.2–1.3 points; post-hoc tempering on top adds nothing to the selected policy) |
 | Policy search space (`--lr-range`, `--epochs-range`, `--lr-decay-range`, `--weight-decay-range`) | the code default keeps the older range, lr 1e-4–1e-3 (log-uniform), epochs 5–25, lr decay 0.8–1, no weight decay, so that older commands reproduce. The revalidated study configuration widens it to **lr 1e-4–2e-3, epochs 5–30** (revalidation §2.3; the old optimum sat at the range's edge); AdamW decay is available but off (§2.4). Every run records its space in `run_meta.json` (`search_space`) |
 | Reward model `q̂` | `regression` on interaction features `[x, a, x⊙a]` (`--reward-features`; bias script often uses `logging_score`) |
@@ -187,7 +194,8 @@ Each condition builds a world from the dataset's BPR vectors
 
 The truth is identical across bias configurations for a dataset and seed. Every
 calibrated value is written to `run_meta.json → world`. Inspect a dataset with
-`python -m training.characterize_world --datasets ml`.
+`python -m training.characterize_world --datasets ml` (currently broken: it raises a TypeError since 2026-09-26; see
+Known issues).
 
 ### Small Local Run
 
@@ -374,6 +382,32 @@ independent repeats for robustness.
 
 Enqueued `--batch-size` values snap onto the current grid when needed.
 
+### Prior-work baselines (CausE, BLOB) and their analyses
+
+Both arms train on the same N logged rows and select on the same validation rows as OPC; neither uses propensities to
+train or select (`docs/training_objectives_audit.md`). Development settings of the reported 25k grids (each run's exact
+flags are in its `run_manifest.json` and `run_meta.json`, and in `artifacts/full_study/run_registry.csv`):
+
+```bash
+COMMON="--datasets ml kuairand anime --bias-configs none high/none/none none/high/none none/none/high high --seeds 100 101 --ctr-levels 0.05 --train-sizes 25000 --n-trials 20 --sampler random --stage development --slim --emb-dir BPR/embeddings --out-dir artifacts/full_study"
+```
+
+```bash
+python -m training.run_full_study_parallel $COMMON --run-tag cause_cap_25k --methods cause --cause-family cap --cause-lr-range 3e-4 3e-2 --cause-epochs 30 100 300 --cause-l2 0 1e-7 1e-6 1e-5 1e-4 1e-3 --cause-cf 0 0.01 0.1 1 10 100 --cause-ties one_way symmetric --cause-bias-inits base_rate --cause-temper
+```
+
+```bash
+python -m training.run_full_study_parallel $COMMON --run-tag blob_nq_25k --methods blob --blob-families nq --blob-lr-range 3e-3 1e-1 --blob-epochs 10 30 100 300 1000 --blob-wa-m -1 1 3 --blob-wb-m -6 -3 0 --blob-kappa-s 0.1 --blob-pick-diagnostics --save-policies
+```
+
+- **BLOB-Pnorm** (the catalog-normalized prior): add `--blob-variants L10` and extend `--blob-lr-range 3e-3 3e-1`
+  (`docs/blob_prior_calibration.md` §8.1 has the exact commands).
+- **Truth-trained class oracles:** `python -m training.class_oracles --datasets ml --seeds 100 101 --out <dir>
+  --save-policies`.
+- **Pick diagnostics of saved policies, and the comparison tables:** `python -m training.policy_diagnostics` and
+  `python -m training.analyze_blob {tune,calib,compare}`; `python -m training.analyze_cause_fair {tune,compare}`. The
+  exact invocations behind each committed table are in `artifacts/full_study/{cause_fair_25k,blob_controlled_25k,blob_prior_calibration}/README.md`.
+
 ## Outputs
 
 Each condition:
@@ -385,6 +419,9 @@ Common files:
 - `summary_metrics.csv` — per-method summary (also the skip-completed marker).
 - `opc_trials_long.csv` / `no_prop_trials_long.csv` — Optuna trial logs.
 - `opc_runs_long.csv` / `no_prop_runs_long.csv` — per-run logs.
+- `<arm>_trials.csv` for the prior-work arms (e.g. `causecap_c_r000_trials.csv`, `blob_nq_trials.csv`) — every trial,
+  written fresh per condition.
+- `*_selected_policy.npz` with `--save-policies` — each arm's selected policy vectors (`training/policy_diagnostics.py`).
 - `run_meta.json` — exact parameters (includes `train_weights`, `select_weights`, policy losses) and the calibrated `world`.
 
 At run root:
@@ -394,3 +431,15 @@ At run root:
 - `failures.csv` — failed conditions (if any).
 
 Analyze: `python -m training.analyze_full_study --run-dir artifacts/full_study/run_<tag>`.
+
+## Known issues (code review, 2026-10-06)
+
+None of these changes a reported number; none is fixed yet. Details and locations: `docs/handoff_20261006.md` §5.
+
+- `python -m training.characterize_world` crashes: `WorldConfig` is given `logger_greedy_share`.
+- The per-arm `*_trials_long.csv` / `*_runs_long.csv` logs are appended, so a condition rerun in the same folder
+  (an OOM-backoff retry, a crash) repeats its earlier trials in `trials_long.csv`; de-duplicate on
+  (method, train_size, trial_number), keeping the last row, as the main analyses do.
+- `--skip-completed` treats any `cause*` or `blob*` row as the whole arm: run another CausE family or BLOB variant
+  under its own run tag.
+- With `--logging-uniform-mix > 0`, `training.policy_diagnostics` computes π0 without the mix.

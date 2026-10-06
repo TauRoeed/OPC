@@ -3,6 +3,11 @@
 *Development stage. Branch `blob-controlled-integration`, from `representation-mismatch-next` (364c07b). §1–§3 were
 written before any comparison ran. Results follow in later sections. Nothing here is confirmatory.*
 
+*Wording (2026-10-06, `docs/training_objectives_audit.md`). "The plain likelihood learner" below means CausE-cap at
+ρ = 0. Its loss is a penalized likelihood: an L2 term toward the source in 28 of 30 selected models and CausE's L1 tie,
+which pinned the item map to the source in 18 of 30. The penalties do not restrict its ranking class (OPC's). The
+numbers below are unchanged.*
+
 *Follow-up (2026-10-05, `docs/blob_prior_calibration.md`). The released prior on BLOB's correction tightens as 1/P with
 catalog size. With L computed at a fixed reference size, BLOB-Pnorm-NQ (P₀ = 10) gains +2.82 on biased worlds. That
 is level with OPC and 0.28 below CausE-cap. Every result below is for the published BLOB and stays as it was.*
