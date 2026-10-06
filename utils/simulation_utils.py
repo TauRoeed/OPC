@@ -397,12 +397,14 @@ def _exact_value_torch(
         torch.cuda.empty_cache()
 
 
-def calc_greedy_reward(dataset: dict, user_emb: np.ndarray, item_emb: np.ndarray, *, chunk_size: int = 2048) -> float:
+def calc_greedy_reward(dataset: dict, user_emb: np.ndarray, item_emb: np.ndarray, *, chunk_size: int = 2048,
+                       return_picks: bool = False):
     """True value of the policy's greedy (exploitation) part: sum_u prior[u] * q(u, argmax_a x_u . a_a).
 
     The softmax temperature does not move the argmax, so this is the value of recommending each
     user the policy's top item. Scores in float32 (on the GPU with TF32 off, like
-    ``_exact_value_torch``), sums in float64; ties go to the first item.
+    ``_exact_value_torch``), sums in float64; ties go to the first item. ``return_picks``: also
+    return each user's top item, ``(value, picks)``.
     """
     env = dataset["env"]
     n_users = int(dataset["n_users"])
@@ -434,7 +436,8 @@ def calc_greedy_reward(dataset: dict, user_emb: np.ndarray, item_emb: np.ndarray
             best[u0:u1] = (ux[u0:u1] @ ia.T).argmax(axis=1)
     users = np.arange(n_users, dtype=np.int64)
     q = (np.asarray(q_cache)[users, best] if q_cache is not None else env.reward_prob(users, best)).astype(np.float64)
-    return float(np.dot(prior, q))
+    value = float(np.dot(prior, q))
+    return (value, best) if return_picks else value
 
 
 def calc_reward_mc(dataset: dict, policy, n_sim=30):

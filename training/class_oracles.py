@@ -6,12 +6,16 @@ The classes act on the logger's frozen vectors x (users) and a (items):
     blob              f(u, a) = xᵀ M a + κ_a + c              BLOB-supplied-source with free per-item intercepts
     bilinear          f(u, a) = xᵀ M a + c                    BLOB with its intercepts pinned
 
-Two objectives, both exact on the simulator's truth (no logged data, no reward model, no selection):
+Objectives, all exact on the simulator's truth (no logged data, no reward model, no selection):
 
     value        maximize Σ_u prior(u) Σ_a softmax(f(u, ·))_a q(u, a)        (the Stage 1 recipe; terms constant in a
                                                                            cancel, the scale of M sharpens)
     likelihood   minimize Σ_u prior(u) Σ_a π0(a|u) CE(q(u, a), σ(f(u, a)))  (the infinite-data maximum likelihood under
                                                                            the logger's sampling)
+    uniform_likelihood   the same with π0(a|u) replaced by 1/P: the population objective of the likelihood weighted toward
+                         the uniform action distribution (docs/shared_objective_study.md §6)
+    clip10_likelihood    the same with min(1/P, 10 π0(a|u)): the population objective of that weighted likelihood with its
+                         weights clipped at 10
 
 The ``bilinear`` fit starts at the logger (M = I / T; c = 0 for value, the logit of the logged click rate for
 likelihood); the superset classes start at its solution with their extra terms at 0. Each fit is optimized with Adam and a cosine schedule on a prior-weighted sample of users, every item in every
@@ -42,7 +46,10 @@ from utils.seeding import derive_seed, enable_determinism, seed_everything
 from utils.simulation_utils import _normalized_prior, calc_greedy_reward, calc_reward
 
 CLASSES = ("affine_bilinear", "blob", "bilinear")
-OBJECTIVES = ("value", "likelihood")
+OBJECTIVES = ("value", "likelihood", "uniform_likelihood", "clip10_likelihood")
+LIKELIHOOD_OBJECTIVES = ("likelihood", "uniform_likelihood", "clip10_likelihood")
+DEFAULT_OBJECTIVES = ("value", "likelihood")  # the BLOB study's oracles; the weighted ones on request
+CLIP10 = 10.0
 DEFAULT_LRS = (3e-3, 1e-2, 3e-2)
 WARM_LR_SCALE = 1.0 / 3.0  # a superset class starts at the subset's optimum: one step lower on the lr grid
 DEFAULT_STEPS = 3000
@@ -104,6 +111,21 @@ def _logger_probs(x_users: torch.Tensor, a: torch.Tensor, temperature: float) ->
     return torch.softmax((x_users @ a.T) / float(temperature), dim=1)
 
 
+def likelihood_weights(objective: str, x_users: torch.Tensor, a: torch.Tensor, temperature: float) -> torch.Tensor:
+    """The per-(user, item) weights of a likelihood objective (B × P): the logger's probabilities (``likelihood``), the
+    uniform 1/P (``uniform_likelihood``) or min(1/P, 10 π0) (``clip10_likelihood``: π0 times the weight 1/(P π0)
+    clipped at 10)."""
+    n_items = a.shape[0]
+    if objective == "uniform_likelihood":
+        return torch.full((x_users.shape[0], n_items), 1.0 / n_items, device=x_users.device)
+    pi = _logger_probs(x_users, a, temperature)
+    if objective == "likelihood":
+        return pi
+    if objective == "clip10_likelihood":
+        return torch.minimum(torch.full_like(pi, 1.0 / n_items), CLIP10 * pi)
+    raise ValueError(f"not a likelihood objective: {objective!r}")
+
+
 def fit_class_oracle(dataset: dict, cls: str, objective: str, *, lr: float, steps: int = DEFAULT_STEPS,
                      fit_users: int = DEFAULT_FIT_USERS, batch_users: int = DEFAULT_BATCH_USERS, seed: int = 0,
                      device=None, start: "ScoreClass | None" = None):
@@ -125,14 +147,14 @@ def fit_class_oracle(dataset: dict, cls: str, objective: str, *, lr: float, step
         with torch.no_grad():
             model.M.copy_(start.M.detach())
             model.c.copy_(start.c.detach())
-    elif objective == "likelihood":  # start the intercept at the logged click rate
+    elif objective in LIKELIHOOD_OBJECTIVES:  # start the intercept at the click rate under the objective's weights
         with torch.no_grad():
             num = den = 0.0
             for s in range(0, len(users), batch_users):
                 b = torch.as_tensor(users[s:s + batch_users], device=device)
-                pi = _logger_probs(model.x[b], model.a, T)
-                num += float((pi * true_q_rows(dataset, b, clean_items)).sum())
-                den += float(len(b))
+                w = likelihood_weights(objective, model.x[b], model.a, T)
+                num += float((w * true_q_rows(dataset, b, clean_items)).sum())
+                den += float(w.sum())
             rate = num / den
             c0 = float(np.log(rate / (1 - rate)))
             model.c.fill_(c0)
@@ -147,9 +169,9 @@ def fit_class_oracle(dataset: dict, cls: str, objective: str, *, lr: float, step
         q = true_q_rows(dataset, batch, clean_items)
         if objective == "value":
             return -(torch.softmax(f, dim=1) * q).sum(dim=1).mean()
-        pi = _logger_probs(model.x[batch], model.a, T)
+        w = likelihood_weights(objective, model.x[batch], model.a, T)
         ce = torch.nn.functional.binary_cross_entropy_with_logits(f, q, reduction="none")
-        return (pi * ce).sum(dim=1).mean()
+        return (w * ce).sum(dim=1).mean()
 
     for _ in range(int(steps)):
         if pos + batch_users > len(order):
@@ -173,7 +195,7 @@ def fit_class_oracle(dataset: dict, cls: str, objective: str, *, lr: float, step
     return model, trace, total / len(users)
 
 
-def class_oracles(dataset: dict, *, classes=CLASSES, objectives=OBJECTIVES, lrs=DEFAULT_LRS, steps: int = DEFAULT_STEPS,
+def class_oracles(dataset: dict, *, classes=CLASSES, objectives=DEFAULT_OBJECTIVES, lrs=DEFAULT_LRS, steps: int = DEFAULT_STEPS,
                   fit_users: int = DEFAULT_FIT_USERS, batch_users: int = DEFAULT_BATCH_USERS, seed: int = 0,
                   device=None, policy_dir: Path | None = None) -> list[dict]:
     """Per objective: ``bilinear`` first, from the logger; then each superset class (``affine_bilinear``, ``blob``)
@@ -230,7 +252,7 @@ def main(argv=None):
     ap.add_argument("--seeds", nargs="+", type=int, default=[100, 101])
     ap.add_argument("--ctr", type=float, default=0.05)
     ap.add_argument("--classes", nargs="+", choices=list(CLASSES), default=list(CLASSES))
-    ap.add_argument("--objectives", nargs="+", choices=list(OBJECTIVES), default=list(OBJECTIVES))
+    ap.add_argument("--objectives", nargs="+", choices=list(OBJECTIVES), default=list(DEFAULT_OBJECTIVES))
     ap.add_argument("--lrs", nargs="+", type=float, default=list(DEFAULT_LRS))
     ap.add_argument("--steps", type=int, default=DEFAULT_STEPS)
     ap.add_argument("--fit-users", type=int, default=DEFAULT_FIT_USERS)

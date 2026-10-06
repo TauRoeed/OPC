@@ -53,6 +53,7 @@ from training.trainer_trials import (
     _training_device,
 )
 
+from models.shared_objectives import LAMBDA_GRID
 from training.blob_trials import add_blob_arguments, blob_options_from_args
 from training.cause_trials import add_cause_arguments, cause_options_from_args
 
@@ -63,7 +64,18 @@ BASELINE_METHODS = ("dm", "tempered_logger")
 # Opt-in prior-work baselines: cause = native CausE on the fixed-budget warm/uniform data
 # (training/cause_trials.py; one summary method per prediction and rho, cause_<prediction>_r<rho per mille>).
 PRIOR_WORK_METHODS = ("cause", "blob")
-ALL_STUDY_METHODS = VALID_STUDY_METHODS + BASELINE_METHODS + PRIOR_WORK_METHODS
+# The shared-objective arms (docs/shared_objective_study.md): one global correction model trained with penalized
+# likelihood, uniform-reference weighted likelihood (raw, clipped at 10) or OPC's value objective, each plus the same
+# source anchor; one paired random search (seed label "shared"). Arm -> trainer arguments.
+SHARED_OBJECTIVE_ARMS = {
+    "shared_likelihood": {"shared_objective": "likelihood"},
+    "shared_iw_likelihood": {"shared_objective": "iw_likelihood"},
+    "shared_iw_likelihood_clip10": {"shared_objective": "iw_likelihood", "iw_clip": 10.0},
+    "shared_opc": {"shared_objective": "opc"},
+}
+SHARED_OBJECTIVE_METHODS = tuple(SHARED_OBJECTIVE_ARMS)
+SHARED_DEFAULTS = {"lambdas": list(LAMBDA_GRID)}
+ALL_STUDY_METHODS = VALID_STUDY_METHODS + BASELINE_METHODS + PRIOR_WORK_METHODS + SHARED_OBJECTIVE_METHODS
 # Where the regression reward model's data come from: 'external' = a separate reg slice
 # (--shared-regression-size, the same at every train size); 'train' = each train size's own
 # training rows, so every arm uses only the n logged rows it is given.
@@ -311,6 +323,18 @@ def add_search_space_arguments(parser) -> None:
                         "stream (needs --sampler random). Default: none (Adam).")
 
 
+def add_shared_arguments(parser) -> None:
+    """``--shared-lambdas`` (both runners): the source anchor's candidate strengths for the shared-objective arms."""
+    g = parser.add_argument_group("shared-objective arms (opt-in: --methods " + " ".join(SHARED_OBJECTIVE_METHODS) + ")")
+    g.add_argument("--shared-lambdas", type=float, nargs="+", default=list(LAMBDA_GRID),
+                   help="Candidate strengths of the source anchor λ R(θ), searched per trial and the same for every "
+                        "shared arm (default %(default)s; docs/shared_objective_study.md §2).")
+
+
+def shared_options_from_args(args) -> dict:
+    return {"lambdas": [float(x) for x in getattr(args, "shared_lambdas", LAMBDA_GRID)]}
+
+
 def search_space_from_args(args) -> dict | None:
     """The ranges given on the command line (None when every range is the default)."""
     space = {}
@@ -456,6 +480,7 @@ def _run_condition(
     blob_options: dict | None = None,
     save_policies: bool = False,
     rebuild_logs: bool = True,
+    shared_options: dict | None = None,
 ):
     """One condition. ``methods`` may add the opt-in baselines (``BASELINE_METHODS``); their
     summaries and trials come back as a 6th item ``{method: (summary_df, trials_df)}`` when
@@ -759,6 +784,64 @@ def _run_condition(
             **arm,
         )
 
+    # The shared-objective arms: the same splits, reward model and selection weights, one paired search over the study's
+    # space plus the source anchor's strength (docs/shared_objective_study.md §3-§5)
+    shared_meta = None
+    if post_temper and set(methods) & set(SHARED_OBJECTIVE_METHODS):
+        raise ValueError("the shared-objective arms are not post-tempered (docs/shared_objective_study.md §3)")
+    for method in (m for m in SHARED_OBJECTIVE_METHODS if m in methods):
+        shared_meta = {**SHARED_DEFAULTS, **(shared_options or {})}
+        extra_log_paths[method] = arm_log_paths(run_dir, method)
+        reset_arm_logs(extra_log_paths[method], method, train_sizes)
+        arm = SHARED_OBJECTIVE_ARMS[method]
+        likelihood_arm = arm["shared_objective"] != "opc"
+        extra[method] = regression_trainer_trial(
+            train_sizes=train_sizes,
+            dataset=dataset,
+            batch_size=batch_size,
+            val_size=val_size,
+            val_frac=val_frac,
+            val_min=val_min,
+            val_max=val_max,
+            n_trials=n_trials,
+            prev_best_params=None,
+            propensity_mode="logged",
+            log_paths=extra_log_paths[method],
+            slim=slim,
+            method_label=method,
+            policy_reward_mode=policy_reward_mode,
+            policy_reward_mc_sim=policy_reward_mc_sim,
+            split_cache=split_cache,
+            policy_loss_types=tuple(policy_loss_types),
+            dataset_name=dataset_name,
+            search_use_log_trick=False,
+            use_log_trick_fixed=False if likelihood_arm else opc_log_trick,
+            shared_regression_bundle=shared_regression_bundle,
+            shared_regression_size=shared_regression_size,
+            qhat_user_chunk=qhat_user_chunk,
+            qhat_action_chunk=qhat_action_chunk,
+            require_cuda=require_cuda,
+            optuna_batch_sizes=optuna_batch_sizes,
+            optuna_selection=optuna_selection,
+            reward_model=str(reward_model),
+            dr_score_clip_m=dr_score_clip_m,
+            seed=int(seed),
+            train_weights=train_weights,
+            select_weights=select_weights,
+            log_select_weights=tuple(log_select_weights or ()),
+            policy_transform="linear",
+            learn_logit_scale=True,  # the shared model always learns its scale (OPC's study configuration)
+            size_regression_bundles=size_bundles,
+            size_crossfit=size_crossfit,
+            sn_scope=str(sn_scope),
+            sampler=str(sampler),
+            seed_label="shared",  # trial k: the same configuration, seed and batch order in all four arms
+            search_space=search_space,
+            policy_dir=str(run_dir) if save_policies else None,
+            anchor_lambdas=tuple(shared_meta["lambdas"]),
+            **arm,
+        )
+
     cause_meta = None
     if "cause" in methods:  # prior-work baseline on the fixed-budget warm/uniform data (training/cause_trials.py)
         from training.cause_trials import CAUSE_DEFAULTS, cause_trainer_trial
@@ -873,6 +956,7 @@ def _run_condition(
         "rand_ctr": rand_ctr_meta or {},
         "cause": cause_meta,
         "blob": blob_meta,
+        "shared": shared_meta,
     }
     if return_extra:
         return opc_df, noprop_df, opc_trials, noprop_trials, meta, extra
@@ -979,6 +1063,7 @@ def condition_configs(args, out_dir: Path, *, methods, bias_configs, world_optio
         "search_space": search_space_from_args(args),
         "cause_options": cause_options_from_args(args),
         "blob_options": blob_options_from_args(args),
+        "shared_options": shared_options_from_args(args),
         "save_policies": bool(args.save_policies),
         "skip_completed": bool(args.skip_completed),
     }
@@ -1079,6 +1164,7 @@ def _condition_kwargs(cfg: dict) -> dict:
         cause_options=cfg.get("cause_options"),
         blob_options=cfg.get("blob_options"),
         save_policies=bool(cfg.get("save_policies", False)),
+        shared_options=cfg.get("shared_options"),
     )
 
 
@@ -1187,6 +1273,7 @@ def study_manifest(args, *, runner: str, run_tag: str, methods, bias_configs, wo
                          for k, v in resolve_search_space(search_space_from_args(args)).items()},
         "cause_options": cause_options_from_args(args) if "cause" in methods else None,
         "blob_options": blob_options_from_args(args) if "blob" in methods else None,
+        "shared_options": (shared_options_from_args(args) if set(methods) & set(SHARED_OBJECTIVE_METHODS) else None),
         "save_policies": bool(args.save_policies),
         "slim": bool(args.slim),
         "deterministic": bool(args.deterministic),
@@ -1225,6 +1312,7 @@ def main():
     add_search_space_arguments(parser)
     add_cause_arguments(parser)
     add_blob_arguments(parser)
+    add_shared_arguments(parser)
     parser.add_argument(
         "--logging-uniform-mix",
         type=float,

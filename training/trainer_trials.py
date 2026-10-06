@@ -118,6 +118,7 @@ from utils.simulation_utils import (
 )
 
 from models.models import (
+    LOGIT_SCALE_SPEED,
     LinearCFModel,
     CFModel,
     MLPRewardModel,
@@ -132,6 +133,19 @@ from training.training_utils import (
     train,
 )
 
+from models.shared_objectives import (
+    IW_CLIP,
+    LAMBDA_GRID,
+    SHARED_OBJECTIVES,
+    AnchoredPolicyLoss,
+    LikelihoodLoss,
+    SharedCorrectionModel,
+    SourceAnchor,
+    fit_click_head,
+    iw_weights,
+    weight_stats,
+    weighted_nll,
+)
 from models.custom_losses import (
     CRMPolicyLoss,
     DMPolicyLoss,
@@ -1180,6 +1194,8 @@ def _study_trials_long(
             rows[-1]["logit_scale"] = float(attrs["logit_scale"])
         if "logit_scale" in params:
             rows[-1]["param_logit_scale"] = float(params["logit_scale"])
+        if "anchor_lambda" in params:  # the shared arms' source-anchor strength (models.shared_objectives)
+            rows[-1]["param_anchor_lambda"] = float(params["anchor_lambda"])
         if "post_scale" in attrs:  # --post-temper: the factor chosen after training
             rows[-1]["post_scale"] = float(attrs["post_scale"])
         if "weight_decay" in attrs:  # AdamW decay drawn from the search space's weight_decay range
@@ -2338,6 +2354,73 @@ def _policy_reward_from_embeddings(
     return calc_reward(dataset, pi_obj, chunk_size=user_chunk)
 
 
+def _shared_size_setup(dataset, train_data, val_data, x, a, objective: str, iw_clip) -> tuple[dict, dict]:
+    """Per train size, for the shared arms (docs/shared_objective_study.md §3-§4): the data-identity record and the
+    uniform-reference weight diagnostics of the training and validation rows, and for the likelihood arms the click
+    head's starting point under the arm's own weights (``fit_click_head``, the maps at the identity)."""
+    import hashlib
+
+    n_actions, temp = int(dataset["n_actions"]), _policy_temperature(dataset)
+    record = {}
+    for name, d in (("train", train_data), ("val", val_data)):
+        users, items = np.asarray(d["x_idx"], np.int64), np.asarray(d["a"], np.int64)
+        clicks, pscore = np.asarray(d["r"], np.float64), np.asarray(d["pscore"], np.float64)
+        digest = hashlib.sha1()
+        for arr in (users, items, clicks):
+            digest.update(np.ascontiguousarray(arr).tobytes())
+        record.update({f"{name}_rows": int(len(clicks)), f"{name}_click_sum": float(clicks.sum()),
+                       f"{name}_pscore_sum": float(pscore.sum()), f"{name}_rows_sha1": digest.hexdigest()[:16]})
+        record.update({f"{name}_{k}": v for k, v in weight_stats(pscore, n_actions).items()})
+    head = {}
+    if objective in ("likelihood", "iw_likelihood"):
+        users, items = np.asarray(train_data["x_idx"], np.int64), np.asarray(train_data["a"], np.int64)
+        g0 = (np.asarray(x, np.float64)[users] * np.asarray(a, np.float64)[items]).sum(axis=1) / temp
+        w = None if objective == "likelihood" else iw_weights(np.asarray(train_data["pscore"], np.float64), n_actions,
+                                                               iw_clip)
+        theta_s, c0 = fit_click_head(g0, train_data["r"], w)
+        head = {"head_theta_s": theta_s, "head_logit_scale": float(np.exp(LOGIT_SCALE_SPEED * theta_s)),
+                "head_intercept": c0}
+    return record, head
+
+
+def _shared_trial_diagnostics(model, trial_x, trial_a, val_data, dataset, scores_lookup, anchor, picks, logger_picks,
+                              objective: str, iw_clip) -> tuple[dict, float | None]:
+    """Per trial of a shared arm: the correction's size, the common selector (the 95% DR lower bound of the greedy
+    policy on the validation rows, clip:10, the full-data q_hat), the decisions changed from the logger's greedy picks
+    (prior-weighted share, value gained and lost, CTR), and for the likelihood arms the validation NLL plain, weighted
+    and clipped. Returns (diagnostics, the native selection value or None for opc)."""
+    from training.cause_trials import _greedy_dr
+    from utils.simulation_utils import _normalized_prior
+
+    d = {"anchor_R": float(anchor(model).detach()), "logit_scale_s": float(model.logit_scale), **model.correction_norms()}
+    d["dr_greedy"], d["dr_greedy_low"] = _greedy_dr(val_data, trial_x, trial_a, scores_lookup, clip=10.0)
+    prior = _normalized_prior(dataset)
+    users = np.arange(len(picks), dtype=np.int64)
+    q_cache = dataset.get("q_x_a")
+    q_at = (lambda items: np.asarray(q_cache)[users, items] if q_cache is not None
+            else dataset["env"].reward_prob(users, items))
+    dv = q_at(picks).astype(np.float64) - q_at(logger_picks).astype(np.float64)
+    d.update({"changed_share": float(prior[picks != logger_picks].sum()),
+              "changed_gain": float(np.dot(prior, np.maximum(dv, 0.0))),
+              "changed_loss": float(np.dot(prior, np.minimum(dv, 0.0)))})
+    native = None
+    if objective in ("likelihood", "iw_likelihood"):
+        c = float(model.click_intercept.detach())
+        users_v, items_v = np.asarray(val_data["x_idx"], np.int64), np.asarray(val_data["a"], np.int64)
+        z = (np.asarray(trial_x, np.float64)[users_v] * np.asarray(trial_a, np.float64)[items_v]).sum(axis=1)
+        z = z / _policy_temperature(dataset) + c
+        clicks, pscore = val_data["r"], np.asarray(val_data["pscore"], np.float64)
+        n_actions = int(dataset["n_actions"])
+        d.update({"click_intercept": c, "val_nll": weighted_nll(z, clicks),
+                  "val_iw_nll": weighted_nll(z, clicks, iw_weights(pscore, n_actions)),
+                  "val_iw_nll_clip": weighted_nll(z, clicks, iw_weights(pscore, n_actions, IW_CLIP))})
+        if objective == "likelihood":
+            native = -d["val_nll"]
+        else:  # the arm's own weights on the validation rows
+            native = -weighted_nll(z, clicks, iw_weights(pscore, n_actions, iw_clip))
+    return d, native
+
+
 def _policy_greedy_reward_from_embeddings(dataset, user_emb, item_emb):
     """True value of recommending each user the policy's top item (its exploitation part)."""
     ensure_exact_env_q_cache(dataset)
@@ -3024,6 +3107,9 @@ def regression_trainer_trial(
     seed_label: str | None = None,
     search_space: dict | None = None,
     policy_dir: str | None = None,
+    shared_objective: str | None = None,
+    anchor_lambdas=None,
+    iw_clip: float | None = None,
 ):
     """
     OPC / no-propensity trainer with Optuna over CF hyperparameters.
@@ -3093,6 +3179,13 @@ def regression_trainer_trial(
 
     ``search_space``: ranges replacing ``DEFAULT_SEARCH_SPACE`` (``resolve_search_space``): ``lr``,
     ``num_epochs``, ``lr_decay``, and ``weight_decay`` (AdamW; off by default).
+
+    ``shared_objective`` (docs/shared_objective_study.md): one of ``SHARED_OBJECTIVES`` trains the shared correction
+    model (``models.shared_objectives``; OPC's linear family with a learned logit scale) with ``likelihood`` (the
+    Bernoulli NLL of the click logits s g / T + c), ``iw_likelihood`` (the same weighted by 1 / (P p), clipped at
+    ``iw_clip`` when given) or ``opc`` (``policy_loss_types``, i.e. dr), each plus λ R(θ), λ searched over
+    ``anchor_lambdas`` (default ``LAMBDA_GRID``). Native selection: the validation NLL / IW-NLL (likelihoods) or the DR
+    score (opc). Every trial also logs the common selector (the DR lower bound of its greedy policy) and diagnostics.
     """
     space = resolve_search_space(search_space)
     if space["weight_decay"] is not None and str(sampler).lower() != "random":
@@ -3121,6 +3214,25 @@ def regression_trainer_trial(
         raise ValueError(f"select_estimator must be 'dr' or 'dm', got {select_estimator!r}")
     if select_estimator == "dm" and not uses_importance_weighting(propensity_mode):
         raise ValueError("select_estimator='dm' needs propensity_mode='logged' (the DM term is off-policy scoring)")
+    if shared_objective is not None:
+        if shared_objective not in SHARED_OBJECTIVES:
+            raise ValueError(f"shared_objective must be one of {SHARED_OBJECTIVES}, got {shared_objective!r}")
+        if str(policy_transform).lower() != "linear" or not learn_logit_scale or temper_only or post_temper:
+            raise ValueError("the shared arms use the linear correction with a learned logit scale, no tempering")
+        if select_estimator != "dr" or not uses_importance_weighting(propensity_mode):
+            raise ValueError("the shared arms use the logged propensities and their own native selection")
+        if iw_clip is not None and shared_objective != "iw_likelihood":
+            raise ValueError("iw_clip applies to the weighted likelihood only")
+        if shared_objective == "opc" and len(policy_loss_types) != 1:
+            raise ValueError("shared_opc trains one policy loss (the study's dr)")
+        anchor_lambdas = [float(x) for x in (LAMBDA_GRID if anchor_lambdas is None else anchor_lambdas)]
+        if any(not (np.isfinite(x) and x >= 0.0) for x in anchor_lambdas) or not anchor_lambdas:
+            raise ValueError(f"anchor_lambdas must be finite and >= 0, got {anchor_lambdas}")
+    elif anchor_lambdas is not None or iw_clip is not None:
+        raise ValueError("anchor_lambdas / iw_clip need a shared_objective")
+    shared_likelihood = shared_objective in ("likelihood", "iw_likelihood")
+    trained_loss_label = ({"likelihood": "nll", "iw_likelihood": "iw_nll"}.get(shared_objective)
+                          or str(policy_loss_types[0]))
     # OPC only: weight transforms for training and for the DR selection score (dr_score_clip_m,
     # when given, is a selection clip:M). No-prop stays pure (no IW).
     train_spec = parse_weight_spec(DEFAULT_TRAIN_WEIGHTS if train_weights is None else train_weights)
@@ -3275,6 +3387,13 @@ def regression_trainer_trial(
         enrich_summary_pct_fields({**results[0], **_log_constants})
     )
 
+    shared_anchor = logger_greedy_picks = None
+    if shared_objective is not None:
+        if cf_popularity:
+            raise ValueError("the shared arms are defined for worlds without a popularity column")
+        shared_anchor = SourceAnchor(cf_x_orig, cf_a_orig).to(device)
+        _, logger_greedy_picks = calc_greedy_reward(dataset, our_x_orig, our_a_orig, return_picks=True)
+
     # ===== Main loop over training sizes =====
     for train_size in train_sizes:
         trial_dicts_this_size = []
@@ -3332,6 +3451,10 @@ def regression_trainer_trial(
             original_policy_prob=None,
             propensity_mode=propensity_mode,
         )
+        shared_record, shared_head = {}, {}
+        if shared_objective is not None:  # data identity, weight diagnostics, the likelihood head's start
+            shared_record, shared_head = _shared_size_setup(dataset, train_data, val_data, cf_x_orig, cf_a_orig,
+                                                            shared_objective, iw_clip)
         if size_regression_bundles is not None:  # q_hat fit on this size's own training rows
             shared_regression_bundle = size_regression_bundles[int(train_size)]
             shared_regression_model = shared_regression_bundle["regression_model"]
@@ -3372,6 +3495,9 @@ def regression_trainer_trial(
                                                            trial.number, "weight_decay"))
                 weight_decay = float(np.exp(wd_rng.uniform(np.log(wd_lo), np.log(wd_hi))))
                 trial.set_user_attr("weight_decay", weight_decay)
+            anchor_lambda = 0.0
+            if shared_objective is not None:  # the source anchor's strength: one more dimension of the paired search
+                anchor_lambda = float(trial.suggest_categorical("anchor_lambda", anchor_lambdas))
             if _policy_loss_needs_kl(policy_loss_types) and not temper_only:
                 kl_gamma = trial.suggest_float("kl_gamma", 1e-4, 0.5, log=True)
             else:
@@ -3403,19 +3529,32 @@ def regression_trainer_trial(
             trial_scores_all = shared_scores_all_t
 
             # Initialize CF model
-            trial_model = CFModel(
-                n_users,
-                n_actions,
-                emb_dim,
-                initial_user_embeddings=T(cf_x_orig),
-                initial_actions_embeddings=T(cf_a_orig),
-                user_transform=None if temper_only else make_policy_transform(policy_transform, emb_dim),
-                action_transform=None if temper_only else make_policy_transform(policy_transform, emb_dim),
-                temperature=_policy_temperature(dataset),
-                logit_scale=logit_scale,
-                learn_logit_scale=bool(learn_logit_scale) and not temper_only,
-                **cf_popularity,
-            ).to(device)
+            if shared_objective is not None:  # OPC's model; the likelihood arms read its logits as click logits
+                trial_model = SharedCorrectionModel(
+                    n_users,
+                    n_actions,
+                    emb_dim,
+                    initial_user_embeddings=T(cf_x_orig),
+                    initial_actions_embeddings=T(cf_a_orig),
+                    temperature=_policy_temperature(dataset),
+                    mode="click" if shared_likelihood else "policy",
+                    logit_scale=shared_head.get("head_logit_scale", logit_scale),
+                    click_intercept=shared_head.get("head_intercept", 0.0),
+                ).to(device)
+            else:
+                trial_model = CFModel(
+                    n_users,
+                    n_actions,
+                    emb_dim,
+                    initial_user_embeddings=T(cf_x_orig),
+                    initial_actions_embeddings=T(cf_a_orig),
+                    user_transform=None if temper_only else make_policy_transform(policy_transform, emb_dim),
+                    action_transform=None if temper_only else make_policy_transform(policy_transform, emb_dim),
+                    temperature=_policy_temperature(dataset),
+                    logit_scale=logit_scale,
+                    learn_logit_scale=bool(learn_logit_scale) and not temper_only,
+                    **cf_popularity,
+                ).to(device)
 
             final_train_loader = DataLoader(
                 cf_dataset,
@@ -3427,18 +3566,25 @@ def regression_trainer_trial(
                 persistent_workers=bool(num_workers),
             )
 
-            criterion = _policy_loss_from_name(
-                trial_policy_loss,
-                kl_gamma=kl_gamma,
-                clip_m=crm_M,
-                crm_lambda=crm_lambda,
-                use_log_trick=trial_use_log_trick,
-                propensity_mode=propensity_mode,
-                iw_mode=crm_iw_mode,
-                shrink_lambda=crm_M,
-                train_weights=train_spec,
-                sn_scope=sn_scope,
-            )
+            anchor_penalty = (lambda m=trial_model: shared_anchor(m))
+            if shared_likelihood:
+                criterion = LikelihoodLoss(n_actions, weighting="none" if shared_objective == "likelihood" else "uniform",
+                                           clip=iw_clip, lam=anchor_lambda, penalty=anchor_penalty)
+            else:
+                criterion = _policy_loss_from_name(
+                    trial_policy_loss,
+                    kl_gamma=kl_gamma,
+                    clip_m=crm_M,
+                    crm_lambda=crm_lambda,
+                    use_log_trick=trial_use_log_trick,
+                    propensity_mode=propensity_mode,
+                    iw_mode=crm_iw_mode,
+                    shrink_lambda=crm_M,
+                    train_weights=train_spec,
+                    sn_scope=sn_scope,
+                )
+                if shared_objective == "opc" and anchor_lambda > 0.0:  # λ = 0: the policy loss itself
+                    criterion = AnchoredPolicyLoss(criterion, anchor_lambda, anchor_penalty)
             if not temper_only:
                 try:
                     train(
@@ -3480,7 +3626,11 @@ def regression_trainer_trial(
                 f"actual reward: {r}"
             )
             # the greedy (exploitation) part's true value, for reference: comparisons without sharpening
-            trial.set_user_attr("actual_reward_greedy", _policy_greedy_reward_from_embeddings(dataset, trial_x, trial_a))
+            if shared_objective is not None:
+                greedy_value, greedy_picks = calc_greedy_reward(dataset, trial_x, trial_a, return_picks=True)
+                trial.set_user_attr("actual_reward_greedy", greedy_value)
+            else:
+                trial.set_user_attr("actual_reward_greedy", _policy_greedy_reward_from_embeddings(dataset, trial_x, trial_a))
             val_diag = {}
             dr_vec, ess_val, ess_raw = _split_dr_vec_and_ess(
                 val_data,
@@ -3514,6 +3664,14 @@ def regression_trainer_trial(
                 n=n,
                 actual_reward=float(r),
             )
+            if shared_objective is not None:
+                shared_diag, native = _shared_trial_diagnostics(
+                    trial_model, trial_x, trial_a, val_data, dataset, trial_scores_all, shared_anchor, greedy_picks,
+                    logger_greedy_picks, shared_objective, iw_clip)
+                for k, v_ in shared_diag.items():
+                    trial.set_user_attr(f"diag_{k}", v_)
+                if native is not None:  # the likelihood arms' native selection: the validation (IW-)NLL
+                    value = float(native)
 
             trial.set_user_attr("all_values", [r_hat, err, value])
             trial.set_user_attr(
@@ -3594,7 +3752,7 @@ def regression_trainer_trial(
                 ctr=_log_constants["ctr"],
                 initial_reward=_log_constants["initial_reward"],
                 dataset_name=dataset_name,
-                default_policy_loss=str(policy_loss_types[0]),
+                default_policy_loss=trained_loss_label,
                 default_use_log_trick=bool(
                     use_log_trick_fixed
                     if use_log_trick_fixed is not None
@@ -3652,7 +3810,7 @@ def regression_trainer_trial(
             "val_size": float(v),
             "selection_val_score": float(study.best_value),
             "policy_loss": str(
-                best_params.get("policy_loss", policy_loss_types[0])
+                best_params.get("policy_loss", trained_loss_label)
             ),
             **_log_constants,
         }
@@ -3660,6 +3818,16 @@ def regression_trainer_trial(
             trial_res["pop_weight"] = _policy_pop_weight(dataset, learned_a)
         trial_res["logit_scale"] = float(study.best_trial.user_attrs.get("logit_scale", 1.0))
         trial_res["policy_rewards_greedy"] = float(study.best_trial.user_attrs.get("actual_reward_greedy", float("nan")))
+        if shared_objective is not None:  # docs/shared_objective_study.md: the arm, its selected trial's diagnostics,
+            # the data identity and weights of this size's rows, and the likelihood head's start
+            trial_res.update({"shared_objective": str(shared_objective), "iw_clip": np.nan if iw_clip is None else iw_clip,
+                              "native_selection": {"likelihood": "val_nll", "opc": "dr_ci_low"}.get(
+                                  shared_objective, "val_iw_nll" if iw_clip is None else "val_iw_nll_clip"),
+                              "anchor_lambda": float(best_params.get("anchor_lambda", np.nan)),
+                              "selected_trial": int(study.best_trial.number)})
+            trial_res.update({k: v_ for k, v_ in study.best_trial.user_attrs.items() if str(k).startswith("diag_")})
+            trial_res.update(shared_record)
+            trial_res.update(shared_head)
         if post_temper and not temper_only:
             trial_res["post_scale"] = float(study.best_trial.user_attrs.get("post_scale", 1.0))
         trial_res.update(enrich_summary_pct_fields(trial_res))

@@ -414,7 +414,8 @@ class CFModel(nn.Module):
         s = self._scale()
         return 1.0 if s is None else float(s.detach() if isinstance(s, torch.Tensor) else s)
 
-    def forward(self, user_ids):
+    def policy_logits(self, user_ids):
+        """s · (u·a + w·b) / temperature over all items (B × A): the policy's logits before the softmax."""
         user_embedding = self.user_embeddings(user_ids)
         actions_embedding = self.actions_embeddings(self.actions)
 
@@ -423,15 +424,17 @@ class CFModel(nn.Module):
         if self.action_transform is not None:
             actions_embedding = self.action_transform(actions_embedding, self.actions)
 
-        # Match eval Policy: softmax((u·a + w·b) / temperature); optional eps-greedy floor.
         logits = user_embedding @ actions_embedding.T
         if self.pop_weight is not None:
             logits = logits + self.pop_weight * self.item_popularity
         scale = self._scale()
         if scale is not None:
             logits = logits * scale
-        logits = logits / max(self.temperature, 1e-8)
-        prob = F.softmax(logits, dim=1)
+        return logits / max(self.temperature, 1e-8)
+
+    def forward(self, user_ids):
+        # Match eval Policy: softmax((u·a + w·b) / temperature); optional eps-greedy floor.
+        prob = F.softmax(self.policy_logits(user_ids), dim=1)
         if self.eps_greedy > 0.0:
             prob = (1.0 - self.eps_greedy) * prob + (self.eps_greedy / prob.shape[1])
         return prob.unsqueeze(-1)

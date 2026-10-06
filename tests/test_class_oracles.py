@@ -69,3 +69,30 @@ def test_click_offset_completes_the_ranking_vectors_to_the_scores(toy, cls):
     ux, ia = m.ranking_vectors()
     f = m.scores(torch.arange(toy["n_users"])).detach().numpy()
     np.testing.assert_allclose(ux @ ia.T + m.click_offset()[:, None], f, atol=1e-4)
+
+
+def test_the_weighted_likelihood_objectives_weight_items_as_defined():
+    """uniform_likelihood weights every item 1/P; clip10_likelihood min(1/P, 10 π0) (docs/shared_objective_study.md
+    §6); likelihood the logger's probabilities."""
+    from training.class_oracles import _logger_probs, likelihood_weights
+
+    g = torch.Generator().manual_seed(0)
+    x, a = torch.randn(5, 4, generator=g), 3 * torch.randn(50, 4, generator=g)
+    pi = _logger_probs(x, a, 0.5)
+    torch.testing.assert_close(likelihood_weights("likelihood", x, a, 0.5), pi)
+    torch.testing.assert_close(likelihood_weights("uniform_likelihood", x, a, 0.5), torch.full((5, 50), 1 / 50))
+    clip = likelihood_weights("clip10_likelihood", x, a, 0.5)
+    torch.testing.assert_close(clip, torch.minimum(torch.full_like(pi, 1 / 50), 10 * pi))
+    assert bool((clip <= 1 / 50 + 1e-12).all()) and bool((clip < 1 / 50).any())  # a sharp logger: some items clipped
+    with pytest.raises(ValueError):
+        likelihood_weights("value", x, a, 0.5)
+
+
+@pytest.mark.parametrize("objective", ["uniform_likelihood", "clip10_likelihood"])
+def test_the_weighted_likelihood_oracles_improve_their_objective(toy, objective):
+    from training.class_oracles import fit_class_oracle
+
+    start, _, obj0 = fit_class_oracle(toy, "bilinear", objective, lr=1e-2, steps=1, fit_users=512, batch_users=256)
+    model, trace, obj = fit_class_oracle(toy, "bilinear", objective, lr=1e-2, steps=200, fit_users=512,
+                                         batch_users=256)
+    assert obj < obj0 and np.isfinite(obj)

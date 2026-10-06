@@ -84,6 +84,7 @@ from training.run_full_study import (
     _resolve_val_size_configs,
     _run_condition,
     add_search_space_arguments,
+    add_shared_arguments,
     condition_configs,
     execute_condition,
     finish_invocation,
@@ -332,6 +333,7 @@ def main():
     add_search_space_arguments(parser)
     add_cause_arguments(parser)
     add_blob_arguments(parser)
+    add_shared_arguments(parser)
     parser.add_argument(
         "--logging-uniform-mix",
         type=float,

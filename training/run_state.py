@@ -30,7 +30,9 @@ import numpy as np
 import pandas as pd
 
 # arms trained by training/trainer_trials.py (one summary label each, the method's name) and their log-file prefixes
-OPC_FAMILY_ARMS = {"opc": "opc", "no_propensity": "no_prop", "dm": "dm", "tempered_logger": "tempered_logger"}
+OPC_FAMILY_ARMS = {"opc": "opc", "no_propensity": "no_prop", "dm": "dm", "tempered_logger": "tempered_logger",
+                   "shared_likelihood": "shared_likelihood", "shared_iw_likelihood": "shared_iw_likelihood",
+                   "shared_iw_likelihood_clip10": "shared_iw_likelihood_clip10", "shared_opc": "shared_opc"}
 TRIAL_KEY = ("method", "train_size", "run", "trial_number")
 RUN_KEY = ("method", "train_size", "run")
 ROW_KEY = ("method", "train_size")  # summary rows and the per-label trial files of the CausE and BLOB arms
@@ -99,6 +101,10 @@ def arm_config(method: str, cfg: dict) -> dict:
     if method in OPC_FAMILY_ARMS:
         out.update({k: cfg.get(k) for k in OPC_FAMILY_SETTINGS})
         out["search_space"] = resolve_search_space(cfg.get("search_space"))
+        if method.startswith("shared_"):  # the source anchor's candidate strengths (docs/shared_objective_study.md)
+            from models.shared_objectives import LAMBDA_GRID
+
+            out["shared"] = {"lambdas": [float(x) for x in LAMBDA_GRID], **(cfg.get("shared_options") or {})}
     elif method == "cause":
         from training.cause_trials import CAUSE_DEFAULTS
 
@@ -394,7 +400,7 @@ def merge_run_meta(old: dict | None, new: dict, labels: dict, configs: dict) -> 
     out = dict(new)
     old = old or {}
     out["study_methods"] = list(dict.fromkeys([*(old.get("study_methods") or []), *(new.get("study_methods") or [])]))
-    for k in ("cause", "blob"):
+    for k in ("cause", "blob", "shared"):
         if out.get(k) is None and old.get(k) is not None:
             out[k] = old[k]
     merged_labels = {**(old.get("labels") or {}), **labels}
