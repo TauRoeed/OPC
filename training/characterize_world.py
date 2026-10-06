@@ -1,6 +1,9 @@
 """Characterize the simulated world per dataset: bias calibration, logging temperature,
 click model and the resulting logging CTR / signal kept for a set of bias configurations.
 
+Every world is built exactly as the study builds a condition's (``generate_dataset``, after ``seed_everything``):
+the same calibration, logger sharpening (``--logger-greedy-share``) and popularity weights.
+
 Example:
     python -m training.characterize_world --datasets ml myket --bias-configs all
 """
@@ -20,12 +23,12 @@ from utils.noise_snr import dataset_snr_report
 from utils.representation_bias import (
     BIAS_LEVELS,
     BIAS_TYPES,
-    WorldConfig,
     add_world_arguments,
-    build_world,
     resolve_bias_configs,
     world_options_from_args,
 )
+from utils.seeding import seed_everything
+from utils.simulation_utils import generate_dataset
 
 DEFAULT_CONFIGS = ("none", "low", "medium", "high", "high/none/none", "none/high/none", "none/none/high")
 
@@ -41,14 +44,14 @@ def characterize(dataset_name: str, emb_dir: Path, seed: int, ctr: float, option
     if options.get("group_source") == "metadata":
         meta_x = _load_optional(emb_dir / f"{dataset_name}_user_metadata.npy")
         meta_a = _load_optional(emb_dir / f"{dataset_name}_item_metadata.npy")
-    options = dict(options)
-    logger_pop = options.pop("logger_pop_strength", None)
     item_bias = _load_optional(emb_dir / f"{dataset_name}_item_bias.npy")
-    config = WorldConfig(target_ctr=float(ctr), **options)
     rows, calibration = [], None
     for bias in bias_configs:
-        ds = build_world(emb_x, emb_a, bias, seed=seed, config=config, metadata_x=meta_x, metadata_a=meta_a,
-                         item_bias=item_bias, logger_pop_strength=logger_pop)
+        # the study's world for this condition (training/run_full_study.py build_condition_world): the world options
+        # (logger_greedy_share and logger_pop_strength included) go to generate_dataset as the condition's params
+        seed_everything(seed)
+        ds = generate_dataset(params={"bias": bias, "ctr": float(ctr), "logging_uniform_mix": 0.0, **options}, seed=seed,
+                              emb_a=emb_a, emb_x=emb_x, metadata_a=meta_a, metadata_x=meta_x, item_bias=item_bias)
         w = ds["world"]
         snr = dataset_snr_report(ds)
         if calibration is None:

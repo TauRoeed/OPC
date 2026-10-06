@@ -20,6 +20,8 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
+from training.run_state import read_trials_long
+
 ARMS = ("opc", "dm", "no_propensity")
 KEYS = ["dataset", "bias", "seed", "train_size"]
 
@@ -37,10 +39,9 @@ def load_trials(*run_dirs, methods=ARMS) -> pd.DataFrame:
             path = cond / "trials_long.csv"
             if not path.exists():
                 continue
-            t = pd.read_csv(path)
-            # a run stopped and resumed with --skip-completed appends the redone sizes again: identical rows
-            # (deterministic) except the wall time; keep one
-            t = t.drop_duplicates(["method", "train_size", "trial_number"], keep="last")
+            # one row per trial (a run stopped and resumed before the 2026-10-06 fix repeated the redone sizes:
+            # identical rows except the wall time)
+            t = read_trials_long(path)
             t = t[t["method"].isin(methods) & (t["train_size"] > 0)].copy()
             tags = _tags(cond.name)
             t["run"] = Path(run).name

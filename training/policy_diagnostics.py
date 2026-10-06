@@ -240,18 +240,20 @@ def _world_key(cond: Path) -> tuple:
     return tags["dataset"], tags["bias"], int(tags["seed"])
 
 
-def _world_options(run: Path) -> dict:
-    """The world options a run was made with: its manifest (study runs) or its settings (class oracles, whose
-    policies sit in OUT/policies)."""
+def _world_settings(run: Path) -> tuple[dict, float]:
+    """The world options a run was made with and its logger's uniform mix: its manifest (study runs) or its settings
+    (class oracles, whose policies sit in OUT/policies; their logger is never mixed)."""
     for d in (run, run.parent):
         for name in ("run_manifest.json", "class_oracle_settings.json"):
             if (d / name).exists():
-                return json.loads((d / name).read_text())["world_options"]
+                settings = json.loads((d / name).read_text())
+                return settings["world_options"], float(settings.get("logging_uniform_mix", 0.0) or 0.0)
     # a study run still in progress has no manifest yet: its conditions' run_meta.json record the same options
     metas = sorted(run.glob("dataset=*/run_meta.json"))
     if metas:
         params = json.loads(metas[0].read_text())["params"]
-        return {k: v for k, v in params.items() if k not in ("bias", "ctr", "logging_uniform_mix")}
+        return ({k: v for k, v in params.items() if k not in ("bias", "ctr", "logging_uniform_mix")},
+                float(params.get("logging_uniform_mix", 0.0) or 0.0))
     raise FileNotFoundError(f"no run_manifest.json, class_oracle_settings.json or run_meta.json for {run}")
 
 
@@ -274,13 +276,13 @@ def main(argv=None) -> None:
     worlds: dict[tuple, list] = {}
     options = {}
     for run in args.runs:
-        options[run] = _world_options(Path(run))
+        options[run] = _world_settings(Path(run))
         for cond in sorted(Path(run).glob("dataset=*")):
             for path in sorted(cond.glob("*" + POLICY_SUFFIX)):
                 worlds.setdefault(_world_key(cond), []).append((Path(run).name, path))
-    world_options = next(iter(options.values()))
-    if any(o != world_options for o in options.values()):
-        raise ValueError(f"the runs were made with different world options: {options}")
+    world_options, mix = next(iter(options.values()))
+    if any(o != (world_options, mix) for o in options.values()):
+        raise ValueError(f"the runs were made with different world options or logger mixes: {options}")
     diag_path, pair_path = out / "policy_diagnostics.csv", out / "policy_pairs.csv"
     done = set()
     if diag_path.exists():
@@ -294,7 +296,9 @@ def main(argv=None) -> None:
             continue
         t0 = time.time()
         seed_everything(seed)
-        dataset, *_ = build_condition_world(ds, Path(args.emb_dir), bias, args.ctr, seed, world_options=world_options)
+        # the logger as the runs logged with it (its uniform mix sets the propensities, top items and pick ranks)
+        dataset, *_ = build_condition_world(ds, Path(args.emb_dir), bias, args.ctr, seed, world_options=world_options,
+                                            logging_uniform_mix=mix)
         ref = logger_reference(dataset)
         prior = _normalized_prior(dataset)
         rows, picks = [], {}

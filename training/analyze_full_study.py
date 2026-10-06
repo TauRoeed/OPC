@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 
 from training.metrics_utils import pct_change
+from training.run_state import dedupe_runs, dedupe_trials
 
 
 _LEVEL_ORDER = ["none", "low", "medium", "high"]
@@ -57,13 +58,17 @@ def _condition_data_paths(run_dir: Path, filename: str):
             yield p
 
 
-def _load_long(run_dir: Path, filename: str):
+def _load_long(run_dir: Path, filename: str, dedupe=None):
+    """Every condition's ``filename`` with the folder's tags; ``dedupe`` (e.g. ``run_state.dedupe_trials``) is applied
+    to each condition's file before they are joined."""
     frames = []
     for p in _condition_data_paths(run_dir, filename):
         try:
             df = pd.read_csv(p)
         except Exception:
             continue
+        if dedupe is not None:
+            df = dedupe(df)
         tags = _parse_condition_dirname(p.parent.name)
         mapping = {
             "dataset": "dataset",
@@ -101,10 +106,11 @@ def _load_long(run_dir: Path, filename: str):
 
 
 def _load_trials_long_union(run_dir: Path) -> pd.DataFrame:
-    """Merge per-condition trial logs (unified or split OPC / no-prop filenames)."""
+    """Merge per-condition trial logs (unified or split OPC / no-prop filenames), one row per trial: each condition's
+    file keeps a trial's last copy (training/run_state.py), the union its first file's."""
     parts = []
     for name in ("trials_long.csv", "opc_trials_long.csv", "no_prop_trials_long.csv"):
-        df = _load_long(run_dir, name)
+        df = _load_long(run_dir, name, dedupe=dedupe_trials)
         if not df.empty:
             parts.append(df)
     if not parts:
@@ -168,10 +174,10 @@ def _resolve_sweep_axis(df: pd.DataFrame) -> tuple[str, str]:
 
 
 def _load_runs_union(run_dir: Path) -> pd.DataFrame:
-    runs = _load_long(run_dir, "runs_long.csv")
+    runs = _load_long(run_dir, "runs_long.csv", dedupe=dedupe_runs)
     if runs.empty:
-        runs = _load_long(run_dir, "opc_runs_long.csv")
-        r2 = _load_long(run_dir, "no_prop_runs_long.csv")
+        runs = _load_long(run_dir, "opc_runs_long.csv", dedupe=dedupe_runs)
+        r2 = _load_long(run_dir, "no_prop_runs_long.csv", dedupe=dedupe_runs)
         if not r2.empty:
             runs = pd.concat([runs, r2], ignore_index=True) if not runs.empty else r2
     return runs

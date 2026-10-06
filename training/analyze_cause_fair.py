@@ -18,6 +18,8 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
+from training.run_state import read_trials_long
+
 DIVERGED_NLL = 1e9  # training/cause_trials.py: a non-finite trial's validation NLL
 WORLD = ["dataset", "bias", "seed"]
 CELL = WORLD + ["rho"]
@@ -345,7 +347,7 @@ def _study_rows(run_dirs, methods, train_size=TRAIN_SIZE) -> pd.DataFrame:
             if tags["bias"] not in BIAS_ORDER or int(tags["seed"]) not in (100, 101):
                 continue
             s = pd.read_csv(cond / "summary_metrics.csv")
-            t = pd.read_csv(cond / "trials_long.csv").drop_duplicates(["method", "train_size", "trial_number"], keep="last")
+            t = read_trials_long(cond / "trials_long.csv")
             for _, r in s[(s["train_size"] == train_size) & s["method"].isin(methods)].iterrows():
                 g = t[(t["method"] == r["method"]) & (t["train_size"] == train_size)]
                 best = g[g["is_best_in_run"].astype(bool)].iloc[0]
@@ -530,7 +532,7 @@ def oracle_check(trials: pd.DataFrame) -> pd.DataFrame:
             tags = _tags(cond.name)
             if tags["bias"] not in BIAS_ORDER or int(tags["seed"]) not in (100, 101):
                 continue
-            t = pd.read_csv(cond / "trials_long.csv", usecols=["method", "train_size", "actual_reward_greedy"])
+            t = read_trials_long(cond / "trials_long.csv", usecols=["method", "train_size", "actual_reward_greedy"])
             t = t[(t["method"] == "opc") & (t["train_size"] == TRAIN_SIZE)]
             opc.append({"dataset": tags["dataset"], "bias": tags["bias"], "seed": int(tags["seed"]),
                         "best_trial": float(t["actual_reward_greedy"].max()), "arm": "opc"})

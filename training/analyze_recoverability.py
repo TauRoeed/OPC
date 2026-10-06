@@ -36,6 +36,7 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
+from training.run_state import read_trials_long
 from utils.representation_bias import bias_label, parse_bias
 
 MIN_LOSS = 1e-3  # CTR points / 100: below this a ratio is not reported
@@ -145,9 +146,7 @@ def load_learned(*run_dirs) -> pd.DataFrame:
                 continue
             tags = _tags(cond.name)
             s = pd.read_csv(cond / "summary_metrics.csv")
-            t = pd.read_csv(cond / "trials_long.csv")
-            # resumed runs repeat the redone sizes' trials (identical but for the wall time): keep one
-            t = t.drop_duplicates(["method", "train_size", "trial_number"], keep="last")
+            t = read_trials_long(cond / "trials_long.csv")  # one row per trial
             s = s[s["train_size"] > 0]
             temp = s[s["method"] == "tempered_logger"].set_index("train_size")["policy_rewards"]
             for _, r in s.iterrows():

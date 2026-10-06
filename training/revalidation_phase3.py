@@ -21,6 +21,7 @@ from pathlib import Path
 import pandas as pd
 
 from training.analyze_recoverability import learned_recovery, load_learned, load_oracle, main as recoverability
+from training.run_state import read_trials_long
 
 RUNS = Path("artifacts/full_study")
 ORACLE = RUNS / "run_oracle_repair_20260927"
@@ -89,8 +90,8 @@ def opc_trials(names, biases=("medium", "high")) -> pd.DataFrame:
             tags = dict(part.split("=", 1) for part in cond.name.split("__") if "=" in part)
             if tags["bias"] not in biases or not (cond / "trials_long.csv").exists():
                 continue
-            t = pd.read_csv(cond / "trials_long.csv")
-            t = t[t["method"] == "opc"].drop_duplicates(["train_size", "trial_number"], keep="last")
+            t = read_trials_long(cond / "trials_long.csv")
+            t = t[t["method"] == "opc"]
             keep = ["train_size", "trial_number", "actual_reward", "is_best_in_run", "ess_raw", "logit_scale"]
             keep += [c for c in t.columns if c.startswith(("sel_ci_low[", "param_"))]
             out.append(t[[c for c in keep if c in t.columns]].assign(run=n, dataset=tags["dataset"], bias=tags["bias"],

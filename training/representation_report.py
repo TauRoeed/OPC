@@ -23,6 +23,7 @@ import numpy as np
 import pandas as pd
 
 from training.analyze_recoverability import _tags, mean_ci
+from training.run_state import read_trials_long
 
 SUMMARIES = Path("artifacts/full_study/summaries_20260927")
 RUNS = Path("artifacts/full_study")
@@ -209,8 +210,8 @@ def _opc_trials(run: Path) -> pd.DataFrame:
     for cond in sorted(run.glob("dataset=*")):
         if not (cond / "trials_long.csv").exists():
             continue
-        t = pd.read_csv(cond / "trials_long.csv", usecols=lambda c: c in ("method", "train_size", "trial_number", "actual_reward",
-                                                                            "is_best_in_run"))
+        t = read_trials_long(cond / "trials_long.csv", usecols=["method", "train_size", "trial_number", "actual_reward",
+                                                                "is_best_in_run"])
         t = t[t["method"] == "opc"].assign(condition=cond.name)
         rows.append(t)
     return pd.concat(rows, ignore_index=True) if rows else pd.DataFrame()

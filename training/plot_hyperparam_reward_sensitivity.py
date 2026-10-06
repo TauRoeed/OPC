@@ -17,6 +17,7 @@ import numpy as np
 import pandas as pd
 
 from training.analyze_full_study import _parse_condition_dirname
+from training.run_state import read_trials_long
 from utils.representation_bias import WORLD_RUN_KEY_TAGS
 
 WORLD_TAGS = tuple(tag for _, tag in WORLD_RUN_KEY_TAGS)
@@ -45,7 +46,7 @@ def _setup_key_without_seed(condition_dirname: str) -> str:
 def _load_condition_trials(condition_dir: Path) -> pd.DataFrame:
     unified = condition_dir / "trials_long.csv"
     if unified.exists():
-        df = pd.read_csv(unified)
+        df = read_trials_long(unified)  # one row per trial
     else:
         parts = []
         for name in ("opc_trials_long.csv", "no_prop_trials_long.csv"):

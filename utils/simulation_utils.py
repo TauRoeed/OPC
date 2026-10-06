@@ -236,8 +236,9 @@ def calc_reward(dataset: dict, policy, chunk_size: int = 2048):
         pol = policy.squeeze()              # (n_users, n_actions)
         q = dataset["q_x_a"]                # (n_users, n_actions)
 
-        val = np.sum(q * pol, axis=1).mean()
-        return np.array([float(val)])
+        # users weighted by the prior, as for a policy object (uniform when the dataset has none)
+        val = float(np.dot(_normalized_prior(dataset), np.sum(q * pol, axis=1)))
+        return np.array([val])
 
     # -------------------------------
     # Case 2: Policy object
@@ -447,7 +448,7 @@ def calc_reward_mc(dataset: dict, policy, n_sim=30):
         if "q_x_a" not in dataset:
             raise ValueError("calc_reward with a dense policy requires dataset['q_x_a'].")
         pol = policy.squeeze()
-        return np.array([np.sum(dataset["q_x_a"] * pol, axis=1).mean()])
+        return np.array([float(np.dot(_normalized_prior(dataset), np.sum(dataset["q_x_a"] * pol, axis=1)))])
 
     # policy object path
     if "env" not in dataset:
@@ -492,8 +493,9 @@ def generate_dataset(params, seed=12345, emb_a=None, emb_x=None, metadata_a=None
     ('cluster' | 'metadata'), ``logging_uniform_mix``, ``strict``, ``pop_strength`` (weight of
     ``item_bias``, BPR's b, in the true score; default 0), ``logger_pop_strength`` (the logger's
     weight; default: the same) and ``logger_greedy_share`` (the logger earns this share of its own
-    greedy CTR; default 0.9, 0 / 'off' = the spread temperature). ``n_users``, ``n_actions``,
-    ``emb_dim`` are only needed when ``emb_x`` / ``emb_a`` are not given (Gaussian vectors).
+    greedy CTR; default 0.8, ``DEFAULT_LOGGER_GREEDY_SHARE``; 0 / 'off' = the spread temperature).
+    ``n_users``, ``n_actions``, ``emb_dim`` are only needed when ``emb_x`` / ``emb_a`` are not given
+    (Gaussian vectors).
     ``store_original`` is kept for callers; the biased snapshot is always stored.
     """
     from utils.representation_bias import DEFAULT_LOGGER_GREEDY_SHARE, WorldConfig, build_world, parse_bias

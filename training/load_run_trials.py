@@ -9,6 +9,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from training.run_state import read_trials_long
+
 
 def _parse_condition_dirname(name: str) -> dict:
     out = {}
@@ -123,7 +125,7 @@ def load_run_trials(run_dir: Path) -> pd.DataFrame:
         if long_paths:
             parts = []
             for p in long_paths:
-                df = pd.read_csv(p)
+                df = read_trials_long(p)  # one row per trial
                 if "seed" not in df.columns:
                     df["seed"] = _seed_from_path(p)
                 df = _attach_condition_tags(df, p)

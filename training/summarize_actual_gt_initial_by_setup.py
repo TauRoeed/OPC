@@ -14,6 +14,7 @@ import numpy as np
 import pandas as pd
 
 from training.load_run_trials import load_run_trials
+from training.run_state import read_trials_long
 
 
 def _parse_folder(name: str) -> dict:
@@ -55,7 +56,7 @@ def _load_with_condition_meta(run_dir: Path) -> pd.DataFrame:
     parts = []
     for p in sorted(run_dir.rglob("trials_long.csv")):
         meta = _parse_folder(p.parent.name)
-        df = pd.read_csv(p)
+        df = read_trials_long(p)  # one row per trial
         for k, v in meta.items():
             df[k] = v
         parts.append(df)

@@ -415,7 +415,7 @@ ARMS = BLOB_ARMS + LIKELIHOOD_ARMS + REFERENCE_ARMS
 NAMES = {"blob_nq": "BLOB-NQ (supplied source)", "blob_mnq": "BLOB-MNQ (supplied source)",
          "blob_l100_nq": "BLOB-Pnorm-NQ (P₀ = 100)", "blob_l1000_nq": "BLOB-Pnorm-NQ (P₀ = 1,000)",
          "blob_l10_nq": "BLOB-Pnorm-NQ (P₀ = 10)",
-         "cap_c": "CausE-cap-C, ρ = 0 (plain likelihood, OPC's class)", "cap_t": "CausE-cap-T, ρ = 0",
+         "cap_c": "CausE-cap-C, ρ = 0 (penalized likelihood, OPC's class)", "cap_t": "CausE-cap-T, ρ = 0",
          "warm_c": "CausE-warm-C, ρ = 0 (likelihood, free vectors)", "opc": "OPC (harmonic:0.1)",
          "dm_own": "DM-only (own range)", "dm": "DM-only (OPC's range)", "tempered_logger": "tempered logger"}
 # each arm's ranking family over the logger's vectors (§1.6, §3): its value oracle is its structural ceiling

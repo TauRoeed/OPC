@@ -136,7 +136,6 @@ def _exact_values(dataset: dict, model: CausEModel, rows: np.ndarray) -> tuple[f
     return float(calc_reward(dataset, policy)), float(calc_greedy_reward(dataset, ux, ia))
 
 
-@torch.no_grad()
 def click_offset(model) -> np.ndarray:
     """What the click logit adds to ``policy_vectors``' dot product: the global bias, plus the user's bias in the
     free-vector model (one value per user)."""
@@ -146,6 +145,7 @@ def click_offset(model) -> np.ndarray:
         return (model.user_bias + model.global_bias).float().cpu().numpy()
 
 
+@torch.no_grad()
 def _diagnostics(model, layout: CausELayout, source: tuple | None = None) -> dict:
     """alpha and representation diagnostics; for warm starts also how far the vectors moved from the source."""
     if isinstance(model, CausELinModel):
