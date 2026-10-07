@@ -1,8 +1,27 @@
-# Three training objectives on one global correction model (design and pre-registration, 2026-10-06)
+# Three training objectives on one global correction model (pre-registration 2026-10-06, results 2026-10-07)
 
 *Development stage. Branch `representation-mismatch-research-next`, from the tested handoff commit `9445a12`.
-§1–§9 were written and committed before any tuning or main result of this study existed. Results follow in later
-sections. Nothing here is confirmatory.*
+§0–§10 were written and committed (2ce3385) before any tuning or main result of this study existed; §10.1 and §11
+before the main grid ran. Results follow from §11. Nothing here is confirmatory.*
+
+**Results in brief** (2026-10-07; development worlds, N = 25,000; §11–§20):
+- **Population (§13).** Under warp the logging-likelihood optimum is the value optimum (−0.04 greedy points). Under
+  group, vector and combined bias it ranks 1.23, 1.12 and 3.36 points below it, in 18 of 18 worlds. Weighting the
+  likelihood toward the uniform action distribution moves its optimum further from value: 0.63 points below the
+  logging-likelihood optimum on the biased worlds (clip 10: 0.41).
+- **25k (§14).** Greedy gain over the logger on the 24 biased worlds, native selection:
+  - penalized likelihood +2.98, OPC's objective +2.66, uniform-weighted likelihood +0.38 (clip 10) and −0.67 (raw);
+  - the likelihood leads OPC by 0.32 [0.10, 0.54], mostly under warp (0.98, 6 of 6) and combined bias (0.32, 5 of 6);
+    group and vector bias are ties.
+- **Selection (§15)** does not explain the lead: under one common DR selector it is 0.22, and among the best of 20
+  trials 0.28. OPC's candidates are better on average under group, vector and combined bias (18 of 18 worlds), but not
+  at the top.
+- **Decomposition (§16)**, points below the value optimum: likelihood 1.42 objective mismatch + 2.11 training gap +
+  0.12 selection = 3.65; OPC 0 + 3.81 + 0.15 = 3.97. The global class itself stops 2.80 points short of the
+  target-best ceiling (1.93, 3.51 and 5.64 under group, vector and combined bias).
+- **Weights (§17).** The uniform-reference weights have an effective sample size of about 39 of the 25,000 rows. Raw
+  weighting is unusable; clipping at 10 helps (+1.05 over raw) but stays 2.60 points below the plain likelihood.
+- **Decision gate:** §19.
 
 ## 0. Question and scope
 
@@ -385,3 +404,360 @@ arm, how many distinct configurations it rests on (§10.1), and its margin over 
   - `shared_likelihood` and `shared_opc`: lr 1e-4–2e-3.
   - Trial k's draws map the same uniform numbers onto each arm's range (`--shared-arm-space`), so the four arms stay
     paired.
+
+### 11.2 Supplementary round: the extension is not at an edge again
+
+`run_shared_tune_s200_supp` (42522d1, pinned worktree, 2026-10-07 02:46–03:08, 3 workers, after the main grid): the two
+weighted likelihoods on the 18 tuning worlds, 20 new paired trials each, lr 3.16e-5–2e-3; 720 trials, none diverged.
+Tables: `tuning_round2/` (both rounds pooled, the decision) and `tuning_round2_supplement_only/` (the check).
+
+| arm | lr bin | first and supplementary rounds pooled: mean gap (configurations) | supplement alone |
+|---|---|---|---|
+| `shared_iw_likelihood` | 3.2e-5–1e-4 (new) | −0.353 (10) | −0.328 (10) |
+| | 1e-4–3.2e-4 | −0.357 (27) | −0.412 (12) |
+| | 3.2e-4–1e-3 | −0.725 (29) | −0.761 (12) |
+| | 1e-3–2e-3 | −2.223 (14) | −1.214 (6) |
+| `shared_iw_likelihood_clip10` | 3.2e-5–1e-4 (new) | −0.500 (10) | −0.467 (10) |
+| | 1e-4–3.2e-4 | −0.521 (27) | −0.659 (12) |
+| | 3.2e-4–1e-3 | −0.922 (29) | −0.944 (12) |
+| | 1e-3–2e-3 | −2.819 (14) | −1.602 (6) |
+
+- **The rule does not fire again.** The new bottom bin leads the next by 0.004 (raw) and 0.020 (clip 10) points pooled,
+  and by 0.08 and 0.19 in the supplement alone: inside the 0.25 margin. No other dimension fires.
+- The lower learning rates did not help either arm: the supplementary trials' best of 20 is +0.53 (raw) and +0.76
+  (clip 10) over the logger, as in the first round (+0.53, +0.77). Native selection gives −0.84 and +0.52.
+- The main grid's spaces (§11.1) stand as run.
+
+## 12. Runs and provenance
+
+| run | code | what | when (2026-10-06/07) |
+|---|---|---|---|
+| `run_shared_tune_s200` | 052462c, main checkout | §11: 18 tuning worlds × 4 arms × 20 trials | 23:55–01:38, 3 workers |
+| `run_shared_oracles_20261006` | 052462c, main checkout | the population optima of `uniform_likelihood` and `clip10_likelihood`, bilinear and affine-bilinear, on the 30 development worlds, policies saved; ml, kuairand and anime as separate jobs | 23:52–02:13; ml 1 h 2 min, kuairand 1 h 48 min, anime 2 h 21 min |
+| `run_shared_main_25k` | 42522d1, pinned worktree | §7 and §11.1: 30 development worlds × 4 arms × 20 trials, selected policies saved | 01:41–02:46, 3 workers; none diverged |
+| `run_shared_tune_s200_supp` | 42522d1, pinned worktree | §11.1–§11.2: the weighted likelihoods' supplementary tuning round, 18 worlds × 2 arms × 20 trials | 02:46–03:08, 3 workers; none diverged |
+
+- The value and logging-likelihood optima are the existing `run_class_oracles_20261005` (d0a8a77), fitted the same way.
+  The analysis checks every optimum's greedy value against its oracle run (to 1e-7).
+- The comparator rows are reused, not rerun: `artifacts/full_study/blob_prior_calibration/compare/table_conditions.csv`.
+- Tables and figures: `artifacts/full_study/shared_objective_study/` (`population/`, `tuning/`, `compare/`,
+  `tuning_round2/`), built by `python -m training.analyze_shared_objectives` (§21).
+
+## 13. Population optima: does each objective point at the right solution?
+
+The four optima of §6 on the affine-bilinear class, per world: exact expectations over items and clicks, 20,000
+prior-weighted users. Tables: `artifacts/full_study/shared_objective_study/population/` (`oracles.csv`,
+`oracle_summary.csv`, `oracle_profile.csv`, `oracle_distances.csv`, `oracle_distance_summary.csv`).
+
+**Objective mismatch** (greedy CTR points; mean [95% CI] over the 6 worlds of each bias; worlds where the first optimum
+ranks higher):
+
+| quantity | no bias | warp | group | vector | combined | biased (24) |
+|---|---|---|---|---|---|---|
+| V(θ_value*) − V(θ_log*) | +0.01 [−0.02, +0.03] (2/6) | −0.04 [−0.11, +0.03] (1/6) | **+1.23** [+0.82, +1.64] (6/6) | **+1.12** [+0.38, +1.87] (6/6) | **+3.36** [+2.06, +4.66] (6/6) | **+1.42** [+0.81, +2.02] (19/24) |
+| V(θ_value*) − V(θ_uniform*) | −0.01 [−0.02, −0.01] (0/6) | −0.11 [−0.17, −0.05] (0/6) | +1.89 [+1.11, +2.67] (6/6) | +2.14 [+1.20, +3.09] (6/6) | +4.25 [+2.79, +5.70] (6/6) | +2.04 [+1.29, +2.80] (18/24) |
+| V(θ_value*) − V(θ_clip10*) | −0.01 [−0.02, −0.01] (0/6) | −0.11 [−0.17, −0.05] (0/6) | +1.44 [+0.90, +1.98] (6/6) | +2.00 [+1.13, +2.87] (6/6) | +3.98 [+2.60, +5.36] (6/6) | +1.83 [+1.12, +2.54] (18/24) |
+| V(θ_uniform*) − V(θ_log*) | +0.02 [−0.01, +0.05] (5/6) | +0.07 [+0.01, +0.12] (6/6) | **−0.66** [−1.23, −0.08] (1/6) | **−1.02** [−1.30, −0.74] (0/6) | **−0.89** [−1.23, −0.55] (0/6) | **−0.63** [−0.85, −0.40] (7/24) |
+| V(θ_clip10*) − V(θ_log*) | +0.02 [−0.01, +0.05] (4/6) | +0.06 [+0.01, +0.12] (6/6) | −0.20 [−0.49, +0.08] (2/6) | −0.88 [−1.09, −0.66] (0/6) | −0.62 [−0.85, −0.40] (0/6) | −0.41 [−0.59, −0.23] (8/24) |
+
+**Each optimum** (biased worlds pooled unless stated; the value optimum's losses after its best recalibration α f + β
+under L_log, §6):
+
+| optimum | greedy gain: warp / group / vector / combined | L_log | L_uniform | L_clip10 | M's deviation from a multiple of I | item term's spread / user term's |
+|---|---|---|---|---|---|---|
+| θ_log* | +7.19 / +2.72 / +2.31 / +8.61 | **0.3934** | 0.1173 | 0.0466 | 1.42 | 0.22 |
+| θ_uniform* | +7.26 / +2.06 / +1.29 / +7.72 | 0.3963 | **0.1167** | 0.0464 | 1.21 | 0.24 |
+| θ_clip10* | +7.26 / +2.52 / +1.43 / +7.99 | 0.3955 | 0.1167 | **0.0464** | 1.22 | 0.25 |
+| θ_value* | +7.15 / +3.95 / +3.43 / +11.97 | 0.3978 | 0.1204 | 0.0472 | 1.55 | 0.08 |
+
+- Without bias every optimum stays at the logger (greedy gains between −0.02 and 0). The value optimum's softmax gains
+  +5.93 stochastic points there, all of it sharpening; +10.64 on the biased worlds.
+- **Distances** (biased pooled): the cosine distance between the normalized M of θ_value* and θ_log* is 0.29; they give
+  the same user the same top item for 54% of users (prior-weighted), θ_uniform* and θ_value* for 51%. Under warp the
+  optima agree on 83–86% of users while their values differ by at most 0.11 points, so the items they disagree on are
+  near-ties in value.
+  Under combined bias they agree on 25–29%.
+
+**What this says.**
+- **Warp: no objective mismatch.** All four optima rank within 0.11 points of each other, and the value optimum is
+  0.12 points [0.03, 0.21] below the target-best ceiling. The global class is well specified for a warp, so every
+  objective's optimum finds the same repair.
+- **Group, vector, combined: the likelihood optimum is not the value optimum.** With global capacity only, the
+  logging-distribution likelihood optimum ranks 1.12–3.36 points below the value optimum, in all 18 of these worlds.
+  The likelihood barely separates the two solutions: the value optimum is 0.0044 nats per row worse in L_log than
+  θ_log* (1.1%), while it ranks 1.42 points better.
+- **Uniform weighting moves the likelihood optimum away from value, not toward it.** θ_uniform* ranks 0.63 points
+  below θ_log* on the biased worlds (lower in 17 of 24), and below it under each misspecified bias. Clipping at 10 keeps
+  the weighted objective closer to the logging distribution and loses less (−0.41). The direction H3 expected holds only
+  under warp and no bias, by at most 0.07 points.
+- **A description, not a tested mechanism.** The logger's rows concentrate near the top of each user's biased ranking,
+  where the greedy decision is made; the uniform distribution spreads the fit over the whole catalog. The optima also
+  spend the class differently: the value optimum's item term varies 0.08 times as much as its user-specific scores
+  (the likelihood optima: 0.22–0.25), and its K × K part deviates more from a multiple of I (1.55 against 1.21–1.42).
+- **What a global map cannot reach.** The value optimum's own gap to the target-best ceiling is 0.12 (warp), 1.93
+  (group), 3.51 (vector) and 5.64 (combined) points: it recovers 98%, 67%, 49% and 68% of the logger's gap to the
+  ceiling (7.27, 5.89, 6.94 and 17.60 points).
+
+## 14. Finite samples at 25k
+
+`run_shared_main_25k`: 30 development worlds × 4 arms × 20 paired trials, none diverged. Tables and figures:
+`artifacts/full_study/shared_objective_study/compare/` (`tables.md`, `table_summary.csv`, `table_conditions.csv`,
+`table_paired.csv`, `table_per_dataset.csv`, `fig1_native_gain`, `fig1b_common_gain`, `fig2_decomposition`,
+`fig3_population_mismatch`).
+
+**Data identity** (§4), checked in all 30 worlds: the four arms trained and validated on the same rows (the hash of
+the logged (user, item, click) rows, the click sums, the propensity sums, the row counts); those rows have the same
+training and validation click sums as the BLOB run of the world; and the world's logger has the greedy value of the
+reused comparator rows.
+
+**Native-selected greedy gain over the logger** (CTR points; per bias the mean of 6 worlds, pooled the mean and 95% CI
+over the 24 biased worlds):
+
+| arm | no bias | warp | group | vector | combined | biased (24) |
+|---|---|---|---|---|---|---|
+| `shared_likelihood` | −0.02 | +4.02 | +1.41 | +0.84 | +5.64 | **+2.98** [+2.05, +3.90] |
+| `shared_iw_likelihood` | −3.68 | +0.38 | −1.19 | −2.28 | +0.40 | **−0.67** [−1.61, +0.27] |
+| `shared_iw_likelihood_clip10` | −0.11 | +0.76 | +0.04 | −0.05 | +0.75 | **+0.38** [+0.10, +0.65] |
+| `shared_opc` | −0.57 | +3.04 | +1.35 | +0.91 | +5.32 | **+2.66** [+1.82, +3.49] |
+| OPC (historical arm, reused) | −0.61 | +3.03 | +1.32 | +0.96 | +5.42 | +2.69 [+1.84, +3.53] |
+| DM-only (reused) | −0.55 | +2.09 | +0.81 | +0.64 | +5.07 | +2.15 [+1.30, +3.01] |
+| CausE-cap-C, ρ = 0 (reused) | −0.55 | +4.23 | +1.22 | +1.03 | +5.89 | +3.09 [+2.10, +4.08] |
+| BLOB-Pnorm-NQ (reused) | −0.21 | +2.99 | +1.18 | +1.06 | +6.03 | +2.82 [+1.84, +3.79] |
+
+**Paired contrasts** (a − b by world; mean [95% CI]; worlds where a is higher):
+
+| a − b | warp | group | vector | combined | biased (24) |
+|---|---|---|---|---|---|
+| `shared_opc` − `shared_likelihood` | −0.98 [−1.49, −0.47] (0/6) | −0.06 [−0.18, +0.05] (1/6) | +0.07 [−0.23, +0.38] (4/6) | −0.32 [−0.67, +0.03] (1/6) | **−0.32** [−0.54, −0.10] (6/24) |
+| `shared_iw_likelihood` − `shared_likelihood` | −3.64 (0/6) | −2.60 (0/6) | −3.12 (0/6) | −5.24 (0/6) | −3.65 [−4.70, −2.60] (0/24) |
+| `shared_iw_likelihood_clip10` − `shared_likelihood` | −3.26 (0/6) | −1.37 (0/6) | −0.89 (0/6) | −4.88 (0/6) | −2.60 [−3.41, −1.79] (0/24) |
+| `shared_iw_likelihood_clip10` − `shared_iw_likelihood` | +0.39 (6/6) | +1.23 (6/6) | +2.23 (5/6) | +0.36 (4/6) | +1.05 [+0.17, +1.93] (21/24) |
+| `shared_opc` − `shared_iw_likelihood_clip10` | +2.28 (6/6) | +1.31 (6/6) | +0.96 (6/6) | +4.57 (6/6) | +2.28 [+1.54, +3.02] (24/24) |
+| `shared_opc` − OPC (historical) | +0.01 (3/6) | +0.03 (3/6) | −0.05 (2/6) | −0.10 (2/6) | −0.03 [−0.09, +0.03] (10/24) |
+| `shared_likelihood` − CausE-cap-C | −0.21 (2/6) | +0.19 (5/6) | −0.19 (1/6) | −0.25 (1/6) | −0.12 [−0.27, +0.04] (9/24) |
+| `shared_opc` − CausE-cap-C | −1.18 (0/6) | +0.13 (5/6) | −0.12 (2/6) | −0.57 (1/6) | −0.44 [−0.69, −0.19] (8/24) |
+
+- **The penalized likelihood is the strongest shared arm**, by 0.32 points over OPC on the biased worlds. Its lead is
+  the warp worlds' (0.98, 6 of 6); under group and vector bias the two are level, under combined bias the likelihood
+  leads by 0.32 (5 of 6).
+- **The comparison isolates the objective.** CausE-cap at ρ = 0 led the historical OPC arm by 0.41 points
+  (`docs/cause_fair_comparison_25k.md`), with a different objective form, selection rule, optimizer and search. With
+  all of these held fixed, the plain likelihood leads the OPC objective by 0.32 [0.10, 0.54]. The shared likelihood is
+  level with CausE-cap (−0.12 [−0.27, +0.04]), and the shared OPC arm, with λ searched, equals the historical OPC arm
+  (−0.03 [−0.09, +0.03]).
+- **Both weighted likelihoods fail at 25k.** The raw arm loses 0.67 points to the logger (24 of 24 worlds below the
+  plain likelihood); clipping at 10 makes it better than raw in 21 of 24 worlds, but it still recovers only +0.38.
+- **Per dataset** (biased worlds; `table_per_dataset.csv`) the order likelihood ≥ OPC ≫ clip 10 > raw holds on ml
+  (+3.35, +3.03, +0.74, −1.27), kuairand (+3.11, +2.72, +0.16, −0.65) and anime (+2.48, +2.21, +0.23, −0.10).
+- **Stochastic value.** OPC's selected softmax gains +6.71 [+6.13, +7.28] points over the logger's stochastic value,
+  level with the historical arm (+6.75) and below CausE-cap's DR-tempered softmax (+7.13). The likelihood arms'
+  softmax is not a deployable policy (§10.1).
+- **Decisions changed** (biased, native): the likelihood moves 55% of users to another top item (value gained there
+  +3.69, lost −0.71 points), OPC 56% (+3.49, −0.83), clip 10 15% (+0.72, −0.34), raw 27% (+0.73, −1.40).
+
+## 15. Native selection against common selection
+
+Greedy gain over the logger on the 24 biased worlds, per selection rule, and the regret against the best of the 20
+trials:
+
+| arm | native | common DR | best of 20 | mean of 20 | native regret | common regret |
+|---|---|---|---|---|---|---|
+| `shared_likelihood` | +2.98 | +2.89 | +3.09 [+2.18, +4.01] | +2.04 | **0.12** | 0.20 |
+| `shared_iw_likelihood` | −0.67 | +0.26 | +0.41 [+0.19, +0.63] | −0.26 | **1.08** | 0.15 |
+| `shared_iw_likelihood_clip10` | +0.38 | +0.60 | +0.69 [+0.36, +1.03] | −0.13 | 0.32 | 0.09 |
+| `shared_opc` | +2.66 | +2.67 | +2.81 [+2.00, +3.62] | +2.25 | 0.15 | 0.14 |
+
+`shared_opc` − `shared_likelihood`, by rule (biased; worlds where OPC is higher):
+
+| rule | warp | group | vector | combined | biased (24) |
+|---|---|---|---|---|---|
+| native | −0.98 (0/6) | −0.06 (1/6) | +0.07 (4/6) | −0.32 (1/6) | −0.32 [−0.54, −0.10] (6/24) |
+| common DR | −0.87 (0/6) | −0.14 (1/6) | +0.27 (6/6) | −0.15 (3/6) | −0.22 [−0.43, −0.01] (10/24) |
+| best of 20 | −1.03 (0/6) | +0.00 (4/6) | +0.16 (5/6) | −0.27 (1/6) | −0.28 [−0.50, −0.07] (10/24) |
+| mean of 20 | −0.22 (1/6) | +0.13 (6/6) | +0.22 (6/6) | +0.69 (6/6) | +0.21 [+0.05, +0.36] (19/24) |
+
+- **Selection is not what separates the likelihood from OPC.** Under one common rule the likelihood still leads by
+  0.22 points; its best trials lead by 0.28. NLL selection costs the likelihood 0.12 points and the DR lower bound
+  costs OPC 0.15: both native rules pick close to the best of 20.
+- **OPC's candidates are better on average where the objectives differ, not at the top.** Under group, vector and
+  combined bias the mean of OPC's 20 trials beats the likelihood's in 18 of 18 worlds (by 0.13–0.69 points), but the
+  best of 20 does not (+0.00, +0.16, −0.27). The likelihood's trials spread more (its mean of 20 is 1.05 points below
+  its best; OPC's 0.56), and its own rule finds its good trials.
+- **Native selection fails the raw weighted likelihood.** Its validation IW-NLL rests on about 30 effective rows
+  (§17). It loses 1.08 points to the best of 20, and in one no-bias world (anime, seed 100) it picked a trial that
+  moved 96% of users and lost 19.0 points, while the best trial lost 0.001. The common DR rule cuts its regret to 0.15
+  and turns −0.67 into +0.26.
+- Without bias the common rule costs the likelihood 0.20 points (−0.22 against −0.02 native): the DR lower bound of a
+  greedy policy prefers trials that change decisions, which no-bias worlds do not reward.
+
+## 16. Where each objective loses value
+
+V(θ_value*) − V(native) = objective mismatch + training gap + selection gap (greedy CTR points; mean [95% CI] over
+worlds; the parts add up per world):
+
+| arm | part | warp | group | vector | combined | biased (24) |
+|---|---|---|---|---|---|---|
+| `shared_likelihood` | objective mismatch | −0.04 | +1.23 | +1.12 | +3.36 | +1.42 [+0.81, +2.02] |
+| | training gap | +2.97 | +1.24 | +1.29 | +2.94 | +2.11 [+1.62, +2.61] |
+| | selection gap | +0.20 | +0.06 | +0.18 | +0.03 | +0.12 [+0.02, +0.21] |
+| | **total** | +3.13 | +2.54 | +2.59 | +6.33 | **+3.65** [+2.78, +4.51] |
+| `shared_iw_likelihood` | objective mismatch | −0.11 | +1.89 | +2.14 | +4.25 | +2.04 [+1.29, +2.80] |
+| | training gap | +6.65 | +1.95 | +1.22 | +6.87 | +4.17 [+2.96, +5.38] |
+| | selection gap | +0.23 | +1.30 | +2.35 | +0.45 | +1.08 [+0.19, +1.98] |
+| | **total** | +6.77 | +5.14 | +5.71 | +11.57 | **+7.30** [+5.70, +8.90] |
+| `shared_iw_likelihood_clip10` | objective mismatch | −0.11 | +1.44 | +2.00 | +3.98 | +1.83 [+1.12, +2.54] |
+| | training gap | +6.20 | +2.34 | +1.35 | +6.52 | +4.10 [+3.00, +5.21] |
+| | selection gap | +0.29 | +0.14 | +0.13 | +0.72 | +0.32 [+0.14, +0.49] |
+| | **total** | +6.39 | +3.91 | +3.48 | +11.21 | **+6.25** [+4.79, +7.70] |
+| `shared_opc` | objective mismatch | 0 | 0 | 0 | 0 | 0 |
+| | training gap | +3.96 | +2.48 | +2.26 | +6.57 | +3.81 [+2.90, +4.73] |
+| | selection gap | +0.15 | +0.13 | +0.26 | +0.08 | +0.15 [+0.09, +0.22] |
+| | **total** | +4.11 | +2.60 | +2.52 | +6.65 | **+3.97** [+3.07, +4.87] |
+
+Beyond the global class, the value optimum is itself 0.12 (warp), 1.93 (group), 3.51 (vector) and 5.64 (combined)
+points below the target-best ceiling: 2.80 [1.82, 3.78] on the biased worlds (§13).
+
+- **OPC trades a population advantage for a training gap.** It has no objective mismatch by construction, but its
+  best trial stays 3.81 points below the value optimum, against the likelihood's 2.11 below its own optimum. The
+  likelihood's mismatch (1.42) and OPC's extra training gap (1.70) nearly cancel; the totals are 3.65 and 3.97.
+- **The balance depends on the bias.** Under warp there is no mismatch to exploit and OPC's training gap is 1 point
+  larger: the likelihood wins. Under group and vector bias the likelihood's mismatch (1.2, 1.1) is about what OPC
+  loses in training (1.2, 1.0 more): a tie. Under combined bias the mismatch is largest (3.4), but so is OPC's training
+  gap (6.6 against 2.9).
+- **The likelihood's own optimum caps it.** Its best trials reach 2.11 points below θ_log*, so 3.5 points below θ_value*
+  on average. Under combined bias half of its shortfall (3.36 of 6.33 points) is objective mismatch.
+- **The weighted likelihoods lose everywhere.** Their population optima are further from the value than θ_log* (§13),
+  their training gaps are about twice the likelihood's (4.1–4.2), and the raw arm's native selection adds 1.1 points.
+- **Share of the value optimum's gain recovered** (biased, native): likelihood 0.41, OPC 0.36, CausE-cap 0.42,
+  BLOB-Pnorm 0.39, historical OPC 0.37, DM-only 0.26, clip 10 0.04, raw −0.17.
+
+## 17. The uniform-reference weights
+
+On the 25,000 training rows of each world (`tables.md` §13, per dataset and bias):
+
+- w = 1/(P p) has a median of 0.008 and a mean of 0.81 (1 in expectation under full support; 0.31–2.95 across worlds,
+  a heavy-tailed sample mean). The 99.9% quantile is 83 on average and the maximum 5,682 (342–53,837).
+- **Effective sample size** (Σw)²/Σw²: 39 rows on average (0.16% of n; 2 to 156 rows). On the 20,000 validation rows
+  the IW-NLL that selects the raw arm rests on 0.15% of them.
+- **Clipping at 10** touches 0.74% of the rows but removes 67% of the weight mass; the clipped weights' ESS is 1,193
+  rows (4.8%). The clipped objective weights the rarely logged pairs as the logging distribution does (×10) and the
+  others uniformly.
+- **The ESS does not sort the worlds.** Across the 24 biased worlds the raw arm's training gap is not clearly related
+  to its ESS (Spearman ρ = −0.21, p = 0.32); every world's ESS is tiny. For clip 10 the native gain rises somewhat
+  with the clipped ESS (ρ = +0.42, p = 0.04).
+- The likelihood arms' starting heads (§3) put the click scale at s = 0.17 (plain), 0.25 (raw) and 0.18 (clip 10). In
+  one world (kuairand, warp, seed 101; ESS 11 rows) the raw arm's weighted head fit gave a non-positive slope, which
+  the floor held at 1e-3; that arm stayed at the logger there (−0.003).
+- **The arms barely move with clipped weights.** The native correction size R(θ) is 0.005 for clip 10, against 0.095
+  (likelihood) and 0.066 (OPC). The raw arm moves 0.059: it changes 27% of decisions, gaining 0.73 points on some and
+  losing 1.40 on others.
+
+## 18. The hypotheses (§9), against the results
+
+- **H1. Supported.** Under warp, V(θ_value*) − V(θ_log*) = −0.04 [−0.11, +0.03], below the 0.25-point bar, and
+  `shared_likelihood` is not below `shared_opc`: it is 0.98 points above, in 6 of 6 worlds.
+- **H2. Supported.** The logging-likelihood and value optima differ under group (+1.23), vector (+1.12) and combined
+  (+3.36) bias, each in 6 of 6 worlds with the 95% CI above zero.
+- **H3. Not supported, in either part.** In the population θ_uniform* ranks below θ_log* (−0.63, lower under each
+  misspecified bias), not between θ_log* and θ_value*. At 25k `shared_iw_likelihood` is below both other arms in every
+  biased world.
+- **H4. Supported for raw weights; clipping does not rescue the objective.** The raw weights have an ESS of 0.16% of
+  the rows, and the raw arm has the largest selection gap (1.08). Clipping improves the finite-sample result in 21 of
+  24 worlds (+1.05). Unlike H4's trade-off it costs no value: θ_clip10* is closer to θ_value* than θ_uniform* is
+  (1.83 against 2.04 points below). But its training gap is as large as raw's (4.10 against 4.17), and its gain stays
+  at +0.38.
+- **H5. Partly supported.** Without bias the likelihood stays at the logger (−0.02; 6% of decisions change), clip 10
+  near it (−0.11), OPC loses 0.57 [0.18, 0.96] (30% of decisions change; its native rule costs 0.43 of it), and the
+  raw arm loses 3.68, mostly in two worlds where its selection failed (−19.0 and −2.8; §15).
+
+## 19. Decision gate
+
+1. **In the well-specified warp setting, does likelihood remain strongest?** Yes. With the model, regularizer, data,
+   optimizer and search held fixed, the penalized likelihood beats the OPC objective under warp by 0.98 points
+   [0.47, 1.49] in 6 of 6 worlds, and both weighted likelihoods by more than 3 points. In the population there is
+   nothing to gain from a value objective there (−0.04).
+2. **In the misspecified group / vector / combined settings, do the population likelihood and value optima differ?**
+   Yes. By 1.23, 1.12 and 3.36 greedy points, in 18 of 18 worlds; the likelihood barely separates the two solutions
+   (0.0044 nats per row).
+3. **Does propensity-weighted likelihood move the solution toward higher policy value?** No, not with the uniform
+   reference. It moves the population optimum away from value: θ_uniform* is 0.63 points below θ_log* on the biased
+   worlds, θ_clip10* 0.41 below.
+4. **Does that theoretical benefit survive finite-sample variance at 25k?** There is no benefit to survive, and the
+   variance makes it worse: an ESS of about 39 rows, native gains of −0.67 (raw) and +0.38 (clip 10) against the plain
+   likelihood's +2.98, in 0 of 24 biased worlds above it.
+5. **Does OPC generate better candidates than likelihood, or is any difference mainly model selection?** Not
+   selection. Under one common rule the likelihood leads by 0.22, and its best trials by 0.28. OPC's candidates are
+   better on average under group, vector and combined bias (by 0.13–0.69 in 18 of 18 worlds), but not at the top,
+   and not under warp. OPC's population advantage (1.42) is spent by its larger training gap (3.81 against 2.11).
+6. **Is raw weighting usable, or does clip10 materially improve the bias-variance tradeoff?** Raw weighting is not
+   usable: below the logger on average, a 1-point selection regret and a 19-point selection failure. Clipping helps
+   (+1.05, 21 of 24 worlds) but not materially: +0.38 over the logger, 2.60 points below the plain likelihood in 24 of
+   24 worlds.
+7. **Does the evidence justify moving to the hierarchical correction-capacity study?** Yes, with one condition.
+   - Under group, vector and combined bias the global class itself stops 1.93, 3.51 and 5.64 points short of the
+     target-best ceiling, more than the likelihood's objective mismatch in each (1.23, 1.12, 3.36).
+   - The condition: at 25k no objective reaches even the global class's value. The best arms recover about 40% of it,
+     and OPC's training gap grows with the bias (6.6 points under combined).
+   - More capacity therefore needs the regularization the study plans (partial pooling toward the global map), and
+     must be compared at the same budgets and with the same selection protocol.
+   - With enough capacity the true click model is in the class, so the likelihood's optimum ranks perfectly. The
+     objective mismatch measured here should shrink as capacity grows, and that is a prediction to test.
+8. **Which three objectives should be carried forward?**
+   - **Penalized likelihood:** (1/n)Σ ℓ(r, σ(s g/T + c)) + λR(θ), λ searched over {0, 0.001, 0.01, 0.1, 1}, validation
+     NLL selection. It is the strongest arm here, and its native selection is near-perfect.
+   - **OPC's value objective:** the DR loss with harmonic:0.1 weights and a cross-fitted q̂, the direct gradient,
+     + λR(θ) with the same grid, the 95% DR lower bound (clip:10) for selection. It is the only objective without
+     objective mismatch, and its candidates are better on average where the mismatch exists.
+   - **Clipped uniform-reference likelihood** (w = min(1/(P p), 10), validation IW-NLL selection), kept as the
+     propensity-weighted outcome model, but as a reference arm and not a candidate. This study gives no reason to
+     expect it to win at higher capacity. Raw weighting should be dropped.
+   - **Selection, for every arm:** report the common DR selector (the 95% lower bound of the greedy policy) beside the
+     native rule. It costs the likelihood and OPC at most 0.1 points and repairs the weighted likelihood's selection.
+
+## 20. Null and negative results, and limitations
+
+- **Null:**
+  - the source anchor λR(θ) changes nothing for OPC: the shared OPC arm equals the historical arm, −0.03 [−0.09, +0.03];
+  - the OPC objective and the likelihood tie under group and vector bias, natively and under the common rule;
+  - the shared likelihood is level with CausE-cap (−0.12 [−0.27, +0.04]).
+- **Negative:**
+  - weighting the likelihood toward the uniform action distribution lowers its population optimum's value under every
+    misspecified bias;
+  - at 25k both weighted arms stay near the logger;
+  - the raw arm's own selection rule fails badly once (−19.0 points without bias).
+- **The tuning protocol's one extension** (the weighted likelihoods' lower learning rates, §11) did not make them
+  competitive. The supplementary round's check is in §11.2.
+- **Limitations:**
+  - Development worlds only (seeds 100/101), 25k, one logger sharpness (80% of its greedy CTR), K = 32.
+  - The 20 configurations of a seed are shared by all its worlds (§10.1), so arm differences rest on 40 distinct
+    configurations.
+  - The uniform reference is the only weighting tested. A weighting toward a policy, or toward the decision region,
+    is outside this phase.
+  - The population optima are numerical fits: a fixed optimizer and budget, and the best of three learning rates.
+    Warp's −0.04 to −0.11-point differences between optima are within their fitting error.
+  - The likelihood arms' stochastic policies were not tempered, so their stochastic value is not compared.
+
+## 21. Reproduction
+
+From the repository root, with the BPR embeddings in `BPR/embeddings`. The runs used `--max-workers 3` on one 48 GB
+GPU; results do not depend on the worker count.
+
+```bash
+COMMON="--emb-dir BPR/embeddings --out-dir artifacts/full_study --datasets ml kuairand anime --ctr-levels 0.05 --train-sizes 25000 --n-trials 20 --sampler random --stage development --slim --learn-logit-scale --lr-range 1e-4 2e-3 --epochs-range 5 30"
+SHARED="--methods shared_likelihood shared_iw_likelihood shared_iw_likelihood_clip10 shared_opc"
+IWSPACE="--shared-arm-space shared_iw_likelihood:lr=3.1623e-5,2e-3 shared_iw_likelihood_clip10:lr=3.1623e-5,2e-3"
+# tuning, first round (§11; the code at 052462c)
+python -m training.run_full_study_parallel --run-tag shared_tune_s200 $COMMON --bias-configs high/none/none none/none/high high --seeds 200 201 $SHARED
+# the population optima of the weighted likelihoods (§6), one job per dataset
+python -m training.class_oracles --datasets ml --seeds 100 101 --bias-configs none high/none/none none/high/none none/none/high high --classes bilinear affine_bilinear --objectives uniform_likelihood clip10_likelihood --save-policies --out artifacts/full_study/run_shared_oracles_20261006/ml
+# the main grid (§7, §11.1)
+python -m training.run_full_study_parallel --run-tag shared_main_25k $COMMON --bias-configs none high/none/none none/high/none none/none/high high --seeds 100 101 $SHARED $IWSPACE --save-policies
+# the supplementary tuning round (§11.1)
+python -m training.run_full_study_parallel --run-tag shared_tune_s200_supp $COMMON --bias-configs high/none/none none/none/high high --seeds 200 201 --methods shared_iw_likelihood shared_iw_likelihood_clip10 $IWSPACE --shared-seed-tag shared_supplement
+# tables and figures
+python -m training.analyze_shared_objectives tune --runs artifacts/full_study/run_shared_tune_s200 --out artifacts/full_study/shared_objective_study/tuning
+python -m training.analyze_shared_objectives tune --runs artifacts/full_study/run_shared_tune_s200 artifacts/full_study/run_shared_tune_s200_supp --out artifacts/full_study/shared_objective_study/tuning_round2
+python -m training.analyze_shared_objectives tune --runs artifacts/full_study/run_shared_tune_s200_supp --out artifacts/full_study/shared_objective_study/tuning_round2_supplement_only
+python -m training.analyze_shared_objectives oracles --out artifacts/full_study/shared_objective_study/population
+python -m training.analyze_shared_objectives compare --runs artifacts/full_study/run_shared_main_25k --oracles artifacts/full_study/shared_objective_study/population --out artifacts/full_study/shared_objective_study/compare
+```

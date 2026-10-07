@@ -1,0 +1,25 @@
+panel,arm,common_gain,lo,hi
+none,shared_likelihood,-0.223368,-0.593871,0.147134
+none,shared_iw_likelihood,-0.164152,-0.461181,0.132878
+none,shared_iw_likelihood_clip10,-0.185127,-0.525681,0.155428
+none,shared_opc,-0.481595,-0.902259,-0.0609298
+w-high.g-none.v-none,shared_likelihood,3.87359,2.79252,4.95465
+w-high.g-none.v-none,shared_iw_likelihood,0.291653,-0.392773,0.976079
+w-high.g-none.v-none,shared_iw_likelihood_clip10,0.904209,-0.0263175,1.83474
+w-high.g-none.v-none,shared_opc,3.00636,2.12044,3.89227
+w-none.g-high.v-none,shared_likelihood,1.4065,0.744631,2.06837
+w-none.g-high.v-none,shared_iw_likelihood,0.0520138,-0.102014,0.206042
+w-none.g-high.v-none,shared_iw_likelihood_clip10,0.0898262,-0.0405545,0.220207
+w-none.g-high.v-none,shared_opc,1.26344,0.701404,1.82547
+w-none.g-none.v-high,shared_likelihood,0.80699,0.218393,1.39559
+w-none.g-none.v-high,shared_iw_likelihood,-0.0930826,-0.390296,0.204131
+w-none.g-none.v-high,shared_iw_likelihood_clip10,0.0337033,-0.0901614,0.157568
+w-none.g-none.v-high,shared_opc,1.07433,0.60335,1.54531
+high,shared_likelihood,5.47572,4.01762,6.93382
+high,shared_iw_likelihood,0.803528,0.132367,1.47469
+high,shared_iw_likelihood_clip10,1.37678,0.830314,1.92326
+high,shared_opc,5.32205,3.74262,6.90147
+biased (pooled),shared_likelihood,2.8907,1.99417,3.78723
+biased (pooled),shared_iw_likelihood,0.263528,0.0229401,0.504116
+biased (pooled),shared_iw_likelihood_clip10,0.601131,0.28251,0.919752
+biased (pooled),shared_opc,2.66654,1.84361,3.48948

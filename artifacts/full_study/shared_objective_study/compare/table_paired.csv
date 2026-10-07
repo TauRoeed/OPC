@@ -1,0 +1,163 @@
+a,b,col,bias,a_minus_b,ci_lo,ci_hi,worlds,a_higher
+shared_opc,shared_likelihood,native_gain,none,-0.550822,-0.946234,-0.15541,6,0
+shared_opc,shared_likelihood,native_gain,w-high.g-none.v-none,-0.976056,-1.48701,-0.465101,6,0
+shared_opc,shared_likelihood,native_gain,w-none.g-high.v-none,-0.0622345,-0.177198,0.0527291,6,1
+shared_opc,shared_likelihood,native_gain,w-none.g-none.v-high,0.0708306,-0.233441,0.375102,6,4
+shared_opc,shared_likelihood,native_gain,high,-0.316303,-0.666412,0.0338053,6,1
+shared_opc,shared_likelihood,native_gain,biased (pooled),-0.320941,-0.538755,-0.103126,24,6
+shared_iw_likelihood,shared_likelihood,native_gain,none,-3.65986,-11.6431,4.32335,6,1
+shared_iw_likelihood,shared_likelihood,native_gain,w-high.g-none.v-none,-3.64285,-4.32975,-2.95595,6,0
+shared_iw_likelihood,shared_likelihood,native_gain,w-none.g-high.v-none,-2.59853,-5.35206,0.154996,6,0
+shared_iw_likelihood,shared_likelihood,native_gain,w-none.g-none.v-high,-3.12099,-6.96468,0.722699,6,0
+shared_iw_likelihood,shared_likelihood,native_gain,high,-5.24033,-7.06955,-3.41112,6,0
+shared_iw_likelihood,shared_likelihood,native_gain,biased (pooled),-3.65068,-4.70106,-2.60029,24,0
+shared_iw_likelihood_clip10,shared_likelihood,native_gain,none,-0.0970171,-0.327433,0.133399,6,3
+shared_iw_likelihood_clip10,shared_likelihood,native_gain,w-high.g-none.v-none,-3.25767,-3.97989,-2.53545,6,0
+shared_iw_likelihood_clip10,shared_likelihood,native_gain,w-none.g-high.v-none,-1.3697,-1.91296,-0.826436,6,0
+shared_iw_likelihood_clip10,shared_likelihood,native_gain,w-none.g-none.v-high,-0.889005,-1.497,-0.281007,6,0
+shared_iw_likelihood_clip10,shared_likelihood,native_gain,high,-4.88405,-6.86788,-2.90021,6,0
+shared_iw_likelihood_clip10,shared_likelihood,native_gain,biased (pooled),-2.60011,-3.4061,-1.79411,24,0
+shared_iw_likelihood_clip10,shared_iw_likelihood,native_gain,none,3.56284,-4.48132,11.607,6,3
+shared_iw_likelihood_clip10,shared_iw_likelihood,native_gain,w-high.g-none.v-none,0.385179,-0.0864479,0.856805,6,6
+shared_iw_likelihood_clip10,shared_iw_likelihood,native_gain,w-none.g-high.v-none,1.22883,-1.20086,3.65853,6,6
+shared_iw_likelihood_clip10,shared_iw_likelihood,native_gain,w-none.g-none.v-high,2.23199,-1.2687,5.73267,6,5
+shared_iw_likelihood_clip10,shared_iw_likelihood,native_gain,high,0.356285,-0.331208,1.04378,6,4
+shared_iw_likelihood_clip10,shared_iw_likelihood,native_gain,biased (pooled),1.05057,0.171377,1.92976,24,21
+shared_opc,shared_iw_likelihood,native_gain,none,3.10904,-4.51318,10.7313,6,3
+shared_opc,shared_iw_likelihood,native_gain,w-high.g-none.v-none,2.66679,1.89615,3.43744,6,6
+shared_opc,shared_iw_likelihood,native_gain,w-none.g-high.v-none,2.5363,-0.198031,5.27063,6,6
+shared_opc,shared_iw_likelihood,native_gain,w-none.g-none.v-high,3.19182,-0.714152,7.09779,6,6
+shared_opc,shared_iw_likelihood,native_gain,high,4.92403,3.13088,6.71718,6,6
+shared_opc,shared_iw_likelihood,native_gain,biased (pooled),3.32974,2.27948,4.37999,24,24
+shared_opc,shared_iw_likelihood_clip10,native_gain,none,-0.453805,-0.920282,0.0126727,6,1
+shared_opc,shared_iw_likelihood_clip10,native_gain,w-high.g-none.v-none,2.28162,1.5653,2.99793,6,6
+shared_opc,shared_iw_likelihood_clip10,native_gain,w-none.g-high.v-none,1.30746,0.828418,1.78651,6,6
+shared_opc,shared_iw_likelihood_clip10,native_gain,w-none.g-none.v-high,0.959836,0.354521,1.56515,6,6
+shared_opc,shared_iw_likelihood_clip10,native_gain,high,4.56775,2.61236,6.52313,6,6
+shared_opc,shared_iw_likelihood_clip10,native_gain,biased (pooled),2.27917,1.54288,3.01545,24,24
+shared_opc,opc,native_gain,none,0.0386866,-0.209615,0.286988,6,4
+shared_opc,opc,native_gain,w-high.g-none.v-none,0.00989984,-0.152169,0.171969,6,3
+shared_opc,opc,native_gain,w-none.g-high.v-none,0.0256884,-0.0967476,0.148124,6,3
+shared_opc,opc,native_gain,w-none.g-none.v-high,-0.0549966,-0.196662,0.0866693,6,2
+shared_opc,opc,native_gain,high,-0.100283,-0.292199,0.0916332,6,2
+shared_opc,opc,native_gain,biased (pooled),-0.0299227,-0.0926278,0.0327823,24,10
+shared_likelihood,cap_c,native_gain,none,0.535126,0.310465,0.759788,6,6
+shared_likelihood,cap_c,native_gain,w-high.g-none.v-none,-0.207743,-0.74703,0.331545,6,2
+shared_likelihood,cap_c,native_gain,w-none.g-high.v-none,0.191039,-0.0305433,0.412621,6,5
+shared_likelihood,cap_c,native_gain,w-none.g-none.v-high,-0.194858,-0.438762,0.0490452,6,1
+shared_likelihood,cap_c,native_gain,high,-0.253089,-0.633139,0.12696,6,1
+shared_likelihood,cap_c,native_gain,biased (pooled),-0.116163,-0.274535,0.0422091,24,9
+shared_opc,cap_c,native_gain,none,-0.0156954,-0.446123,0.414732,6,3
+shared_opc,cap_c,native_gain,w-high.g-none.v-none,-1.1838,-1.44789,-0.919707,6,0
+shared_opc,cap_c,native_gain,w-none.g-high.v-none,0.128804,-0.0151458,0.272754,6,5
+shared_opc,cap_c,native_gain,w-none.g-none.v-high,-0.124028,-0.375062,0.127007,6,2
+shared_opc,cap_c,native_gain,high,-0.569392,-1.11013,-0.0286557,6,1
+shared_opc,cap_c,native_gain,biased (pooled),-0.437104,-0.685895,-0.188312,24,8
+shared_opc,shared_likelihood,common_gain,none,-0.258226,-0.387484,-0.128968,6,0
+shared_opc,shared_likelihood,common_gain,w-high.g-none.v-none,-0.867231,-1.28468,-0.449783,6,0
+shared_opc,shared_likelihood,common_gain,w-none.g-high.v-none,-0.14306,-0.361792,0.0756718,6,1
+shared_opc,shared_likelihood,common_gain,w-none.g-none.v-high,0.267337,0.0964361,0.438239,6,6
+shared_opc,shared_likelihood,common_gain,high,-0.153671,-0.503003,0.195662,6,3
+shared_opc,shared_likelihood,common_gain,biased (pooled),-0.224156,-0.434274,-0.0140379,24,10
+shared_iw_likelihood,shared_likelihood,common_gain,none,0.0592167,-0.0277681,0.146202,6,4
+shared_iw_likelihood,shared_likelihood,common_gain,w-high.g-none.v-none,-3.58193,-4.70422,-2.45964,6,0
+shared_iw_likelihood,shared_likelihood,common_gain,w-none.g-high.v-none,-1.35449,-1.93542,-0.773551,6,0
+shared_iw_likelihood,shared_likelihood,common_gain,w-none.g-none.v-high,-0.900073,-1.30974,-0.490403,6,0
+shared_iw_likelihood,shared_likelihood,common_gain,high,-4.67219,-6.43917,-2.90521,6,0
+shared_iw_likelihood,shared_likelihood,common_gain,biased (pooled),-2.62717,-3.41649,-1.83785,24,0
+shared_iw_likelihood_clip10,shared_likelihood,common_gain,none,0.0382415,0.00495798,0.0715251,6,6
+shared_iw_likelihood_clip10,shared_likelihood,common_gain,w-high.g-none.v-none,-2.96938,-4.173,-1.76575,6,0
+shared_iw_likelihood_clip10,shared_likelihood,common_gain,w-none.g-high.v-none,-1.31667,-1.93183,-0.701514,6,0
+shared_iw_likelihood_clip10,shared_likelihood,common_gain,w-none.g-none.v-high,-0.773287,-1.27003,-0.276547,6,0
+shared_iw_likelihood_clip10,shared_likelihood,common_gain,high,-4.09893,-5.76987,-2.428,6,0
+shared_iw_likelihood_clip10,shared_likelihood,common_gain,biased (pooled),-2.28957,-2.99385,-1.58529,24,0
+shared_iw_likelihood_clip10,shared_iw_likelihood,common_gain,none,-0.0209752,-0.0864616,0.0445112,6,3
+shared_iw_likelihood_clip10,shared_iw_likelihood,common_gain,w-high.g-none.v-none,0.612556,0.154462,1.07065,6,6
+shared_iw_likelihood_clip10,shared_iw_likelihood,common_gain,w-none.g-high.v-none,0.0378124,-0.0213982,0.0970231,6,5
+shared_iw_likelihood_clip10,shared_iw_likelihood,common_gain,w-none.g-none.v-high,0.126786,-0.0646316,0.318203,6,5
+shared_iw_likelihood_clip10,shared_iw_likelihood,common_gain,high,0.573256,0.395445,0.751068,6,6
+shared_iw_likelihood_clip10,shared_iw_likelihood,common_gain,biased (pooled),0.337603,0.188408,0.486797,24,22
+shared_opc,shared_iw_likelihood,common_gain,none,-0.317443,-0.484444,-0.150442,6,0
+shared_opc,shared_iw_likelihood,common_gain,w-high.g-none.v-none,2.7147,1.96548,3.46393,6,6
+shared_opc,shared_iw_likelihood,common_gain,w-none.g-high.v-none,1.21142,0.742206,1.68064,6,6
+shared_opc,shared_iw_likelihood,common_gain,w-none.g-none.v-high,1.16741,0.844274,1.49055,6,6
+shared_opc,shared_iw_likelihood,common_gain,high,4.51852,2.62041,6.41663,6,6
+shared_opc,shared_iw_likelihood,common_gain,biased (pooled),2.40301,1.69046,3.11557,24,24
+shared_opc,shared_iw_likelihood_clip10,common_gain,none,-0.296468,-0.425768,-0.167167,6,0
+shared_opc,shared_iw_likelihood_clip10,common_gain,w-high.g-none.v-none,2.10215,1.29277,2.91152,6,6
+shared_opc,shared_iw_likelihood_clip10,common_gain,w-none.g-high.v-none,1.17361,0.668958,1.67827,6,6
+shared_opc,shared_iw_likelihood_clip10,common_gain,w-none.g-none.v-high,1.04062,0.667173,1.41408,6,6
+shared_opc,shared_iw_likelihood_clip10,common_gain,high,3.94526,2.16296,5.72756,6,6
+shared_opc,shared_iw_likelihood_clip10,common_gain,biased (pooled),2.06541,1.43374,2.69709,24,24
+shared_opc,shared_likelihood,best_gain,none,-0.119441,-0.145654,-0.093229,6,0
+shared_opc,shared_likelihood,best_gain,w-high.g-none.v-none,-1.02743,-1.25825,-0.796598,6,0
+shared_opc,shared_likelihood,best_gain,w-none.g-high.v-none,0.00231897,-0.108065,0.112703,6,4
+shared_opc,shared_likelihood,best_gain,w-none.g-none.v-high,0.160102,-0.0175448,0.337749,6,5
+shared_opc,shared_likelihood,best_gain,high,-0.26744,-0.616576,0.0816955,6,1
+shared_opc,shared_likelihood,best_gain,biased (pooled),-0.283111,-0.498547,-0.0676753,24,10
+shared_iw_likelihood,shared_likelihood,best_gain,none,0.0116831,0.00566907,0.0176971,6,6
+shared_iw_likelihood,shared_likelihood,best_gain,w-high.g-none.v-none,-3.61512,-4.28937,-2.94086,6,0
+shared_iw_likelihood,shared_likelihood,best_gain,w-none.g-high.v-none,-1.35981,-1.84271,-0.876906,6,0
+shared_iw_likelihood,shared_likelihood,best_gain,w-none.g-none.v-high,-0.941322,-1.49629,-0.386349,6,0
+shared_iw_likelihood,shared_likelihood,best_gain,high,-4.81679,-6.73874,-2.89484,6,0
+shared_iw_likelihood,shared_likelihood,best_gain,biased (pooled),-2.68326,-3.48313,-1.88339,24,0
+shared_iw_likelihood_clip10,shared_likelihood,best_gain,none,0.01401,0.00618351,0.0218364,6,6
+shared_iw_likelihood_clip10,shared_likelihood,best_gain,w-high.g-none.v-none,-3.16632,-4.00189,-2.33076,6,0
+shared_iw_likelihood_clip10,shared_likelihood,best_gain,w-none.g-high.v-none,-1.29616,-1.81737,-0.774951,6,0
+shared_iw_likelihood_clip10,shared_likelihood,best_gain,w-none.g-none.v-high,-0.935776,-1.50002,-0.371531,6,0
+shared_iw_likelihood_clip10,shared_likelihood,best_gain,high,-4.19637,-6.03144,-2.3613,6,0
+shared_iw_likelihood_clip10,shared_likelihood,best_gain,biased (pooled),-2.39866,-3.10412,-1.69319,24,0
+shared_iw_likelihood_clip10,shared_iw_likelihood,best_gain,none,0.00232688,-0.000349928,0.00500369,6,5
+shared_iw_likelihood_clip10,shared_iw_likelihood,best_gain,w-high.g-none.v-none,0.448795,-0.008802,0.906392,6,6
+shared_iw_likelihood_clip10,shared_iw_likelihood,best_gain,w-none.g-high.v-none,0.0636477,-0.0082539,0.135549,6,5
+shared_iw_likelihood_clip10,shared_iw_likelihood,best_gain,w-none.g-none.v-high,0.00554557,-0.0502666,0.0613578,6,4
+shared_iw_likelihood_clip10,shared_iw_likelihood,best_gain,high,0.620422,0.438254,0.80259,6,6
+shared_iw_likelihood_clip10,shared_iw_likelihood,best_gain,biased (pooled),0.284603,0.138924,0.430281,24,21
+shared_opc,shared_iw_likelihood,best_gain,none,-0.131124,-0.15895,-0.103299,6,0
+shared_opc,shared_iw_likelihood,best_gain,w-high.g-none.v-none,2.58769,2.07545,3.09994,6,6
+shared_opc,shared_iw_likelihood,best_gain,w-none.g-high.v-none,1.36213,0.923025,1.80123,6,6
+shared_opc,shared_iw_likelihood,best_gain,w-none.g-none.v-high,1.10142,0.652056,1.55079,6,6
+shared_opc,shared_iw_likelihood,best_gain,high,4.54935,2.78397,6.31473,6,6
+shared_opc,shared_iw_likelihood,best_gain,biased (pooled),2.40015,1.70886,3.09144,24,24
+shared_opc,shared_iw_likelihood_clip10,best_gain,none,-0.133451,-0.160969,-0.105934,6,0
+shared_opc,shared_iw_likelihood_clip10,best_gain,w-high.g-none.v-none,2.1389,1.47001,2.80778,6,6
+shared_opc,shared_iw_likelihood_clip10,best_gain,w-none.g-high.v-none,1.29848,0.814064,1.78289,6,6
+shared_opc,shared_iw_likelihood_clip10,best_gain,w-none.g-none.v-high,1.09588,0.651126,1.54063,6,6
+shared_opc,shared_iw_likelihood_clip10,best_gain,high,3.92893,2.26986,5.58799,6,6
+shared_opc,shared_iw_likelihood_clip10,best_gain,biased (pooled),2.11555,1.51534,2.71575,24,24
+shared_opc,shared_likelihood,trial_mean_gain,none,-0.298814,-0.364649,-0.232978,6,0
+shared_opc,shared_likelihood,trial_mean_gain,w-high.g-none.v-none,-0.216475,-0.457269,0.0243195,6,1
+shared_opc,shared_likelihood,trial_mean_gain,w-none.g-high.v-none,0.129681,0.0242892,0.235073,6,6
+shared_opc,shared_likelihood,trial_mean_gain,w-none.g-none.v-high,0.224438,0.123702,0.325175,6,6
+shared_opc,shared_likelihood,trial_mean_gain,high,0.691313,0.497703,0.884922,6,6
+shared_opc,shared_likelihood,trial_mean_gain,biased (pooled),0.207239,0.0534464,0.361032,24,19
+shared_iw_likelihood,shared_likelihood,trial_mean_gain,none,-0.621919,-1.01082,-0.233015,6,0
+shared_iw_likelihood,shared_likelihood,trial_mean_gain,w-high.g-none.v-none,-3.34276,-3.85957,-2.82596,6,0
+shared_iw_likelihood,shared_likelihood,trial_mean_gain,w-none.g-high.v-none,-1.56665,-1.82935,-1.30396,6,0
+shared_iw_likelihood,shared_likelihood,trial_mean_gain,w-none.g-none.v-high,-1.17494,-1.71815,-0.631723,6,0
+shared_iw_likelihood,shared_likelihood,trial_mean_gain,high,-3.12604,-4.76655,-1.48554,6,0
+shared_iw_likelihood,shared_likelihood,trial_mean_gain,biased (pooled),-2.3026,-2.83471,-1.77049,24,0
+shared_iw_likelihood_clip10,shared_likelihood,trial_mean_gain,none,-0.654613,-1.0181,-0.291128,6,0
+shared_iw_likelihood_clip10,shared_likelihood,trial_mean_gain,w-high.g-none.v-none,-3.03703,-3.75907,-2.31499,6,0
+shared_iw_likelihood_clip10,shared_likelihood,trial_mean_gain,w-none.g-high.v-none,-1.531,-1.96464,-1.09735,6,0
+shared_iw_likelihood_clip10,shared_likelihood,trial_mean_gain,w-none.g-none.v-high,-1.22994,-1.71771,-0.742174,6,0
+shared_iw_likelihood_clip10,shared_likelihood,trial_mean_gain,high,-2.9077,-4.44826,-1.36714,6,0
+shared_iw_likelihood_clip10,shared_likelihood,trial_mean_gain,biased (pooled),-2.17642,-2.66349,-1.68934,24,0
+shared_iw_likelihood_clip10,shared_iw_likelihood,trial_mean_gain,none,-0.0326943,-0.170035,0.104646,6,2
+shared_iw_likelihood_clip10,shared_iw_likelihood,trial_mean_gain,w-high.g-none.v-none,0.305735,-0.023067,0.634537,6,6
+shared_iw_likelihood_clip10,shared_iw_likelihood,trial_mean_gain,w-none.g-high.v-none,0.0356526,-0.137094,0.208399,6,3
+shared_iw_likelihood_clip10,shared_iw_likelihood,trial_mean_gain,w-none.g-none.v-high,-0.055002,-0.210973,0.100969,6,1
+shared_iw_likelihood_clip10,shared_iw_likelihood,trial_mean_gain,high,0.218347,0.0756436,0.36105,6,6
+shared_iw_likelihood_clip10,shared_iw_likelihood,trial_mean_gain,biased (pooled),0.126183,0.0250335,0.227333,24,16
+shared_opc,shared_iw_likelihood,trial_mean_gain,none,0.323105,-0.0952011,0.741412,6,5
+shared_opc,shared_iw_likelihood,trial_mean_gain,w-high.g-none.v-none,3.12629,2.52135,3.73123,6,6
+shared_opc,shared_iw_likelihood,trial_mean_gain,w-none.g-high.v-none,1.69633,1.36957,2.0231,6,6
+shared_opc,shared_iw_likelihood,trial_mean_gain,w-none.g-none.v-high,1.39938,0.879305,1.91945,6,6
+shared_opc,shared_iw_likelihood,trial_mean_gain,high,3.81736,2.2098,5.42491,6,6
+shared_opc,shared_iw_likelihood,trial_mean_gain,biased (pooled),2.50984,1.95988,3.0598,24,24
+shared_opc,shared_iw_likelihood_clip10,trial_mean_gain,none,0.3558,-0.0333173,0.744916,6,6
+shared_opc,shared_iw_likelihood_clip10,trial_mean_gain,w-high.g-none.v-none,2.82055,1.98052,3.66059,6,6
+shared_opc,shared_iw_likelihood_clip10,trial_mean_gain,w-none.g-high.v-none,1.66068,1.16737,2.15399,6,6
+shared_opc,shared_iw_likelihood_clip10,trial_mean_gain,w-none.g-none.v-high,1.45438,1.00899,1.89977,6,6
+shared_opc,shared_iw_likelihood_clip10,trial_mean_gain,high,3.59901,2.09269,5.10533,6,6
+shared_opc,shared_iw_likelihood_clip10,trial_mean_gain,biased (pooled),2.38366,1.87149,2.89582,24,24

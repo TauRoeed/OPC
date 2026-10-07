@@ -1,0 +1,21 @@
+arm,dimension,best_value,best_configs,best_below_best,edge,neighbour,margin,extendable,extend
+shared_iw_likelihood,anchor_lambda,0.1,14,-0.395228,,,,False,False
+shared_iw_likelihood,batch_size,2048,14,-0.53902,high,1024,0.612141,False,False
+shared_iw_likelihood,epochs,5-11,11,-0.659484,low,12-17,0.0222609,False,False
+shared_iw_likelihood,lr,"[0.0001, 0.00032)",15,-0.260857,low,"[0.00032, 0.001)",0.387443,True,True
+shared_iw_likelihood,lr_decay,"[0.8, 0.9)",24,-0.556533,low,"[0.9, 1.0]",1.00515,False,False
+shared_iw_likelihood_clip10,anchor_lambda,0.1,14,-0.519543,,,,False,False
+shared_iw_likelihood_clip10,batch_size,2048,14,-0.640239,high,1024,0.824543,False,False
+shared_iw_likelihood_clip10,epochs,5-11,11,-0.827647,low,12-17,0.105959,False,False
+shared_iw_likelihood_clip10,lr,"[0.0001, 0.00032)",15,-0.364911,low,"[0.00032, 0.001)",0.498773,True,True
+shared_iw_likelihood_clip10,lr_decay,"[0.8, 0.9)",24,-0.777983,low,"[0.9, 1.0]",1.15804,False,False
+shared_likelihood,anchor_lambda,0.01,9,-0.708317,,,,False,False
+shared_likelihood,batch_size,512,10,-0.780736,low,1024,0.584192,False,False
+shared_likelihood,epochs,25-30,7,-1.2132,high,18-24,0.0828198,True,False
+shared_likelihood,lr,"[0.001, 0.0032)",8,-0.913478,high,"[0.00032, 0.001)",0.227861,True,False
+shared_likelihood,lr_decay,"[0.9, 1.0]",16,-1.08059,high,"[0.8, 0.9)",0.33311,False,False
+shared_opc,anchor_lambda,0.01,9,-0.432018,,,,False,False
+shared_opc,batch_size,512,10,-0.504151,low,1024,0.222816,False,False
+shared_opc,epochs,25-30,7,-0.620979,high,18-24,0.0720132,True,False
+shared_opc,lr,"[0.001, 0.0032)",8,-0.430429,high,"[0.00032, 0.001)",0.182407,True,False
+shared_opc,lr_decay,"[0.9, 1.0]",16,-0.613329,high,"[0.8, 0.9)",0.149884,False,False

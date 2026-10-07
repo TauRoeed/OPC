@@ -1,0 +1,21 @@
+panel,arm,part,mean,lo,hi
+biased (pooled),shared_likelihood,objective_mismatch,1.41808,0.814065,2.0221
+biased (pooled),shared_likelihood,training_gap,2.1129,1.61704,2.60875
+biased (pooled),shared_likelihood,selection_gap_native,0.116933,0.0209785,0.212887
+biased (pooled),shared_likelihood,selection_gap_common,0.202915,0.11415,0.29168
+biased (pooled),shared_likelihood,total_gap_native,3.64791,2.78484,4.51098
+biased (pooled),shared_iw_likelihood,objective_mismatch,2.04336,1.2878,2.79892
+biased (pooled),shared_iw_likelihood,training_gap,4.17088,2.95757,5.38418
+biased (pooled),shared_iw_likelihood,selection_gap_native,1.08435,0.193093,1.97561
+biased (pooled),shared_iw_likelihood,selection_gap_common,0.146826,0.0592723,0.234379
+biased (pooled),shared_iw_likelihood,total_gap_native,7.29859,5.69848,8.89869
+biased (pooled),shared_iw_likelihood_clip10,objective_mismatch,1.82822,1.11949,2.53694
+biased (pooled),shared_iw_likelihood_clip10,training_gap,4.10142,2.99502,5.20782
+biased (pooled),shared_iw_likelihood_clip10,selection_gap_native,0.318382,0.143513,0.49325
+biased (pooled),shared_iw_likelihood_clip10,selection_gap_common,0.0938258,0.0335882,0.154063
+biased (pooled),shared_iw_likelihood_clip10,total_gap_native,6.24802,4.7924,7.70364
+biased (pooled),shared_opc,objective_mismatch,0,0,0
+biased (pooled),shared_opc,training_gap,3.81409,2.90215,4.72603
+biased (pooled),shared_opc,selection_gap_native,0.154762,0.0936639,0.215861
+biased (pooled),shared_opc,selection_gap_common,0.14396,0.0881312,0.199788
+biased (pooled),shared_opc,total_gap_native,3.96885,3.0723,4.8654

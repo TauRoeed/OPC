@@ -1,0 +1,37 @@
+bias,quantity,mean,ci_lo,ci_hi,worlds,value_higher
+none,V(θ_value*) − V(θ_log*),0.007194,-0.0188751,0.0332631,6,2
+none,V(θ_value*) − V(θ_uniform*),-0.0123385,-0.0192257,-0.0054513,6,0
+none,V(θ_value*) − V(θ_clip10*),-0.0123377,-0.0192246,-0.00545077,6,0
+none,V(θ_uniform*) − V(θ_log*),0.0195325,-0.0106463,0.0497113,6,5
+none,V(θ_clip10*) − V(θ_log*),0.0195317,-0.0106473,0.0497106,6,4
+none,V(θ_uniform*) − V(θ_clip10*),8.33333e-07,-3.93504e-07,2.06017e-06,6,1
+w-high.g-none.v-none,V(θ_value*) − V(θ_log*),-0.0431498,-0.114983,0.0286832,6,1
+w-high.g-none.v-none,V(θ_value*) − V(θ_uniform*),-0.109329,-0.171891,-0.0467668,6,0
+w-high.g-none.v-none,V(θ_value*) − V(θ_clip10*),-0.10787,-0.168195,-0.0475443,6,0
+w-high.g-none.v-none,V(θ_uniform*) − V(θ_log*),0.066179,0.0133442,0.119014,6,6
+w-high.g-none.v-none,V(θ_clip10*) − V(θ_log*),0.0647197,0.0119671,0.117472,6,6
+w-high.g-none.v-none,V(θ_uniform*) − V(θ_clip10*),0.00145933,-0.000934157,0.00385282,6,6
+w-none.g-high.v-none,V(θ_value*) − V(θ_log*),1.23375,0.822695,1.64481,6,6
+w-none.g-high.v-none,V(θ_value*) − V(θ_uniform*),1.89153,1.11466,2.66841,6,6
+w-none.g-high.v-none,V(θ_value*) − V(θ_clip10*),1.43755,0.897573,1.97753,6,6
+w-none.g-high.v-none,V(θ_uniform*) − V(θ_log*),-0.657777,-1.23326,-0.0822913,6,1
+w-none.g-high.v-none,V(θ_clip10*) − V(θ_log*),-0.203799,-0.48803,0.0804327,6,2
+w-none.g-high.v-none,V(θ_uniform*) − V(θ_clip10*),-0.453979,-0.772357,-0.135601,6,0
+w-none.g-none.v-high,V(θ_value*) − V(θ_log*),1.12453,0.381911,1.86716,6,6
+w-none.g-none.v-high,V(θ_value*) − V(θ_uniform*),2.1418,1.19604,3.08756,6,6
+w-none.g-none.v-high,V(θ_value*) − V(θ_clip10*),2.00224,1.13147,2.87301,6,6
+w-none.g-none.v-high,V(θ_uniform*) − V(θ_log*),-1.01727,-1.29684,-0.73769,6,0
+w-none.g-none.v-high,V(θ_clip10*) − V(θ_log*),-0.877701,-1.09346,-0.661939,6,0
+w-none.g-none.v-high,V(θ_uniform*) − V(θ_clip10*),-0.139566,-0.222978,-0.0561548,6,0
+high,V(θ_value*) − V(θ_log*),3.35718,2.0571,4.65727,6,6
+high,V(θ_value*) − V(θ_uniform*),4.24943,2.79395,5.70491,6,6
+high,V(θ_value*) − V(θ_clip10*),3.98094,2.60341,5.35848,6,6
+high,V(θ_uniform*) − V(θ_log*),-0.892247,-1.23031,-0.554188,6,0
+high,V(θ_clip10*) − V(θ_log*),-0.623761,-0.847795,-0.399728,6,0
+high,V(θ_uniform*) − V(θ_clip10*),-0.268486,-0.410512,-0.12646,6,0
+biased (pooled),V(θ_value*) − V(θ_log*),1.41808,0.814065,2.0221,24,19
+biased (pooled),V(θ_value*) − V(θ_uniform*),2.04336,1.2878,2.79892,24,18
+biased (pooled),V(θ_value*) − V(θ_clip10*),1.82822,1.11949,2.53694,24,18
+biased (pooled),V(θ_uniform*) − V(θ_log*),-0.625278,-0.851727,-0.39883,24,7
+biased (pooled),V(θ_clip10*) − V(θ_log*),-0.410135,-0.586507,-0.233764,24,8
+biased (pooled),V(θ_uniform*) − V(θ_clip10*),-0.215143,-0.313917,-0.116369,24,6

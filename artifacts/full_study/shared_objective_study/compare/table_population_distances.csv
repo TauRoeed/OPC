@@ -1,0 +1,37 @@
+bias,a,b,worlds,M_cosine_distance,M_cosine_distance_lo,M_cosine_distance_hi,top1_agreement,top1_agreement_lo,top1_agreement_hi
+none,likelihood,uniform_likelihood,6,0.0319729,-0.0155797,0.0795255,0.958622,0.908134,1.00911
+none,likelihood,clip10_likelihood,6,0.0318965,-0.0155949,0.079388,0.958558,0.908197,1.00892
+none,likelihood,value,6,0.0801559,-0.00877374,0.169086,0.924473,0.873163,0.975783
+none,uniform_likelihood,clip10_likelihood,6,3.70682e-07,-6.36633e-08,8.05026e-07,0.999267,0.998637,0.999896
+none,uniform_likelihood,value,6,0.0226648,0.004644,0.0406855,0.951595,0.937613,0.965577
+none,clip10_likelihood,value,6,0.0227058,0.00465145,0.0407602,0.951523,0.937526,0.965519
+w-high.g-none.v-none,likelihood,uniform_likelihood,6,0.0872353,0.026156,0.148315,0.899464,0.854613,0.944314
+w-high.g-none.v-none,likelihood,clip10_likelihood,6,0.0772152,0.0159914,0.138439,0.902703,0.856978,0.948427
+w-high.g-none.v-none,likelihood,value,6,0.248525,0.143691,0.353359,0.825588,0.783298,0.867878
+w-high.g-none.v-none,uniform_likelihood,clip10_likelihood,6,0.0015918,-0.000162873,0.00334647,0.992227,0.985492,0.998962
+w-high.g-none.v-none,uniform_likelihood,value,6,0.226836,0.137166,0.316506,0.858295,0.821845,0.894745
+w-high.g-none.v-none,clip10_likelihood,value,6,0.22722,0.13839,0.31605,0.857884,0.821885,0.893882
+w-none.g-high.v-none,likelihood,uniform_likelihood,6,0.174082,0.139513,0.208652,0.492994,0.404461,0.581527
+w-none.g-high.v-none,likelihood,clip10_likelihood,6,0.137174,0.0948479,0.1795,0.561081,0.509884,0.612277
+w-none.g-high.v-none,likelihood,value,6,0.218918,0.141471,0.296366,0.533252,0.484362,0.582141
+w-none.g-high.v-none,uniform_likelihood,clip10_likelihood,6,0.0242769,0.0186647,0.029889,0.770559,0.693746,0.847373
+w-none.g-high.v-none,uniform_likelihood,value,6,0.207725,0.169538,0.245912,0.48431,0.381301,0.58732
+w-none.g-high.v-none,clip10_likelihood,value,6,0.198022,0.145385,0.250658,0.526421,0.451309,0.601533
+w-none.g-none.v-high,likelihood,uniform_likelihood,6,0.136986,0.113587,0.160384,0.524865,0.450343,0.599387
+w-none.g-none.v-high,likelihood,clip10_likelihood,6,0.120182,0.0936914,0.146672,0.554048,0.490648,0.617448
+w-none.g-none.v-high,likelihood,value,6,0.22084,0.153106,0.288574,0.522375,0.416383,0.628367
+w-none.g-none.v-high,uniform_likelihood,clip10_likelihood,6,0.0051375,0.0033166,0.00695839,0.88609,0.851262,0.920918
+w-none.g-none.v-high,uniform_likelihood,value,6,0.225059,0.169069,0.281049,0.433065,0.328102,0.538028
+w-none.g-none.v-high,clip10_likelihood,value,6,0.219601,0.162406,0.276796,0.441537,0.340994,0.54208
+high,likelihood,uniform_likelihood,6,0.247988,0.209186,0.286791,0.427483,0.370472,0.484494
+high,likelihood,clip10_likelihood,6,0.205724,0.167669,0.243779,0.473732,0.428414,0.51905
+high,likelihood,value,6,0.476247,0.423663,0.528831,0.291582,0.153732,0.429432
+high,uniform_likelihood,clip10_likelihood,6,0.0187608,0.0152624,0.0222591,0.821509,0.795688,0.847331
+high,uniform_likelihood,value,6,0.4152,0.359187,0.471214,0.245893,0.0992735,0.392512
+high,clip10_likelihood,value,6,0.412724,0.356622,0.468825,0.257558,0.111813,0.403303
+biased (pooled),likelihood,uniform_likelihood,24,0.161573,0.131817,0.191329,0.586201,0.502703,0.6697
+biased (pooled),likelihood,clip10_likelihood,24,0.135074,0.109208,0.16094,0.622891,0.549036,0.696745
+biased (pooled),likelihood,value,24,0.291133,0.236292,0.345973,0.543199,0.454372,0.632026
+biased (pooled),uniform_likelihood,clip10_likelihood,24,0.0124417,0.00818798,0.0166955,0.867596,0.828218,0.906974
+biased (pooled),uniform_likelihood,value,24,0.268705,0.225157,0.312253,0.505391,0.40169,0.609092
+biased (pooled),clip10_likelihood,value,24,0.264392,0.219815,0.308968,0.52085,0.420104,0.621596

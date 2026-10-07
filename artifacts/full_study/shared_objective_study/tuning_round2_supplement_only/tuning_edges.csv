@@ -1,0 +1,11 @@
+arm,dimension,best_value,best_configs,best_below_best,edge,neighbour,margin,extendable,extend
+shared_iw_likelihood,anchor_lambda,0.001,7,-0.403315,,,,False,False
+shared_iw_likelihood,batch_size,1024,10,-0.404147,,,,False,False
+shared_iw_likelihood,epochs,5-11,8,-0.402751,low,12-17,0.360291,False,False
+shared_iw_likelihood,lr,"[3.2e-05, 0.0001)",10,-0.328193,low,"[0.0001, 0.00032)",0.0835182,True,False
+shared_iw_likelihood,lr_decay,"[0.8, 0.9)",20,-0.594284,low,"[0.9, 1.0]",0.0436219,False,False
+shared_iw_likelihood_clip10,anchor_lambda,0.1,13,-0.544551,,,,False,False
+shared_iw_likelihood_clip10,batch_size,1024,10,-0.516321,,,,False,False
+shared_iw_likelihood_clip10,epochs,5-11,8,-0.475996,low,12-17,0.487724,False,False
+shared_iw_likelihood_clip10,lr,"[3.2e-05, 0.0001)",10,-0.467094,low,"[0.0001, 0.00032)",0.192361,True,False
+shared_iw_likelihood_clip10,lr_decay,"[0.8, 0.9)",20,-0.777938,low,"[0.9, 1.0]",0.11998,False,False

@@ -1,0 +1,37 @@
+arm,dimension,value,position,of,trials,configs,below_best_mean
+shared_iw_likelihood,lr,"[3.2e-05, 0.0001)",0,4,90,10,-0.328193
+shared_iw_likelihood,lr,"[0.0001, 0.00032)",1,4,108,12,-0.411712
+shared_iw_likelihood,lr,"[0.00032, 0.001)",2,4,108,12,-0.761348
+shared_iw_likelihood,lr,"[0.001, 0.0032)",3,4,54,6,-1.21419
+shared_iw_likelihood,epochs,5-11,0,4,72,8,-0.402751
+shared_iw_likelihood,epochs,12-17,1,4,27,3,-0.763042
+shared_iw_likelihood,epochs,18-24,2,4,135,15,-0.602864
+shared_iw_likelihood,epochs,25-30,3,4,126,14,-0.720692
+shared_iw_likelihood,lr_decay,"[0.8, 0.9)",0,2,180,20,-0.594284
+shared_iw_likelihood,lr_decay,"[0.9, 1.0]",1,2,180,20,-0.637905
+shared_iw_likelihood,batch_size,512,0,3,135,15,-0.825508
+shared_iw_likelihood,batch_size,1024,1,3,90,10,-0.404147
+shared_iw_likelihood,batch_size,2048,2,3,135,15,-0.54798
+shared_iw_likelihood,anchor_lambda,0,0,5,72,8,-0.813092
+shared_iw_likelihood,anchor_lambda,0.001,1,5,63,7,-0.403315
+shared_iw_likelihood,anchor_lambda,0.01,2,5,45,5,-1.20014
+shared_iw_likelihood,anchor_lambda,0.1,3,5,117,13,-0.459012
+shared_iw_likelihood,anchor_lambda,1,4,5,63,7,-0.478284
+shared_iw_likelihood_clip10,lr,"[3.2e-05, 0.0001)",0,4,90,10,-0.467094
+shared_iw_likelihood_clip10,lr,"[0.0001, 0.00032)",1,4,108,12,-0.659455
+shared_iw_likelihood_clip10,lr,"[0.00032, 0.001)",2,4,108,12,-0.943582
+shared_iw_likelihood_clip10,lr,"[0.001, 0.0032)",3,4,54,6,-1.60162
+shared_iw_likelihood_clip10,epochs,5-11,0,4,72,8,-0.475996
+shared_iw_likelihood_clip10,epochs,12-17,1,4,27,3,-0.96372
+shared_iw_likelihood_clip10,epochs,18-24,2,4,135,15,-0.821359
+shared_iw_likelihood_clip10,epochs,25-30,3,4,126,14,-1.03554
+shared_iw_likelihood_clip10,lr_decay,"[0.8, 0.9)",0,2,180,20,-0.777938
+shared_iw_likelihood_clip10,lr_decay,"[0.9, 1.0]",1,2,180,20,-0.897918
+shared_iw_likelihood_clip10,batch_size,512,0,3,135,15,-1.22974
+shared_iw_likelihood_clip10,batch_size,1024,1,3,90,10,-0.516321
+shared_iw_likelihood_clip10,batch_size,2048,2,3,135,15,-0.660521
+shared_iw_likelihood_clip10,anchor_lambda,0,0,5,72,8,-1.11393
+shared_iw_likelihood_clip10,anchor_lambda,0.001,1,5,63,7,-0.600681
+shared_iw_likelihood_clip10,anchor_lambda,0.01,2,5,45,5,-1.58221
+shared_iw_likelihood_clip10,anchor_lambda,0.1,3,5,117,13,-0.544551
+shared_iw_likelihood_clip10,anchor_lambda,1,4,5,63,7,-0.77296

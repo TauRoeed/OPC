@@ -1,0 +1,19 @@
+bias,optimum,mean,lo,hi
+none,likelihood,0.007194,-0.0188751,0.0332631
+w-high.g-none.v-none,likelihood,-0.0431498,-0.114983,0.0286832
+w-none.g-high.v-none,likelihood,1.23375,0.822695,1.64481
+w-none.g-none.v-high,likelihood,1.12453,0.381911,1.86716
+high,likelihood,3.35718,2.0571,4.65727
+biased (pooled),likelihood,1.41808,0.814065,2.0221
+none,uniform_likelihood,-0.0123385,-0.0192257,-0.0054513
+w-high.g-none.v-none,uniform_likelihood,-0.109329,-0.171891,-0.0467668
+w-none.g-high.v-none,uniform_likelihood,1.89153,1.11466,2.66841
+w-none.g-none.v-high,uniform_likelihood,2.1418,1.19604,3.08756
+high,uniform_likelihood,4.24943,2.79395,5.70491
+biased (pooled),uniform_likelihood,2.04336,1.2878,2.79892
+none,clip10_likelihood,-0.0123377,-0.0192246,-0.00545077
+w-high.g-none.v-none,clip10_likelihood,-0.10787,-0.168195,-0.0475443
+w-none.g-high.v-none,clip10_likelihood,1.43755,0.897573,1.97753
+w-none.g-none.v-high,clip10_likelihood,2.00224,1.13147,2.87301
+high,clip10_likelihood,3.98094,2.60341,5.35848
+biased (pooled),clip10_likelihood,1.82822,1.11949,2.53694

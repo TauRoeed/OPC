@@ -1,0 +1,49 @@
+panel,arm,native_gain,lo,hi
+none,shared_likelihood,-0.0170634,-0.0260971,-0.00802972
+none,shared_iw_likelihood,-3.67692,-11.6578,4.30396
+none,shared_iw_likelihood_clip10,-0.114081,-0.345947,0.117786
+none,shared_opc,-0.567885,-0.958935,-0.176835
+none,opc,-0.606572,-0.80346,-0.409683
+none,dm_own,-0.549513,-0.706697,-0.392329
+none,cap_c,-0.55219,-0.781146,-0.323234
+none,blob_l10_nq,-0.207624,-0.479565,0.0643164
+w-high.g-none.v-none,shared_likelihood,4.01851,3.0687,4.96833
+w-high.g-none.v-none,shared_iw_likelihood,0.375665,-0.410329,1.16166
+w-high.g-none.v-none,shared_iw_likelihood_clip10,0.760844,-0.268443,1.79013
+w-high.g-none.v-none,shared_opc,3.04246,2.19566,3.88926
+w-high.g-none.v-none,opc,3.03256,2.0765,3.98861
+w-high.g-none.v-none,dm_own,2.09485,0.841737,3.34795
+w-high.g-none.v-none,cap_c,4.22626,3.21466,5.23785
+w-high.g-none.v-none,blob_l10_nq,2.98946,1.93524,4.04367
+w-none.g-high.v-none,shared_likelihood,1.41081,0.856248,1.96537
+w-none.g-high.v-none,shared_iw_likelihood,-1.18772,-3.5898,1.21435
+w-none.g-high.v-none,shared_iw_likelihood_clip10,0.041109,-0.0470128,0.129231
+w-none.g-high.v-none,shared_opc,1.34857,0.850565,1.84658
+w-none.g-high.v-none,opc,1.32288,0.738708,1.90706
+w-none.g-high.v-none,dm_own,0.81278,0.437431,1.18813
+w-none.g-high.v-none,cap_c,1.21977,0.805206,1.63433
+w-none.g-high.v-none,blob_l10_nq,1.18326,0.862864,1.50366
+w-none.g-none.v-high,shared_likelihood,0.83905,0.271945,1.40615
+w-none.g-none.v-high,shared_iw_likelihood,-2.28194,-5.68745,1.12357
+w-none.g-none.v-high,shared_iw_likelihood_clip10,-0.0499555,-0.32271,0.222799
+w-none.g-none.v-high,shared_opc,0.90988,0.233466,1.58629
+w-none.g-none.v-high,opc,0.964877,0.363699,1.56605
+w-none.g-none.v-high,dm_own,0.643751,-0.0580086,1.34551
+w-none.g-none.v-high,cap_c,1.03391,0.369488,1.69833
+w-none.g-none.v-high,blob_l10_nq,1.05558,0.544378,1.56678
+high,shared_likelihood,5.63835,3.99699,7.27971
+high,shared_iw_likelihood,0.398017,-0.239703,1.03574
+high,shared_iw_likelihood_clip10,0.754302,0.290693,1.21791
+high,shared_opc,5.32205,3.74262,6.90147
+high,opc,5.42233,3.93005,6.91461
+high,dm_own,5.06641,3.68915,6.44368
+high,cap_c,5.89144,3.91149,7.87139
+high,blob_l10_nq,6.03424,3.98785,8.08062
+biased (pooled),shared_likelihood,2.97668,2.05184,3.90152
+biased (pooled),shared_iw_likelihood,-0.673996,-1.61451,0.266521
+biased (pooled),shared_iw_likelihood_clip10,0.376575,0.102811,0.650339
+biased (pooled),shared_opc,2.65574,1.82102,3.49046
+biased (pooled),opc,2.68566,1.84106,3.53027
+biased (pooled),dm_own,2.15445,1.30075,3.00814
+biased (pooled),cap_c,3.09284,2.10288,4.0828
+biased (pooled),blob_l10_nq,2.81563,1.84063,3.79063
