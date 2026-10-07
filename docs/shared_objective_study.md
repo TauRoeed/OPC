@@ -736,6 +736,8 @@ On the 25,000 training rows of each world (`tables.md` §13, per dataset and bia
   - The population optima are numerical fits: a fixed optimizer and budget, and the best of three learning rates.
     Warp's −0.04 to −0.11-point differences between optima are within their fitting error.
   - The likelihood arms' stochastic policies were not tempered, so their stochastic value is not compared.
+  - Click-model calibration is not reported: the code has no calibration metric for these arms. Their validation
+    NLL is logged for every trial (`diag_val_nll`, `diag_val_iw_nll`).
 
 ## 21. Reproduction
 
