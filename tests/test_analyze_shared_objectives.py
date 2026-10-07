@@ -99,7 +99,9 @@ def test_the_decomposition_adds_up():
     assert (c.loc[c["arm"] == "shared_opc", "objective_mismatch"] == 0).all()
     np.testing.assert_allclose(c.loc[c["arm"] == "shared_likelihood", "objective_mismatch"], 2.0, atol=1e-9)
     frac = (c["native_V_greedy"] - c["V_logger_greedy"]) / (0.25 - c["V_logger_greedy"])
-    np.testing.assert_allclose(c["frac_value_gap_native"], frac)
+    biased = c["bias"] != "none"
+    np.testing.assert_allclose(c.loc[biased, "frac_value_gap_native"], frac[biased])
+    assert c.loc[~biased, "frac_value_gap_native"].isna().all()  # no gap to recover without bias
 
 
 def test_a_supplementary_round_is_selected_per_run_and_pooled_for_the_edge_rule():

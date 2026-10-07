@@ -512,7 +512,7 @@ def data_identity(s: pd.DataFrame, blob_run: Path = BLOB_RUN, sel: pd.DataFrame 
         if logger is not None and comp_logger is not None and world in logger.index and world in comp_logger.index:
             lo = min(logger.loc[world, "min"], comp_logger.loc[world, "min"])
             hi = max(logger.loc[world, "max"], comp_logger.loc[world, "max"])
-            r["logger_matches_comparators"] = bool(hi - lo < 1e-9)
+            r["logger_matches_comparators"] = bool(hi - lo <= 1e-7 * abs(hi))  # the comparator table keeps 8 digits
         rows.append(r)
     return pd.DataFrame(rows)
 
@@ -549,7 +549,7 @@ def condition_table(sel: pd.DataFrame, s: pd.DataFrame, oracles: pd.DataFrame, c
     t["total_gap_native"] = pts(t["V_value_star"], t["native_V_greedy"])
     t = t.merge(world_ceilings(), on=WORLD, how="left")
     t["capacity_gap"] = pts(t["ceiling"], t["V_value_star"])  # beyond the global class: what more capacity could reach
-    span = t["V_value_star"] - t["V_logger_greedy"]
+    span = (t["V_value_star"] - t["V_logger_greedy"]).where(t["bias"] != "none")  # no gap to recover without bias
     t["frac_value_gap_native"] = (t["native_V_greedy"] - t["V_logger_greedy"]) / span
     t["native_stoch_gain"] = pts(t["native_V"], t["V_logger"])  # OPC's softmax; for a likelihood arm a convention
     t["frac_value_gap_common"] = (t["common_V_greedy"] - t["V_logger_greedy"]) / span
@@ -559,7 +559,7 @@ def condition_table(sel: pd.DataFrame, s: pd.DataFrame, oracles: pd.DataFrame, c
         return t
     comps = comps.merge(o[WORLD + ["value"]], on=WORLD, how="left").rename(columns={"value": "V_value_star"})
     comps["frac_value_gap_native"] = ((comps["native_V_greedy"] - comps["V_logger_greedy"])
-                                      / (comps["V_value_star"] - comps["V_logger_greedy"]))
+                                      / (comps["V_value_star"] - comps["V_logger_greedy"]).where(comps["bias"] != "none"))
     comps["native_stoch_gain"] = 100 * (comps["native_V"] - comps["V_logger"])
     return pd.concat([t, comps], ignore_index=True, sort=False)
 
@@ -591,6 +591,20 @@ def summary_table(t: pd.DataFrame) -> pd.DataFrame:
                     m, lo, hi, _n = mean_ci(g[col])
                     r[col], r[col + "_lo"], r[col + "_hi"] = m, lo, hi
             rows.append(r)
+    return pd.DataFrame(rows)
+
+
+def dataset_table(t: pd.DataFrame, cols=("native_gain", "best_gain")) -> pd.DataFrame:
+    """Per dataset (its 8 biased worlds) and arm: mean and 95% CI over worlds, to see whether a pooled result holds on
+    every dataset."""
+    rows = []
+    for (ds, arm), g in t[t["bias"] != "none"].groupby(["dataset", "arm"]):
+        r = {"dataset": ds, "arm": arm, "worlds": len(g)}
+        for col in cols:
+            if col in g and g[col].notna().any():
+                m, lo, hi, _n = mean_ci(g[col])
+                r[col], r[col + "_lo"], r[col + "_hi"] = m, lo, hi
+        rows.append(r)
     return pd.DataFrame(rows)
 
 
@@ -734,24 +748,26 @@ def fig_decomposition(summary: pd.DataFrame, out: Path, panel: str = "biased (po
     ax.invert_yaxis()
     ax.set_xlabel("greedy CTR points below the value optimum θ_value*")
     ax.set_title(f"Where each objective loses value, {PANEL_NAMES.get(panel, panel)}", fontsize=9)
-    ax.legend(frameon=False, fontsize=8, loc="lower right")
+    ax.legend(frameon=False, fontsize=8, loc="upper right")
     fig.tight_layout()
     _save(fig, out, "fig2_decomposition", pd.DataFrame(rows))
     plt.close(fig)
 
 
 # ---------------------------------------------------------------------------------------------------------- tables.md
-def _fmt(m, lo=None, hi=None, digits=2) -> str:
+def _fmt(m, lo=None, hi=None, digits=2, signed=True) -> str:
     if m is None or pd.isna(m):
         return "—"
-    s = f"{m:+.{digits}f}"
+    sign = "+" if signed else ""
+    s = f"{m:{sign}.{digits}f}"
     if lo is not None and not pd.isna(lo):
-        s += f" [{lo:+.{digits}f}, {hi:+.{digits}f}]"
+        s += f" [{lo:{sign}.{digits}f}, {hi:{sign}.{digits}f}]"
     return s
 
 
 def tables_md(summary: pd.DataFrame, paired: pd.DataFrame, osum: pd.DataFrame, ident: pd.DataFrame,
-              cond: pd.DataFrame, profile: pd.DataFrame | None = None, distances: pd.DataFrame | None = None) -> str:
+              cond: pd.DataFrame, profile: pd.DataFrame | None = None, distances: pd.DataFrame | None = None,
+              per_dataset: pd.DataFrame | None = None) -> str:
     panels = [p for p in list(BIAS_ORDER) + ["biased (pooled)"] if (summary["bias"] == p).any()]
     head = "| arm | " + " | ".join(PANEL_NAMES.get(p, p) for p in panels) + " |\n|---|" + "---|" * len(panels) + "\n"
     lines = ["# Shared-objective study: tables", "",
@@ -785,19 +801,31 @@ def tables_md(summary: pd.DataFrame, paired: pd.DataFrame, osum: pd.DataFrame, i
             lines.append(f"| {PANEL_NAMES.get(r.bias, r.bias)} | {POPULATION_NAMES[r.a]} – {POPULATION_NAMES[r.b]} | "
                          f"{r.M_cosine_distance:.3f} | {r.top1_agreement:.3f} |")
 
-    def block(title, col, arms, note=""):
+    def block(title, col, arms, note="", signed=True, digits=2):
         out = ["", f"## {title}", ""] + ([note, ""] if note else []) + [head.rstrip("\n")]
         for arm in arms:
             g = summary[summary["arm"] == arm].set_index("bias")
             if g.empty or col not in g:
                 continue
-            cells = [_fmt(g.loc[p, col], g.loc[p, col + "_lo"], g.loc[p, col + "_hi"]) if p in g.index else "—"
-                     for p in panels]
+            cells = [_fmt(g.loc[p, col], g.loc[p, col + "_lo"], g.loc[p, col + "_hi"], digits, signed)
+                     if p in g.index else "—" for p in panels]
             out.append(f"| {ARM_NAMES.get(arm, arm)} | " + " | ".join(cells) + " |")
         return out
 
     lines += block("2. Finite samples at 25k: native-selected greedy gain over the logger", "native_gain",
                    ARMS + COMPARATOR_ARMS, "Comparators are reused rows (not rerun), each with its own selection.")
+    if per_dataset is not None and not per_dataset.empty:
+        found = list(dict.fromkeys(per_dataset["dataset"]))
+        dsets = [d for d in ("ml", "kuairand", "anime") if d in found] + [d for d in found if d not in ("ml", "kuairand", "anime")]
+        lines += ["", "## 2c. Native-selected greedy gain per dataset (its 8 biased worlds)", "",
+                  "| arm | " + " | ".join(dsets) + " |", "|---|" + "---|" * len(dsets)]
+        for arm in ARMS + COMPARATOR_ARMS:
+            g = per_dataset[per_dataset["arm"] == arm].set_index("dataset")
+            if g.empty:
+                continue
+            cells = [_fmt(g.loc[d, "native_gain"], g.loc[d, "native_gain_lo"], g.loc[d, "native_gain_hi"])
+                     if d in g.index else "—" for d in dsets]
+            lines.append(f"| {ARM_NAMES.get(arm, arm)} | " + " | ".join(cells) + " |")
     lines += block("2b. Stochastic value of the native-selected policy over the logger's", "native_stoch_gain",
                    ("shared_opc",) + COMPARATOR_ARMS, "OPC's softmax policy is its deployable stochastic policy; the "
                    "CausE-cap and BLOB rows are their DR-tempered softmax. The likelihood arms are left out: their "
@@ -810,11 +838,14 @@ def tables_md(summary: pd.DataFrame, paired: pd.DataFrame, osum: pd.DataFrame, i
     lines += block("6. Finite-sample training gap V(θ_obj*) − V(best trial)", "training_gap", ARMS)
     lines += block("7. Selection gap V(best) − V(native)", "selection_gap_native", ARMS)
     lines += block("8. Selection gap V(best) − V(common DR)", "selection_gap_common", ARMS)
-    lines += block("9. Share of the value oracle's gap recovered (native)", "frac_value_gap_native", ARMS + COMPARATOR_ARMS)
+    lines += block("9. Share of the value oracle's gap recovered (native)", "frac_value_gap_native", ARMS + COMPARATOR_ARMS,
+                   "(V(selected) − V(logger)) / (V(θ_value*) − V(logger)), greedy; biased worlds only (no gap without "
+                   "bias).", signed=False)
     lines += block("9b. Capacity gap beyond the global class: target-best − V(θ_value*)", "capacity_gap", ARMS[-1:],
                    "The same in every arm's row (a property of the world); shown once.")
-    lines += block("10. Correction size R(θ) of the native-selected trial", "native_anchor_R", ARMS)
-    lines += block("11. Share of users whose greedy item changes from the logger's (native)", "native_changed_share", ARMS)
+    lines += block("10. Correction size R(θ) of the native-selected trial", "native_anchor_R", ARMS, signed=False, digits=3)
+    lines += block("11. Share of users whose greedy item changes from the logger's (native)", "native_changed_share", ARMS,
+                   signed=False)
 
     lines += ["", "## 12. Paired contrasts (a − b by world; worlds where a is higher)", "",
               "| a − b | selection | " + " | ".join(PANEL_NAMES.get(p, p) for p in panels) + " |",
@@ -828,13 +859,18 @@ def tables_md(summary: pd.DataFrame, paired: pd.DataFrame, osum: pd.DataFrame, i
 
     w = cond[cond["arm"] == "shared_iw_likelihood"]
     if not w.empty and "train_w_ess_share" in w:
-        lines += ["", "## 13. Uniform-reference weights w = 1/(P p) on the training rows", "",
-                  "| dataset | bias | ESS share | max w | 99.9% quantile | share above 10 | mass above 10 |",
-                  "|---|---|---|---|---|---|---|"]
-        for (ds, bias), g in w.groupby(["dataset", "bias"]):
-            lines.append(f"| {ds} | {PANEL_NAMES.get(bias, bias)} | {g['train_w_ess_share'].mean():.4f} | "
-                         f"{g['train_w_max'].mean():.0f} | {g['train_w_q99.9'].mean():.1f} | "
-                         f"{g['train_w_clip_share'].mean():.4f} | {g['train_w_clip_mass_share'].mean():.3f} |")
+        lines += ["", "## 13. Uniform-reference weights w = 1/(P p) on the training rows (mean of the two seeds)", "",
+                  "| dataset | bias | ESS (rows) | ESS share | max w | 99.9% quantile | share above 10 | mass above 10 | "
+                  "ESS share, clipped at 10 |", "|---|---|---|---|---|---|---|---|---|"]
+        order = {d: i for i, d in enumerate(("ml", "kuairand", "anime"))}
+        border = {b: i for i, b in enumerate(BIAS_ORDER)}
+        keys = sorted(w.groupby(["dataset", "bias"]).groups, key=lambda k: (order.get(k[0], 9), border.get(k[1], 9)))
+        for ds, bias in keys:
+            g = w[(w["dataset"] == ds) & (w["bias"] == bias)]
+            lines.append(f"| {ds} | {PANEL_NAMES.get(bias, bias)} | {g['train_w_ess'].mean():.0f} | "
+                         f"{g['train_w_ess_share'].mean():.4f} | {g['train_w_max'].mean():.0f} | "
+                         f"{g['train_w_q99.9'].mean():.1f} | {g['train_w_clip_share'].mean():.4f} | "
+                         f"{g['train_w_clip_mass_share'].mean():.3f} | {g['train_wclip_ess_share'].mean():.3f} |")
     lines += ["", "## 14. Data identity", "",
               f"- Worlds: {len(ident)}; the four arms' training and validation rows identical (hash, clicks, "
               f"propensities) in {int(ident[[c for c in ident if c.endswith('_identical')]].all(axis=1).sum())}; "
@@ -876,7 +912,10 @@ def compare_main(args) -> None:
                 "greedy CTR points", out, "fig1b_common_gain", reference=ref)
     fig_decomposition(summ, out)
     fig_population(osum, out)
-    (out / "tables.md").write_text(tables_md(summ, paired, osum, ident, t, profile, distances), encoding="utf-8")
+    per_dataset = dataset_table(t)
+    per_dataset.to_csv(out / "table_per_dataset.csv", index=False, float_format="%.6g")
+    (out / "tables.md").write_text(tables_md(summ, paired, osum, ident, t, profile, distances, per_dataset),
+                                   encoding="utf-8")
     print(f"wrote {out}: {len(trials)} trials, {trials[WORLD].drop_duplicates().shape[0]} worlds")
 
 
