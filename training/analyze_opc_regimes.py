@@ -211,6 +211,49 @@ def correlations(m: pd.DataFrame, feats: pd.DataFrame, state: str = "mid_greedy"
     return pd.DataFrame(rows)
 
 
+# ------------------------------------------------------------------------------------------ the interventions (§7)
+INTERVENTION_PAIRS = (  # (a, b, what a − b isolates)
+    ("shared_opc_oq", "shared_opc", "oracle q vs q-hat (harmonic)"),
+    ("shared_opc_raw_oq", "shared_opc_raw", "oracle q vs q-hat (raw)"),
+    ("shared_opc_b8192", "shared_opc", "batch 8192 vs standard (harmonic)"),
+    ("shared_opc_raw_b8192", "shared_opc_raw", "batch 8192 vs standard (raw)"),
+    ("shared_opc_bfull", "shared_opc", "full batch vs standard (harmonic)"),
+    ("shared_opc_raw_bfull", "shared_opc_raw", "full batch vs standard (raw)"),
+    ("shared_opc_raw", "shared_opc", "raw vs harmonic (q-hat)"),
+    ("shared_opc_raw_oq", "shared_opc_oq", "raw vs harmonic (oracle q)"),
+    ("shared_opc", "shared_likelihood", "OPC vs likelihood"),
+    ("shared_opc_raw", "shared_likelihood", "raw DR vs likelihood"),
+    ("shared_opc_oq", "shared_likelihood", "OPC with oracle q vs likelihood"),
+    ("shared_opc_raw_oq", "shared_likelihood", "raw DR with oracle q vs likelihood"),
+    ("shared_opc_b8192", "shared_likelihood", "OPC, batch 8192 vs likelihood"),
+    ("shared_opc_bfull", "shared_likelihood", "OPC, full batch vs likelihood"),
+)
+RULES = ("native", "common", "best", "mean")
+
+
+def interventions(sel: pd.DataFrame, *, train_size: int = 25_000, share: float = 0.8, pairs=INTERVENTION_PAIRS) -> pd.DataFrame:
+    """a − b paired by world at (N, share), in greedy CTR points, per selection rule (native, common, best of the
+    trials, mean over the trials): mean, 95% t-interval and the worlds where a is higher, per panel."""
+    s = sel[(sel["train_size"] == train_size) & np.isclose(sel["share"], share)]
+    col = {"native": "native_gain", "common": "common_gain", "best": "best_gain", "mean": "mean_gain"}
+    rows = []
+    for a, b, what in pairs:
+        va, vb = (s[s["arm"] == x].set_index(WORLD) for x in (a, b))
+        common_worlds = va.index.intersection(vb.index)
+        if common_worlds.empty:
+            continue
+        for rule in RULES:
+            d = (va.loc[common_worlds, col[rule]] - vb.loc[common_worlds, col[rule]]).reset_index()
+            d.columns = WORLD + ["d"]
+            for panel, g in _panels(d):
+                if g.empty:
+                    continue
+                m, lo, hi, n = mean_ci(g["d"])
+                rows.append({"a": a, "b": b, "contrast": what, "rule": rule, "panel": panel, "a_minus_b": m,
+                             "ci_lo": lo, "ci_hi": hi, "worlds": n, "a_higher": int((g["d"] > 0).sum())})
+    return pd.DataFrame(rows)
+
+
 # ------------------------------------------------------------------------------------------ the 25k decomposition
 def decomposition(sel: pd.DataFrame, states: pd.DataFrame, empirical_run: Path, *, train_size: int = 25_000,
                   share: float = 0.8) -> pd.DataFrame:
@@ -286,12 +329,20 @@ def main(argv=None) -> None:
     dp.add_argument("--states", nargs="+", required=True)
     dp.add_argument("--empirical", required=True)
     dp.add_argument("--out", required=True)
+    ip = sub.add_parser("interventions")
+    ip.add_argument("--runs", nargs="+", required=True)
+    ip.add_argument("--out", required=True)
     args = ap.parse_args(argv)
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     t = load_trials(*args.runs)
     sel = select(t)
     sel.to_csv(out / "table_selected.csv", index=False, float_format="%.8g")
+    if args.cmd == "interventions":
+        iv = interventions(sel)
+        iv.to_csv(out / "table_interventions.csv", index=False, float_format="%.6g")
+        print(f"wrote {out}: {len(iv)} intervention rows")
+        return
     states = load_states(*args.states)
     states.to_csv(out / "table_population_states.csv", index=False, float_format="%.8g")
     if args.cmd == "map":

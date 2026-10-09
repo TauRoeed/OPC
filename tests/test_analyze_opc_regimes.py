@@ -71,3 +71,18 @@ def test_the_decomposition_adds_up_to_the_selected_trials_distance(tmp_path):
     assert set(d["arm"]) == {"shared_likelihood", "shared_opc_raw", "shared_opc"}
     np.testing.assert_allclose(d["M"] + d["E"] + d["O"] + d["S"], d["total"], atol=1e-12)
     assert (d.loc[d["arm"] == "shared_opc_raw", "M"] == 0).all()  # raw DR's population objective is the value
+
+
+def test_the_interventions_are_paired_by_world_at_the_cell():
+    from training.analyze_opc_regimes import interventions
+
+    t = _trials(arms=("shared_likelihood", "shared_opc", "shared_opc_oq"))
+    sel = select(t)
+    iv = interventions(sel)
+    assert set(iv["contrast"]) == {"oracle q vs q-hat (harmonic)", "OPC vs likelihood",
+                                   "OPC with oracle q vs likelihood"}  # pairs with a missing arm are skipped
+    s = sel[(sel["train_size"] == 25000) & (sel["share"] == 0.8)].set_index(WORLD + ["arm"])
+    r = iv[(iv["contrast"] == "oracle q vs q-hat (harmonic)") & (iv["rule"] == "native") & (iv["panel"] == "biased (pooled)")]
+    biased = [w for w in s.index.droplevel("arm").unique() if w[1] != "none"]
+    d = [s.loc[(*w, "shared_opc_oq"), "native_gain"] - s.loc[(*w, "shared_opc"), "native_gain"] for w in biased]
+    assert r["a_minus_b"].iloc[0] == pytest.approx(np.mean(d)) and r["worlds"].iloc[0] == len(biased)
