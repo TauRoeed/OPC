@@ -32,7 +32,8 @@ def _trials(seed=0, worlds=(("ml", "high", 100), ("ml", "w-none.g-high.v-none", 
 def _states(t):
     rng = np.random.default_rng(1)
     w = t[WORLD + ["share"]].drop_duplicates()
-    return w.assign(value_greedy=0.26 + 0.01 * rng.random(len(w)), likelihood_greedy=0.24 + 0.01 * rng.random(len(w)))
+    return w.assign(value_greedy=0.26 + 0.01 * rng.random(len(w)), likelihood_greedy=0.24 + 0.01 * rng.random(len(w)),
+                    value_ess=10 ** rng.uniform(-6, -1, len(w)), value_low_p0=rng.random(len(w)))
 
 
 def test_the_margin_is_the_observed_difference_and_its_parts_add_up():
@@ -48,6 +49,8 @@ def test_the_margin_is_the_observed_difference_and_its_parts_add_up():
     vstar = _states(t).groupby(WORLD)["value_greedy"].max().loc[tuple(r[c] for c in WORLD)]
     v_log = states.loc[(*[r[c] for c in WORLD], r["share"]), "likelihood_greedy"]
     assert r["M_L"] == pytest.approx(100 * (vstar - v_log))
+    ess = states.loc[(*[r[c] for c in WORLD], r["share"]), "value_ess"]
+    assert r["n_eff_value"] == pytest.approx(r["train_size"] * ess)  # θ_value*'s effective sample size at N
     s = regime_summary(m)
     assert {"observed", "F", "M_L", "dT", "dS"} <= set(s.columns) and (s["worlds"] > 0).all()
 

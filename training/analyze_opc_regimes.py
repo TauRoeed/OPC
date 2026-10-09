@@ -90,7 +90,8 @@ def select(t: pd.DataFrame) -> pd.DataFrame:
 
 # --------------------------------------------------------------------------------------------- population optima
 def load_states(*runs) -> pd.DataFrame:
-    """Per world and support level: the greedy values of the population states (``opc_gradient_benchmark`` runs)."""
+    """Per world and support level: the greedy values of the population states (``opc_gradient_benchmark`` runs) and
+    their overlap with the logger (population ESS share, target mass where π0 < 1e-4; §12.3)."""
     rows = []
     for run in runs:
         for wdir in sorted(Path(run).glob("dataset=*")):
@@ -103,6 +104,10 @@ def load_states(*runs) -> pd.DataFrame:
                 if isinstance(v, dict):
                     r[f"{k}_greedy"] = v.get("greedy")
                     r[f"{k}_V"] = v.get("value")
+            if (wdir / "gstar.json").exists():
+                for k, v in json.loads((wdir / "gstar.json").read_text()).items():
+                    r[f"{k}_ess"] = v.get("pop_ess_share")
+                    r[f"{k}_low_p0"] = v.get("target_mass_low_p0")
             rows.append(r)
     return pd.DataFrame(rows).drop_duplicates(WORLD + ["share"])
 
@@ -135,7 +140,10 @@ def margins(sel: pd.DataFrame, states: pd.DataFrame, opc_arms=OPC_ARMS) -> pd.Da
                              "T_O": t_o, "S_L": s_l, "S_O": s_o, "dT": t_o - t_l, "dS": s_o - s_l, "F": f,
                              "observed": obs, "identity_error": f - obs,
                              "best_diff": pts(O["best_V_greedy"], L["best_V_greedy"]),
-                             "mean_diff": O["mean_gain"] - L["mean_gain"]})
+                             "mean_diff": O["mean_gain"] - L["mean_gain"],
+                             # θ_value*'s overlap with this logger (§12.3, exploratory): N × ESS share, low-π0 mass
+                             "n_eff_value": idx[4] * float(pop.loc[(*world, share)].get("value_ess", np.nan)),
+                             "low_p0_value": float(pop.loc[(*world, share)].get("value_low_p0", np.nan))})
     out = pd.DataFrame(rows)
     if not out.empty and float(out["identity_error"].abs().max()) > 1e-9:
         raise AssertionError(f"F differs from the observed difference by {out['identity_error'].abs().max()}")
@@ -192,7 +200,7 @@ def correlations(m: pd.DataFrame, feats: pd.DataFrame, state: str = "mid_greedy"
     d = m[(m["rule"] == "native") & (m["bias"] != "none")].merge(f, on=WORLD + CELL, how="inner")
     rows = []
     for arm, g in d.groupby("opc_arm"):
-        for col in [c for c in f.columns if c not in WORLD + CELL] + ["M_L", "dT"]:
+        for col in [c for c in f.columns if c not in WORLD + CELL] + ["M_L", "dT", "n_eff_value", "low_p0_value"]:
             x = pd.to_numeric(g[col], errors="coerce")
             ok = x.notna() & g["observed"].notna()
             if ok.sum() < 5:

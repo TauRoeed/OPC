@@ -433,6 +433,68 @@ ratio of 4.1. §4 says only that the ratio is "about 1 under no bias". It does n
 The anime source ratio is shared by G1–G5 on the same datasets (2.5–4.1), consistent with one chance excursion
 along the dominant noise direction.
 
+### 12.3 Practical support failure (addendum, 2026-10-09, after the §11 stop; decision: continue)
+
+**What stopped the study.** All five ml worlds were complete. The calibrated check (§12.2) rejected raw DR with q̂
+(G3) in one cell: ml with combined corruption, at θ_value* (Hotelling, Holm-adjusted p = 1e-45). Raw IPS (G1) was
+rejected in the same cell. The study stopped and reported this (§11).
+
+**Diagnosis.**
+- At that state the population ESS share is 3.4e-6, and 23% of the target mass lies where π0 < 1e-4.
+- 44% of π's mass falls on (user, item) pairs expected less than once in all R × N = 300 × 25,000 = 7.5M logged rows
+  of the replicates.
+- Against the supported-region gradient (defined below), G3 is consistent (Hotelling p = 0.75, ratio 0.37). G2,
+  whose direct-method term uses the true q on every pair, matches the full g* (p = 0.86).
+- So the expectation of the unbiased estimators rests on logged actions too rare to occur at this sample size, and
+  the Monte Carlo floor, estimated from the same replicates, misses them too.
+- **This is not evidence that raw DR is mathematically biased.** Its unbiasedness under §2's assumptions is proven
+  and tested by enumeration (§13). The estimator is unbiased in expectation, yet practically unusable here at the
+  available sample size.
+
+**Decision (the user, 2026-10-09): continue, do not redesign.** Every cell is still tested against the full g*.
+Cells with extreme overlap are labelled, and the supported-region diagnostic is shown beside them.
+
+**The rule as now applied** (`training/opc_visible_gradients.py`, `analyze_opc_gradients.unbiasedness_check`):
+- **Low-overlap cells:** a state whose population ESS share is below 1e-4.
+- **The supported-region gradient** for such a cell is ∇ Σ_u prior(u) Σ_j π q 1[R N prior(u) π0(j|u) ≥ 1]: the value's
+  gradient over the pairs the replicates' rows are expected to contain at least once. The hidden mass, π's mass on
+  the other pairs, is reported with it. With no restriction it equals g* bit for bit (tested).
+- **Verdict of a cell rejected against g***:
+  - *practical support failure* if neither test rejects against the supported-region gradient (Holm over the
+    low-overlap cells);
+  - *low overlap, unresolved* if one does;
+  - *biased* if the state's overlap is not low.
+- **The stop** fires on raw DR (G2, G3) cells that are biased or unresolved.
+- **The region's edge is soft.** The boundaries 0.1 and 10 expected draws are reported as a diagnostic only. The
+  boundary 1 was fixed in the first diagnostic, before the decision, and is not tuned.
+
+**ml, all five worlds.** The low-overlap states are θ_value* and θ_likelihood* of ml combined (ESS share 3.4e-6 and
+4.0e-6); no other ml state is below 1e-4.
+
+| State | Estimator | Verdict | Supported-region tests |
+|---|---|---|---|
+| θ_value* | G3 | practical support failure | — |
+| θ_value* | G1 | low overlap, unresolved | p = 0.004 at boundary 1; 0.36 at boundary 10; < 1e-4 at 0.1 |
+| θ_value* | G2, G4 | consistent with the full g* | rejected, as the oracle direct-method term predicts |
+| θ_likelihood* | all four | consistent with the full g* | — |
+
+IPS has no direct-method term, so it is the estimator most sensitive to the soft edge.
+
+**A numerical note.** The item bias b_a adds u′·b_a, the same for every item of a user, so it cancels in the softmax,
+and its gradient is identically zero. Its float32 rounding leaves a systematic offset of about 3e-7 against a
+standard error of about 2e-8. Per-coordinate t-statistics there are large at every state, which is meaningless; the
+norm-based tests are unaffected.
+
+**Consequence for the regime map (exploratory, added after this observation).**
+- The hypothesis: OPC is favorable where the likelihood is misspecified enough and overlap is still good enough for
+  the counterfactual gradient to be learnable.
+- To examine it, the overlap at the value optimum is reported beside the margin F and the gradient features (§9–§10):
+  - the effective sample size N × (population ESS share) at θ_value*;
+  - the target mass where π0 < 1e-4.
+- A per-pair coverage at N would not measure learnability. 25,000 rows over about 1.6M (user, item) pairs leave
+  almost every pair unseen even for good policies, and the policy learns through its shared maps.
+- These features were not pre-registered and are labelled as exploratory.
+
 ## 13. Tests, written before results are trusted
 
 1. the exact population gradient against central finite differences on selected coordinates, and against

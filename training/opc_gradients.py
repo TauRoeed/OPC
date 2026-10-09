@@ -158,6 +158,29 @@ def exact_value(model, dataset: dict, *, world: WorldTensors | None = None, grad
     return total, g
 
 
+def visible_value_gradient(model, dataset: dict, *, world: WorldTensors, rows: float, min_count: float = 1.0,
+                           chunk: int = 2048) -> tuple[np.ndarray, float]:
+    """The value's gradient over the (user, item) pairs a sample of ``rows`` logged rows can contain: the gradient of
+    Σ_u prior(u) Σ_j π(j|u) q(u, j) 1[rows · prior(u) π0(j|u) ≥ min_count], and the target mass π puts on the other
+    pairs (docs/opc_gradient_regime_study.md §12.3). Unbiased estimators of g* whose expectation rests on pairs drawn
+    less than once in all the replicates' rows average to about this. Float64 sums of exact_value's terms."""
+    users = np.arange(int(dataset["n_users"]))
+    prior = _prior(dataset)
+    params = policy_params(model)
+    g, hidden = None, 0.0
+    for s in range(0, len(users), chunk):
+        u = torch.as_tensor(users[s:s + chunk], device=world.device)
+        wt = torch.as_tensor(prior[s:s + chunk], device=world.device, dtype=torch.float64)
+        pi = _policy(model, u)
+        with torch.no_grad():
+            seen = (float(rows) * wt[:, None] * world.logger(u).double() >= float(min_count)).to(pi.dtype)
+        val = ((pi * world.q(u) * seen).sum(dim=1).double() * wt).sum()  # exact_value's arithmetic: equal at no limit
+        part = _flat_grad(torch.autograd.grad(val, params))
+        g = part if g is None else g + part
+        hidden += float(((pi.detach() * (1.0 - seen)).sum(dim=1).double() * wt).sum())
+    return g, hidden
+
+
 @torch.no_grad()
 def sample_greedy(model, dataset: dict, world: WorldTensors, users: np.ndarray, chunk: int = 2048) -> float:
     """The greedy value on a prior-drawn sample of users (equal weights): each user's top item's true q."""

@@ -54,8 +54,13 @@ def load_world(wdir: Path) -> dict:
         for k in z.files:
             name, _, kind = k.partition("__")
             (grads if kind == "grads" else bias5).setdefault(name, []).append(z[k].astype(np.float64))
+    gvis, gvis_meta = {}, {}
+    if (wdir / "gstar_visible.npz").exists():  # §12.3: the low-overlap states' gradient over the visible pairs
+        zv = np.load(wdir / "gstar_visible.npz")
+        gvis = {k: zv[k] for k in zv.files}
+        gvis_meta = json.loads((wdir / "gstar_visible.json").read_text())
     return {"dir": wdir, "tags": _tags(wdir.name), "config": cfg, "states": states_meta,
-            "gstar": {k: gz[k] for k in gz.files}, "gmeta": gmeta, "diags": diags,
+            "gstar": {k: gz[k] for k in gz.files}, "gmeta": gmeta, "diags": diags, "gvis": gvis, "gvis_meta": gvis_meta,
             "grads": {k: np.stack(v) for k, v in grads.items()},  # state -> (R, E, P)
             "bias5": {k: np.stack(v) for k, v in bias5.items()}}  # state -> (R, P)
 
@@ -156,6 +161,18 @@ def world_rows(w: dict, boot: bool = True) -> list[dict]:
         for j, e in enumerate(est):
             G = G_all[:, j, :]
             r = {**common, "estimator": e, **gradient_metrics(G, gstar, ref), **bias_tests(G, gstar)}
+            vis_meta = w["gvis_meta"].get(state)
+            if state in w["gvis"] and vis_meta is not None and vis_meta["replicates"] == G.shape[0]:
+                gv = w["gvis"][state]
+                r.update({f"{k}_vis": v for k, v in bias_tests(G, gv).items() if k != "noise_rank_eff"})
+                r.update(bias_ratio_vis=gradient_metrics(G, gv, ref)["bias_ratio"],
+                         hidden_mass=vis_meta["hidden_mass"], gvis_rel_gstar=float(
+                             np.linalg.norm(gv - gstar) / max(np.linalg.norm(gstar), 1e-300)))
+                for key in (k for k in w["gvis"] if k.startswith(f"{state}@")):  # the edge's sharpness (diagnostic)
+                    c = key.partition("@")[2]
+                    t = bias_tests(G, w["gvis"][key])
+                    r.update({f"p_bias_ratio_vis@{c}": t["p_bias_ratio"], f"p_bias_hotelling_vis@{c}": t["p_bias_hotelling"],
+                              f"hidden_mass@{c}": w["gvis_meta"][key]["hidden_mass"]})
             # the same errors on one scale for every state: relative to the source's ‖g*‖ (g* ≈ 0 near an optimum)
             m_src = gradient_metrics(G, gstar, ref_src)
             r.update({f"{k}_src": m_src[k] for k in ("rel_bias", "rel_bias_floor", "rel_total_var", "rel_mse")})
@@ -207,26 +224,46 @@ def pooled(df: pd.DataFrame, cols, by=("state", "estimator")) -> pd.DataFrame:
     return pd.DataFrame(out)
 
 
-def unbiasedness_check(df: pd.DataFrame, estimators=("G1", "G2", "G3", "G4")) -> pd.DataFrame:
-    """§11's first stop condition, per analytically unbiased estimator: the calibrated p-values of every (world, state)
-    cell with Holm's adjustment over the cells; ``stop`` marks raw DR (G2, G3) biased beyond its Monte Carlo floor."""
+def _holm(p: np.ndarray) -> np.ndarray:
+    """Holm's step-down adjustment over the finite p-values (NaN stays NaN)."""
+    out = np.full(len(p), np.nan)
+    ok = np.flatnonzero(np.isfinite(p))
+    order = ok[np.argsort(p[ok])]
+    out[order] = np.minimum(1.0, np.maximum.accumulate((len(ok) - np.arange(len(ok))) * p[order]))
+    return out
+
+
+ESS_BELOW = 1e-4  # §12.3: below this population ESS share a state's cell is also tested against the visible gradient
+
+
+def unbiasedness_check(df: pd.DataFrame, estimators=("G1", "G2", "G3", "G4"), alpha: float = 0.05) -> pd.DataFrame:
+    """§11's first stop condition (with §12.2-§12.3), per analytically unbiased estimator. Every (world, state) cell is
+    tested against g*, Holm-adjusted over the cells. A rejected cell whose state's population ESS share is below 1e-4 is
+    a *practical support failure* when neither test rejects against the supported-region gradient (the pairs expected
+    at least once in the R × N rows; Holm over those cells), and *low overlap, unresolved* when one does: the region's
+    edge is soft, and the analytical unbiasedness (tested by enumeration) is not in question either way. Elsewhere a
+    rejected cell is *biased*. ``stop`` marks a raw DR (G2, G3) cell that is biased or unresolved."""
     out = []
     for e in estimators:
         h = df[df["estimator"] == e].copy()
         if h.empty:
             continue
-        for col in ("p_bias_ratio", "p_bias_hotelling"):
-            p = h[col].to_numpy(dtype=float)
-            order = np.argsort(p)
-            adj = np.minimum(1.0, np.maximum.accumulate((len(p) - np.arange(len(p))) * p[order]))
-            h.loc[h.index[order], f"{col}_holm"] = adj
-        h["stop"] = (h["estimator"].isin(["G2", "G3"])
-                     & ((h["p_bias_ratio_holm"] < 0.05) | (h["p_bias_hotelling_holm"] < 0.05)))
+        for col in ("p_bias_ratio", "p_bias_hotelling", "p_bias_ratio_vis", "p_bias_hotelling_vis"):
+            h[f"{col}_holm"] = _holm(h[col].to_numpy(dtype=float)) if col in h else np.nan
+        rejected = (h["p_bias_ratio_holm"] < alpha) | (h["p_bias_hotelling_holm"] < alpha)
+        ess = pd.to_numeric(h["pop_ess_share"], errors="coerce") if "pop_ess_share" in h else np.nan
+        low = ess < ESS_BELOW
+        visible_ok = (h["p_bias_ratio_vis_holm"] >= alpha) & (h["p_bias_hotelling_vis_holm"] >= alpha)
+        h["verdict"] = np.where(~rejected, "consistent", np.where(
+            low & visible_ok, "practical support failure", np.where(low, "low overlap, unresolved", "biased")))
+        h["stop"] = h["estimator"].isin(["G2", "G3"]) & h["verdict"].isin(["biased", "low overlap, unresolved"])
         out.append(h)
-    cols = ["dataset", "bias", "seed", "train_size", "share", "state", "estimator", "R", "bias_ratio", "noise_rank_eff",
-            "p_bias_ratio", "p_bias_hotelling", "p_bias_ratio_holm", "p_bias_hotelling_holm", "t_along_gstar",
-            "p_along_gstar", "stop"]
+    cols = ["dataset", "bias", "seed", "train_size", "share", "state", "estimator", "R", "pop_ess_share", "bias_ratio",
+            "noise_rank_eff", "p_bias_ratio", "p_bias_hotelling", "p_bias_ratio_holm", "p_bias_hotelling_holm",
+            "t_along_gstar", "p_along_gstar", "hidden_mass", "gvis_rel_gstar", "bias_ratio_vis", "p_bias_ratio_vis",
+            "p_bias_hotelling_vis", "p_bias_ratio_vis_holm", "p_bias_hotelling_vis_holm", "verdict", "stop"]
     res = pd.concat(out) if out else pd.DataFrame(columns=cols)
+    cols += sorted(c for c in res.columns if "@" in c)  # the supported region's edge, other boundaries
     return res[[c for c in cols if c in res]]
 
 
@@ -263,6 +300,9 @@ def main(argv=None) -> None:
         print(f"{e}: {len(h)} cells, min p (ratio / Hotelling) {h['p_bias_ratio'].min():.3g} / "
               f"{h['p_bias_hotelling'].min():.3g}, min Holm {h['p_bias_ratio_holm'].min():.3g} / "
               f"{h['p_bias_hotelling_holm'].min():.3g}")
+    for (e, v), h in check.groupby(["estimator", "verdict"]):
+        if v != "consistent":
+            print(f"{e} {v}: " + ", ".join(f"{r.dataset}/{r.bias}/{r.state}" for r in h.itertuples()))
     if check["stop"].any():
         print("STOP (§11): raw DR biased beyond its Monte Carlo floor in", int(check["stop"].sum()), "cells")
     figures(df, out)
