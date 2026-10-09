@@ -495,6 +495,26 @@ norm-based tests are unaffected.
   almost every pair unseen even for good policies, and the policy learns through its shared maps.
 - These features were not pre-registered and are labelled as exploratory.
 
+### 12.4 A follow-up of one 8B flag (diagnostic, 2026-10-09)
+
+**The flag.** ml's current-support 8B cells (5k and 100k, R = 40) raised no stop: G2 and G3 have Holm-adjusted p ≥ 0.13
+over their 30 cells. But at 100k, ml warp had raised bias ratios in every estimator and state (G1–G4 up to 6.7, 3.3,
+3.6 and 2.1 at mid_greedy). G1, which never triggers a stop, was rejected there (Holm p = 0.004).
+
+**Why it looked like chance.**
+- All estimators and states of a world share the same 40 datasets, so one unusual draw raises all of them together.
+- The raised ratios clustered in two of the five worlds.
+- At 5k nothing was rejected.
+
+**The follow-up.** An effect that grows with N would matter, so 80 further replicates of that world at 100k were
+drawn: replicates 40–119, with the benchmark's own seeds, in `run_opc_gradients_diag_ml_warp_N100000`. The first 40
+were copied from the primary cell.
+- On the 80 fresh replicates alone, every G1–G4 cell is consistent: ratios 0.25–2.19, all p ≥ 0.11.
+- Pooled with the first 40, which were chosen because they were flagged, the p-values are 0.01–0.07.
+
+The flag was an excursion of the first 40 datasets. The primary cell stays at R = 40. The diagnostic folder is not part
+of any analysis family.
+
 ## 13. Tests, written before results are trusted
 
 1. the exact population gradient against central finite differences on selected coordinates, and against
