@@ -527,6 +527,22 @@ were copied from the primary cell.
 The flag was an excursion of the first 40 datasets. The primary cell stays at R = 40. The diagnostic folder is not part
 of any analysis family.
 
+**A second flag, the same follow-up (2026-10-09, the user's decision).**
+- **The flag.** ml's 8B chain had covered every (N, support) cell when the check raised the §11 stop at ml combined,
+  mid_greedy, N = 100k, better support (share 0.6), R = 40:
+  - G3's ratio was 5.06 (p = 0.0003; Holm 0.044 over 145 cells);
+  - G1 and G2 were raised in the same datasets (5.36 and 3.79), G4 was not (1.58).
+  - Overlap was not low (ESS share 0.011).
+- **The decision.** The study stopped and reported. The user chose the follow-up of this section over accepting the
+  flag without one.
+- **The follow-up.** `run_opc_gradients_diag_ml_combined_N100000_lgs0.6`: replicates 40–119 added to a copy of the
+  primary cell's first 40.
+  - It was started only when GPU memory was below 40 GB.
+  - On the 80 fresh replicates, every G1–G4 cell at every state is consistent: ratios 0.11–1.23, all p ≥ 0.29.
+  - On the first 40, mid_greedy gave 5.36 / 3.79 / 5.06 / 1.58 (G1–G4).
+- **Verdict.** An excursion of the primary cell's datasets, as at ml warp. The primary cell stays at R = 40, and the
+  folder is in no analysis family.
+
 ## 13. Tests, written before results are trusted
 
 1. the exact population gradient against central finite differences on selected coordinates, and against
