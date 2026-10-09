@@ -130,6 +130,7 @@ from models.models import (
 )
 
 from training.training_utils import (
+    MatchedStepsBatchSampler,
     train,
 )
 
@@ -221,6 +222,7 @@ DEFAULT_TRAIN_WEIGHTS = "shrink:100"
 DEFAULT_SELECT_WEIGHTS = "clip:10"
 VALID_OPTUNA_SELECTION = ("ci_low", "r_hat", "actual_reward")
 VALID_REWARD_MODELS = ("regression", "logging_score", "oracle")
+TRAIN_REWARDS = ("crossfit", "oracle")  # the shared OPC arms' training-loss reward model (docs/opc_gradient_regime_study.md §7)
 
 
 def _optuna_selection_value(
@@ -1200,6 +1202,9 @@ def _study_trials_long(
             rows[-1]["post_scale"] = float(attrs["post_scale"])
         if "weight_decay" in attrs:  # AdamW decay drawn from the search space's weight_decay range
             rows[-1]["param_weight_decay"] = float(attrs["weight_decay"])
+        for k in ("train_steps", "train_batch_rows"):  # the matched-steps replays (docs/opc_gradient_regime_study.md §7B)
+            if k in attrs:
+                rows[-1][k] = int(attrs[k])
         if "trial_time_s" in attrs:  # (the reproducibility tests drop every column named *time*)
             rows[-1]["trial_time_s"] = float(attrs["trial_time_s"])
         rows[-1]["diverged"] = bool(attrs.get("diverged", False))
@@ -3110,6 +3115,8 @@ def regression_trainer_trial(
     shared_objective: str | None = None,
     anchor_lambdas=None,
     iw_clip: float | None = None,
+    train_reward: str = "crossfit",
+    train_batch=None,
 ):
     """
     OPC / no-propensity trainer with Optuna over CF hyperparameters.
@@ -3230,6 +3237,14 @@ def regression_trainer_trial(
             raise ValueError(f"anchor_lambdas must be finite and >= 0, got {anchor_lambdas}")
     elif anchor_lambdas is not None or iw_clip is not None:
         raise ValueError("anchor_lambdas / iw_clip need a shared_objective")
+    # docs/opc_gradient_regime_study.md §7: the training loss's reward model (the cross-fitted q̂, or the simulator's
+    # q: a diagnostic only, selection keeps the full-data q̂) and the matched-steps replay with a larger batch
+    if train_reward not in TRAIN_REWARDS:
+        raise ValueError(f"train_reward must be one of {TRAIN_REWARDS}, got {train_reward!r}")
+    if (train_reward != "crossfit" or train_batch is not None) and shared_objective != "opc":
+        raise ValueError("train_reward / train_batch are options of the shared OPC arms only")
+    if train_batch is not None and train_batch != "full" and not (isinstance(train_batch, int) and train_batch > 0):
+        raise ValueError(f"train_batch must be a positive int or 'full', got {train_batch!r}")
     shared_likelihood = shared_objective in ("likelihood", "iw_likelihood")
     trained_loss_label = ({"likelihood": "nll", "iw_likelihood": "iw_nll"}.get(shared_objective)
                           or str(policy_loss_types[0]))
@@ -3465,6 +3480,9 @@ def regression_trainer_trial(
             train_scores_t = CrossFitScoresLookup(
                 [_scores_lookup_from_bundle(b, device) for b in fold_bundles], user_fold, shared_scores_all_t
             )
+        if train_reward == "oracle":  # the simulator's q in the training loss (diagnostic; selection is unchanged)
+            train_scores_t = _scores_lookup_from_bundle(
+                fit_shared_regression_bundle(dataset, None, reward_model="oracle"), device)
 
         num_workers = _dataloader_num_workers()
 
@@ -3556,15 +3574,32 @@ def regression_trainer_trial(
                     **cf_popularity,
                 ).to(device)
 
-            final_train_loader = DataLoader(
-                cf_dataset,
-                batch_size=trial_batch_size,
-                shuffle=True,
-                collate_fn=collate_prebatched,
-                pin_memory=torch.cuda.is_available(),
-                num_workers=num_workers,
-                persistent_workers=bool(num_workers),
-            )
+            if train_batch is None:
+                final_train_loader = DataLoader(
+                    cf_dataset,
+                    batch_size=trial_batch_size,
+                    shuffle=True,
+                    collate_fn=collate_prebatched,
+                    pin_memory=torch.cuda.is_available(),
+                    num_workers=num_workers,
+                    persistent_workers=bool(num_workers),
+                )
+            else:  # the trial's steps and lr schedule with larger batches (docs/opc_gradient_regime_study.md §7B)
+                n_rows = len(cf_dataset)
+                steps_per_epoch = int(math.ceil(n_rows / int(trial_batch_size)))
+                rows_per_step = n_rows if train_batch == "full" else min(int(train_batch), n_rows)
+                final_train_loader = DataLoader(
+                    cf_dataset,
+                    batch_sampler=MatchedStepsBatchSampler(
+                        n_rows, rows_per_step, steps_per_epoch,
+                        seed=derive_seed(seed, seed_label or method_label, train_size, "trial", trial.number, "batches")),
+                    collate_fn=collate_prebatched,
+                    pin_memory=torch.cuda.is_available(),
+                    num_workers=num_workers,
+                    persistent_workers=bool(num_workers),
+                )
+                trial.set_user_attr("train_batch_rows", int(rows_per_step))
+                trial.set_user_attr("train_steps", int(steps_per_epoch * epochs))
 
             anchor_penalty = (lambda m=trial_model: shared_anchor(m))
             if shared_likelihood:
@@ -3826,6 +3861,9 @@ def regression_trainer_trial(
                               "anchor_lambda": float(best_params.get("anchor_lambda", np.nan)),
                               "selected_trial": int(study.best_trial.number)})
             trial_res.update({k: v_ for k, v_ in study.best_trial.user_attrs.items() if str(k).startswith("diag_")})
+            # the arm's own training settings (docs/opc_gradient_regime_study.md §6-§7)
+            trial_res.update({"arm_train_weights": weight_spec_label(train_spec), "arm_train_reward": str(train_reward),
+                              "arm_train_batch": "standard" if train_batch is None else str(train_batch)})
             trial_res.update(shared_record)
             trial_res.update(shared_head)
         if post_temper and not temper_only:

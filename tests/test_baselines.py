@@ -202,9 +202,11 @@ def test_study_runs_the_baseline_arms(tmp_path):
     assert VALID_STUDY_METHODS == ("opc", "no_propensity")  # the default arms are unchanged
     # cause and blob are the opt-in prior-work arms (tests/test_cause_trials.py, tests/test_blob.py); this test runs
     # the other arms
-    shared = {"shared_likelihood", "shared_iw_likelihood", "shared_iw_likelihood_clip10", "shared_opc"}
+    shared = {"shared_likelihood", "shared_iw_likelihood", "shared_iw_likelihood_clip10", "shared_opc", "shared_opc_raw",
+              "shared_opc_oq", "shared_opc_raw_oq", "shared_opc_b8192", "shared_opc_raw_b8192", "shared_opc_bfull",
+              "shared_opc_raw_bfull"}
     assert set(ALL_STUDY_METHODS) == {"opc", "no_propensity", "dm", "tempered_logger", "cause", "blob"} | shared
-    # the shared-objective arms are tested in tests/test_shared_objectives.py
+    # the shared-objective arms are tested in tests/test_shared_objectives.py and tests/test_opc_regime_arms.py
     arms = tuple(m for m in ALL_STUDY_METHODS if m not in ("cause", "blob") and m not in shared)
     with pytest.raises(ValueError):
         _normalize_study_methods(["opc", "oracle"])

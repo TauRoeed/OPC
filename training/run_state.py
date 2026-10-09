@@ -32,7 +32,9 @@ import pandas as pd
 # arms trained by training/trainer_trials.py (one summary label each, the method's name) and their log-file prefixes
 OPC_FAMILY_ARMS = {"opc": "opc", "no_propensity": "no_prop", "dm": "dm", "tempered_logger": "tempered_logger",
                    "shared_likelihood": "shared_likelihood", "shared_iw_likelihood": "shared_iw_likelihood",
-                   "shared_iw_likelihood_clip10": "shared_iw_likelihood_clip10", "shared_opc": "shared_opc"}
+                   "shared_iw_likelihood_clip10": "shared_iw_likelihood_clip10", "shared_opc": "shared_opc",
+                   **{m: m for m in ("shared_opc_raw", "shared_opc_oq", "shared_opc_raw_oq", "shared_opc_b8192",
+                                     "shared_opc_raw_b8192", "shared_opc_bfull", "shared_opc_raw_bfull")}}
 TRIAL_KEY = ("method", "train_size", "run", "trial_number")
 RUN_KEY = ("method", "train_size", "run")
 ROW_KEY = ("method", "train_size")  # summary rows and the per-label trial files of the CausE and BLOB arms
@@ -109,6 +111,14 @@ def arm_config(method: str, cfg: dict) -> dict:
             out["shared"] = {"lambdas": lambdas}
             if (cfg.get("shared_options") or {}).get("seed_tag"):  # a supplementary round's independent draws
                 out["shared"]["seed_tag"] = str(cfg["shared_options"]["seed_tag"])
+            from training.run_full_study import SHARED_OBJECTIVE_ARMS
+
+            overrides = SHARED_OBJECTIVE_ARMS[method]  # docs/opc_gradient_regime_study.md: an arm's own settings
+            if "train_weights" in overrides:
+                out["train_weights"] = overrides["train_weights"]
+            for k in ("train_reward", "train_batch"):
+                if k in overrides:
+                    out["shared"][k] = overrides[k]
     elif method == "cause":
         from training.cause_trials import CAUSE_DEFAULTS
 

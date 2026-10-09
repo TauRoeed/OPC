@@ -72,6 +72,15 @@ SHARED_OBJECTIVE_ARMS = {
     "shared_iw_likelihood": {"shared_objective": "iw_likelihood"},
     "shared_iw_likelihood_clip10": {"shared_objective": "iw_likelihood", "iw_clip": 10.0},
     "shared_opc": {"shared_objective": "opc"},
+    # docs/opc_gradient_regime_study.md §6-§8: raw-DR OPC, oracle-q training (diagnostic only) and the matched-steps
+    # replays with larger batches; every other setting as shared_opc
+    "shared_opc_raw": {"shared_objective": "opc", "train_weights": "none"},
+    "shared_opc_oq": {"shared_objective": "opc", "train_reward": "oracle"},
+    "shared_opc_raw_oq": {"shared_objective": "opc", "train_weights": "none", "train_reward": "oracle"},
+    "shared_opc_b8192": {"shared_objective": "opc", "train_batch": 8192},
+    "shared_opc_raw_b8192": {"shared_objective": "opc", "train_weights": "none", "train_batch": 8192},
+    "shared_opc_bfull": {"shared_objective": "opc", "train_batch": "full"},
+    "shared_opc_raw_bfull": {"shared_objective": "opc", "train_weights": "none", "train_batch": "full"},
 }
 SHARED_OBJECTIVE_METHODS = tuple(SHARED_OBJECTIVE_ARMS)
 SHARED_DEFAULTS = {"lambdas": list(LAMBDA_GRID)}
@@ -846,7 +855,8 @@ def _run_condition(
         shared_meta = {**SHARED_DEFAULTS, **(shared_options or {})}
         extra_log_paths[method] = arm_log_paths(run_dir, method)
         reset_arm_logs(extra_log_paths[method], method, train_sizes)
-        arm = SHARED_OBJECTIVE_ARMS[method]
+        arm = dict(SHARED_OBJECTIVE_ARMS[method])
+        arm.pop("train_weights", None)  # passed as train_weights below: an arm's own transform replaces the study's
         likelihood_arm = arm["shared_objective"] != "opc"
         arm_space, arm_lambdas = shared_arm_settings(method, shared_options, search_space)
         extra[method] = regression_trainer_trial(
@@ -880,7 +890,7 @@ def _run_condition(
             reward_model=str(reward_model),
             dr_score_clip_m=dr_score_clip_m,
             seed=int(seed),
-            train_weights=train_weights,
+            train_weights=SHARED_OBJECTIVE_ARMS[method].get("train_weights", train_weights),
             select_weights=select_weights,
             log_select_weights=tuple(log_select_weights or ()),
             policy_transform="linear",

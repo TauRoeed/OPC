@@ -362,9 +362,40 @@ The study stops and reports, without repairing and continuing, if:
 - E4. Better support lowers the weights' tails at the mid and θ_value* states. More data raises SNR about linearly
   in N for the oracle-q estimators.
 
-### 12.1 Replicate count (addendum, written after the timing pilot and before any comparison)
+### 12.1 Replicate count and two implementation details (addendum, after the timing pilot, before any comparison)
 
-*To be filled in from the timing pilot.*
+**Timing pilot** (2026-10-09): the warp worlds of ml, kuairand and anime, seed 100, 2–3 datasets each. Only timings
+were read.
+- One replicate costs about 6–8 s (ml), 12–15 s (kuairand) and 8–11 s (anime) with two pilots running at once.
+  4–8 s of that are the five reward-model fits (sklearn, CPU); the gradients of all five estimators at five states,
+  the conditional bias and the minibatch gradients take the rest.
+- The world and state fits take 1–7 minutes per world.
+
+**R = 300 for Stage 8A.** With one process per dataset and 4 CPU threads each, the longest chain (kuairand) takes
+about 5 × 300 × 14 s ≈ 5.8 h plus the world and state fits. That is inside the rule's ~8 h; R = 400 would bring it to
+about 8.3 h.
+
+**R_regime = 40 for the gradient cells of Stage 8B,** at the source, mid and mid_greedy states, all five estimators.
+The 100k cells' reward-model fits take about four times longer, so 8 cells × 15 worlds × 40 replicates is about 25
+worker-hours, run beside the training runs.
+
+**An added state, `mid_greedy`.** On the value path the softmax value passes halfway within the first 3–6 Adam steps,
+mostly by sharpening (the learned scale moves fastest). `mid_greedy` is the path's checkpoint halfway in **greedy**
+value, where the ranking itself is half repaired. Both are reported; `mid` stays the pre-registered state.
+- The path keeps a checkpoint at every step for its first 200 steps, then every 25: the pre-registered grid of 25 steps
+  would have skipped the halfway point.
+- Checkpoints are valued on a fixed 20,000-user prior sample to locate the halfway points; the chosen states are then
+  valued exactly.
+
+**The matched-steps replay (§7B)** is a batch sampler that draws full-size batches without replacement within passes,
+so there is no short final batch.
+- With full-size batches, a replay at the trial's own batch size is not the DataLoader's shuffle. The planned test
+  "the replay at the trial's own batch size reproduces a standard trial" is therefore replaced by three checks:
+  - the replay keeps the trial's configuration and its step count, epochs × ⌈n/b⌉ (tested);
+  - the standard path is unchanged (its existing reproducibility tests);
+  - the 25k cell reproduces the main grid (§11).
+- The oracle-q training loss reads `fit_shared_regression_bundle(dataset, None, reward_model="oracle")`, tested equal
+  to the simulator's q.
 
 ## 13. Tests, written before results are trusted
 

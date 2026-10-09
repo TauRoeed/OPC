@@ -191,6 +191,35 @@ def minibatch_loss(criterion, pscore, scores, policy, rewards, actions, nominal_
     return loss
 
 
+class MatchedStepsBatchSampler:
+    """``steps_per_epoch`` batches of ``batch_rows`` row indices per epoch (one epoch per pass over the loader): a
+    trial's own number of optimizer steps and lr schedule, with larger batches (docs/opc_gradient_regime_study.md §7B).
+    Rows are drawn without replacement within passes over the data, a new permutation starting when fewer than a batch
+    remain; ``batch_rows`` >= n gives every row at every step (the full batch). Every batch has ``batch_rows`` rows, so
+    no short-batch weighting applies."""
+
+    def __init__(self, n: int, batch_rows: int, steps_per_epoch: int, seed: int):
+        import numpy as np
+
+        self.n, self.batch_rows, self.steps = int(n), min(int(batch_rows), int(n)), int(steps_per_epoch)
+        self._rng = np.random.default_rng(int(seed))
+        self._perm, self._pos = None, 0
+
+    def __len__(self) -> int:
+        return self.steps
+
+    def __iter__(self):
+        for _ in range(self.steps):
+            if self.batch_rows >= self.n:
+                yield list(range(self.n))
+                continue
+            if self._perm is None or self._pos + self.batch_rows > self.n:
+                self._perm, self._pos = self._rng.permutation(self.n), 0
+            batch = self._perm[self._pos:self._pos + self.batch_rows]
+            self._pos += self.batch_rows
+            yield batch.tolist()
+
+
 def run_train_loop(
     model,
     train_loader,
