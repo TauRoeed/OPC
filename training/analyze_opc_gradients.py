@@ -21,6 +21,8 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from scipy.stats import chi2
+from scipy.stats import f as f_dist
 from scipy.stats import t as student_t
 from threadpoolctl import threadpool_limits
 
@@ -98,6 +100,30 @@ def gradient_metrics(G: np.ndarray, gstar: np.ndarray, ref: float) -> dict:
     }
 
 
+def bias_tests(G: np.ndarray, gstar: np.ndarray, k: int = 10) -> dict:
+    """Calibrated tests of E ĝ = g* (§4's check). Under no bias R‖ḡ − g*‖² is Σ λ_i χ²_1 over Ĉ's eigenvalues, so the
+    bias ratio is about χ²_ν / ν with ν = (tr Ĉ)² / tr Ĉ² (Satterthwaite): near 1 when the noise has one dominant
+    direction, where ratios of 3-4 are common without bias. Second, Hotelling's T² on k principal directions taken
+    from the odd replicates and tested on the even ones (in-sample directions inflate their own variances when P > R,
+    which makes the test far too conservative)."""
+    R = G.shape[0]
+    gbar = G.mean(axis=0)
+    resid = G - gbar
+    lam = np.clip(np.linalg.eigvalsh(resid @ resid.T / (R - 1)), 0, None)  # Ĉ's nonzero eigenvalues
+    trc = float(lam.sum())
+    nu = trc ** 2 / max(float((lam ** 2).sum()), 1e-300)
+    ratio = float(((gbar - gstar) ** 2).sum()) / max(trc / R, 1e-300)
+    fit, test = G[1::2], G[0::2]
+    n = test.shape[0]
+    k = min(k, n - 2, fit.shape[0] - 1)
+    _, _, Vt = np.linalg.svd(fit - fit.mean(axis=0), full_matrices=False)
+    z = (test - gstar) @ Vt[:k].T
+    zbar = z.mean(axis=0)
+    t2 = n * float(zbar @ np.linalg.solve(np.cov(z, rowvar=False).reshape(k, k), zbar))
+    return {"noise_rank_eff": nu, "p_bias_ratio": float(chi2.sf(ratio * nu, nu)),
+            "p_bias_hotelling": float(f_dist.sf(t2 * (n - k) / (k * (n - 1)), k, n - k))}
+
+
 def bootstrap_ci(G: np.ndarray, gstar: np.ndarray, ref: float, keys=("rel_bias", "snr", "cos_mean", "rel_mse"),
                  n_boot: int = N_BOOT, seed: int = 0) -> dict:
     rng = np.random.default_rng(seed)
@@ -129,7 +155,7 @@ def world_rows(w: dict, boot: bool = True) -> list[dict]:
         common["gstar_rel_source"] = float(np.linalg.norm(gstar)) / max(ref_src, 1e-300)
         for j, e in enumerate(est):
             G = G_all[:, j, :]
-            r = {**common, "estimator": e, **gradient_metrics(G, gstar, ref)}
+            r = {**common, "estimator": e, **gradient_metrics(G, gstar, ref), **bias_tests(G, gstar)}
             # the same errors on one scale for every state: relative to the source's ‖g*‖ (g* ≈ 0 near an optimum)
             m_src = gradient_metrics(G, gstar, ref_src)
             r.update({f"{k}_src": m_src[k] for k in ("rel_bias", "rel_bias_floor", "rel_total_var", "rel_mse")})
@@ -148,7 +174,7 @@ def world_rows(w: dict, boot: bool = True) -> list[dict]:
             m = gradient_metrics(D + gstar, gstar, ref)
             row = {**common, "estimator": "G5-G3 (paired bias)", "rel_bias": m["rel_bias"],
                    "rel_bias_raw": m["rel_bias_raw"], "rel_bias_floor": m["rel_bias_floor"],
-                   "bias_ratio": m["bias_ratio"]}
+                   "bias_ratio": m["bias_ratio"], **bias_tests(D + gstar, gstar)}
             if state in w["bias5"]:
                 B = w["bias5"][state]
                 mb = gradient_metrics(B + gstar, gstar, ref)
@@ -181,8 +207,31 @@ def pooled(df: pd.DataFrame, cols, by=("state", "estimator")) -> pd.DataFrame:
     return pd.DataFrame(out)
 
 
+def unbiasedness_check(df: pd.DataFrame, estimators=("G1", "G2", "G3", "G4")) -> pd.DataFrame:
+    """§11's first stop condition, per analytically unbiased estimator: the calibrated p-values of every (world, state)
+    cell with Holm's adjustment over the cells; ``stop`` marks raw DR (G2, G3) biased beyond its Monte Carlo floor."""
+    out = []
+    for e in estimators:
+        h = df[df["estimator"] == e].copy()
+        if h.empty:
+            continue
+        for col in ("p_bias_ratio", "p_bias_hotelling"):
+            p = h[col].to_numpy(dtype=float)
+            order = np.argsort(p)
+            adj = np.minimum(1.0, np.maximum.accumulate((len(p) - np.arange(len(p))) * p[order]))
+            h.loc[h.index[order], f"{col}_holm"] = adj
+        h["stop"] = (h["estimator"].isin(["G2", "G3"])
+                     & ((h["p_bias_ratio_holm"] < 0.05) | (h["p_bias_hotelling_holm"] < 0.05)))
+        out.append(h)
+    cols = ["dataset", "bias", "seed", "train_size", "share", "state", "estimator", "R", "bias_ratio", "noise_rank_eff",
+            "p_bias_ratio", "p_bias_hotelling", "p_bias_ratio_holm", "p_bias_hotelling_holm", "t_along_gstar",
+            "p_along_gstar", "stop"]
+    res = pd.concat(out) if out else pd.DataFrame(columns=cols)
+    return res[[c for c in cols if c in res]]
+
+
 SUMMARY_COLS = ("gstar_rel_source", "rel_bias_src", "rel_total_var_src", "rel_mse_src",
-                "rel_bias", "rel_bias_raw", "rel_bias_floor", "bias_ratio", "snr", "cos_mean", "cos_median",
+                "rel_bias", "rel_bias_raw", "rel_bias_floor", "bias_ratio", "noise_rank_eff", "snr", "cos_mean", "cos_median",
                 "p_positive", "norm_ratio", "rel_total_var", "rel_mse", "mb_rel_sq_to_full", "mb_rel_mse",
                 "mb_noise_share", "cond_rel_bias", "w_ess_share", "w_max", "pop_ess_share", "qhat_rmse_logging",
                 "qhat_rmse_target")
@@ -208,6 +257,14 @@ def main(argv=None) -> None:
     df.to_csv(out / "table_gradients_world.csv", index=False, float_format="%.6g")
     pooled(df, [c for c in SUMMARY_COLS if c in df]).to_csv(out / "table_gradients_summary.csv", index=False,
                                                             float_format="%.6g")
+    check = unbiasedness_check(df)
+    check.to_csv(out / "table_unbiasedness.csv", index=False, float_format="%.6g")
+    for e, h in check.groupby("estimator"):
+        print(f"{e}: {len(h)} cells, min p (ratio / Hotelling) {h['p_bias_ratio'].min():.3g} / "
+              f"{h['p_bias_hotelling'].min():.3g}, min Holm {h['p_bias_ratio_holm'].min():.3g} / "
+              f"{h['p_bias_hotelling_holm'].min():.3g}")
+    if check["stop"].any():
+        print("STOP (§11): raw DR biased beyond its Monte Carlo floor in", int(check["stop"].sum()), "cells")
     figures(df, out)
     print(f"wrote {out}: {df[['dataset', 'bias', 'seed']].drop_duplicates().shape[0]} worlds, {len(df)} rows")
 
