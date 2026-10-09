@@ -37,6 +37,9 @@ POPULATION_NAMES = {"likelihood": "θ_log*", "uniform_likelihood": "θ_uniform*"
 # the native selection: the column of trials_long and the direction (§5)
 NATIVE = {"shared_likelihood": ("diag_val_nll", "min"), "shared_iw_likelihood": ("diag_val_iw_nll", "min"),
           "shared_iw_likelihood_clip10": ("diag_val_iw_nll_clip", "min"), "shared_opc": ("value", "max")}
+# docs/opc_gradient_regime_study.md: the other shared OPC arms select as shared_opc (the DR lower bound of π_θ)
+NATIVE.update({m: ("value", "max") for m in ("shared_opc_raw", "shared_opc_oq", "shared_opc_raw_oq", "shared_opc_b8192",
+                                             "shared_opc_raw_b8192", "shared_opc_bfull", "shared_opc_raw_bfull")})
 COMMON = "diag_dr_greedy_low"  # the common selector: the DR lower bound of the greedy policy
 ORACLE_RUNS = {"value": Path("artifacts/full_study/run_class_oracles_20261005"),
                "likelihood": Path("artifacts/full_study/run_class_oracles_20261005"),
@@ -50,7 +53,7 @@ EVAL_USERS = 20_000
 
 
 # ---------------------------------------------------------------------------------------------------------- trials
-def load_trials(*run_dirs) -> pd.DataFrame:
+def load_trials(*run_dirs, arms=None) -> pd.DataFrame:
     """Every trial of the shared arms: world tags, the logger's greedy value and each trial's greedy gain."""
     frames = []
     for run in run_dirs:
@@ -58,7 +61,7 @@ def load_trials(*run_dirs) -> pd.DataFrame:
             if not (cond / "trials_long.csv").exists() or not (cond / "summary_metrics.csv").exists():
                 continue
             t = read_trials_long(cond / "trials_long.csv")
-            t = t[t["method"].isin(ARMS)].copy()
+            t = t[t["method"].isin(ARMS if arms is None else arms)].copy()
             if t.empty:
                 continue
             s = pd.read_csv(cond / "summary_metrics.csv")
@@ -74,7 +77,7 @@ def load_trials(*run_dirs) -> pd.DataFrame:
     return pd.concat(frames, ignore_index=True)
 
 
-def load_summaries(*run_dirs) -> pd.DataFrame:
+def load_summaries(*run_dirs, arms=None) -> pd.DataFrame:
     """The shared arms' summary rows at their train size (one per world and arm), with world tags."""
     frames = []
     for run in run_dirs:
@@ -82,7 +85,7 @@ def load_summaries(*run_dirs) -> pd.DataFrame:
             if not (cond / "summary_metrics.csv").exists():
                 continue
             s = pd.read_csv(cond / "summary_metrics.csv")
-            s = s[s["method"].isin(ARMS) & (s["train_size"] > 0)]
+            s = s[s["method"].isin(ARMS if arms is None else arms) & (s["train_size"] > 0)]
             if s.empty:
                 continue
             tags = _tags(cond.name)
@@ -229,7 +232,7 @@ def selection_summary(sel: pd.DataFrame) -> pd.DataFrame:
 def tune_main(args) -> None:
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
-    t = load_trials(*args.runs)
+    t = load_trials(*args.runs, arms=args.arms)
     t.to_csv(out / "tuning_trials_long.csv.gz", index=False, float_format="%.8g")
     sel = selections(t)
     sel.to_csv(out / "tuning_selected.csv", index=False, float_format="%.6g")
@@ -238,7 +241,7 @@ def tune_main(args) -> None:
     marg.to_csv(out / "tuning_marginals.csv", index=False, float_format="%.6g")
     edges = edge_table(marg)
     edges.to_csv(out / "tuning_edges.csv", index=False, float_format="%.6g")
-    s = load_summaries(*args.runs)
+    s = load_summaries(*args.runs, arms=args.arms)
     if not s.empty:
         weights = [c for c in s.columns if c.startswith(("train_w", "train_wclip", "val_w", "val_wclip"))]
         s[WORLD + ["method"] + weights].to_csv(out / "tuning_weights.csv", index=False, float_format="%.6g")
@@ -925,6 +928,7 @@ def main(argv=None) -> None:
     tune = sub.add_parser("tune", help="the tuning grid and its edge rule (§8)")
     tune.add_argument("--runs", nargs="+", required=True)
     tune.add_argument("--out", required=True)
+    tune.add_argument("--arms", nargs="+", default=None, help="the arms to analyze (default: the shared study's four)")
     orc = sub.add_parser("oracles", help="the population optima (§6), from the saved oracle policies")
     orc.add_argument("--datasets", nargs="+", default=["ml", "kuairand", "anime"])
     orc.add_argument("--seeds", nargs="+", type=int, default=[100, 101])
