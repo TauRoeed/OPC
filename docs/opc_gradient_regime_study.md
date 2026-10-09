@@ -552,3 +552,90 @@ Targeted tests first, then the full CPU and GPU suites before every push.
   - the commit and the configuration;
   - the worlds, the support level, N and the q̂ condition;
   - the objective, the seeds and the artifact path.
+
+## 15. Results
+
+### 15.1 Stage 8A: the estimators at 25k and the current support
+
+**Data.**
+- `run_opc_gradients_8a`: 15 worlds (seed 100), R = 300 logged datasets each, every estimator at the five states.
+- Tables and figures: `opc_gradient_regime/gradients_8a`.
+
+**Measurement.** Errors are relative to the source's ‖g*‖ in every row, because g* is near zero at θ_likelihood* and
+θ_value*. Means are over the 12 corrupted worlds, with t-intervals over worlds:
+- bias: the debiased ‖E ĝ − g*‖;
+- noise: √tr C, one dataset's spread;
+- MSE: E‖ĝ − g*‖².
+
+**The unbiasedness check (§11, §12.2–§12.4).** 75 cells per estimator, Holm over the cells. No stop.
+
+| Estimator | Consistent with g* | Other verdicts |
+|---|---|---|
+| G1 | 73 | practical support failure at kuairand combined θ_value*; low overlap, unresolved at ml combined θ_value* |
+| G2 | 75 | — |
+| G3 | 74 | practical support failure at ml combined θ_value* |
+| G4 | 75 | — |
+
+Analytically unbiased (§2, tested by enumeration): G1–G4. Biased unless q̂ = q: G5.
+
+**The estimators by state.** 12 corrupted worlds; errors relative to the source's ‖g*‖.
+
+| State | ‖g*‖ | Pop. ESS share | Max w | Est. | Bias | Noise | MSE | cos(ĝ, g*) | SNR |
+|---|---|---|---|---|---|---|---|---|---|
+| source | 1 | 1 | 1 | G3 | 0.001 | 0.062 | 0.0038 | 1.00 | 321 |
+| | | | | G4 | 0.001 | 0.055 | 0.0030 | 1.00 | 406 |
+| | | | | G5 | 0.003 [0.000, 0.005] | 0.058 | 0.0034 | 1.00 | 364 |
+| mid | 0.41 | 0.18 | 263 | G3 | 0.004 | 0.27 | 0.074 | 0.87 | 25 |
+| | | | | G4 | 0.001 | 0.042 | 0.0018 | 1.00 | 123 |
+| | | | | G5 | 0.034 [0.016, 0.051] | 0.047 | 0.0041 | 0.99 | 90 |
+| mid_greedy | 0.12 | 0.015 | 737 | G1 | 0.009 | 0.52 | 0.27 | 0.35 | 0.14 |
+| | | | | G3 | 0.001 | 0.49 | 0.24 | 0.39 | 0.13 |
+| | | | | G4 | 0.001 | 0.035 | 0.0012 | 0.95 | 13.8 |
+| | | | | G5 | 0.036 [0.020, 0.052] | 0.038 | 0.0033 | 0.87 | 7.0 |
+| θ_likelihood* | 0.036 | 0.010 | 2,797 | G3 | 0.015 | 5.7 | 32 | 0.04 | 0.001 |
+| | | | | G5 | 0.038 [0.023, 0.052] | 0.44 | 0.19 | 0.11 | 0.14 |
+| θ_value* | 0.005 | 0.004 | 3,268 | G1 | 0.000 | 1.4 | 1.9 | 0.01 | 0.000 |
+| | | | | G3 | 0.006 | 9.6 | 93 | 0.02 | 0.000 |
+| | | | | G5 | 0.012 [0.006, 0.017] | 0.085 | 0.0073 | 0.01 | 0.02 |
+
+Max w is the dataset maximum.
+
+**G5's bias.**
+- Relative to the state's own ‖g*‖ it is 0.3% at the source, 10% [3, 18] at mid and 31% [24, 38] at mid_greedy.
+- Three estimates agree at mid_greedy:
+  - the direct estimate, 0.31;
+  - paired against G3 on the same datasets, 0.28;
+  - the exact conditional bias given each dataset's q̂ (§2), 0.31.
+- The direction cosine between the paired and the conditional bias is 0.62–1.00 per world.
+- In the three uncorrupted worlds G5 is consistent with g* except in one cell, anime at the source, where the ratio
+  is 3.8 (§12.2); there q̂ is about right.
+
+**Expectations (§12).**
+- **E1 holds.**
+  - G1–G4 are consistent with g*, apart from the practical support failures at θ_value* (§12.3).
+  - G5's bias grows from the source toward sharper states.
+- **E2 does not hold as stated.** G4's noise is below G2's everywhere, as expected. But the direct-method control
+  variate does not reduce raw-weight variance at sharp states:
+  - at mid_greedy the noise of G1, G2 and G3 is 0.52, 0.55 and 0.49;
+  - at θ_value* it is G1 1.4 < G3 9.6 < G2 17.3.
+  - With sparse clicks and huge weights, subtracting q puts a w·q term on every row; IPS has a w·r term on clicked
+    rows only.
+- **E3 holds.** One minibatch gradient's error is 91–98% minibatch noise for G3 and G5 at every state.
+  - At mid_greedy, G5's minibatch MSE is 3.7 ‖g*‖² against a squared bias of 0.10 ‖g*‖² (state-relative).
+  - So the bias acts through accumulation over steps, not through one step.
+- **E4** is answered by the 8B cells (§15.2).
+
+**Heavy tails.** The raw estimators' 5 most extreme of 300 datasets carry about a third of tr Ĉ; G4's carry 9%
+(§12.2). The harmonic transform's main effect is to remove that tail.
+
+**The reward model.** q̂'s RMSE against q at mid_greedy is 0.066 weighted by the logger and 0.088 weighted by the
+target. It is worse where the policy is heading.
+
+**Reading.**
+- At 25k and the current support, raw DR's full-data gradient at a sharp policy is mostly noise: cosine 0.39 with g*
+  and SNR 0.13, before any minibatch noise.
+- The harmonic transform cuts that noise by more than an order of magnitude: G5's MSE is about 70 times smaller at
+  mid_greedy. The cost is a bias of about 3.6% of the source gradient's norm, which is 31% of the remaining gradient
+  there.
+- The bias is the reward model's error passed through the transform's shrinkage (G4 with the true q is unbiased).
+- These are gradient properties. Whether they explain the training gap is §15.3–§15.5's question.
