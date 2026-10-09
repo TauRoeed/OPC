@@ -370,12 +370,15 @@ def figures(df: pd.DataFrame, out: Path, states=("source", "mid", "mid_greedy"),
                 if log:
                     ax.set_yscale("log")
                     ax.axhline(1.0, color="#8A8A8A", linewidth=0.8, linestyle="--")
+                else:  # one range per row: the panels' values are comparable, and a probability stays below 1
+                    v_all = pd.to_numeric(d.loc[d["state"].isin(states), col], errors="coerce")
+                    ax.set_ylim(min(0.4 if col == "p_positive" else 0.0, float(v_all.min()) - 0.05), 1.02)
                 ax.set_title(STATE_NAMES.get(st, st), fontsize=9)
                 ax.set_ylabel(ylab or {"p_positive": "P(⟨ĝ, g*⟩ > 0)", "cos_mean": "mean cos(ĝ, g*)"}[col])
         handles = [plt.Line2D([], [], color=EST_STYLE[e][0], marker=EST_STYLE[e][1], linestyle="", label=EST_NAMES[e])
                    for e in EST_STYLE]
-        fig.legend(handles=handles, loc="lower center", ncol=3, frameon=False, fontsize=8, bbox_to_anchor=(0.5, -0.06))
         fig.tight_layout()
+        fig.legend(handles=handles, loc="upper center", ncol=5, frameon=False, fontsize=8, bbox_to_anchor=(0.5, 0.0))
         pd.DataFrame(rows).to_csv(out / f"{name}.csv", index=False, float_format="%.6g")
         for ext in ("png", "pdf"):
             fig.savefig(out / f"{name}.{ext}", dpi=200, bbox_inches="tight")
@@ -413,8 +416,8 @@ def figures(df: pd.DataFrame, out: Path, states=("source", "mid", "mid_greedy"),
     handles += [plt.Line2D([], [], color="#6B6B6B", marker="o", linestyle="", label="bias > 3× its MC floor"),
                 plt.Line2D([], [], color="#6B6B6B", marker="o", markerfacecolor="none", linestyle="",
                            label="bias at its MC floor (upper bound)")]
-    fig.legend(handles=handles, loc="lower center", ncol=4, frameon=False, fontsize=8, bbox_to_anchor=(0.5, -0.12))
     fig.tight_layout()
+    fig.legend(handles=handles, loc="upper center", ncol=4, frameon=False, fontsize=8, bbox_to_anchor=(0.5, 0.0))
     pd.DataFrame(rows).to_csv(out / "fig_g3_bias_noise.csv", index=False, float_format="%.6g")
     for ext in ("png", "pdf"):
         fig.savefig(out / f"fig_g3_bias_noise.{ext}", dpi=200, bbox_inches="tight")
