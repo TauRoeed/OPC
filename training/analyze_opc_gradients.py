@@ -116,15 +116,22 @@ def world_rows(w: dict, boot: bool = True) -> list[dict]:
         gstar = w["gstar"][state]
         ref = float(np.linalg.norm(w["gstar"][REFERENCE_STATE.get(state, state)]))
         diag_states = [d["states"].get(state, {}) for d in w["diags"]]
-        common = {**w["tags"], "state": state, "V": w["gmeta"][state]["V"],
+        common = {**w["tags"], "train_size": int(w["config"]["train_size"]),
+                  "share": float(w["config"]["world_options"].get("logger_greedy_share", 0.8)),
+                  "state": state, "V": w["gmeta"][state]["V"],
                   "greedy": w["states"][state]["greedy"] if state in w["states"] else np.nan,
                   **{k: w["gmeta"][state][k] for k in ("pop_ess_share", "target_mass_low_p0", "pop_w_max")}}
         for k in ("w_ess_share", "w_max", "w_q99.9", "w_q50", "qhat_rmse_logging", "qhat_rmse_target"):
             vals = [d[k] for d in diag_states if k in d]
             common[k] = float(np.mean(vals)) if vals else np.nan
+        ref_src = float(np.linalg.norm(w["gstar"]["source"]))
+        common["gstar_rel_source"] = float(np.linalg.norm(gstar)) / max(ref_src, 1e-300)
         for j, e in enumerate(est):
             G = G_all[:, j, :]
             r = {**common, "estimator": e, **gradient_metrics(G, gstar, ref)}
+            # the same errors on one scale for every state: relative to the source's ‖g*‖ (g* ≈ 0 near an optimum)
+            m_src = gradient_metrics(G, gstar, ref_src)
+            r.update({f"{k}_src": m_src[k] for k in ("rel_bias", "rel_bias_floor", "rel_total_var", "rel_mse")})
             if boot:
                 r.update(bootstrap_ci(G, gstar, ref))
             if e in ("G3", "G5"):
@@ -173,7 +180,8 @@ def pooled(df: pd.DataFrame, cols, by=("state", "estimator")) -> pd.DataFrame:
     return pd.DataFrame(out)
 
 
-SUMMARY_COLS = ("rel_bias", "rel_bias_raw", "rel_bias_floor", "bias_ratio", "snr", "cos_mean", "cos_median",
+SUMMARY_COLS = ("gstar_rel_source", "rel_bias_src", "rel_total_var_src", "rel_mse_src",
+                "rel_bias", "rel_bias_raw", "rel_bias_floor", "bias_ratio", "snr", "cos_mean", "cos_median",
                 "p_positive", "norm_ratio", "rel_total_var", "rel_mse", "mb_rel_sq_to_full", "mb_rel_mse",
                 "mb_noise_share", "cond_rel_bias", "w_ess_share", "w_max", "pop_ess_share", "qhat_rmse_logging",
                 "qhat_rmse_target")
