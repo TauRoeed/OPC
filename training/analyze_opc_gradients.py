@@ -214,7 +214,8 @@ def world_rows(w: dict, boot: bool = True) -> list[dict]:
 def pooled(df: pd.DataFrame, cols, by=("state", "estimator")) -> pd.DataFrame:
     """Mean and 95% t-interval over worlds per bias type, over the biased worlds, and over all worlds."""
     out = []
-    panels = [(b, g) for b, g in df.groupby("bias")] + [("biased", df[df["bias"] != "none"]), ("all", df)]
+    panels = ([(b, g) for b, g in df.groupby("bias")] + [("biased", df[df["bias"] != "none"]), ("all", df)]
+              + [(f"{ds} (biased)", g[g["bias"] != "none"]) for ds, g in df.groupby("dataset")])  # per dataset
     for panel, g in panels:
         for key, h in g.groupby(list(by)):
             r = dict(zip(by, key if isinstance(key, tuple) else (key,)))

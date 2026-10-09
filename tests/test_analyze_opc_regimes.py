@@ -99,3 +99,21 @@ def test_the_regime_figures_are_written(tmp_path):
             assert (tmp_path / f"{name}.png").stat().st_size > 0
         r1 = pd.read_csv(tmp_path / f"fig_r1_{arm}.csv")
         assert set(r1["support"]) == {"poor", "current"}  # the shares in the data, named by the levels
+
+
+def test_every_pooled_panel_has_its_datasets_and_dataset_corruption_cells():
+    from training.analyze_opc_regimes import dataset_corruption, intervention_worlds
+
+    t = _trials(arms=("shared_likelihood", "shared_opc", "shared_opc_raw"))
+    m = margins(select(t), _states(t))
+    s = regime_summary(m)
+    assert {"ml (biased)", "kuairand (biased)"} <= set(s["panel"])
+    dc = dataset_corruption(m, ["share", "train_size", "opc_arm", "rule"], ("observed",))
+    assert len(dc) == len(m) and (dc["worlds"] == 1).all()  # one seed: each cell is one world
+    cell = dc[(dc["dataset"] == "ml") & (dc["bias"] == "high") & (dc["opc_arm"] == "shared_opc")
+              & (dc["rule"] == "native") & (dc["train_size"] == 25000) & (dc["share"] == 0.8)]
+    ref = m[(m["dataset"] == "ml") & (m["bias"] == "high") & (m["opc_arm"] == "shared_opc") & (m["rule"] == "native")
+            & (m["train_size"] == 25000) & (m["share"] == 0.8)]["observed"]
+    assert cell["observed"].iloc[0] == pytest.approx(ref.iloc[0]) and cell["corruption"].iloc[0] == "combined"
+    w = intervention_worlds(select(t))
+    assert set(w["contrast"]) >= {"OPC vs likelihood", "raw vs harmonic (q-hat)"}

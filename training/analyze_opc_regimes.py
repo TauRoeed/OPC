@@ -30,6 +30,7 @@ CELL = ["share", "train_size"]
 COMMON = "diag_dr_greedy_low"
 LIKELIHOOD = "shared_likelihood"
 OPC_ARMS = ("shared_opc_raw", "shared_opc")
+DATASETS = ("ml", "kuairand", "anime")
 BIAS_ORDER = ("none", "w-high.g-none.v-none", "w-none.g-high.v-none", "w-none.g-none.v-high", "high")
 BIAS_NAMES = {"none": "no bias", "w-high.g-none.v-none": "warp", "w-none.g-high.v-none": "group",
               "w-none.g-none.v-high": "vector", "high": "combined"}
@@ -156,6 +157,20 @@ def _panels(df: pd.DataFrame):
             yield BIAS_NAMES[b], df[df["bias"] == b]
     yield "biased (pooled)", df[df["bias"] != "none"]
     yield "misspecified (group, vector, combined)", df[df["bias"].isin(["w-none.g-high.v-none", "w-none.g-none.v-high", "high"])]
+    for ds in DATASETS:  # each dataset's biased worlds (the dataset × corruption cells: dataset_corruption)
+        if (df["dataset"] == ds).any():
+            yield f"{ds} (biased)", df[(df["dataset"] == ds) & (df["bias"] != "none")]
+
+
+def dataset_corruption(df: pd.DataFrame, keys, cols) -> pd.DataFrame:
+    """Per dataset × corruption cell (and the other ``keys``): the mean of ``cols`` over the cell's worlds (seeds) and
+    their number; one row per cell, so every pooled number can be traced to its datasets and corruptions."""
+    g = df.groupby(list(keys) + ["dataset", "bias"], dropna=False)
+    out = g[list(cols)].mean()
+    out["worlds"] = g.size()
+    out = out.reset_index()
+    out["corruption"] = out["bias"].map(BIAS_NAMES).fillna(out["bias"])
+    return out
 
 
 def regime_summary(m: pd.DataFrame) -> pd.DataFrame:
@@ -320,26 +335,34 @@ INTERVENTION_PAIRS = (  # (a, b, what a − b isolates)
 RULES = ("native", "common", "best", "mean")
 
 
-def interventions(sel: pd.DataFrame, *, train_size: int = 25_000, share: float = 0.8, pairs=INTERVENTION_PAIRS) -> pd.DataFrame:
-    """a − b paired by world at (N, share), in greedy CTR points, per selection rule (native, common, best of the
-    trials, mean over the trials): mean, 95% t-interval and the worlds where a is higher, per panel."""
+def intervention_worlds(sel: pd.DataFrame, *, train_size: int = 25_000, share: float = 0.8,
+                        pairs=INTERVENTION_PAIRS) -> pd.DataFrame:
+    """a − b per world at (N, share), in greedy CTR points, per selection rule (native, common, best of the trials,
+    mean over the trials): the dataset × corruption cells of the interventions."""
     s = sel[(sel["train_size"] == train_size) & np.isclose(sel["share"], share)]
     col = {"native": "native_gain", "common": "common_gain", "best": "best_gain", "mean": "mean_gain"}
     rows = []
     for a, b, what in pairs:
         va, vb = (s[s["arm"] == x].set_index(WORLD) for x in (a, b))
         common_worlds = va.index.intersection(vb.index)
-        if common_worlds.empty:
-            continue
-        for rule in RULES:
+        for rule in RULES if not common_worlds.empty else ():
             d = (va.loc[common_worlds, col[rule]] - vb.loc[common_worlds, col[rule]]).reset_index()
             d.columns = WORLD + ["d"]
-            for panel, g in _panels(d):
-                if g.empty:
-                    continue
-                m, lo, hi, n = mean_ci(g["d"])
-                rows.append({"a": a, "b": b, "contrast": what, "rule": rule, "panel": panel, "a_minus_b": m,
-                             "ci_lo": lo, "ci_hi": hi, "worlds": n, "a_higher": int((g["d"] > 0).sum())})
+            rows += [{"a": a, "b": b, "contrast": what, "rule": rule, **r} for r in d.to_dict("records")]
+    return pd.DataFrame(rows, columns=["a", "b", "contrast", "rule"] + WORLD + ["d"])
+
+
+def interventions(sel: pd.DataFrame, **kw) -> pd.DataFrame:
+    """intervention_worlds summarized per panel: mean, 95% t-interval and the worlds where a is higher."""
+    w = intervention_worlds(sel, **kw)
+    rows = []
+    for (a, b, what, rule), d in w.groupby(["a", "b", "contrast", "rule"], sort=False):
+        for panel, g in _panels(d):
+            if g.empty:
+                continue
+            m, lo, hi, n = mean_ci(g["d"])
+            rows.append({"a": a, "b": b, "contrast": what, "rule": rule, "panel": panel, "a_minus_b": m,
+                         "ci_lo": lo, "ci_hi": hi, "worlds": n, "a_higher": int((g["d"] > 0).sum())})
     return pd.DataFrame(rows)
 
 
@@ -431,6 +454,8 @@ def main(argv=None) -> None:
     if args.cmd == "interventions":
         iv = interventions(sel)
         iv.to_csv(out / "table_interventions.csv", index=False, float_format="%.6g")
+        dataset_corruption(intervention_worlds(sel), ["contrast", "a", "b", "rule"], ("d",)).to_csv(
+            out / "table_interventions_dataset_corruption.csv", index=False, float_format="%.6g")
         print(f"wrote {out}: {len(iv)} intervention rows")
         return
     states = load_states(*args.states)
@@ -440,6 +465,9 @@ def main(argv=None) -> None:
         m.to_csv(out / "table_margins.csv", index=False, float_format="%.6g")
         summary = regime_summary(m)
         summary.to_csv(out / "table_regime_summary.csv", index=False, float_format="%.6g")
+        dataset_corruption(m, CELL + ["opc_arm", "rule"], ("observed", "M_L", "dT", "dS", "best_diff", "mean_diff",
+                                                           "n_eff_value", "low_p0_value")).to_csv(
+            out / "table_dataset_corruption.csv", index=False, float_format="%.6g")
         levels = json.loads(Path(args.levels).read_text())["levels"] if args.levels else None
         regime_figures(summary, out, levels)
         if args.gradients:
@@ -452,6 +480,8 @@ def main(argv=None) -> None:
         d = decomposition(sel, states, Path(args.empirical))
         d.to_csv(out / "table_decomposition.csv", index=False, float_format="%.6g")
         decomposition_summary(d).to_csv(out / "table_decomposition_summary.csv", index=False, float_format="%.6g")
+        dataset_corruption(d, ["arm", "rule"], ("M", "E", "O", "S", "total", "selected_gain", "emp_path_best_gain")).to_csv(
+            out / "table_decomposition_dataset_corruption.csv", index=False, float_format="%.6g")
         print(f"wrote {out}: {len(d)} decomposition rows")
 
 
