@@ -397,6 +397,42 @@ so there is no short final batch.
 - The oracle-q training loss reads `fit_shared_regression_bundle(dataset, None, reward_model="oracle")`, tested equal
   to the simulator's q.
 
+### 12.2 Calibrating the unbiasedness check (addendum, 2026-10-09, after reading five complete 8A worlds)
+
+**Why it was added.** This addendum was written after the bias tables of the first five complete Stage 8A worlds had
+been read: ml none, warp and group; kuairand none; anime none. In anime none, at the source, G2 and G3 had a bias
+ratio of 4.1. §4 says only that the ratio is "about 1 under no bias". It does not give a threshold.
+
+**The ratio's null distribution.**
+- Under no bias, R‖ḡ − g*‖² is distributed as Σ_i λ_i χ²_1, where the λ_i are the eigenvalues of C.
+- The ratio is therefore about χ²_ν / ν, with ν = (tr C)² / tr C² the noise's effective rank (Satterthwaite).
+- At the source and mid states, ν ≈ 1.1–2.4: the noise has one dominant direction. With one dominant direction, a
+  ratio of 4 has p ≈ 0.03.
+
+**The check as now applied.**
+- Every (world, state) cell of G1–G4 gets two p-values:
+  - the Satterthwaite p-value of the ratio;
+  - a split-sample Hotelling T² on 10 principal directions. The directions come from the odd replicates, and the
+    test uses the even ones. When the directions are estimated from the same sample (P = 2,113 > R = 300), their
+    variances are inflated and the test never rejects (tested).
+- Holm's adjustment is applied over the cells of each estimator.
+- The §11 stop fires if G2 or G3 has a Holm-adjusted p < 0.05 in either test.
+- The pre-registered t-test along g* is still reported.
+- Tests: with one dominant noise direction and no bias, both p-values hold their level (7.7% and about 5% at the 5%
+  level over 300 simulations), and both detect a bias of 0.6 noise sd at R = 200.
+
+**On the five worlds read.** The smallest Holm-adjusted p-values (Satterthwaite / Hotelling) were:
+
+| Estimator | Smallest Holm-adjusted p |
+|---|---|
+| G1 | 1 / 0.077 |
+| G2 | 0.84 / 1 |
+| G3 | 0.82 / 1 |
+| G4 | 0.18 / 0.45 |
+
+The anime source ratio is shared by G1–G5 on the same datasets (2.5–4.1), consistent with one chance excursion
+along the dominant noise direction.
+
 ## 13. Tests, written before results are trusted
 
 1. the exact population gradient against central finite differences on selected coordinates, and against
