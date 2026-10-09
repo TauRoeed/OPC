@@ -25,7 +25,7 @@ import torch
 
 from training.opc_gradient_benchmark import build_world
 from training.opc_gradients import WorldTensors, _policy, build_model, set_theta
-from utils.seeding import derive_seed
+from utils.seeding import derive_seed, enable_determinism, pin_cpu_threads
 
 CANDIDATES = (0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 0.98)
 CURRENT = 0.8
@@ -87,9 +87,12 @@ def main(argv=None) -> None:
     ap.add_argument("--seeds", nargs="+", type=int, default=[100])
     ap.add_argument("--candidates", nargs="+", type=float, default=list(CANDIDATES))
     ap.add_argument("--emb-dir", default="BPR/embeddings")
+    ap.add_argument("--cpu-threads", type=int, default=4, help="the world build depends on it (as the benchmark's)")
     ap.add_argument("--out", required=True)
     add_world_arguments(ap, bias_default=("none", "high/none/none", "none/high/none", "none/none/high", "high"))
     args = ap.parse_args(argv)
+    enable_determinism(True)
+    pin_cpu_threads(int(args.cpu_threads))
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     base = world_options_from_args(args)
