@@ -625,8 +625,13 @@ Max w is the dataset maximum.
   - So the bias acts through accumulation over steps, not through one step.
 - **E4** is answered by the 8B cells (§15.2).
 
-**Heavy tails.** The raw estimators' 5 most extreme of 300 datasets carry about a third of tr Ĉ; G4's carry 9%
-(§12.2). The harmonic transform's main effect is to remove that tail.
+**Heavy tails.**
+- The share of tr Ĉ carried by the 5 most extreme of 300 datasets grows with sharpness for G1–G3:
+  - about 0.10 at the source (Gaussian noise would give about 0.02);
+  - 0.17 at mid and 0.33 at mid_greedy;
+  - 0.47–0.55 at θ_likelihood* and θ_value*.
+- G4's share stays at 0.06–0.12 (§12.2).
+- The harmonic transform's main effect is to remove that tail.
 
 **The reward model.** q̂'s RMSE against q at mid_greedy is 0.066 weighted by the logger and 0.088 weighted by the
 target. It is worse where the policy is heading.
