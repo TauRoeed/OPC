@@ -433,6 +433,18 @@ ratio of 4.1. §4 says only that the ratio is "about 1 under no bias". It does n
 The anime source ratio is shared by G1–G5 on the same datasets (2.5–4.1), consistent with one chance excursion
 along the dominant noise direction.
 
+**Heavy tails (diagnostic, added after the four complete kuairand worlds).**
+- The raw estimators' replicates are heavy-tailed. On kuairand, the 5 most extreme of 300 replicates carry on average
+  32–35% of tr Ĉ (G1–G3), against about 2% (5/300) for Gaussian noise; the harmonic G4 has 9%.
+- The split-sample Hotelling test is not robust to this: its principal directions are set by a few extreme replicates.
+- Each cell therefore also reports two diagnostics:
+  - `top5_var_share`;
+  - `p_bias_hotelling_drop3`, the Hotelling p without the 3 most extreme replicates. Dropping replicates biases the
+    mean, so this is a diagnostic of the test, never a test of unbiasedness.
+- The verdicts are unchanged.
+- Example: G1 at kuairand group θ_likelihood* (ESS share 5e-3) is rejected by Hotelling (p = 0.001; Holm 0.023), with
+  top-5 share 0.57, drop-3 p = 0.31 and ratio-test p = 0.37.
+
 ### 12.3 Practical support failure (addendum, 2026-10-09, after the §11 stop; decision: continue)
 
 **What stopped the study.** All five ml worlds were complete. The calibrated check (§12.2) rejected raw DR with q̂

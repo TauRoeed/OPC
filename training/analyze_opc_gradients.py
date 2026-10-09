@@ -125,8 +125,10 @@ def bias_tests(G: np.ndarray, gstar: np.ndarray, k: int = 10) -> dict:
     z = (test - gstar) @ Vt[:k].T
     zbar = z.mean(axis=0)
     t2 = n * float(zbar @ np.linalg.solve(np.cov(z, rowvar=False).reshape(k, k), zbar))
+    sq = (resid ** 2).sum(axis=1)
     return {"noise_rank_eff": nu, "p_bias_ratio": float(chi2.sf(ratio * nu, nu)),
-            "p_bias_hotelling": float(f_dist.sf(t2 * (n - k) / (k * (n - 1)), k, n - k))}
+            "p_bias_hotelling": float(f_dist.sf(t2 * (n - k) / (k * (n - 1)), k, n - k)),
+            "top5_var_share": float(np.sort(sq)[-5:].sum() / max(sq.sum(), 1e-300))}  # heavy tails (diagnostic)
 
 
 def bootstrap_ci(G: np.ndarray, gstar: np.ndarray, ref: float, keys=("rel_bias", "snr", "cos_mean", "rel_mse"),
@@ -161,10 +163,14 @@ def world_rows(w: dict, boot: bool = True) -> list[dict]:
         for j, e in enumerate(est):
             G = G_all[:, j, :]
             r = {**common, "estimator": e, **gradient_metrics(G, gstar, ref), **bias_tests(G, gstar)}
+            # the split-sample Hotelling test without the 3 most extreme replicates: its robustness to heavy tails
+            # (a diagnostic only: dropping replicates biases the mean, so it is never a test of unbiasedness)
+            keep = np.sort(np.argsort(-((G - G.mean(axis=0)) ** 2).sum(axis=1))[3:])
+            r["p_bias_hotelling_drop3"] = bias_tests(G[keep], gstar)["p_bias_hotelling"]
             vis_meta = w["gvis_meta"].get(state)
             if state in w["gvis"] and vis_meta is not None and vis_meta["replicates"] == G.shape[0]:
                 gv = w["gvis"][state]
-                r.update({f"{k}_vis": v for k, v in bias_tests(G, gv).items() if k != "noise_rank_eff"})
+                r.update({f"{k}_vis": v for k, v in bias_tests(G, gv).items() if k not in ("noise_rank_eff", "top5_var_share")})
                 r.update(bias_ratio_vis=gradient_metrics(G, gv, ref)["bias_ratio"],
                          hidden_mass=vis_meta["hidden_mass"], gvis_rel_gstar=float(
                              np.linalg.norm(gv - gstar) / max(np.linalg.norm(gstar), 1e-300)))
@@ -260,7 +266,7 @@ def unbiasedness_check(df: pd.DataFrame, estimators=("G1", "G2", "G3", "G4"), al
         out.append(h)
     cols = ["dataset", "bias", "seed", "train_size", "share", "state", "estimator", "R", "pop_ess_share", "bias_ratio",
             "noise_rank_eff", "p_bias_ratio", "p_bias_hotelling", "p_bias_ratio_holm", "p_bias_hotelling_holm",
-            "t_along_gstar", "p_along_gstar", "hidden_mass", "gvis_rel_gstar", "bias_ratio_vis", "p_bias_ratio_vis",
+            "t_along_gstar", "p_along_gstar", "top5_var_share", "p_bias_hotelling_drop3", "hidden_mass", "gvis_rel_gstar", "bias_ratio_vis", "p_bias_ratio_vis",
             "p_bias_hotelling_vis", "p_bias_ratio_vis_holm", "p_bias_hotelling_vis_holm", "verdict", "stop"]
     res = pd.concat(out) if out else pd.DataFrame(columns=cols)
     cols += sorted(c for c in res.columns if "@" in c)  # the supported region's edge, other boundaries

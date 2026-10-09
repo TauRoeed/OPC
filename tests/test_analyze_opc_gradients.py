@@ -81,3 +81,10 @@ def test_the_figures_are_written(tmp_path):
         assert (tmp_path / f"{name}.png").stat().st_size > 0 and (tmp_path / f"{name}.csv").exists()
     g3 = pd.read_csv(tmp_path / "fig_g3_bias_noise.csv")
     assert len(g3) == len(EST_STYLE) * 2 * 3  # the unbiased control worlds are left out
+
+
+def test_the_tail_share_separates_gaussian_noise_from_a_few_extreme_replicates():
+    G, gstar = _samples(bias=0.0, R=300)
+    assert bias_tests(G, gstar)["top5_var_share"] < 0.03  # about 5 / 300 without heavy tails
+    G[:3] += 40 * np.eye(G.shape[1])[:3]  # three replicates far out
+    assert bias_tests(G, gstar)["top5_var_share"] > 0.9
