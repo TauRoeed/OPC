@@ -86,3 +86,16 @@ def test_the_interventions_are_paired_by_world_at_the_cell():
     biased = [w for w in s.index.droplevel("arm").unique() if w[1] != "none"]
     d = [s.loc[(*w, "shared_opc_oq"), "native_gain"] - s.loc[(*w, "shared_opc"), "native_gain"] for w in biased]
     assert r["a_minus_b"].iloc[0] == pytest.approx(np.mean(d)) and r["worlds"].iloc[0] == len(biased)
+
+
+def test_the_regime_figures_are_written(tmp_path):
+    from training.analyze_opc_regimes import regime_figures
+
+    t = _trials()
+    s = regime_summary(margins(select(t), _states(t)))
+    regime_figures(s, tmp_path, {"poor": 0.95, "current": 0.8, "better": 0.6})
+    for arm in ("shared_opc", "shared_opc_raw"):
+        for name in (f"fig_r1_{arm}", f"fig_r2_{arm}"):
+            assert (tmp_path / f"{name}.png").stat().st_size > 0
+        r1 = pd.read_csv(tmp_path / f"fig_r1_{arm}.csv")
+        assert set(r1["support"]) == {"poor", "current"}  # the shares in the data, named by the levels

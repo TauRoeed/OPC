@@ -211,6 +211,95 @@ def correlations(m: pd.DataFrame, feats: pd.DataFrame, state: str = "mid_greedy"
     return pd.DataFrame(rows)
 
 
+# ------------------------------------------------------------------------------------------------- the figures
+# The support levels are ordinal: one hue, light (poor) to dark (better) (ColorBrewer Blues), each with its own marker,
+# so identity never rests on colour; the margin's parts in the Okabe-Ito pink (the likelihood's misspecification) and
+# blue (OPC's extra training and selection gap).
+SUPPORT_STYLE = {"poor": ("#6BAED6", "o"), "current": ("#2171B5", "s"), "better": ("#08306B", "D")}
+FIG_PANELS = ("warp", "group", "vector", "combined", "biased (pooled)")
+
+
+def _support_names(shares, levels: dict | None) -> dict:
+    """share -> 'poor' / 'current' / 'better' from support_levels.json's levels (the current share alone without it)."""
+    names = {float(v): k for k, v in (levels or {}).items()}
+    return {float(x): names.get(float(x), "current" if np.isclose(float(x), 0.8) else f"share {x:g}") for x in shares}
+
+
+def _plt():
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    plt.rcParams.update({"font.size": 8, "axes.spines.top": False, "axes.spines.right": False,
+                         "axes.grid": True, "grid.color": "#E3E3E3", "grid.linewidth": 0.6})
+    return plt
+
+
+def regime_figures(summary: pd.DataFrame, out: Path, levels: dict | None = None, rule: str = "native") -> None:
+    """fig_r1_<arm>: OPC − likelihood (the observed difference = F, greedy CTR points, 95% t-interval over worlds)
+    against N per bias panel, one series per support level; fig_r2_<arm>: the margin's parts on the pooled biased
+    worlds, M_L against dT + dS: OPC is ahead where M_L is above."""
+    plt = _plt()
+    s = summary[summary["rule"] == rule]
+    names = _support_names(s["share"].unique(), levels)
+    sizes = sorted(s["train_size"].unique())
+    for arm, g in s.groupby("opc_arm"):
+        fig, axes = plt.subplots(1, len(FIG_PANELS), figsize=(2.3 * len(FIG_PANELS), 2.6), sharey=True)
+        rows = []
+        for ax, panel in zip(axes, FIG_PANELS):
+            h = g[g["panel"] == panel]
+            for k, (share, hs) in enumerate(sorted(h.groupby("share"), key=lambda t: list(SUPPORT_STYLE).index(
+                    names[float(t[0])]) if names[float(t[0])] in SUPPORT_STYLE else 9)):
+                name = names[float(share)]
+                c, mk = SUPPORT_STYLE.get(name, ("#6B6B6B", "x"))
+                hs = hs.sort_values("train_size")
+                x = np.array([sizes.index(n) for n in hs["train_size"]]) + (k - 1) * 0.12
+                ax.errorbar(x, hs["observed"], yerr=[hs["observed"] - hs["observed_lo"], hs["observed_hi"] - hs["observed"]],
+                            color=c, marker=mk, markersize=4.5, linewidth=1.2, capsize=2, label=name)
+                rows += [{"opc_arm": arm, "panel": panel, "support": name, "share": float(share), **r}
+                         for r in hs[["train_size", "observed", "observed_lo", "observed_hi", "worlds", "opc_ahead"]].to_dict("records")]
+            ax.axhline(0.0, color="#555555", linewidth=0.8)
+            ax.set_xticks(range(len(sizes)), [f"{n // 1000}k" for n in sizes])
+            ax.set_title(panel, fontsize=8)
+            ax.set_xlabel("N (training rows)")
+        axes[0].set_ylabel("OPC − likelihood (CTR points)")
+        handles, labels = axes[-1].get_legend_handles_labels()
+        fig.tight_layout()
+        fig.legend(handles, labels, loc="upper center", ncol=3, frameon=False, bbox_to_anchor=(0.5, 0.0))
+        _save(fig, out, f"fig_r1_{arm}", pd.DataFrame(rows))
+        fig, ax = plt.subplots(figsize=(3.6, 2.8))
+        h = g[g["panel"] == "biased (pooled)"]
+        rows = []
+        for k, (share, hs) in enumerate(sorted(h.groupby("share"), key=lambda t: float(t[0]), reverse=True)):
+            name = names[float(share)]
+            c, mk = SUPPORT_STYLE.get(name, ("#6B6B6B", "x"))
+            hs = hs.sort_values("train_size")
+            x = np.array([sizes.index(n) for n in hs["train_size"]])
+            ax.plot(x, hs["dT"] + hs["dS"], color=c, marker=mk, markersize=4.5, linewidth=1.4, label=f"dT + dS, {name}")
+            ax.plot(x, hs["M_L"], color=c, linestyle="--", linewidth=1.0)
+            rows += [{"opc_arm": arm, "support": name, "share": float(share), **r}
+                     for r in hs[["train_size", "M_L", "dT", "dS", "observed"]].to_dict("records")]
+        ax.plot([], [], color="#555555", linestyle="--", linewidth=1.0, label="M_L (dashed, per level)")
+        ax.set_xticks(range(len(sizes)), [f"{n // 1000}k" for n in sizes])
+        ax.set_xlabel("N (training rows)")
+        ax.set_ylabel("CTR points (biased worlds)")
+        ax.set_title("OPC ahead where M_L > dT + dS", fontsize=8)
+        ax.set_ylim(bottom=min(0.0, ax.get_ylim()[0]))  # the parts are distances: from 0, not magnified
+        fig.tight_layout()
+        fig.legend(loc="upper center", ncol=2, frameon=False, bbox_to_anchor=(0.5, 0.0), fontsize=7)
+        _save(fig, out, f"fig_r2_{arm}", pd.DataFrame(rows))
+
+
+def _save(fig, out: Path, name: str, data: pd.DataFrame) -> None:
+    import matplotlib.pyplot as plt
+
+    data.to_csv(Path(out) / f"{name}.csv", index=False, float_format="%.6g")
+    for ext in ("png", "pdf"):
+        fig.savefig(Path(out) / f"{name}.{ext}", dpi=200, bbox_inches="tight")
+    plt.close(fig)
+
+
 # ------------------------------------------------------------------------------------------ the interventions (§7)
 INTERVENTION_PAIRS = (  # (a, b, what a − b isolates)
     ("shared_opc_oq", "shared_opc", "oracle q vs q-hat (harmonic)"),
@@ -323,6 +412,7 @@ def main(argv=None) -> None:
     mp.add_argument("--runs", nargs="+", required=True)
     mp.add_argument("--states", nargs="+", required=True)
     mp.add_argument("--gradients", nargs="*", default=[])
+    mp.add_argument("--levels", help="support_levels.json (names the support levels in the figures)")
     mp.add_argument("--out", required=True)
     dp = sub.add_parser("decompose")
     dp.add_argument("--runs", nargs="+", required=True)
@@ -348,7 +438,10 @@ def main(argv=None) -> None:
     if args.cmd == "map":
         m = margins(sel, states)
         m.to_csv(out / "table_margins.csv", index=False, float_format="%.6g")
-        regime_summary(m).to_csv(out / "table_regime_summary.csv", index=False, float_format="%.6g")
+        summary = regime_summary(m)
+        summary.to_csv(out / "table_regime_summary.csv", index=False, float_format="%.6g")
+        levels = json.loads(Path(args.levels).read_text())["levels"] if args.levels else None
+        regime_figures(summary, out, levels)
         if args.gradients:
             feats = gradient_features(args.gradients)
             feats.to_csv(out / "table_gradient_features.csv", index=False, float_format="%.6g")
