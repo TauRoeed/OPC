@@ -1,0 +1,16 @@
+state,metric,estimator,median,worlds
+source,snr,G1,288.788,12
+source,snr,G2,354.107,12
+source,snr,G3,342.759,12
+source,snr,G4,436.323,12
+source,snr,G5,388.582,12
+mid,snr,G1,14.65,12
+mid,snr,G2,20.3034,12
+mid,snr,G3,19.3374,12
+mid,snr,G4,122.971,12
+mid,snr,G5,88.108,12
+mid_greedy,snr,G1,0.0914871,12
+mid_greedy,snr,G2,0.0968114,12
+mid_greedy,snr,G3,0.102694,12
+mid_greedy,snr,G4,8.54281,12
+mid_greedy,snr,G5,3.90897,12

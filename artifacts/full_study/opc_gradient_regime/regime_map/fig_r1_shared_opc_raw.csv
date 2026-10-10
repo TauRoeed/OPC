@@ -1,0 +1,46 @@
+opc_arm,panel,support,share,train_size,observed,observed_lo,observed_hi,worlds,opc_ahead
+shared_opc_raw,warp,poor,0.9,5000,-1.0754,-1.93412,-0.21667,3,0
+shared_opc_raw,warp,poor,0.9,25000,-1.00283,-2.80374,0.798076,3,0
+shared_opc_raw,warp,poor,0.9,100000,-1.67745,-2.78433,-0.570574,3,0
+shared_opc_raw,warp,current,0.8,5000,-1.03473,-1.56031,-0.509145,3,0
+shared_opc_raw,warp,current,0.8,25000,-1.07403,-2.94052,0.792466,3,0
+shared_opc_raw,warp,current,0.8,100000,-1.65483,-2.36745,-0.942211,3,0
+shared_opc_raw,warp,better,0.6,5000,-0.512502,-2.80018,1.77518,3,1
+shared_opc_raw,warp,better,0.6,25000,-1.38113,-1.81802,-0.944241,3,0
+shared_opc_raw,warp,better,0.6,100000,-2.08458,-2.89946,-1.26969,3,0
+shared_opc_raw,group,poor,0.9,5000,-0.86092,-1.49473,-0.227106,3,0
+shared_opc_raw,group,poor,0.9,25000,-0.404655,-0.982193,0.172883,3,0
+shared_opc_raw,group,poor,0.9,100000,-0.465013,-1.09696,0.166933,3,0
+shared_opc_raw,group,current,0.8,5000,-0.446902,-0.90114,0.00733471,3,0
+shared_opc_raw,group,current,0.8,25000,-0.406009,-1.07051,0.258495,3,0
+shared_opc_raw,group,current,0.8,100000,-0.394082,-1.07038,0.282221,3,0
+shared_opc_raw,group,better,0.6,5000,-0.640594,-2.32927,1.04808,3,1
+shared_opc_raw,group,better,0.6,25000,-0.705711,-1.23013,-0.18129,3,0
+shared_opc_raw,group,better,0.6,100000,-0.380752,-0.545458,-0.216046,3,0
+shared_opc_raw,vector,poor,0.9,5000,-0.0921243,-1.35838,1.17413,3,2
+shared_opc_raw,vector,poor,0.9,25000,0.109726,-0.731216,0.950668,3,2
+shared_opc_raw,vector,poor,0.9,100000,-0.291107,-1.17617,0.59396,3,0
+shared_opc_raw,vector,current,0.8,5000,-0.331213,-1.72371,1.06128,3,1
+shared_opc_raw,vector,current,0.8,25000,0.0771859,-0.140256,0.294627,3,2
+shared_opc_raw,vector,current,0.8,100000,-0.0950938,-0.691901,0.501713,3,1
+shared_opc_raw,vector,better,0.6,5000,-0.436887,-2.96097,2.0872,3,1
+shared_opc_raw,vector,better,0.6,25000,0.158072,-0.721123,1.03727,3,2
+shared_opc_raw,vector,better,0.6,100000,-0.0352568,-0.695976,0.625463,3,2
+shared_opc_raw,combined,poor,0.9,5000,-0.447497,-2.03403,1.13903,3,1
+shared_opc_raw,combined,poor,0.9,25000,-1.53633,-1.86117,-1.21149,3,0
+shared_opc_raw,combined,poor,0.9,100000,-2.04972,-3.05151,-1.04792,3,0
+shared_opc_raw,combined,current,0.8,5000,-0.258849,-1.0019,0.4842,3,1
+shared_opc_raw,combined,current,0.8,25000,-1.48237,-3.2593,0.294557,3,0
+shared_opc_raw,combined,current,0.8,100000,-1.98617,-2.31124,-1.66111,3,0
+shared_opc_raw,combined,better,0.6,5000,0.578772,0.324459,0.833085,3,3
+shared_opc_raw,combined,better,0.6,25000,-0.614852,-1.59536,0.36566,3,0
+shared_opc_raw,combined,better,0.6,100000,-1.64128,-2.28041,-1.00215,3,0
+shared_opc_raw,biased (pooled),poor,0.9,5000,-0.618985,-0.97358,-0.264389,12,3
+shared_opc_raw,biased (pooled),poor,0.9,25000,-0.708522,-1.17871,-0.238337,12,2
+shared_opc_raw,biased (pooled),poor,0.9,100000,-1.12082,-1.66196,-0.57968,12,0
+shared_opc_raw,biased (pooled),current,0.8,5000,-0.517922,-0.794616,-0.241229,12,2
+shared_opc_raw,biased (pooled),current,0.8,25000,-0.721305,-1.21468,-0.22793,12,2
+shared_opc_raw,biased (pooled),current,0.8,100000,-1.03254,-1.58151,-0.483574,12,1
+shared_opc_raw,biased (pooled),better,0.6,5000,-0.252803,-0.778695,0.27309,12,6
+shared_opc_raw,biased (pooled),better,0.6,25000,-0.635905,-1.03252,-0.239286,12,2
+shared_opc_raw,biased (pooled),better,0.6,100000,-1.03547,-1.61615,-0.45478,12,2

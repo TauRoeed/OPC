@@ -1,0 +1,9 @@
+{
+  "levels": {
+    "poor": 0.9,
+    "current": 0.8,
+    "better": 0.6
+  },
+  "current_effective_items": 139.06437234505043,
+  "factor": 4.0
+}

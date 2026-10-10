@@ -1,0 +1,46 @@
+opc_arm,panel,support,share,train_size,observed,observed_lo,observed_hi,worlds,opc_ahead
+shared_opc,warp,poor,0.9,5000,-0.941193,-1.12378,-0.758603,3,0
+shared_opc,warp,poor,0.9,25000,-0.601764,-2.16009,0.956563,3,1
+shared_opc,warp,poor,0.9,100000,-1.24582,-1.96911,-0.522532,3,0
+shared_opc,warp,current,0.8,5000,-1.14268,-1.88204,-0.403317,3,0
+shared_opc,warp,current,0.8,25000,-0.717974,-2.12726,0.691314,3,0
+shared_opc,warp,current,0.8,100000,-1.33074,-1.73565,-0.925833,3,0
+shared_opc,warp,better,0.6,5000,-0.490282,-2.29873,1.31816,3,1
+shared_opc,warp,better,0.6,25000,-1.36855,-1.72753,-1.00958,3,0
+shared_opc,warp,better,0.6,100000,-1.61153,-2.71102,-0.512031,3,0
+shared_opc,group,poor,0.9,5000,-0.507018,-0.929824,-0.0842126,3,0
+shared_opc,group,poor,0.9,25000,-0.458448,-1.35623,0.439337,3,0
+shared_opc,group,poor,0.9,100000,-0.136537,-0.497093,0.224019,3,0
+shared_opc,group,current,0.8,5000,-0.459795,-1.04593,0.126335,3,0
+shared_opc,group,current,0.8,25000,-0.0760705,-0.141748,-0.0103934,3,0
+shared_opc,group,current,0.8,100000,-0.27148,-0.365911,-0.177049,3,0
+shared_opc,group,better,0.6,5000,-0.521544,-1.34062,0.297536,3,0
+shared_opc,group,better,0.6,25000,-0.285629,-0.710511,0.139254,3,0
+shared_opc,group,better,0.6,100000,-0.413894,-1.37721,0.549421,3,0
+shared_opc,vector,poor,0.9,5000,-0.101578,-1.52702,1.32386,3,2
+shared_opc,vector,poor,0.9,25000,0.0728106,-0.637958,0.783579,3,1
+shared_opc,vector,poor,0.9,100000,-0.278259,-1.40889,0.852377,3,1
+shared_opc,vector,current,0.8,5000,-0.181476,-1.37116,1.00821,3,1
+shared_opc,vector,current,0.8,25000,0.210299,-0.066487,0.487084,3,3
+shared_opc,vector,current,0.8,100000,-0.0465836,-0.409089,0.315922,3,1
+shared_opc,vector,better,0.6,5000,-0.214402,-2.37334,1.94453,3,1
+shared_opc,vector,better,0.6,25000,0.142377,-0.618733,0.903487,3,2
+shared_opc,vector,better,0.6,100000,0.0428123,-0.975904,1.06153,3,2
+shared_opc,combined,poor,0.9,5000,0.131643,-0.745044,1.00833,3,1
+shared_opc,combined,poor,0.9,25000,-0.980826,-2.96575,1.00409,3,0
+shared_opc,combined,poor,0.9,100000,-0.988687,-2.34296,0.365588,3,0
+shared_opc,combined,current,0.8,5000,0.152663,-0.841977,1.1473,3,2
+shared_opc,combined,current,0.8,25000,-0.317604,-1.52242,0.887211,3,1
+shared_opc,combined,current,0.8,100000,-0.821188,-2.06666,0.424281,3,0
+shared_opc,combined,better,0.6,5000,0.593149,-0.539922,1.72622,3,3
+shared_opc,combined,better,0.6,25000,-0.0420902,-1.62362,1.53944,3,2
+shared_opc,combined,better,0.6,100000,-0.551726,-2.6615,1.55805,3,1
+shared_opc,biased (pooled),poor,0.9,5000,-0.354537,-0.685223,-0.0238504,12,3
+shared_opc,biased (pooled),poor,0.9,25000,-0.492057,-0.884769,-0.0993437,12,2
+shared_opc,biased (pooled),poor,0.9,100000,-0.662326,-1.0374,-0.287256,12,1
+shared_opc,biased (pooled),current,0.8,5000,-0.407822,-0.780876,-0.0347675,12,3
+shared_opc,biased (pooled),current,0.8,25000,-0.225338,-0.53006,0.079385,12,4
+shared_opc,biased (pooled),current,0.8,100000,-0.617499,-0.980423,-0.254574,12,1
+shared_opc,biased (pooled),better,0.6,5000,-0.15827,-0.612987,0.296447,12,5
+shared_opc,biased (pooled),better,0.6,25000,-0.388474,-0.826055,0.0491069,12,4
+shared_opc,biased (pooled),better,0.6,100000,-0.633583,-1.136,-0.131168,12,3

@@ -1,0 +1,10 @@
+opc_arm,support,share,train_size,M_L,dT,dS,observed
+shared_opc_raw,poor,0.9,5000,1.64874,2.10735,0.16038,-0.618985
+shared_opc_raw,poor,0.9,25000,1.64874,2.44091,-0.0836402,-0.708522
+shared_opc_raw,poor,0.9,100000,1.64874,2.65492,0.114643,-1.12082
+shared_opc_raw,current,0.8,5000,1.50605,1.7034,0.32057,-0.517922
+shared_opc_raw,current,0.8,25000,1.50605,2.19271,0.0346393,-0.721305
+shared_opc_raw,current,0.8,100000,1.50605,2.44421,0.0943841,-1.03254
+shared_opc_raw,better,0.6,5000,1.47051,1.20743,0.515884,-0.252803
+shared_opc_raw,better,0.6,25000,1.47051,1.87515,0.231262,-0.635905
+shared_opc_raw,better,0.6,100000,1.47051,2.34116,0.164819,-1.03547

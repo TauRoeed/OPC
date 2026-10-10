@@ -1,0 +1,781 @@
+contrast,a,b,rule,dataset,bias,d,worlds,corruption
+OPC vs likelihood,shared_opc,shared_likelihood,best,anime,high,0.246069,1,combined
+OPC vs likelihood,shared_opc,shared_likelihood,best,anime,none,-0.138381,1,no bias
+OPC vs likelihood,shared_opc,shared_likelihood,best,anime,w-high.g-none.v-none,-0.917739,1,warp
+OPC vs likelihood,shared_opc,shared_likelihood,best,anime,w-none.g-high.v-none,-0.118798,1,group
+OPC vs likelihood,shared_opc,shared_likelihood,best,anime,w-none.g-none.v-high,0.271835,1,vector
+OPC vs likelihood,shared_opc,shared_likelihood,best,kuairand,high,-0.779389,1,combined
+OPC vs likelihood,shared_opc,shared_likelihood,best,kuairand,none,-0.0915242,1,no bias
+OPC vs likelihood,shared_opc,shared_likelihood,best,kuairand,w-high.g-none.v-none,-0.934791,1,warp
+OPC vs likelihood,shared_opc,shared_likelihood,best,kuairand,w-none.g-high.v-none,0.0140727,1,group
+OPC vs likelihood,shared_opc,shared_likelihood,best,kuairand,w-none.g-none.v-high,-0.106378,1,vector
+OPC vs likelihood,shared_opc,shared_likelihood,best,ml,high,-0.353148,1,combined
+OPC vs likelihood,shared_opc,shared_likelihood,best,ml,none,-0.157116,1,no bias
+OPC vs likelihood,shared_opc,shared_likelihood,best,ml,w-high.g-none.v-none,-1.0435,1,warp
+OPC vs likelihood,shared_opc,shared_likelihood,best,ml,w-none.g-high.v-none,0.022425,1,group
+OPC vs likelihood,shared_opc,shared_likelihood,best,ml,w-none.g-none.v-high,0.143593,1,vector
+OPC vs likelihood,shared_opc,shared_likelihood,common,anime,high,0.224036,1,combined
+OPC vs likelihood,shared_opc,shared_likelihood,common,anime,none,-0.31089,1,no bias
+OPC vs likelihood,shared_opc,shared_likelihood,common,anime,w-high.g-none.v-none,-0.90948,1,warp
+OPC vs likelihood,shared_opc,shared_likelihood,common,anime,w-none.g-high.v-none,-0.139867,1,group
+OPC vs likelihood,shared_opc,shared_likelihood,common,anime,w-none.g-none.v-high,0.392245,1,vector
+OPC vs likelihood,shared_opc,shared_likelihood,common,kuairand,high,-0.331061,1,combined
+OPC vs likelihood,shared_opc,shared_likelihood,common,kuairand,none,-0.253163,1,no bias
+OPC vs likelihood,shared_opc,shared_likelihood,common,kuairand,w-high.g-none.v-none,-0.833899,1,warp
+OPC vs likelihood,shared_opc,shared_likelihood,common,kuairand,w-none.g-high.v-none,-0.0949532,1,group
+OPC vs likelihood,shared_opc,shared_likelihood,common,kuairand,w-none.g-none.v-high,0.302924,1,vector
+OPC vs likelihood,shared_opc,shared_likelihood,common,ml,high,-0.465146,1,combined
+OPC vs likelihood,shared_opc,shared_likelihood,common,ml,none,-0.408941,1,no bias
+OPC vs likelihood,shared_opc,shared_likelihood,common,ml,w-high.g-none.v-none,-0.980513,1,warp
+OPC vs likelihood,shared_opc,shared_likelihood,common,ml,w-none.g-high.v-none,-0.163708,1,group
+OPC vs likelihood,shared_opc,shared_likelihood,common,ml,w-none.g-none.v-high,0.12611,1,vector
+OPC vs likelihood,shared_opc,shared_likelihood,mean,anime,high,0.931239,1,combined
+OPC vs likelihood,shared_opc,shared_likelihood,mean,anime,none,-0.295444,1,no bias
+OPC vs likelihood,shared_opc,shared_likelihood,mean,anime,w-high.g-none.v-none,0.102039,1,warp
+OPC vs likelihood,shared_opc,shared_likelihood,mean,anime,w-none.g-high.v-none,0.0594309,1,group
+OPC vs likelihood,shared_opc,shared_likelihood,mean,anime,w-none.g-none.v-high,0.306424,1,vector
+OPC vs likelihood,shared_opc,shared_likelihood,mean,kuairand,high,0.615284,1,combined
+OPC vs likelihood,shared_opc,shared_likelihood,mean,kuairand,none,-0.235687,1,no bias
+OPC vs likelihood,shared_opc,shared_likelihood,mean,kuairand,w-high.g-none.v-none,-0.385094,1,warp
+OPC vs likelihood,shared_opc,shared_likelihood,mean,kuairand,w-none.g-high.v-none,0.0143011,1,group
+OPC vs likelihood,shared_opc,shared_likelihood,mean,kuairand,w-none.g-none.v-high,0.126331,1,vector
+OPC vs likelihood,shared_opc,shared_likelihood,mean,ml,high,0.580078,1,combined
+OPC vs likelihood,shared_opc,shared_likelihood,mean,ml,none,-0.417027,1,no bias
+OPC vs likelihood,shared_opc,shared_likelihood,mean,ml,w-high.g-none.v-none,-0.0482485,1,warp
+OPC vs likelihood,shared_opc,shared_likelihood,mean,ml,w-none.g-high.v-none,0.294297,1,group
+OPC vs likelihood,shared_opc,shared_likelihood,mean,ml,w-none.g-none.v-high,0.278642,1,vector
+OPC vs likelihood,shared_opc,shared_likelihood,native,anime,high,0.224036,1,combined
+OPC vs likelihood,shared_opc,shared_likelihood,native,anime,none,-1.23612,1,no bias
+OPC vs likelihood,shared_opc,shared_likelihood,native,anime,w-high.g-none.v-none,-0.0688705,1,warp
+OPC vs likelihood,shared_opc,shared_likelihood,native,anime,w-none.g-high.v-none,-0.102824,1,group
+OPC vs likelihood,shared_opc,shared_likelihood,native,anime,w-none.g-none.v-high,0.298049,1,vector
+OPC vs likelihood,shared_opc,shared_likelihood,native,kuairand,high,-0.711703,1,combined
+OPC vs likelihood,shared_opc,shared_likelihood,native,kuairand,none,-0.333448,1,no bias
+OPC vs likelihood,shared_opc,shared_likelihood,native,kuairand,w-high.g-none.v-none,-0.966077,1,warp
+OPC vs likelihood,shared_opc,shared_likelihood,native,kuairand,w-none.g-high.v-none,-0.0754283,1,group
+OPC vs likelihood,shared_opc,shared_likelihood,native,kuairand,w-none.g-none.v-high,0.247907,1,vector
+OPC vs likelihood,shared_opc,shared_likelihood,native,ml,high,-0.465146,1,combined
+OPC vs likelihood,shared_opc,shared_likelihood,native,ml,none,-0.609928,1,no bias
+OPC vs likelihood,shared_opc,shared_likelihood,native,ml,w-high.g-none.v-none,-1.11898,1,warp
+OPC vs likelihood,shared_opc,shared_likelihood,native,ml,w-none.g-high.v-none,-0.0499589,1,group
+OPC vs likelihood,shared_opc,shared_likelihood,native,ml,w-none.g-none.v-high,0.0849397,1,vector
+OPC with oracle q vs likelihood,shared_opc_oq,shared_likelihood,best,anime,high,2.97614,1,combined
+OPC with oracle q vs likelihood,shared_opc_oq,shared_likelihood,best,anime,none,-0.129474,1,no bias
+OPC with oracle q vs likelihood,shared_opc_oq,shared_likelihood,best,anime,w-high.g-none.v-none,-0.145863,1,warp
+OPC with oracle q vs likelihood,shared_opc_oq,shared_likelihood,best,anime,w-none.g-high.v-none,0.0803796,1,group
+OPC with oracle q vs likelihood,shared_opc_oq,shared_likelihood,best,anime,w-none.g-none.v-high,0.43214,1,vector
+OPC with oracle q vs likelihood,shared_opc_oq,shared_likelihood,best,kuairand,high,1.08221,1,combined
+OPC with oracle q vs likelihood,shared_opc_oq,shared_likelihood,best,kuairand,none,-0.0939106,1,no bias
+OPC with oracle q vs likelihood,shared_opc_oq,shared_likelihood,best,kuairand,w-high.g-none.v-none,-0.265089,1,warp
+OPC with oracle q vs likelihood,shared_opc_oq,shared_likelihood,best,kuairand,w-none.g-high.v-none,0.224447,1,group
+OPC with oracle q vs likelihood,shared_opc_oq,shared_likelihood,best,kuairand,w-none.g-none.v-high,0.122215,1,vector
+OPC with oracle q vs likelihood,shared_opc_oq,shared_likelihood,best,ml,high,4.42297,1,combined
+OPC with oracle q vs likelihood,shared_opc_oq,shared_likelihood,best,ml,none,-0.162275,1,no bias
+OPC with oracle q vs likelihood,shared_opc_oq,shared_likelihood,best,ml,w-high.g-none.v-none,0.237589,1,warp
+OPC with oracle q vs likelihood,shared_opc_oq,shared_likelihood,best,ml,w-none.g-high.v-none,0.682702,1,group
+OPC with oracle q vs likelihood,shared_opc_oq,shared_likelihood,best,ml,w-none.g-none.v-high,0.771127,1,vector
+OPC with oracle q vs likelihood,shared_opc_oq,shared_likelihood,common,anime,high,2.64801,1,combined
+OPC with oracle q vs likelihood,shared_opc_oq,shared_likelihood,common,anime,none,0.254487,1,no bias
+OPC with oracle q vs likelihood,shared_opc_oq,shared_likelihood,common,anime,w-high.g-none.v-none,0.0878801,1,warp
+OPC with oracle q vs likelihood,shared_opc_oq,shared_likelihood,common,anime,w-none.g-high.v-none,-0.0391406,1,group
+OPC with oracle q vs likelihood,shared_opc_oq,shared_likelihood,common,anime,w-none.g-none.v-high,0.566907,1,vector
+OPC with oracle q vs likelihood,shared_opc_oq,shared_likelihood,common,kuairand,high,1.19653,1,combined
+OPC with oracle q vs likelihood,shared_opc_oq,shared_likelihood,common,kuairand,none,-0.272497,1,no bias
+OPC with oracle q vs likelihood,shared_opc_oq,shared_likelihood,common,kuairand,w-high.g-none.v-none,0.106186,1,warp
+OPC with oracle q vs likelihood,shared_opc_oq,shared_likelihood,common,kuairand,w-none.g-high.v-none,0.395225,1,group
+OPC with oracle q vs likelihood,shared_opc_oq,shared_likelihood,common,kuairand,w-none.g-none.v-high,0.74618,1,vector
+OPC with oracle q vs likelihood,shared_opc_oq,shared_likelihood,common,ml,high,4.47999,1,combined
+OPC with oracle q vs likelihood,shared_opc_oq,shared_likelihood,common,ml,none,-0.418618,1,no bias
+OPC with oracle q vs likelihood,shared_opc_oq,shared_likelihood,common,ml,w-high.g-none.v-none,0.47919,1,warp
+OPC with oracle q vs likelihood,shared_opc_oq,shared_likelihood,common,ml,w-none.g-high.v-none,0.535312,1,group
+OPC with oracle q vs likelihood,shared_opc_oq,shared_likelihood,common,ml,w-none.g-none.v-high,0.884849,1,vector
+OPC with oracle q vs likelihood,shared_opc_oq,shared_likelihood,mean,anime,high,2.17516,1,combined
+OPC with oracle q vs likelihood,shared_opc_oq,shared_likelihood,mean,anime,none,-0.248233,1,no bias
+OPC with oracle q vs likelihood,shared_opc_oq,shared_likelihood,mean,anime,w-high.g-none.v-none,0.54051,1,warp
+OPC with oracle q vs likelihood,shared_opc_oq,shared_likelihood,mean,anime,w-none.g-high.v-none,0.268963,1,group
+OPC with oracle q vs likelihood,shared_opc_oq,shared_likelihood,mean,anime,w-none.g-none.v-high,0.518,1,vector
+OPC with oracle q vs likelihood,shared_opc_oq,shared_likelihood,mean,kuairand,high,2.13297,1,combined
+OPC with oracle q vs likelihood,shared_opc_oq,shared_likelihood,mean,kuairand,none,-0.199809,1,no bias
+OPC with oracle q vs likelihood,shared_opc_oq,shared_likelihood,mean,kuairand,w-high.g-none.v-none,0.133405,1,warp
+OPC with oracle q vs likelihood,shared_opc_oq,shared_likelihood,mean,kuairand,w-none.g-high.v-none,0.242267,1,group
+OPC with oracle q vs likelihood,shared_opc_oq,shared_likelihood,mean,kuairand,w-none.g-none.v-high,0.30925,1,vector
+OPC with oracle q vs likelihood,shared_opc_oq,shared_likelihood,mean,ml,high,2.33002,1,combined
+OPC with oracle q vs likelihood,shared_opc_oq,shared_likelihood,mean,ml,none,-0.360766,1,no bias
+OPC with oracle q vs likelihood,shared_opc_oq,shared_likelihood,mean,ml,w-high.g-none.v-none,0.865531,1,warp
+OPC with oracle q vs likelihood,shared_opc_oq,shared_likelihood,mean,ml,w-none.g-high.v-none,0.860086,1,group
+OPC with oracle q vs likelihood,shared_opc_oq,shared_likelihood,mean,ml,w-none.g-none.v-high,0.743713,1,vector
+OPC with oracle q vs likelihood,shared_opc_oq,shared_likelihood,native,anime,high,2.64801,1,combined
+OPC with oracle q vs likelihood,shared_opc_oq,shared_likelihood,native,anime,none,-0.77294,1,no bias
+OPC with oracle q vs likelihood,shared_opc_oq,shared_likelihood,native,anime,w-high.g-none.v-none,0.852268,1,warp
+OPC with oracle q vs likelihood,shared_opc_oq,shared_likelihood,native,anime,w-none.g-high.v-none,-0.208873,1,group
+OPC with oracle q vs likelihood,shared_opc_oq,shared_likelihood,native,anime,w-none.g-none.v-high,0.667766,1,vector
+OPC with oracle q vs likelihood,shared_opc_oq,shared_likelihood,native,kuairand,high,0.815891,1,combined
+OPC with oracle q vs likelihood,shared_opc_oq,shared_likelihood,native,kuairand,none,-0.291407,1,no bias
+OPC with oracle q vs likelihood,shared_opc_oq,shared_likelihood,native,kuairand,w-high.g-none.v-none,-0.959952,1,warp
+OPC with oracle q vs likelihood,shared_opc_oq,shared_likelihood,native,kuairand,w-none.g-high.v-none,0.200512,1,group
+OPC with oracle q vs likelihood,shared_opc_oq,shared_likelihood,native,kuairand,w-none.g-none.v-high,0.397104,1,vector
+OPC with oracle q vs likelihood,shared_opc_oq,shared_likelihood,native,ml,high,4.47999,1,combined
+OPC with oracle q vs likelihood,shared_opc_oq,shared_likelihood,native,ml,none,-0.549353,1,no bias
+OPC with oracle q vs likelihood,shared_opc_oq,shared_likelihood,native,ml,w-high.g-none.v-none,0.364743,1,warp
+OPC with oracle q vs likelihood,shared_opc_oq,shared_likelihood,native,ml,w-none.g-high.v-none,0.600083,1,group
+OPC with oracle q vs likelihood,shared_opc_oq,shared_likelihood,native,ml,w-none.g-none.v-high,0.843679,1,vector
+"OPC, batch 8192 vs likelihood",shared_opc_b8192,shared_likelihood,best,anime,high,0.350427,1,combined
+"OPC, batch 8192 vs likelihood",shared_opc_b8192,shared_likelihood,best,anime,none,-0.200372,1,no bias
+"OPC, batch 8192 vs likelihood",shared_opc_b8192,shared_likelihood,best,anime,w-high.g-none.v-none,-0.893551,1,warp
+"OPC, batch 8192 vs likelihood",shared_opc_b8192,shared_likelihood,best,anime,w-none.g-high.v-none,-0.0889717,1,group
+"OPC, batch 8192 vs likelihood",shared_opc_b8192,shared_likelihood,best,anime,w-none.g-none.v-high,0.318403,1,vector
+"OPC, batch 8192 vs likelihood",shared_opc_b8192,shared_likelihood,best,kuairand,high,-0.789324,1,combined
+"OPC, batch 8192 vs likelihood",shared_opc_b8192,shared_likelihood,best,kuairand,none,-0.105857,1,no bias
+"OPC, batch 8192 vs likelihood",shared_opc_b8192,shared_likelihood,best,kuairand,w-high.g-none.v-none,-0.815413,1,warp
+"OPC, batch 8192 vs likelihood",shared_opc_b8192,shared_likelihood,best,kuairand,w-none.g-high.v-none,0.0433321,1,group
+"OPC, batch 8192 vs likelihood",shared_opc_b8192,shared_likelihood,best,kuairand,w-none.g-none.v-high,-0.124287,1,vector
+"OPC, batch 8192 vs likelihood",shared_opc_b8192,shared_likelihood,best,ml,high,0.451317,1,combined
+"OPC, batch 8192 vs likelihood",shared_opc_b8192,shared_likelihood,best,ml,none,-0.202312,1,no bias
+"OPC, batch 8192 vs likelihood",shared_opc_b8192,shared_likelihood,best,ml,w-high.g-none.v-none,-0.956339,1,warp
+"OPC, batch 8192 vs likelihood",shared_opc_b8192,shared_likelihood,best,ml,w-none.g-high.v-none,-0.0204449,1,group
+"OPC, batch 8192 vs likelihood",shared_opc_b8192,shared_likelihood,best,ml,w-none.g-none.v-high,0.24181,1,vector
+"OPC, batch 8192 vs likelihood",shared_opc_b8192,shared_likelihood,common,anime,high,0.397614,1,combined
+"OPC, batch 8192 vs likelihood",shared_opc_b8192,shared_likelihood,common,anime,none,0.251697,1,no bias
+"OPC, batch 8192 vs likelihood",shared_opc_b8192,shared_likelihood,common,anime,w-high.g-none.v-none,-0.708487,1,warp
+"OPC, batch 8192 vs likelihood",shared_opc_b8192,shared_likelihood,common,anime,w-none.g-high.v-none,-0.0701507,1,group
+"OPC, batch 8192 vs likelihood",shared_opc_b8192,shared_likelihood,common,anime,w-none.g-none.v-high,0.45317,1,vector
+"OPC, batch 8192 vs likelihood",shared_opc_b8192,shared_likelihood,common,kuairand,high,-0.358248,1,combined
+"OPC, batch 8192 vs likelihood",shared_opc_b8192,shared_likelihood,common,kuairand,none,-0.336878,1,no bias
+"OPC, batch 8192 vs likelihood",shared_opc_b8192,shared_likelihood,common,kuairand,w-high.g-none.v-none,-1.20415,1,warp
+"OPC, batch 8192 vs likelihood",shared_opc_b8192,shared_likelihood,common,kuairand,w-none.g-high.v-none,0.0688974,1,group
+"OPC, batch 8192 vs likelihood",shared_opc_b8192,shared_likelihood,common,kuairand,w-none.g-none.v-high,0.380714,1,vector
+"OPC, batch 8192 vs likelihood",shared_opc_b8192,shared_likelihood,common,ml,high,0.508336,1,combined
+"OPC, batch 8192 vs likelihood",shared_opc_b8192,shared_likelihood,common,ml,none,-0.561833,1,no bias
+"OPC, batch 8192 vs likelihood",shared_opc_b8192,shared_likelihood,common,ml,w-high.g-none.v-none,-0.827686,1,warp
+"OPC, batch 8192 vs likelihood",shared_opc_b8192,shared_likelihood,common,ml,w-none.g-high.v-none,-0.17615,1,group
+"OPC, batch 8192 vs likelihood",shared_opc_b8192,shared_likelihood,common,ml,w-none.g-none.v-high,0.123198,1,vector
+"OPC, batch 8192 vs likelihood",shared_opc_b8192,shared_likelihood,mean,anime,high,1.26285,1,combined
+"OPC, batch 8192 vs likelihood",shared_opc_b8192,shared_likelihood,mean,anime,none,-0.563131,1,no bias
+"OPC, batch 8192 vs likelihood",shared_opc_b8192,shared_likelihood,mean,anime,w-high.g-none.v-none,0.200254,1,warp
+"OPC, batch 8192 vs likelihood",shared_opc_b8192,shared_likelihood,mean,anime,w-none.g-high.v-none,-0.00759605,1,group
+"OPC, batch 8192 vs likelihood",shared_opc_b8192,shared_likelihood,mean,anime,w-none.g-none.v-high,0.111034,1,vector
+"OPC, batch 8192 vs likelihood",shared_opc_b8192,shared_likelihood,mean,kuairand,high,0.737379,1,combined
+"OPC, batch 8192 vs likelihood",shared_opc_b8192,shared_likelihood,mean,kuairand,none,-0.399015,1,no bias
+"OPC, batch 8192 vs likelihood",shared_opc_b8192,shared_likelihood,mean,kuairand,w-high.g-none.v-none,-0.220198,1,warp
+"OPC, batch 8192 vs likelihood",shared_opc_b8192,shared_likelihood,mean,kuairand,w-none.g-high.v-none,-0.133869,1,group
+"OPC, batch 8192 vs likelihood",shared_opc_b8192,shared_likelihood,mean,kuairand,w-none.g-none.v-high,0.123767,1,vector
+"OPC, batch 8192 vs likelihood",shared_opc_b8192,shared_likelihood,mean,ml,high,1.01311,1,combined
+"OPC, batch 8192 vs likelihood",shared_opc_b8192,shared_likelihood,mean,ml,none,-0.710382,1,no bias
+"OPC, batch 8192 vs likelihood",shared_opc_b8192,shared_likelihood,mean,ml,w-high.g-none.v-none,0.0158309,1,warp
+"OPC, batch 8192 vs likelihood",shared_opc_b8192,shared_likelihood,mean,ml,w-none.g-high.v-none,0.278087,1,group
+"OPC, batch 8192 vs likelihood",shared_opc_b8192,shared_likelihood,mean,ml,w-none.g-none.v-high,0.317324,1,vector
+"OPC, batch 8192 vs likelihood",shared_opc_b8192,shared_likelihood,native,anime,high,0.397614,1,combined
+"OPC, batch 8192 vs likelihood",shared_opc_b8192,shared_likelihood,native,anime,none,-0.673535,1,no bias
+"OPC, batch 8192 vs likelihood",shared_opc_b8192,shared_likelihood,native,anime,w-high.g-none.v-none,-0.106466,1,warp
+"OPC, batch 8192 vs likelihood",shared_opc_b8192,shared_likelihood,native,anime,w-none.g-high.v-none,-0.491904,1,group
+"OPC, batch 8192 vs likelihood",shared_opc_b8192,shared_likelihood,native,anime,w-none.g-none.v-high,-0.0288884,1,vector
+"OPC, batch 8192 vs likelihood",shared_opc_b8192,shared_likelihood,native,kuairand,high,-0.777911,1,combined
+"OPC, batch 8192 vs likelihood",shared_opc_b8192,shared_likelihood,native,kuairand,none,-0.399275,1,no bias
+"OPC, batch 8192 vs likelihood",shared_opc_b8192,shared_likelihood,native,kuairand,w-high.g-none.v-none,-0.815413,1,warp
+"OPC, batch 8192 vs likelihood",shared_opc_b8192,shared_likelihood,native,kuairand,w-none.g-high.v-none,-0.558252,1,group
+"OPC, batch 8192 vs likelihood",shared_opc_b8192,shared_likelihood,native,kuairand,w-none.g-none.v-high,0.139264,1,vector
+"OPC, batch 8192 vs likelihood",shared_opc_b8192,shared_likelihood,native,ml,high,0.508336,1,combined
+"OPC, batch 8192 vs likelihood",shared_opc_b8192,shared_likelihood,native,ml,none,-0.725016,1,no bias
+"OPC, batch 8192 vs likelihood",shared_opc_b8192,shared_likelihood,native,ml,w-high.g-none.v-none,-0.942133,1,warp
+"OPC, batch 8192 vs likelihood",shared_opc_b8192,shared_likelihood,native,ml,w-none.g-high.v-none,-0.171433,1,group
+"OPC, batch 8192 vs likelihood",shared_opc_b8192,shared_likelihood,native,ml,w-none.g-none.v-high,-0.0780655,1,vector
+"OPC, full batch vs likelihood",shared_opc_bfull,shared_likelihood,best,kuairand,high,-0.872225,1,combined
+"OPC, full batch vs likelihood",shared_opc_bfull,shared_likelihood,best,kuairand,none,-0.132479,1,no bias
+"OPC, full batch vs likelihood",shared_opc_bfull,shared_likelihood,best,kuairand,w-high.g-none.v-none,-0.752934,1,warp
+"OPC, full batch vs likelihood",shared_opc_bfull,shared_likelihood,best,kuairand,w-none.g-high.v-none,0.0223563,1,group
+"OPC, full batch vs likelihood",shared_opc_bfull,shared_likelihood,best,kuairand,w-none.g-none.v-high,-0.174913,1,vector
+"OPC, full batch vs likelihood",shared_opc_bfull,shared_likelihood,best,ml,high,0.456871,1,combined
+"OPC, full batch vs likelihood",shared_opc_bfull,shared_likelihood,best,ml,none,-0.259822,1,no bias
+"OPC, full batch vs likelihood",shared_opc_bfull,shared_likelihood,best,ml,w-high.g-none.v-none,-1.03673,1,warp
+"OPC, full batch vs likelihood",shared_opc_bfull,shared_likelihood,best,ml,w-none.g-high.v-none,-0.120442,1,group
+"OPC, full batch vs likelihood",shared_opc_bfull,shared_likelihood,best,ml,w-none.g-none.v-high,0.154751,1,vector
+"OPC, full batch vs likelihood",shared_opc_bfull,shared_likelihood,common,kuairand,high,-0.536966,1,combined
+"OPC, full batch vs likelihood",shared_opc_bfull,shared_likelihood,common,kuairand,none,-1.01105,1,no bias
+"OPC, full batch vs likelihood",shared_opc_bfull,shared_likelihood,common,kuairand,w-high.g-none.v-none,-1.17328,1,warp
+"OPC, full batch vs likelihood",shared_opc_bfull,shared_likelihood,common,kuairand,w-none.g-high.v-none,0.18237,1,group
+"OPC, full batch vs likelihood",shared_opc_bfull,shared_likelihood,common,kuairand,w-none.g-none.v-high,0.273582,1,vector
+"OPC, full batch vs likelihood",shared_opc_bfull,shared_likelihood,common,ml,high,0.513891,1,combined
+"OPC, full batch vs likelihood",shared_opc_bfull,shared_likelihood,common,ml,none,-0.22438,1,no bias
+"OPC, full batch vs likelihood",shared_opc_bfull,shared_likelihood,common,ml,w-high.g-none.v-none,-1.08767,1,warp
+"OPC, full batch vs likelihood",shared_opc_bfull,shared_likelihood,common,ml,w-none.g-high.v-none,-0.274545,1,group
+"OPC, full batch vs likelihood",shared_opc_bfull,shared_likelihood,common,ml,w-none.g-none.v-high,0.12507,1,vector
+"OPC, full batch vs likelihood",shared_opc_bfull,shared_likelihood,mean,kuairand,high,0.654559,1,combined
+"OPC, full batch vs likelihood",shared_opc_bfull,shared_likelihood,mean,kuairand,none,-0.595797,1,no bias
+"OPC, full batch vs likelihood",shared_opc_bfull,shared_likelihood,mean,kuairand,w-high.g-none.v-none,-0.22338,1,warp
+"OPC, full batch vs likelihood",shared_opc_bfull,shared_likelihood,mean,kuairand,w-none.g-high.v-none,-0.363892,1,group
+"OPC, full batch vs likelihood",shared_opc_bfull,shared_likelihood,mean,kuairand,w-none.g-none.v-high,0.0079968,1,vector
+"OPC, full batch vs likelihood",shared_opc_bfull,shared_likelihood,mean,ml,high,1.12667,1,combined
+"OPC, full batch vs likelihood",shared_opc_bfull,shared_likelihood,mean,ml,none,-0.977775,1,no bias
+"OPC, full batch vs likelihood",shared_opc_bfull,shared_likelihood,mean,ml,w-high.g-none.v-none,-0.0196243,1,warp
+"OPC, full batch vs likelihood",shared_opc_bfull,shared_likelihood,mean,ml,w-none.g-high.v-none,0.100162,1,group
+"OPC, full batch vs likelihood",shared_opc_bfull,shared_likelihood,mean,ml,w-none.g-none.v-high,0.281537,1,vector
+"OPC, full batch vs likelihood",shared_opc_bfull,shared_likelihood,native,kuairand,high,-0.917608,1,combined
+"OPC, full batch vs likelihood",shared_opc_bfull,shared_likelihood,native,kuairand,none,-0.459746,1,no bias
+"OPC, full batch vs likelihood",shared_opc_bfull,shared_likelihood,native,kuairand,w-high.g-none.v-none,-1.54609,1,warp
+"OPC, full batch vs likelihood",shared_opc_bfull,shared_likelihood,native,kuairand,w-none.g-high.v-none,-0.775824,1,group
+"OPC, full batch vs likelihood",shared_opc_bfull,shared_likelihood,native,kuairand,w-none.g-none.v-high,-0.189076,1,vector
+"OPC, full batch vs likelihood",shared_opc_bfull,shared_likelihood,native,ml,high,0.513891,1,combined
+"OPC, full batch vs likelihood",shared_opc_bfull,shared_likelihood,native,ml,none,-0.954656,1,no bias
+"OPC, full batch vs likelihood",shared_opc_bfull,shared_likelihood,native,ml,w-high.g-none.v-none,-1.20212,1,warp
+"OPC, full batch vs likelihood",shared_opc_bfull,shared_likelihood,native,ml,w-none.g-high.v-none,-0.445419,1,group
+"OPC, full batch vs likelihood",shared_opc_bfull,shared_likelihood,native,ml,w-none.g-none.v-high,0.0964616,1,vector
+batch 8192 vs standard (harmonic),shared_opc_b8192,shared_opc,best,anime,high,0.104358,1,combined
+batch 8192 vs standard (harmonic),shared_opc_b8192,shared_opc,best,anime,none,-0.0619915,1,no bias
+batch 8192 vs standard (harmonic),shared_opc_b8192,shared_opc,best,anime,w-high.g-none.v-none,0.0241877,1,warp
+batch 8192 vs standard (harmonic),shared_opc_b8192,shared_opc,best,anime,w-none.g-high.v-none,0.0298258,1,group
+batch 8192 vs standard (harmonic),shared_opc_b8192,shared_opc,best,anime,w-none.g-none.v-high,0.0465681,1,vector
+batch 8192 vs standard (harmonic),shared_opc_b8192,shared_opc,best,kuairand,high,-0.00993545,1,combined
+batch 8192 vs standard (harmonic),shared_opc_b8192,shared_opc,best,kuairand,none,-0.014333,1,no bias
+batch 8192 vs standard (harmonic),shared_opc_b8192,shared_opc,best,kuairand,w-high.g-none.v-none,0.119378,1,warp
+batch 8192 vs standard (harmonic),shared_opc_b8192,shared_opc,best,kuairand,w-none.g-high.v-none,0.0292593,1,group
+batch 8192 vs standard (harmonic),shared_opc_b8192,shared_opc,best,kuairand,w-none.g-none.v-high,-0.0179087,1,vector
+batch 8192 vs standard (harmonic),shared_opc_b8192,shared_opc,best,ml,high,0.804465,1,combined
+batch 8192 vs standard (harmonic),shared_opc_b8192,shared_opc,best,ml,none,-0.0451958,1,no bias
+batch 8192 vs standard (harmonic),shared_opc_b8192,shared_opc,best,ml,w-high.g-none.v-none,0.0871628,1,warp
+batch 8192 vs standard (harmonic),shared_opc_b8192,shared_opc,best,ml,w-none.g-high.v-none,-0.0428699,1,group
+batch 8192 vs standard (harmonic),shared_opc_b8192,shared_opc,best,ml,w-none.g-none.v-high,0.0982169,1,vector
+batch 8192 vs standard (harmonic),shared_opc_b8192,shared_opc,common,anime,high,0.173578,1,combined
+batch 8192 vs standard (harmonic),shared_opc_b8192,shared_opc,common,anime,none,0.562588,1,no bias
+batch 8192 vs standard (harmonic),shared_opc_b8192,shared_opc,common,anime,w-high.g-none.v-none,0.200992,1,warp
+batch 8192 vs standard (harmonic),shared_opc_b8192,shared_opc,common,anime,w-none.g-high.v-none,0.0697168,1,group
+batch 8192 vs standard (harmonic),shared_opc_b8192,shared_opc,common,anime,w-none.g-none.v-high,0.0609251,1,vector
+batch 8192 vs standard (harmonic),shared_opc_b8192,shared_opc,common,kuairand,high,-0.0271866,1,combined
+batch 8192 vs standard (harmonic),shared_opc_b8192,shared_opc,common,kuairand,none,-0.083715,1,no bias
+batch 8192 vs standard (harmonic),shared_opc_b8192,shared_opc,common,kuairand,w-high.g-none.v-none,-0.370252,1,warp
+batch 8192 vs standard (harmonic),shared_opc_b8192,shared_opc,common,kuairand,w-none.g-high.v-none,0.163851,1,group
+batch 8192 vs standard (harmonic),shared_opc_b8192,shared_opc,common,kuairand,w-none.g-none.v-high,0.0777899,1,vector
+batch 8192 vs standard (harmonic),shared_opc_b8192,shared_opc,common,ml,high,0.973482,1,combined
+batch 8192 vs standard (harmonic),shared_opc_b8192,shared_opc,common,ml,none,-0.152893,1,no bias
+batch 8192 vs standard (harmonic),shared_opc_b8192,shared_opc,common,ml,w-high.g-none.v-none,0.152827,1,warp
+batch 8192 vs standard (harmonic),shared_opc_b8192,shared_opc,common,ml,w-none.g-high.v-none,-0.0124426,1,group
+batch 8192 vs standard (harmonic),shared_opc_b8192,shared_opc,common,ml,w-none.g-none.v-high,-0.00291174,1,vector
+batch 8192 vs standard (harmonic),shared_opc_b8192,shared_opc,mean,anime,high,0.331609,1,combined
+batch 8192 vs standard (harmonic),shared_opc_b8192,shared_opc,mean,anime,none,-0.267687,1,no bias
+batch 8192 vs standard (harmonic),shared_opc_b8192,shared_opc,mean,anime,w-high.g-none.v-none,0.098215,1,warp
+batch 8192 vs standard (harmonic),shared_opc_b8192,shared_opc,mean,anime,w-none.g-high.v-none,-0.0670269,1,group
+batch 8192 vs standard (harmonic),shared_opc_b8192,shared_opc,mean,anime,w-none.g-none.v-high,-0.19539,1,vector
+batch 8192 vs standard (harmonic),shared_opc_b8192,shared_opc,mean,kuairand,high,0.122095,1,combined
+batch 8192 vs standard (harmonic),shared_opc_b8192,shared_opc,mean,kuairand,none,-0.163328,1,no bias
+batch 8192 vs standard (harmonic),shared_opc_b8192,shared_opc,mean,kuairand,w-high.g-none.v-none,0.164896,1,warp
+batch 8192 vs standard (harmonic),shared_opc_b8192,shared_opc,mean,kuairand,w-none.g-high.v-none,-0.14817,1,group
+batch 8192 vs standard (harmonic),shared_opc_b8192,shared_opc,mean,kuairand,w-none.g-none.v-high,-0.00256416,1,vector
+batch 8192 vs standard (harmonic),shared_opc_b8192,shared_opc,mean,ml,high,0.433029,1,combined
+batch 8192 vs standard (harmonic),shared_opc_b8192,shared_opc,mean,ml,none,-0.293356,1,no bias
+batch 8192 vs standard (harmonic),shared_opc_b8192,shared_opc,mean,ml,w-high.g-none.v-none,0.0640794,1,warp
+batch 8192 vs standard (harmonic),shared_opc_b8192,shared_opc,mean,ml,w-none.g-high.v-none,-0.0162105,1,group
+batch 8192 vs standard (harmonic),shared_opc_b8192,shared_opc,mean,ml,w-none.g-none.v-high,0.0386826,1,vector
+batch 8192 vs standard (harmonic),shared_opc_b8192,shared_opc,native,anime,high,0.173578,1,combined
+batch 8192 vs standard (harmonic),shared_opc_b8192,shared_opc,native,anime,none,0.562588,1,no bias
+batch 8192 vs standard (harmonic),shared_opc_b8192,shared_opc,native,anime,w-high.g-none.v-none,-0.0375954,1,warp
+batch 8192 vs standard (harmonic),shared_opc_b8192,shared_opc,native,anime,w-none.g-high.v-none,-0.389079,1,group
+batch 8192 vs standard (harmonic),shared_opc_b8192,shared_opc,native,anime,w-none.g-none.v-high,-0.326937,1,vector
+batch 8192 vs standard (harmonic),shared_opc_b8192,shared_opc,native,kuairand,high,-0.0662074,1,combined
+batch 8192 vs standard (harmonic),shared_opc_b8192,shared_opc,native,kuairand,none,-0.065827,1,no bias
+batch 8192 vs standard (harmonic),shared_opc_b8192,shared_opc,native,kuairand,w-high.g-none.v-none,0.150664,1,warp
+batch 8192 vs standard (harmonic),shared_opc_b8192,shared_opc,native,kuairand,w-none.g-high.v-none,-0.482824,1,group
+batch 8192 vs standard (harmonic),shared_opc_b8192,shared_opc,native,kuairand,w-none.g-none.v-high,-0.108643,1,vector
+batch 8192 vs standard (harmonic),shared_opc_b8192,shared_opc,native,ml,high,0.973482,1,combined
+batch 8192 vs standard (harmonic),shared_opc_b8192,shared_opc,native,ml,none,-0.115088,1,no bias
+batch 8192 vs standard (harmonic),shared_opc_b8192,shared_opc,native,ml,w-high.g-none.v-none,0.176842,1,warp
+batch 8192 vs standard (harmonic),shared_opc_b8192,shared_opc,native,ml,w-none.g-high.v-none,-0.121475,1,group
+batch 8192 vs standard (harmonic),shared_opc_b8192,shared_opc,native,ml,w-none.g-none.v-high,-0.163005,1,vector
+batch 8192 vs standard (raw),shared_opc_raw_b8192,shared_opc_raw,best,anime,high,0.676449,1,combined
+batch 8192 vs standard (raw),shared_opc_raw_b8192,shared_opc_raw,best,anime,none,-0.0933553,1,no bias
+batch 8192 vs standard (raw),shared_opc_raw_b8192,shared_opc_raw,best,anime,w-high.g-none.v-none,-0.158965,1,warp
+batch 8192 vs standard (raw),shared_opc_raw_b8192,shared_opc_raw,best,anime,w-none.g-high.v-none,-0.0780244,1,group
+batch 8192 vs standard (raw),shared_opc_raw_b8192,shared_opc_raw,best,anime,w-none.g-none.v-high,0.0888828,1,vector
+batch 8192 vs standard (raw),shared_opc_raw_b8192,shared_opc_raw,best,kuairand,high,0.163517,1,combined
+batch 8192 vs standard (raw),shared_opc_raw_b8192,shared_opc_raw,best,kuairand,none,-0.0547067,1,no bias
+batch 8192 vs standard (raw),shared_opc_raw_b8192,shared_opc_raw,best,kuairand,w-high.g-none.v-none,-0.0676613,1,warp
+batch 8192 vs standard (raw),shared_opc_raw_b8192,shared_opc_raw,best,kuairand,w-none.g-high.v-none,0.015943,1,group
+batch 8192 vs standard (raw),shared_opc_raw_b8192,shared_opc_raw,best,kuairand,w-none.g-none.v-high,-0.00742068,1,vector
+batch 8192 vs standard (raw),shared_opc_raw_b8192,shared_opc_raw,best,ml,high,0.9008,1,combined
+batch 8192 vs standard (raw),shared_opc_raw_b8192,shared_opc_raw,best,ml,none,-0.104198,1,no bias
+batch 8192 vs standard (raw),shared_opc_raw_b8192,shared_opc_raw,best,ml,w-high.g-none.v-none,-0.0587639,1,warp
+batch 8192 vs standard (raw),shared_opc_raw_b8192,shared_opc_raw,best,ml,w-none.g-high.v-none,-0.0761769,1,group
+batch 8192 vs standard (raw),shared_opc_raw_b8192,shared_opc_raw,best,ml,w-none.g-none.v-high,0.0505358,1,vector
+batch 8192 vs standard (raw),shared_opc_raw_b8192,shared_opc_raw,common,anime,high,0.999051,1,combined
+batch 8192 vs standard (raw),shared_opc_raw_b8192,shared_opc_raw,common,anime,none,0.268205,1,no bias
+batch 8192 vs standard (raw),shared_opc_raw_b8192,shared_opc_raw,common,anime,w-high.g-none.v-none,-0.0154045,1,warp
+batch 8192 vs standard (raw),shared_opc_raw_b8192,shared_opc_raw,common,anime,w-none.g-high.v-none,-0.0602032,1,group
+batch 8192 vs standard (raw),shared_opc_raw_b8192,shared_opc_raw,common,anime,w-none.g-none.v-high,-0.53186,1,vector
+batch 8192 vs standard (raw),shared_opc_raw_b8192,shared_opc_raw,common,kuairand,high,0.00545522,1,combined
+batch 8192 vs standard (raw),shared_opc_raw_b8192,shared_opc_raw,common,kuairand,none,-0.0247071,1,no bias
+batch 8192 vs standard (raw),shared_opc_raw_b8192,shared_opc_raw,common,kuairand,w-high.g-none.v-none,0.192835,1,warp
+batch 8192 vs standard (raw),shared_opc_raw_b8192,shared_opc_raw,common,kuairand,w-none.g-high.v-none,-0.00924175,1,group
+batch 8192 vs standard (raw),shared_opc_raw_b8192,shared_opc_raw,common,kuairand,w-none.g-none.v-high,-0.00619974,1,vector
+batch 8192 vs standard (raw),shared_opc_raw_b8192,shared_opc_raw,common,ml,high,1.03266,1,combined
+batch 8192 vs standard (raw),shared_opc_raw_b8192,shared_opc_raw,common,ml,none,0.513712,1,no bias
+batch 8192 vs standard (raw),shared_opc_raw_b8192,shared_opc_raw,common,ml,w-high.g-none.v-none,-0.0931205,1,warp
+batch 8192 vs standard (raw),shared_opc_raw_b8192,shared_opc_raw,common,ml,w-none.g-high.v-none,0.0200626,1,group
+batch 8192 vs standard (raw),shared_opc_raw_b8192,shared_opc_raw,common,ml,w-none.g-none.v-high,0.287968,1,vector
+batch 8192 vs standard (raw),shared_opc_raw_b8192,shared_opc_raw,mean,anime,high,0.834539,1,combined
+batch 8192 vs standard (raw),shared_opc_raw_b8192,shared_opc_raw,mean,anime,none,-0.525498,1,no bias
+batch 8192 vs standard (raw),shared_opc_raw_b8192,shared_opc_raw,mean,anime,w-high.g-none.v-none,0.0424892,1,warp
+batch 8192 vs standard (raw),shared_opc_raw_b8192,shared_opc_raw,mean,anime,w-none.g-high.v-none,-0.0583905,1,group
+batch 8192 vs standard (raw),shared_opc_raw_b8192,shared_opc_raw,mean,anime,w-none.g-none.v-high,-0.195482,1,vector
+batch 8192 vs standard (raw),shared_opc_raw_b8192,shared_opc_raw,mean,kuairand,high,0.199237,1,combined
+batch 8192 vs standard (raw),shared_opc_raw_b8192,shared_opc_raw,mean,kuairand,none,-0.226434,1,no bias
+batch 8192 vs standard (raw),shared_opc_raw_b8192,shared_opc_raw,mean,kuairand,w-high.g-none.v-none,0.091544,1,warp
+batch 8192 vs standard (raw),shared_opc_raw_b8192,shared_opc_raw,mean,kuairand,w-none.g-high.v-none,-0.190835,1,group
+batch 8192 vs standard (raw),shared_opc_raw_b8192,shared_opc_raw,mean,kuairand,w-none.g-none.v-high,-0.0495221,1,vector
+batch 8192 vs standard (raw),shared_opc_raw_b8192,shared_opc_raw,mean,ml,high,0.720944,1,combined
+batch 8192 vs standard (raw),shared_opc_raw_b8192,shared_opc_raw,mean,ml,none,-0.466742,1,no bias
+batch 8192 vs standard (raw),shared_opc_raw_b8192,shared_opc_raw,mean,ml,w-high.g-none.v-none,0.137769,1,warp
+batch 8192 vs standard (raw),shared_opc_raw_b8192,shared_opc_raw,mean,ml,w-none.g-high.v-none,-0.0325033,1,group
+batch 8192 vs standard (raw),shared_opc_raw_b8192,shared_opc_raw,mean,ml,w-none.g-none.v-high,0.0888805,1,vector
+batch 8192 vs standard (raw),shared_opc_raw_b8192,shared_opc_raw,native,anime,high,0.999051,1,combined
+batch 8192 vs standard (raw),shared_opc_raw_b8192,shared_opc_raw,native,anime,none,-0.226478,1,no bias
+batch 8192 vs standard (raw),shared_opc_raw_b8192,shared_opc_raw,native,anime,w-high.g-none.v-none,-0.11421,1,warp
+batch 8192 vs standard (raw),shared_opc_raw_b8192,shared_opc_raw,native,anime,w-none.g-high.v-none,-0.0180106,1,group
+batch 8192 vs standard (raw),shared_opc_raw_b8192,shared_opc_raw,native,anime,w-none.g-none.v-high,-0.17472,1,vector
+batch 8192 vs standard (raw),shared_opc_raw_b8192,shared_opc_raw,native,kuairand,high,0.00545522,1,combined
+batch 8192 vs standard (raw),shared_opc_raw_b8192,shared_opc_raw,native,kuairand,none,-0.164832,1,no bias
+batch 8192 vs standard (raw),shared_opc_raw_b8192,shared_opc_raw,native,kuairand,w-high.g-none.v-none,0.0316013,1,warp
+batch 8192 vs standard (raw),shared_opc_raw_b8192,shared_opc_raw,native,kuairand,w-none.g-high.v-none,-0.00924175,1,group
+batch 8192 vs standard (raw),shared_opc_raw_b8192,shared_opc_raw,native,kuairand,w-none.g-none.v-high,-0.213847,1,vector
+batch 8192 vs standard (raw),shared_opc_raw_b8192,shared_opc_raw,native,ml,high,1.03266,1,combined
+batch 8192 vs standard (raw),shared_opc_raw_b8192,shared_opc_raw,native,ml,none,-0.207592,1,no bias
+batch 8192 vs standard (raw),shared_opc_raw_b8192,shared_opc_raw,native,ml,w-high.g-none.v-none,0.0103417,1,warp
+batch 8192 vs standard (raw),shared_opc_raw_b8192,shared_opc_raw,native,ml,w-none.g-high.v-none,-0.114219,1,group
+batch 8192 vs standard (raw),shared_opc_raw_b8192,shared_opc_raw,native,ml,w-none.g-none.v-high,0.201523,1,vector
+full batch vs standard (harmonic),shared_opc_bfull,shared_opc,best,kuairand,high,-0.0928359,1,combined
+full batch vs standard (harmonic),shared_opc_bfull,shared_opc,best,kuairand,none,-0.040955,1,no bias
+full batch vs standard (harmonic),shared_opc_bfull,shared_opc,best,kuairand,w-high.g-none.v-none,0.181857,1,warp
+full batch vs standard (harmonic),shared_opc_bfull,shared_opc,best,kuairand,w-none.g-high.v-none,0.00828356,1,group
+full batch vs standard (harmonic),shared_opc_bfull,shared_opc,best,kuairand,w-none.g-none.v-high,-0.0685345,1,vector
+full batch vs standard (harmonic),shared_opc_bfull,shared_opc,best,ml,high,0.810019,1,combined
+full batch vs standard (harmonic),shared_opc_bfull,shared_opc,best,ml,none,-0.102706,1,no bias
+full batch vs standard (harmonic),shared_opc_bfull,shared_opc,best,ml,w-high.g-none.v-none,0.00677241,1,warp
+full batch vs standard (harmonic),shared_opc_bfull,shared_opc,best,ml,w-none.g-high.v-none,-0.142867,1,group
+full batch vs standard (harmonic),shared_opc_bfull,shared_opc,best,ml,w-none.g-none.v-high,0.0111586,1,vector
+full batch vs standard (harmonic),shared_opc_bfull,shared_opc,common,kuairand,high,-0.205905,1,combined
+full batch vs standard (harmonic),shared_opc_bfull,shared_opc,common,kuairand,none,-0.757887,1,no bias
+full batch vs standard (harmonic),shared_opc_bfull,shared_opc,common,kuairand,w-high.g-none.v-none,-0.339376,1,warp
+full batch vs standard (harmonic),shared_opc_bfull,shared_opc,common,kuairand,w-none.g-high.v-none,0.277324,1,group
+full batch vs standard (harmonic),shared_opc_bfull,shared_opc,common,kuairand,w-none.g-none.v-high,-0.0293419,1,vector
+full batch vs standard (harmonic),shared_opc_bfull,shared_opc,common,ml,high,0.979037,1,combined
+full batch vs standard (harmonic),shared_opc_bfull,shared_opc,common,ml,none,0.18456,1,no bias
+full batch vs standard (harmonic),shared_opc_bfull,shared_opc,common,ml,w-high.g-none.v-none,-0.107156,1,warp
+full batch vs standard (harmonic),shared_opc_bfull,shared_opc,common,ml,w-none.g-high.v-none,-0.110837,1,group
+full batch vs standard (harmonic),shared_opc_bfull,shared_opc,common,ml,w-none.g-none.v-high,-0.00103987,1,vector
+full batch vs standard (harmonic),shared_opc_bfull,shared_opc,mean,kuairand,high,0.0392752,1,combined
+full batch vs standard (harmonic),shared_opc_bfull,shared_opc,mean,kuairand,none,-0.36011,1,no bias
+full batch vs standard (harmonic),shared_opc_bfull,shared_opc,mean,kuairand,w-high.g-none.v-none,0.161714,1,warp
+full batch vs standard (harmonic),shared_opc_bfull,shared_opc,mean,kuairand,w-none.g-high.v-none,-0.378193,1,group
+full batch vs standard (harmonic),shared_opc_bfull,shared_opc,mean,kuairand,w-none.g-none.v-high,-0.118334,1,vector
+full batch vs standard (harmonic),shared_opc_bfull,shared_opc,mean,ml,high,0.546589,1,combined
+full batch vs standard (harmonic),shared_opc_bfull,shared_opc,mean,ml,none,-0.560748,1,no bias
+full batch vs standard (harmonic),shared_opc_bfull,shared_opc,mean,ml,w-high.g-none.v-none,0.0286242,1,warp
+full batch vs standard (harmonic),shared_opc_bfull,shared_opc,mean,ml,w-none.g-high.v-none,-0.194135,1,group
+full batch vs standard (harmonic),shared_opc_bfull,shared_opc,mean,ml,w-none.g-none.v-high,0.00289592,1,vector
+full batch vs standard (harmonic),shared_opc_bfull,shared_opc,native,kuairand,high,-0.205905,1,combined
+full batch vs standard (harmonic),shared_opc_bfull,shared_opc,native,kuairand,none,-0.126298,1,no bias
+full batch vs standard (harmonic),shared_opc_bfull,shared_opc,native,kuairand,w-high.g-none.v-none,-0.580008,1,warp
+full batch vs standard (harmonic),shared_opc_bfull,shared_opc,native,kuairand,w-none.g-high.v-none,-0.700396,1,group
+full batch vs standard (harmonic),shared_opc_bfull,shared_opc,native,kuairand,w-none.g-none.v-high,-0.436983,1,vector
+full batch vs standard (harmonic),shared_opc_bfull,shared_opc,native,ml,high,0.979037,1,combined
+full batch vs standard (harmonic),shared_opc_bfull,shared_opc,native,ml,none,-0.344728,1,no bias
+full batch vs standard (harmonic),shared_opc_bfull,shared_opc,native,ml,w-high.g-none.v-none,-0.0831404,1,warp
+full batch vs standard (harmonic),shared_opc_bfull,shared_opc,native,ml,w-none.g-high.v-none,-0.395461,1,group
+full batch vs standard (harmonic),shared_opc_bfull,shared_opc,native,ml,w-none.g-none.v-high,0.0115218,1,vector
+full batch vs standard (raw),shared_opc_raw_bfull,shared_opc_raw,best,kuairand,high,0.765574,1,combined
+full batch vs standard (raw),shared_opc_raw_bfull,shared_opc_raw,best,kuairand,none,-0.135023,1,no bias
+full batch vs standard (raw),shared_opc_raw_bfull,shared_opc_raw,best,kuairand,w-high.g-none.v-none,-0.0941128,1,warp
+full batch vs standard (raw),shared_opc_raw_bfull,shared_opc_raw,best,kuairand,w-none.g-high.v-none,0.0144597,1,group
+full batch vs standard (raw),shared_opc_raw_bfull,shared_opc_raw,best,kuairand,w-none.g-none.v-high,-0.072672,1,vector
+full batch vs standard (raw),shared_opc_raw_bfull,shared_opc_raw,best,ml,high,1.20464,1,combined
+full batch vs standard (raw),shared_opc_raw_bfull,shared_opc_raw,best,ml,none,-0.235958,1,no bias
+full batch vs standard (raw),shared_opc_raw_bfull,shared_opc_raw,best,ml,w-high.g-none.v-none,-0.195435,1,warp
+full batch vs standard (raw),shared_opc_raw_bfull,shared_opc_raw,best,ml,w-none.g-high.v-none,-0.0752119,1,group
+full batch vs standard (raw),shared_opc_raw_bfull,shared_opc_raw,best,ml,w-none.g-none.v-high,0.10079,1,vector
+full batch vs standard (raw),shared_opc_raw_bfull,shared_opc_raw,common,kuairand,high,0.765574,1,combined
+full batch vs standard (raw),shared_opc_raw_bfull,shared_opc_raw,common,kuairand,none,-0.14306,1,no bias
+full batch vs standard (raw),shared_opc_raw_bfull,shared_opc_raw,common,kuairand,w-high.g-none.v-none,0.00520815,1,warp
+full batch vs standard (raw),shared_opc_raw_bfull,shared_opc_raw,common,kuairand,w-none.g-high.v-none,0.541233,1,group
+full batch vs standard (raw),shared_opc_raw_bfull,shared_opc_raw,common,kuairand,w-none.g-none.v-high,-0.0338819,1,vector
+full batch vs standard (raw),shared_opc_raw_bfull,shared_opc_raw,common,ml,high,1.3365,1,combined
+full batch vs standard (raw),shared_opc_raw_bfull,shared_opc_raw,common,ml,none,0.381951,1,no bias
+full batch vs standard (raw),shared_opc_raw_bfull,shared_opc_raw,common,ml,w-high.g-none.v-none,-0.200129,1,warp
+full batch vs standard (raw),shared_opc_raw_bfull,shared_opc_raw,common,ml,w-none.g-high.v-none,0.0307829,1,group
+full batch vs standard (raw),shared_opc_raw_bfull,shared_opc_raw,common,ml,w-none.g-none.v-high,0.219678,1,vector
+full batch vs standard (raw),shared_opc_raw_bfull,shared_opc_raw,mean,kuairand,high,0.340646,1,combined
+full batch vs standard (raw),shared_opc_raw_bfull,shared_opc_raw,mean,kuairand,none,-0.46945,1,no bias
+full batch vs standard (raw),shared_opc_raw_bfull,shared_opc_raw,mean,kuairand,w-high.g-none.v-none,0.0980527,1,warp
+full batch vs standard (raw),shared_opc_raw_bfull,shared_opc_raw,mean,kuairand,w-none.g-high.v-none,-0.284715,1,group
+full batch vs standard (raw),shared_opc_raw_bfull,shared_opc_raw,mean,kuairand,w-none.g-none.v-high,-0.204203,1,vector
+full batch vs standard (raw),shared_opc_raw_bfull,shared_opc_raw,mean,ml,high,0.911546,1,combined
+full batch vs standard (raw),shared_opc_raw_bfull,shared_opc_raw,mean,ml,none,-0.877248,1,no bias
+full batch vs standard (raw),shared_opc_raw_bfull,shared_opc_raw,mean,ml,w-high.g-none.v-none,-0.0302006,1,warp
+full batch vs standard (raw),shared_opc_raw_bfull,shared_opc_raw,mean,ml,w-none.g-high.v-none,-0.279399,1,group
+full batch vs standard (raw),shared_opc_raw_bfull,shared_opc_raw,mean,ml,w-none.g-none.v-high,0.0849125,1,vector
+full batch vs standard (raw),shared_opc_raw_bfull,shared_opc_raw,native,kuairand,high,0.765574,1,combined
+full batch vs standard (raw),shared_opc_raw_bfull,shared_opc_raw,native,kuairand,none,-0.307798,1,no bias
+full batch vs standard (raw),shared_opc_raw_bfull,shared_opc_raw,native,kuairand,w-high.g-none.v-none,-0.00328102,1,warp
+full batch vs standard (raw),shared_opc_raw_bfull,shared_opc_raw,native,kuairand,w-none.g-high.v-none,0.0390508,1,group
+full batch vs standard (raw),shared_opc_raw_bfull,shared_opc_raw,native,kuairand,w-none.g-none.v-high,-0.412147,1,vector
+full batch vs standard (raw),shared_opc_raw_bfull,shared_opc_raw,native,ml,high,1.3365,1,combined
+full batch vs standard (raw),shared_opc_raw_bfull,shared_opc_raw,native,ml,none,-0.426534,1,no bias
+full batch vs standard (raw),shared_opc_raw_bfull,shared_opc_raw,native,ml,w-high.g-none.v-none,-0.221784,1,warp
+full batch vs standard (raw),shared_opc_raw_bfull,shared_opc_raw,native,ml,w-none.g-high.v-none,-0.385288,1,group
+full batch vs standard (raw),shared_opc_raw_bfull,shared_opc_raw,native,ml,w-none.g-none.v-high,-0.102588,1,vector
+oracle q vs q-hat (harmonic),shared_opc_oq,shared_opc,best,anime,high,2.73007,1,combined
+oracle q vs q-hat (harmonic),shared_opc_oq,shared_opc,best,anime,none,0.00890671,1,no bias
+oracle q vs q-hat (harmonic),shared_opc_oq,shared_opc,best,anime,w-high.g-none.v-none,0.771876,1,warp
+oracle q vs q-hat (harmonic),shared_opc_oq,shared_opc,best,anime,w-none.g-high.v-none,0.199177,1,group
+oracle q vs q-hat (harmonic),shared_opc_oq,shared_opc,best,anime,w-none.g-none.v-high,0.160305,1,vector
+oracle q vs q-hat (harmonic),shared_opc_oq,shared_opc,best,kuairand,high,1.8616,1,combined
+oracle q vs q-hat (harmonic),shared_opc_oq,shared_opc,best,kuairand,none,-0.00238644,1,no bias
+oracle q vs q-hat (harmonic),shared_opc_oq,shared_opc,best,kuairand,w-high.g-none.v-none,0.669702,1,warp
+oracle q vs q-hat (harmonic),shared_opc_oq,shared_opc,best,kuairand,w-none.g-high.v-none,0.210374,1,group
+oracle q vs q-hat (harmonic),shared_opc_oq,shared_opc,best,kuairand,w-none.g-none.v-high,0.228593,1,vector
+oracle q vs q-hat (harmonic),shared_opc_oq,shared_opc,best,ml,high,4.77612,1,combined
+oracle q vs q-hat (harmonic),shared_opc_oq,shared_opc,best,ml,none,-0.00515907,1,no bias
+oracle q vs q-hat (harmonic),shared_opc_oq,shared_opc,best,ml,w-high.g-none.v-none,1.28109,1,warp
+oracle q vs q-hat (harmonic),shared_opc_oq,shared_opc,best,ml,w-none.g-high.v-none,0.660277,1,group
+oracle q vs q-hat (harmonic),shared_opc_oq,shared_opc,best,ml,w-none.g-none.v-high,0.627534,1,vector
+oracle q vs q-hat (harmonic),shared_opc_oq,shared_opc,common,anime,high,2.42398,1,combined
+oracle q vs q-hat (harmonic),shared_opc_oq,shared_opc,common,anime,none,0.565378,1,no bias
+oracle q vs q-hat (harmonic),shared_opc_oq,shared_opc,common,anime,w-high.g-none.v-none,0.99736,1,warp
+oracle q vs q-hat (harmonic),shared_opc_oq,shared_opc,common,anime,w-none.g-high.v-none,0.100727,1,group
+oracle q vs q-hat (harmonic),shared_opc_oq,shared_opc,common,anime,w-none.g-none.v-high,0.174662,1,vector
+oracle q vs q-hat (harmonic),shared_opc_oq,shared_opc,common,kuairand,high,1.52759,1,combined
+oracle q vs q-hat (harmonic),shared_opc_oq,shared_opc,common,kuairand,none,-0.0193346,1,no bias
+oracle q vs q-hat (harmonic),shared_opc_oq,shared_opc,common,kuairand,w-high.g-none.v-none,0.940085,1,warp
+oracle q vs q-hat (harmonic),shared_opc_oq,shared_opc,common,kuairand,w-none.g-high.v-none,0.490178,1,group
+oracle q vs q-hat (harmonic),shared_opc_oq,shared_opc,common,kuairand,w-none.g-none.v-high,0.443256,1,vector
+oracle q vs q-hat (harmonic),shared_opc_oq,shared_opc,common,ml,high,4.94513,1,combined
+oracle q vs q-hat (harmonic),shared_opc_oq,shared_opc,common,ml,none,-0.00967726,1,no bias
+oracle q vs q-hat (harmonic),shared_opc_oq,shared_opc,common,ml,w-high.g-none.v-none,1.4597,1,warp
+oracle q vs q-hat (harmonic),shared_opc_oq,shared_opc,common,ml,w-none.g-high.v-none,0.69902,1,group
+oracle q vs q-hat (harmonic),shared_opc_oq,shared_opc,common,ml,w-none.g-none.v-high,0.758739,1,vector
+oracle q vs q-hat (harmonic),shared_opc_oq,shared_opc,mean,anime,high,1.24392,1,combined
+oracle q vs q-hat (harmonic),shared_opc_oq,shared_opc,mean,anime,none,0.0472115,1,no bias
+oracle q vs q-hat (harmonic),shared_opc_oq,shared_opc,mean,anime,w-high.g-none.v-none,0.438472,1,warp
+oracle q vs q-hat (harmonic),shared_opc_oq,shared_opc,mean,anime,w-none.g-high.v-none,0.209532,1,group
+oracle q vs q-hat (harmonic),shared_opc_oq,shared_opc,mean,anime,w-none.g-none.v-high,0.211576,1,vector
+oracle q vs q-hat (harmonic),shared_opc_oq,shared_opc,mean,kuairand,high,1.51768,1,combined
+oracle q vs q-hat (harmonic),shared_opc_oq,shared_opc,mean,kuairand,none,0.0358786,1,no bias
+oracle q vs q-hat (harmonic),shared_opc_oq,shared_opc,mean,kuairand,w-high.g-none.v-none,0.518499,1,warp
+oracle q vs q-hat (harmonic),shared_opc_oq,shared_opc,mean,kuairand,w-none.g-high.v-none,0.227966,1,group
+oracle q vs q-hat (harmonic),shared_opc_oq,shared_opc,mean,kuairand,w-none.g-none.v-high,0.182919,1,vector
+oracle q vs q-hat (harmonic),shared_opc_oq,shared_opc,mean,ml,high,1.74994,1,combined
+oracle q vs q-hat (harmonic),shared_opc_oq,shared_opc,mean,ml,none,0.0562606,1,no bias
+oracle q vs q-hat (harmonic),shared_opc_oq,shared_opc,mean,ml,w-high.g-none.v-none,0.91378,1,warp
+oracle q vs q-hat (harmonic),shared_opc_oq,shared_opc,mean,ml,w-none.g-high.v-none,0.565789,1,group
+oracle q vs q-hat (harmonic),shared_opc_oq,shared_opc,mean,ml,w-none.g-none.v-high,0.465071,1,vector
+oracle q vs q-hat (harmonic),shared_opc_oq,shared_opc,native,anime,high,2.42398,1,combined
+oracle q vs q-hat (harmonic),shared_opc_oq,shared_opc,native,anime,none,0.463183,1,no bias
+oracle q vs q-hat (harmonic),shared_opc_oq,shared_opc,native,anime,w-high.g-none.v-none,0.921139,1,warp
+oracle q vs q-hat (harmonic),shared_opc_oq,shared_opc,native,anime,w-none.g-high.v-none,-0.106049,1,group
+oracle q vs q-hat (harmonic),shared_opc_oq,shared_opc,native,anime,w-none.g-none.v-high,0.369717,1,vector
+oracle q vs q-hat (harmonic),shared_opc_oq,shared_opc,native,kuairand,high,1.52759,1,combined
+oracle q vs q-hat (harmonic),shared_opc_oq,shared_opc,native,kuairand,none,0.0420409,1,no bias
+oracle q vs q-hat (harmonic),shared_opc_oq,shared_opc,native,kuairand,w-high.g-none.v-none,0.00612481,1,warp
+oracle q vs q-hat (harmonic),shared_opc_oq,shared_opc,native,kuairand,w-none.g-high.v-none,0.275941,1,group
+oracle q vs q-hat (harmonic),shared_opc_oq,shared_opc,native,kuairand,w-none.g-none.v-high,0.149197,1,vector
+oracle q vs q-hat (harmonic),shared_opc_oq,shared_opc,native,ml,high,4.94513,1,combined
+oracle q vs q-hat (harmonic),shared_opc_oq,shared_opc,native,ml,none,0.0605752,1,no bias
+oracle q vs q-hat (harmonic),shared_opc_oq,shared_opc,native,ml,w-high.g-none.v-none,1.48372,1,warp
+oracle q vs q-hat (harmonic),shared_opc_oq,shared_opc,native,ml,w-none.g-high.v-none,0.650042,1,group
+oracle q vs q-hat (harmonic),shared_opc_oq,shared_opc,native,ml,w-none.g-none.v-high,0.758739,1,vector
+oracle q vs q-hat (raw),shared_opc_raw_oq,shared_opc_raw,best,anime,high,0.849367,1,combined
+oracle q vs q-hat (raw),shared_opc_raw_oq,shared_opc_raw,best,anime,none,-0.000654876,1,no bias
+oracle q vs q-hat (raw),shared_opc_raw_oq,shared_opc_raw,best,anime,w-high.g-none.v-none,0.116387,1,warp
+oracle q vs q-hat (raw),shared_opc_raw_oq,shared_opc_raw,best,anime,w-none.g-high.v-none,-0.0188779,1,group
+oracle q vs q-hat (raw),shared_opc_raw_oq,shared_opc_raw,best,anime,w-none.g-none.v-high,0.0408965,1,vector
+oracle q vs q-hat (raw),shared_opc_raw_oq,shared_opc_raw,best,kuairand,high,2.17146,1,combined
+oracle q vs q-hat (raw),shared_opc_raw_oq,shared_opc_raw,best,kuairand,none,0.00551466,1,no bias
+oracle q vs q-hat (raw),shared_opc_raw_oq,shared_opc_raw,best,kuairand,w-high.g-none.v-none,0.190118,1,warp
+oracle q vs q-hat (raw),shared_opc_raw_oq,shared_opc_raw,best,kuairand,w-none.g-high.v-none,0.00141007,1,group
+oracle q vs q-hat (raw),shared_opc_raw_oq,shared_opc_raw,best,kuairand,w-none.g-none.v-high,0.010413,1,vector
+oracle q vs q-hat (raw),shared_opc_raw_oq,shared_opc_raw,best,ml,high,1.52524,1,combined
+oracle q vs q-hat (raw),shared_opc_raw_oq,shared_opc_raw,best,ml,none,0.00604445,1,no bias
+oracle q vs q-hat (raw),shared_opc_raw_oq,shared_opc_raw,best,ml,w-high.g-none.v-none,0.0918041,1,warp
+oracle q vs q-hat (raw),shared_opc_raw_oq,shared_opc_raw,best,ml,w-none.g-high.v-none,0.0964692,1,group
+oracle q vs q-hat (raw),shared_opc_raw_oq,shared_opc_raw,best,ml,w-none.g-none.v-high,-0.087113,1,vector
+oracle q vs q-hat (raw),shared_opc_raw_oq,shared_opc_raw,common,anime,high,0.666387,1,combined
+oracle q vs q-hat (raw),shared_opc_raw_oq,shared_opc_raw,common,anime,none,0.510224,1,no bias
+oracle q vs q-hat (raw),shared_opc_raw_oq,shared_opc_raw,common,anime,w-high.g-none.v-none,-0.0264108,1,warp
+oracle q vs q-hat (raw),shared_opc_raw_oq,shared_opc_raw,common,anime,w-none.g-high.v-none,-0.00105665,1,group
+oracle q vs q-hat (raw),shared_opc_raw_oq,shared_opc_raw,common,anime,w-none.g-none.v-high,0.0265842,1,vector
+oracle q vs q-hat (raw),shared_opc_raw_oq,shared_opc_raw,common,kuairand,high,2.17146,1,combined
+oracle q vs q-hat (raw),shared_opc_raw_oq,shared_opc_raw,common,kuairand,none,0.0125678,1,no bias
+oracle q vs q-hat (raw),shared_opc_raw_oq,shared_opc_raw,common,kuairand,w-high.g-none.v-none,0.0462293,1,warp
+oracle q vs q-hat (raw),shared_opc_raw_oq,shared_opc_raw,common,kuairand,w-none.g-high.v-none,-0.25092,1,group
+oracle q vs q-hat (raw),shared_opc_raw_oq,shared_opc_raw,common,kuairand,w-none.g-none.v-high,0.00677806,1,vector
+oracle q vs q-hat (raw),shared_opc_raw_oq,shared_opc_raw,common,ml,high,1.6571,1,combined
+oracle q vs q-hat (raw),shared_opc_raw_oq,shared_opc_raw,common,ml,none,0.33903,1,no bias
+oracle q vs q-hat (raw),shared_opc_raw_oq,shared_opc_raw,common,ml,w-high.g-none.v-none,0.187041,1,warp
+oracle q vs q-hat (raw),shared_opc_raw_oq,shared_opc_raw,common,ml,w-none.g-high.v-none,0.0227396,1,group
+oracle q vs q-hat (raw),shared_opc_raw_oq,shared_opc_raw,common,ml,w-none.g-none.v-high,-0.0649399,1,vector
+oracle q vs q-hat (raw),shared_opc_raw_oq,shared_opc_raw,mean,anime,high,0.32529,1,combined
+oracle q vs q-hat (raw),shared_opc_raw_oq,shared_opc_raw,mean,anime,none,-0.0188787,1,no bias
+oracle q vs q-hat (raw),shared_opc_raw_oq,shared_opc_raw,mean,anime,w-high.g-none.v-none,0.00480991,1,warp
+oracle q vs q-hat (raw),shared_opc_raw_oq,shared_opc_raw,mean,anime,w-none.g-high.v-none,0.0405328,1,group
+oracle q vs q-hat (raw),shared_opc_raw_oq,shared_opc_raw,mean,anime,w-none.g-none.v-high,0.060487,1,vector
+oracle q vs q-hat (raw),shared_opc_raw_oq,shared_opc_raw,mean,kuairand,high,0.749454,1,combined
+oracle q vs q-hat (raw),shared_opc_raw_oq,shared_opc_raw,mean,kuairand,none,0.0195584,1,no bias
+oracle q vs q-hat (raw),shared_opc_raw_oq,shared_opc_raw,mean,kuairand,w-high.g-none.v-none,0.0784095,1,warp
+oracle q vs q-hat (raw),shared_opc_raw_oq,shared_opc_raw,mean,kuairand,w-none.g-high.v-none,0.0241744,1,group
+oracle q vs q-hat (raw),shared_opc_raw_oq,shared_opc_raw,mean,kuairand,w-none.g-none.v-high,0.0134818,1,vector
+oracle q vs q-hat (raw),shared_opc_raw_oq,shared_opc_raw,mean,ml,high,0.45854,1,combined
+oracle q vs q-hat (raw),shared_opc_raw_oq,shared_opc_raw,mean,ml,none,0.0275683,1,no bias
+oracle q vs q-hat (raw),shared_opc_raw_oq,shared_opc_raw,mean,ml,w-high.g-none.v-none,0.0919655,1,warp
+oracle q vs q-hat (raw),shared_opc_raw_oq,shared_opc_raw,mean,ml,w-none.g-high.v-none,0.0924402,1,group
+oracle q vs q-hat (raw),shared_opc_raw_oq,shared_opc_raw,mean,ml,w-none.g-none.v-high,0.0495077,1,vector
+oracle q vs q-hat (raw),shared_opc_raw_oq,shared_opc_raw,native,anime,high,0.666387,1,combined
+oracle q vs q-hat (raw),shared_opc_raw_oq,shared_opc_raw,native,anime,none,-0.104029,1,no bias
+oracle q vs q-hat (raw),shared_opc_raw_oq,shared_opc_raw,native,anime,w-high.g-none.v-none,0.259948,1,warp
+oracle q vs q-hat (raw),shared_opc_raw_oq,shared_opc_raw,native,anime,w-none.g-high.v-none,0.0617241,1,group
+oracle q vs q-hat (raw),shared_opc_raw_oq,shared_opc_raw,native,anime,w-none.g-none.v-high,0.111975,1,vector
+oracle q vs q-hat (raw),shared_opc_raw_oq,shared_opc_raw,native,kuairand,high,2.17146,1,combined
+oracle q vs q-hat (raw),shared_opc_raw_oq,shared_opc_raw,native,kuairand,none,0.00457608,1,no bias
+oracle q vs q-hat (raw),shared_opc_raw_oq,shared_opc_raw,native,kuairand,w-high.g-none.v-none,0.034123,1,warp
+oracle q vs q-hat (raw),shared_opc_raw_oq,shared_opc_raw,native,kuairand,w-none.g-high.v-none,-0.25092,1,group
+oracle q vs q-hat (raw),shared_opc_raw_oq,shared_opc_raw,native,kuairand,w-none.g-none.v-high,-0.224087,1,vector
+oracle q vs q-hat (raw),shared_opc_raw_oq,shared_opc_raw,native,ml,high,1.6571,1,combined
+oracle q vs q-hat (raw),shared_opc_raw_oq,shared_opc_raw,native,ml,none,0.314633,1,no bias
+oracle q vs q-hat (raw),shared_opc_raw_oq,shared_opc_raw,native,ml,w-high.g-none.v-none,0.290503,1,warp
+oracle q vs q-hat (raw),shared_opc_raw_oq,shared_opc_raw,native,ml,w-none.g-high.v-none,0.110267,1,group
+oracle q vs q-hat (raw),shared_opc_raw_oq,shared_opc_raw,native,ml,w-none.g-none.v-high,0.100601,1,vector
+raw DR vs likelihood,shared_opc_raw,shared_likelihood,best,anime,high,-0.525904,1,combined
+raw DR vs likelihood,shared_opc_raw,shared_likelihood,best,anime,none,-0.141195,1,no bias
+raw DR vs likelihood,shared_opc_raw,shared_likelihood,best,anime,w-high.g-none.v-none,-1.14012,1,warp
+raw DR vs likelihood,shared_opc_raw,shared_likelihood,best,anime,w-none.g-high.v-none,-0.232061,1,group
+raw DR vs likelihood,shared_opc_raw,shared_likelihood,best,anime,w-none.g-none.v-high,0.191036,1,vector
+raw DR vs likelihood,shared_opc_raw,shared_likelihood,best,kuairand,high,-2.2953,1,combined
+raw DR vs likelihood,shared_opc_raw,shared_likelihood,best,kuairand,none,-0.121624,1,no bias
+raw DR vs likelihood,shared_opc_raw,shared_likelihood,best,kuairand,w-high.g-none.v-none,-1.31937,1,warp
+raw DR vs likelihood,shared_opc_raw,shared_likelihood,best,kuairand,w-none.g-high.v-none,-0.117559,1,group
+raw DR vs likelihood,shared_opc_raw,shared_likelihood,best,kuairand,w-none.g-none.v-high,-0.250349,1,vector
+raw DR vs likelihood,shared_opc_raw,shared_likelihood,best,ml,high,-1.34334,1,combined
+raw DR vs likelihood,shared_opc_raw,shared_likelihood,best,ml,none,-0.182593,1,no bias
+raw DR vs likelihood,shared_opc_raw,shared_likelihood,best,ml,w-high.g-none.v-none,-1.33334,1,warp
+raw DR vs likelihood,shared_opc_raw,shared_likelihood,best,ml,w-none.g-high.v-none,-0.0207751,1,group
+raw DR vs likelihood,shared_opc_raw,shared_likelihood,best,ml,w-none.g-none.v-high,0.1471,1,vector
+raw DR vs likelihood,shared_opc_raw,shared_likelihood,common,anime,high,-0.801318,1,combined
+raw DR vs likelihood,shared_opc_raw,shared_likelihood,common,anime,none,-0.333061,1,no bias
+raw DR vs likelihood,shared_opc_raw,shared_likelihood,common,anime,w-high.g-none.v-none,-1.04993,1,warp
+raw DR vs likelihood,shared_opc_raw,shared_likelihood,common,anime,w-none.g-high.v-none,-0.231061,1,group
+raw DR vs likelihood,shared_opc_raw,shared_likelihood,common,anime,w-none.g-none.v-high,0.324026,1,vector
+raw DR vs likelihood,shared_opc_raw,shared_likelihood,common,kuairand,high,-1.84697,1,combined
+raw DR vs likelihood,shared_opc_raw,shared_likelihood,common,kuairand,none,-0.483045,1,no bias
+raw DR vs likelihood,shared_opc_raw,shared_likelihood,common,kuairand,w-high.g-none.v-none,-1.20706,1,warp
+raw DR vs likelihood,shared_opc_raw,shared_likelihood,common,kuairand,w-none.g-high.v-none,-0.383439,1,group
+raw DR vs likelihood,shared_opc_raw,shared_likelihood,common,kuairand,w-none.g-none.v-high,0.251068,1,vector
+raw DR vs likelihood,shared_opc_raw,shared_likelihood,common,ml,high,-1.41818,1,combined
+raw DR vs likelihood,shared_opc_raw,shared_likelihood,common,ml,none,-0.76506,1,no bias
+raw DR vs likelihood,shared_opc_raw,shared_likelihood,common,ml,w-high.g-none.v-none,-1.22708,1,warp
+raw DR vs likelihood,shared_opc_raw,shared_likelihood,common,ml,w-none.g-high.v-none,-0.0939223,1,group
+raw DR vs likelihood,shared_opc_raw,shared_likelihood,common,ml,w-none.g-none.v-high,0.02339,1,vector
+raw DR vs likelihood,shared_opc_raw,shared_likelihood,mean,anime,high,0.458917,1,combined
+raw DR vs likelihood,shared_opc_raw,shared_likelihood,mean,anime,none,-0.417806,1,no bias
+raw DR vs likelihood,shared_opc_raw,shared_likelihood,mean,anime,w-high.g-none.v-none,-0.171642,1,warp
+raw DR vs likelihood,shared_opc_raw,shared_likelihood,mean,anime,w-none.g-high.v-none,-0.0514531,1,group
+raw DR vs likelihood,shared_opc_raw,shared_likelihood,mean,anime,w-none.g-none.v-high,0.236866,1,vector
+raw DR vs likelihood,shared_opc_raw,shared_likelihood,mean,kuairand,high,-0.471978,1,combined
+raw DR vs likelihood,shared_opc_raw,shared_likelihood,mean,kuairand,none,-0.333142,1,no bias
+raw DR vs likelihood,shared_opc_raw,shared_likelihood,mean,kuairand,w-high.g-none.v-none,-0.741985,1,warp
+raw DR vs likelihood,shared_opc_raw,shared_likelihood,mean,kuairand,w-none.g-high.v-none,-0.211372,1,group
+raw DR vs likelihood,shared_opc_raw,shared_likelihood,mean,kuairand,w-none.g-none.v-high,0.048993,1,vector
+raw DR vs likelihood,shared_opc_raw,shared_likelihood,mean,ml,high,-0.0238067,1,combined
+raw DR vs likelihood,shared_opc_raw,shared_likelihood,mean,ml,none,-0.593476,1,no bias
+raw DR vs likelihood,shared_opc_raw,shared_likelihood,mean,ml,w-high.g-none.v-none,-0.289527,1,warp
+raw DR vs likelihood,shared_opc_raw,shared_likelihood,mean,ml,w-none.g-high.v-none,0.221345,1,group
+raw DR vs likelihood,shared_opc_raw,shared_likelihood,mean,ml,w-none.g-none.v-high,0.161218,1,vector
+raw DR vs likelihood,shared_opc_raw,shared_likelihood,native,anime,high,-0.801318,1,combined
+raw DR vs likelihood,shared_opc_raw,shared_likelihood,native,anime,none,-0.76361,1,no bias
+raw DR vs likelihood,shared_opc_raw,shared_likelihood,native,anime,w-high.g-none.v-none,-0.209325,1,warp
+raw DR vs likelihood,shared_opc_raw,shared_likelihood,native,anime,w-none.g-high.v-none,-0.457017,1,group
+raw DR vs likelihood,shared_opc_raw,shared_likelihood,native,anime,w-none.g-none.v-high,0.0947037,1,vector
+raw DR vs likelihood,shared_opc_raw,shared_likelihood,native,kuairand,high,-2.22761,1,combined
+raw DR vs likelihood,shared_opc_raw,shared_likelihood,native,kuairand,none,-0.398591,1,no bias
+raw DR vs likelihood,shared_opc_raw,shared_likelihood,native,kuairand,w-high.g-none.v-none,-1.56776,1,warp
+raw DR vs likelihood,shared_opc_raw,shared_likelihood,native,kuairand,w-none.g-high.v-none,-0.644332,1,group
+raw DR vs likelihood,shared_opc_raw,shared_likelihood,native,kuairand,w-none.g-none.v-high,0.154634,1,vector
+raw DR vs likelihood,shared_opc_raw,shared_likelihood,native,ml,high,-1.41818,1,combined
+raw DR vs likelihood,shared_opc_raw,shared_likelihood,native,ml,none,-0.800502,1,no bias
+raw DR vs likelihood,shared_opc_raw,shared_likelihood,native,ml,w-high.g-none.v-none,-1.44499,1,warp
+raw DR vs likelihood,shared_opc_raw,shared_likelihood,native,ml,w-none.g-high.v-none,-0.116679,1,group
+raw DR vs likelihood,shared_opc_raw,shared_likelihood,native,ml,w-none.g-none.v-high,-0.0177804,1,vector
+raw DR with oracle q vs likelihood,shared_opc_raw_oq,shared_likelihood,best,anime,high,0.323463,1,combined
+raw DR with oracle q vs likelihood,shared_opc_raw_oq,shared_likelihood,best,anime,none,-0.14185,1,no bias
+raw DR with oracle q vs likelihood,shared_opc_raw_oq,shared_likelihood,best,anime,w-high.g-none.v-none,-1.02373,1,warp
+raw DR with oracle q vs likelihood,shared_opc_raw_oq,shared_likelihood,best,anime,w-none.g-high.v-none,-0.250939,1,group
+raw DR with oracle q vs likelihood,shared_opc_raw_oq,shared_likelihood,best,anime,w-none.g-none.v-high,0.231932,1,vector
+raw DR with oracle q vs likelihood,shared_opc_raw_oq,shared_likelihood,best,kuairand,high,-0.123838,1,combined
+raw DR with oracle q vs likelihood,shared_opc_raw_oq,shared_likelihood,best,kuairand,none,-0.116109,1,no bias
+raw DR with oracle q vs likelihood,shared_opc_raw_oq,shared_likelihood,best,kuairand,w-high.g-none.v-none,-1.12926,1,warp
+raw DR with oracle q vs likelihood,shared_opc_raw_oq,shared_likelihood,best,kuairand,w-none.g-high.v-none,-0.116149,1,group
+raw DR with oracle q vs likelihood,shared_opc_raw_oq,shared_likelihood,best,kuairand,w-none.g-none.v-high,-0.239936,1,vector
+raw DR with oracle q vs likelihood,shared_opc_raw_oq,shared_likelihood,best,ml,high,0.181904,1,combined
+raw DR with oracle q vs likelihood,shared_opc_raw_oq,shared_likelihood,best,ml,none,-0.176548,1,no bias
+raw DR with oracle q vs likelihood,shared_opc_raw_oq,shared_likelihood,best,ml,w-high.g-none.v-none,-1.24154,1,warp
+raw DR with oracle q vs likelihood,shared_opc_raw_oq,shared_likelihood,best,ml,w-none.g-high.v-none,0.0756941,1,group
+raw DR with oracle q vs likelihood,shared_opc_raw_oq,shared_likelihood,best,ml,w-none.g-none.v-high,0.0599869,1,vector
+raw DR with oracle q vs likelihood,shared_opc_raw_oq,shared_likelihood,common,anime,high,-0.134931,1,combined
+raw DR with oracle q vs likelihood,shared_opc_raw_oq,shared_likelihood,common,anime,none,0.177163,1,no bias
+raw DR with oracle q vs likelihood,shared_opc_raw_oq,shared_likelihood,common,anime,w-high.g-none.v-none,-1.07635,1,warp
+raw DR with oracle q vs likelihood,shared_opc_raw_oq,shared_likelihood,common,anime,w-none.g-high.v-none,-0.232118,1,group
+raw DR with oracle q vs likelihood,shared_opc_raw_oq,shared_likelihood,common,anime,w-none.g-none.v-high,0.350611,1,vector
+raw DR with oracle q vs likelihood,shared_opc_raw_oq,shared_likelihood,common,kuairand,high,0.32449,1,combined
+raw DR with oracle q vs likelihood,shared_opc_raw_oq,shared_likelihood,common,kuairand,none,-0.470477,1,no bias
+raw DR with oracle q vs likelihood,shared_opc_raw_oq,shared_likelihood,common,kuairand,w-high.g-none.v-none,-1.16083,1,warp
+raw DR with oracle q vs likelihood,shared_opc_raw_oq,shared_likelihood,common,kuairand,w-none.g-high.v-none,-0.634359,1,group
+raw DR with oracle q vs likelihood,shared_opc_raw_oq,shared_likelihood,common,kuairand,w-none.g-none.v-high,0.257846,1,vector
+raw DR with oracle q vs likelihood,shared_opc_raw_oq,shared_likelihood,common,ml,high,0.238923,1,combined
+raw DR with oracle q vs likelihood,shared_opc_raw_oq,shared_likelihood,common,ml,none,-0.42603,1,no bias
+raw DR with oracle q vs likelihood,shared_opc_raw_oq,shared_likelihood,common,ml,w-high.g-none.v-none,-1.04004,1,warp
+raw DR with oracle q vs likelihood,shared_opc_raw_oq,shared_likelihood,common,ml,w-none.g-high.v-none,-0.0711828,1,group
+raw DR with oracle q vs likelihood,shared_opc_raw_oq,shared_likelihood,common,ml,w-none.g-none.v-high,-0.0415499,1,vector
+raw DR with oracle q vs likelihood,shared_opc_raw_oq,shared_likelihood,mean,anime,high,0.784207,1,combined
+raw DR with oracle q vs likelihood,shared_opc_raw_oq,shared_likelihood,mean,anime,none,-0.436685,1,no bias
+raw DR with oracle q vs likelihood,shared_opc_raw_oq,shared_likelihood,mean,anime,w-high.g-none.v-none,-0.166832,1,warp
+raw DR with oracle q vs likelihood,shared_opc_raw_oq,shared_likelihood,mean,anime,w-none.g-high.v-none,-0.0109202,1,group
+raw DR with oracle q vs likelihood,shared_opc_raw_oq,shared_likelihood,mean,anime,w-none.g-none.v-high,0.297353,1,vector
+raw DR with oracle q vs likelihood,shared_opc_raw_oq,shared_likelihood,mean,kuairand,high,0.277476,1,combined
+raw DR with oracle q vs likelihood,shared_opc_raw_oq,shared_likelihood,mean,kuairand,none,-0.313583,1,no bias
+raw DR with oracle q vs likelihood,shared_opc_raw_oq,shared_likelihood,mean,kuairand,w-high.g-none.v-none,-0.663575,1,warp
+raw DR with oracle q vs likelihood,shared_opc_raw_oq,shared_likelihood,mean,kuairand,w-none.g-high.v-none,-0.187198,1,group
+raw DR with oracle q vs likelihood,shared_opc_raw_oq,shared_likelihood,mean,kuairand,w-none.g-none.v-high,0.0624748,1,vector
+raw DR with oracle q vs likelihood,shared_opc_raw_oq,shared_likelihood,mean,ml,high,0.434733,1,combined
+raw DR with oracle q vs likelihood,shared_opc_raw_oq,shared_likelihood,mean,ml,none,-0.565907,1,no bias
+raw DR with oracle q vs likelihood,shared_opc_raw_oq,shared_likelihood,mean,ml,w-high.g-none.v-none,-0.197562,1,warp
+raw DR with oracle q vs likelihood,shared_opc_raw_oq,shared_likelihood,mean,ml,w-none.g-high.v-none,0.313786,1,group
+raw DR with oracle q vs likelihood,shared_opc_raw_oq,shared_likelihood,mean,ml,w-none.g-none.v-high,0.210725,1,vector
+raw DR with oracle q vs likelihood,shared_opc_raw_oq,shared_likelihood,native,anime,high,-0.134931,1,combined
+raw DR with oracle q vs likelihood,shared_opc_raw_oq,shared_likelihood,native,anime,none,-0.86764,1,no bias
+raw DR with oracle q vs likelihood,shared_opc_raw_oq,shared_likelihood,native,anime,w-high.g-none.v-none,0.0506221,1,warp
+raw DR with oracle q vs likelihood,shared_opc_raw_oq,shared_likelihood,native,anime,w-none.g-high.v-none,-0.395293,1,group
+raw DR with oracle q vs likelihood,shared_opc_raw_oq,shared_likelihood,native,anime,w-none.g-none.v-high,0.206678,1,vector
+raw DR with oracle q vs likelihood,shared_opc_raw_oq,shared_likelihood,native,kuairand,high,-0.0561525,1,combined
+raw DR with oracle q vs likelihood,shared_opc_raw_oq,shared_likelihood,native,kuairand,none,-0.394015,1,no bias
+raw DR with oracle q vs likelihood,shared_opc_raw_oq,shared_likelihood,native,kuairand,w-high.g-none.v-none,-1.53364,1,warp
+raw DR with oracle q vs likelihood,shared_opc_raw_oq,shared_likelihood,native,kuairand,w-none.g-high.v-none,-0.895252,1,group
+raw DR with oracle q vs likelihood,shared_opc_raw_oq,shared_likelihood,native,kuairand,w-none.g-none.v-high,-0.0694529,1,vector
+raw DR with oracle q vs likelihood,shared_opc_raw_oq,shared_likelihood,native,ml,high,0.238923,1,combined
+raw DR with oracle q vs likelihood,shared_opc_raw_oq,shared_likelihood,native,ml,none,-0.485869,1,no bias
+raw DR with oracle q vs likelihood,shared_opc_raw_oq,shared_likelihood,native,ml,w-high.g-none.v-none,-1.15448,1,warp
+raw DR with oracle q vs likelihood,shared_opc_raw_oq,shared_likelihood,native,ml,w-none.g-high.v-none,-0.00641223,1,group
+raw DR with oracle q vs likelihood,shared_opc_raw_oq,shared_likelihood,native,ml,w-none.g-none.v-high,0.0828211,1,vector
+raw vs harmonic (oracle q),shared_opc_raw_oq,shared_opc_oq,best,anime,high,-2.65267,1,combined
+raw vs harmonic (oracle q),shared_opc_raw_oq,shared_opc_oq,best,anime,none,-0.0123756,1,no bias
+raw vs harmonic (oracle q),shared_opc_raw_oq,shared_opc_oq,best,anime,w-high.g-none.v-none,-0.877867,1,warp
+raw vs harmonic (oracle q),shared_opc_raw_oq,shared_opc_oq,best,anime,w-none.g-high.v-none,-0.331318,1,group
+raw vs harmonic (oracle q),shared_opc_raw_oq,shared_opc_oq,best,anime,w-none.g-none.v-high,-0.200207,1,vector
+raw vs harmonic (oracle q),shared_opc_raw_oq,shared_opc_oq,best,kuairand,high,-1.20605,1,combined
+raw vs harmonic (oracle q),shared_opc_raw_oq,shared_opc_oq,best,kuairand,none,-0.0221988,1,no bias
+raw vs harmonic (oracle q),shared_opc_raw_oq,shared_opc_oq,best,kuairand,w-high.g-none.v-none,-0.864167,1,warp
+raw vs harmonic (oracle q),shared_opc_raw_oq,shared_opc_oq,best,kuairand,w-none.g-high.v-none,-0.340596,1,group
+raw vs harmonic (oracle q),shared_opc_raw_oq,shared_opc_oq,best,kuairand,w-none.g-none.v-high,-0.362151,1,vector
+raw vs harmonic (oracle q),shared_opc_raw_oq,shared_opc_oq,best,ml,high,-4.24107,1,combined
+raw vs harmonic (oracle q),shared_opc_raw_oq,shared_opc_oq,best,ml,none,-0.0142727,1,no bias
+raw vs harmonic (oracle q),shared_opc_raw_oq,shared_opc_oq,best,ml,w-high.g-none.v-none,-1.47913,1,warp
+raw vs harmonic (oracle q),shared_opc_raw_oq,shared_opc_oq,best,ml,w-none.g-high.v-none,-0.607008,1,group
+raw vs harmonic (oracle q),shared_opc_raw_oq,shared_opc_oq,best,ml,w-none.g-none.v-high,-0.71114,1,vector
+raw vs harmonic (oracle q),shared_opc_raw_oq,shared_opc_oq,common,anime,high,-2.78294,1,combined
+raw vs harmonic (oracle q),shared_opc_raw_oq,shared_opc_oq,common,anime,none,-0.0773242,1,no bias
+raw vs harmonic (oracle q),shared_opc_raw_oq,shared_opc_oq,common,anime,w-high.g-none.v-none,-1.16423,1,warp
+raw vs harmonic (oracle q),shared_opc_raw_oq,shared_opc_oq,common,anime,w-none.g-high.v-none,-0.192977,1,group
+raw vs harmonic (oracle q),shared_opc_raw_oq,shared_opc_oq,common,anime,w-none.g-none.v-high,-0.216296,1,vector
+raw vs harmonic (oracle q),shared_opc_raw_oq,shared_opc_oq,common,kuairand,high,-0.872043,1,combined
+raw vs harmonic (oracle q),shared_opc_raw_oq,shared_opc_oq,common,kuairand,none,-0.19798,1,no bias
+raw vs harmonic (oracle q),shared_opc_raw_oq,shared_opc_oq,common,kuairand,w-high.g-none.v-none,-1.26702,1,warp
+raw vs harmonic (oracle q),shared_opc_raw_oq,shared_opc_oq,common,kuairand,w-none.g-high.v-none,-1.02958,1,group
+raw vs harmonic (oracle q),shared_opc_raw_oq,shared_opc_oq,common,kuairand,w-none.g-none.v-high,-0.488334,1,vector
+raw vs harmonic (oracle q),shared_opc_raw_oq,shared_opc_oq,common,ml,high,-4.24107,1,combined
+raw vs harmonic (oracle q),shared_opc_raw_oq,shared_opc_oq,common,ml,none,-0.00741186,1,no bias
+raw vs harmonic (oracle q),shared_opc_raw_oq,shared_opc_oq,common,ml,w-high.g-none.v-none,-1.51923,1,warp
+raw vs harmonic (oracle q),shared_opc_raw_oq,shared_opc_oq,common,ml,w-none.g-high.v-none,-0.606495,1,group
+raw vs harmonic (oracle q),shared_opc_raw_oq,shared_opc_oq,common,ml,w-none.g-none.v-high,-0.926399,1,vector
+raw vs harmonic (oracle q),shared_opc_raw_oq,shared_opc_oq,mean,anime,high,-1.39095,1,combined
+raw vs harmonic (oracle q),shared_opc_raw_oq,shared_opc_oq,mean,anime,none,-0.188453,1,no bias
+raw vs harmonic (oracle q),shared_opc_raw_oq,shared_opc_oq,mean,anime,w-high.g-none.v-none,-0.707343,1,warp
+raw vs harmonic (oracle q),shared_opc_raw_oq,shared_opc_oq,mean,anime,w-none.g-high.v-none,-0.279883,1,group
+raw vs harmonic (oracle q),shared_opc_raw_oq,shared_opc_oq,mean,anime,w-none.g-none.v-high,-0.220647,1,vector
+raw vs harmonic (oracle q),shared_opc_raw_oq,shared_opc_oq,mean,kuairand,high,-1.85549,1,combined
+raw vs harmonic (oracle q),shared_opc_raw_oq,shared_opc_oq,mean,kuairand,none,-0.113775,1,no bias
+raw vs harmonic (oracle q),shared_opc_raw_oq,shared_opc_oq,mean,kuairand,w-high.g-none.v-none,-0.79698,1,warp
+raw vs harmonic (oracle q),shared_opc_raw_oq,shared_opc_oq,mean,kuairand,w-none.g-high.v-none,-0.429465,1,group
+raw vs harmonic (oracle q),shared_opc_raw_oq,shared_opc_oq,mean,kuairand,w-none.g-none.v-high,-0.246775,1,vector
+raw vs harmonic (oracle q),shared_opc_raw_oq,shared_opc_oq,mean,ml,high,-1.89529,1,combined
+raw vs harmonic (oracle q),shared_opc_raw_oq,shared_opc_oq,mean,ml,none,-0.205141,1,no bias
+raw vs harmonic (oracle q),shared_opc_raw_oq,shared_opc_oq,mean,ml,w-high.g-none.v-none,-1.06309,1,warp
+raw vs harmonic (oracle q),shared_opc_raw_oq,shared_opc_oq,mean,ml,w-none.g-high.v-none,-0.546301,1,group
+raw vs harmonic (oracle q),shared_opc_raw_oq,shared_opc_oq,mean,ml,w-none.g-none.v-high,-0.532987,1,vector
+raw vs harmonic (oracle q),shared_opc_raw_oq,shared_opc_oq,native,anime,high,-2.78294,1,combined
+raw vs harmonic (oracle q),shared_opc_raw_oq,shared_opc_oq,native,anime,none,-0.0946996,1,no bias
+raw vs harmonic (oracle q),shared_opc_raw_oq,shared_opc_oq,native,anime,w-high.g-none.v-none,-0.801646,1,warp
+raw vs harmonic (oracle q),shared_opc_raw_oq,shared_opc_oq,native,anime,w-none.g-high.v-none,-0.18642,1,group
+raw vs harmonic (oracle q),shared_opc_raw_oq,shared_opc_oq,native,anime,w-none.g-none.v-high,-0.461087,1,vector
+raw vs harmonic (oracle q),shared_opc_raw_oq,shared_opc_oq,native,kuairand,high,-0.872043,1,combined
+raw vs harmonic (oracle q),shared_opc_raw_oq,shared_opc_oq,native,kuairand,none,-0.102608,1,no bias
+raw vs harmonic (oracle q),shared_opc_raw_oq,shared_opc_oq,native,kuairand,w-high.g-none.v-none,-0.573689,1,warp
+raw vs harmonic (oracle q),shared_opc_raw_oq,shared_opc_oq,native,kuairand,w-none.g-high.v-none,-1.09576,1,group
+raw vs harmonic (oracle q),shared_opc_raw_oq,shared_opc_oq,native,kuairand,w-none.g-none.v-high,-0.466557,1,vector
+raw vs harmonic (oracle q),shared_opc_raw_oq,shared_opc_oq,native,ml,high,-4.24107,1,combined
+raw vs harmonic (oracle q),shared_opc_raw_oq,shared_opc_oq,native,ml,none,0.063484,1,no bias
+raw vs harmonic (oracle q),shared_opc_raw_oq,shared_opc_oq,native,ml,w-high.g-none.v-none,-1.51923,1,warp
+raw vs harmonic (oracle q),shared_opc_raw_oq,shared_opc_oq,native,ml,w-none.g-high.v-none,-0.606495,1,group
+raw vs harmonic (oracle q),shared_opc_raw_oq,shared_opc_oq,native,ml,w-none.g-none.v-high,-0.760858,1,vector
+raw vs harmonic (q-hat),shared_opc_raw,shared_opc,best,anime,high,-0.771973,1,combined
+raw vs harmonic (q-hat),shared_opc_raw,shared_opc,best,anime,none,-0.00281397,1,no bias
+raw vs harmonic (q-hat),shared_opc_raw,shared_opc,best,anime,w-high.g-none.v-none,-0.222378,1,warp
+raw vs harmonic (q-hat),shared_opc_raw,shared_opc,best,anime,w-none.g-high.v-none,-0.113263,1,group
+raw vs harmonic (q-hat),shared_opc_raw,shared_opc,best,anime,w-none.g-none.v-high,-0.0807988,1,vector
+raw vs harmonic (q-hat),shared_opc_raw,shared_opc,best,kuairand,high,-1.51591,1,combined
+raw vs harmonic (q-hat),shared_opc_raw,shared_opc,best,kuairand,none,-0.0300999,1,no bias
+raw vs harmonic (q-hat),shared_opc_raw,shared_opc,best,kuairand,w-high.g-none.v-none,-0.384583,1,warp
+raw vs harmonic (q-hat),shared_opc_raw,shared_opc,best,kuairand,w-none.g-high.v-none,-0.131632,1,group
+raw vs harmonic (q-hat),shared_opc_raw,shared_opc,best,kuairand,w-none.g-none.v-high,-0.143971,1,vector
+raw vs harmonic (q-hat),shared_opc_raw,shared_opc,best,ml,high,-0.990192,1,combined
+raw vs harmonic (q-hat),shared_opc_raw,shared_opc,best,ml,none,-0.0254762,1,no bias
+raw vs harmonic (q-hat),shared_opc_raw,shared_opc,best,ml,w-high.g-none.v-none,-0.289842,1,warp
+raw vs harmonic (q-hat),shared_opc_raw,shared_opc,best,ml,w-none.g-high.v-none,-0.0432002,1,group
+raw vs harmonic (q-hat),shared_opc_raw,shared_opc,best,ml,w-none.g-none.v-high,0.0035073,1,vector
+raw vs harmonic (q-hat),shared_opc_raw,shared_opc,common,anime,high,-1.02535,1,combined
+raw vs harmonic (q-hat),shared_opc_raw,shared_opc,common,anime,none,-0.0221707,1,no bias
+raw vs harmonic (q-hat),shared_opc_raw,shared_opc,common,anime,w-high.g-none.v-none,-0.140455,1,warp
+raw vs harmonic (q-hat),shared_opc_raw,shared_opc,common,anime,w-none.g-high.v-none,-0.0911935,1,group
+raw vs harmonic (q-hat),shared_opc_raw,shared_opc,common,anime,w-none.g-none.v-high,-0.0682185,1,vector
+raw vs harmonic (q-hat),shared_opc_raw,shared_opc,common,kuairand,high,-1.51591,1,combined
+raw vs harmonic (q-hat),shared_opc_raw,shared_opc,common,kuairand,none,-0.229882,1,no bias
+raw vs harmonic (q-hat),shared_opc_raw,shared_opc,common,kuairand,w-high.g-none.v-none,-0.373161,1,warp
+raw vs harmonic (q-hat),shared_opc_raw,shared_opc,common,kuairand,w-none.g-high.v-none,-0.288486,1,group
+raw vs harmonic (q-hat),shared_opc_raw,shared_opc,common,kuairand,w-none.g-none.v-high,-0.0518561,1,vector
+raw vs harmonic (q-hat),shared_opc_raw,shared_opc,common,ml,high,-0.953035,1,combined
+raw vs harmonic (q-hat),shared_opc_raw,shared_opc,common,ml,none,-0.356119,1,no bias
+raw vs harmonic (q-hat),shared_opc_raw,shared_opc,common,ml,w-high.g-none.v-none,-0.246564,1,warp
+raw vs harmonic (q-hat),shared_opc_raw,shared_opc,common,ml,w-none.g-high.v-none,0.0697855,1,group
+raw vs harmonic (q-hat),shared_opc_raw,shared_opc,common,ml,w-none.g-none.v-high,-0.10272,1,vector
+raw vs harmonic (q-hat),shared_opc_raw,shared_opc,mean,anime,high,-0.472322,1,combined
+raw vs harmonic (q-hat),shared_opc_raw,shared_opc,mean,anime,none,-0.122362,1,no bias
+raw vs harmonic (q-hat),shared_opc_raw,shared_opc,mean,anime,w-high.g-none.v-none,-0.273681,1,warp
+raw vs harmonic (q-hat),shared_opc_raw,shared_opc,mean,anime,w-none.g-high.v-none,-0.110884,1,group
+raw vs harmonic (q-hat),shared_opc_raw,shared_opc,mean,anime,w-none.g-none.v-high,-0.0695577,1,vector
+raw vs harmonic (q-hat),shared_opc_raw,shared_opc,mean,kuairand,high,-1.08726,1,combined
+raw vs harmonic (q-hat),shared_opc_raw,shared_opc,mean,kuairand,none,-0.0974547,1,no bias
+raw vs harmonic (q-hat),shared_opc_raw,shared_opc,mean,kuairand,w-high.g-none.v-none,-0.356891,1,warp
+raw vs harmonic (q-hat),shared_opc_raw,shared_opc,mean,kuairand,w-none.g-high.v-none,-0.225674,1,group
+raw vs harmonic (q-hat),shared_opc_raw,shared_opc,mean,kuairand,w-none.g-none.v-high,-0.0773382,1,vector
+raw vs harmonic (q-hat),shared_opc_raw,shared_opc,mean,ml,high,-0.603885,1,combined
+raw vs harmonic (q-hat),shared_opc_raw,shared_opc,mean,ml,none,-0.176449,1,no bias
+raw vs harmonic (q-hat),shared_opc_raw,shared_opc,mean,ml,w-high.g-none.v-none,-0.241279,1,warp
+raw vs harmonic (q-hat),shared_opc_raw,shared_opc,mean,ml,w-none.g-high.v-none,-0.0729516,1,group
+raw vs harmonic (q-hat),shared_opc_raw,shared_opc,mean,ml,w-none.g-none.v-high,-0.117424,1,vector
+raw vs harmonic (q-hat),shared_opc_raw,shared_opc,native,anime,high,-1.02535,1,combined
+raw vs harmonic (q-hat),shared_opc_raw,shared_opc,native,anime,none,0.472513,1,no bias
+raw vs harmonic (q-hat),shared_opc_raw,shared_opc,native,anime,w-high.g-none.v-none,-0.140455,1,warp
+raw vs harmonic (q-hat),shared_opc_raw,shared_opc,native,anime,w-none.g-high.v-none,-0.354192,1,group
+raw vs harmonic (q-hat),shared_opc_raw,shared_opc,native,anime,w-none.g-none.v-high,-0.203345,1,vector
+raw vs harmonic (q-hat),shared_opc_raw,shared_opc,native,kuairand,high,-1.51591,1,combined
+raw vs harmonic (q-hat),shared_opc_raw,shared_opc,native,kuairand,none,-0.0651434,1,no bias
+raw vs harmonic (q-hat),shared_opc_raw,shared_opc,native,kuairand,w-high.g-none.v-none,-0.601687,1,warp
+raw vs harmonic (q-hat),shared_opc_raw,shared_opc,native,kuairand,w-none.g-high.v-none,-0.568904,1,group
+raw vs harmonic (q-hat),shared_opc_raw,shared_opc,native,kuairand,w-none.g-none.v-high,-0.0932726,1,vector
+raw vs harmonic (q-hat),shared_opc_raw,shared_opc,native,ml,high,-0.953035,1,combined
+raw vs harmonic (q-hat),shared_opc_raw,shared_opc,native,ml,none,-0.190574,1,no bias
+raw vs harmonic (q-hat),shared_opc_raw,shared_opc,native,ml,w-high.g-none.v-none,-0.326011,1,warp
+raw vs harmonic (q-hat),shared_opc_raw,shared_opc,native,ml,w-none.g-high.v-none,-0.0667202,1,group
+raw vs harmonic (q-hat),shared_opc_raw,shared_opc,native,ml,w-none.g-none.v-high,-0.10272,1,vector

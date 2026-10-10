@@ -847,3 +847,204 @@ poor support).
   parts, where dT drops below M_L at 5k with better support. It is lost to selection under the native rule and
   visible under the common one. It sits where the likelihood is misspecified (vector, combined), overlap is good and
   N is small.
+
+### 15.5 The 25k gap decomposition (Phase 5)
+
+**Data.**
+- `run_opc_empirical_25k`: per world, each objective's full-batch fit on the study's own 25k training rows (§6), plus
+  harmonic DR's population optimum with q̂_∞.
+- The arms of `run_opc_regime_lgs0.8`, `run_opc_interventions_25k` and `run_opc_interventions_bfull_25k`.
+- Tables: `opc_gradient_regime/decomposition_25k`.
+
+**Reading the parts.**
+- V* − V(selected) = M + E + O + S, exactly per world.
+- E and O are large and of opposite sign for the unregularized full-batch fits: the full-batch fit to convergence
+  overfits, and early stopping and λ in the standard training beat it, as §6 anticipated. Only their sum E + O, the
+  finite-sample and optimization part, is reported as stable.
+
+**Pooled over the 12 corrupted worlds** (native selection, greedy CTR points, 95% CI):
+
+| Arm | M (objective mismatch) | E + O (sample + optimization) | S | Total | Selected gain |
+|---|---|---|---|---|---|
+| likelihood | 1.50 [0.50, 2.49] | 2.00 | 0.19 | 3.69 | 2.97 |
+| harmonic OPC (q̂) | 2.40 [1.22, 3.59] | 1.39 | 0.12 | 3.91 | 2.74 |
+| raw DR (q̂) | 0 | 4.19 | 0.22 | 4.41 | 2.24 |
+| harmonic OPC, oracle q | 0 | 2.61 | 0.18 | **2.80** | **3.86** |
+| raw DR, oracle q | 0 | 3.77 | 0.22 | 3.99 | 2.66 |
+| harmonic OPC, batch 8192 | 2.40 | 1.29 | 0.24 | 3.93 | 2.72 |
+| harmonic OPC, full batch (8 worlds) | 2.40 | 1.43 | 0.37 | 4.20 | 2.73 |
+
+**Paired by world** (a − b, 95% CI, worlds where a is higher):
+
+| Contrast | M | E + O | Total gap |
+|---|---|---|---|
+| OPC − likelihood | +0.91 [+0.05, +1.76] 8/12 | −0.61 [−1.23, +0.01] 4/12 | +0.23 [−0.08, +0.53] |
+| raw DR − OPC | −2.40 [−3.59, −1.22] | +2.79 [+1.35, +4.24] 12/12 | +0.50 [+0.20, +0.79] |
+| OPC, oracle q − OPC | −2.40 | +1.22 [+0.65, +1.79] 12/12 | −1.12 [−2.02, −0.22] |
+| OPC, batch 8192 − OPC | 0 | −0.11 [−0.25, +0.04] | — |
+| OPC, full batch − OPC (8 worlds) | 0 | −0.09 [−0.35, +0.17] | — |
+
+**Per dataset** (M / E + O / total):
+
+| Arm | ml | kuairand | anime |
+|---|---|---|---|
+| likelihood | 2.16 / 2.51 / 4.76 | 1.00 / 1.40 / 2.52 | 1.32 / 2.10 / 3.78 |
+| harmonic OPC | 2.69 / 2.29 / 5.15 | 2.11 / 0.74 / 2.90 | 2.41 / 1.14 / 3.69 |
+| raw DR | 0 / 5.31 / 5.51 | 0 / 3.40 / 3.60 | 0 / 3.85 / 4.12 |
+| harmonic OPC, oracle q | 0 / 3.15 / 3.19 | 0 / 2.11 / 2.41 | 0 / 2.58 / 2.79 |
+
+**Per corruption** (pooled over datasets), M for the likelihood against harmonic OPC:
+
+| Corruption | Likelihood M | Harmonic OPC M |
+|---|---|---|
+| warp | −0.01 | **2.43** |
+| group | 1.21 | 1.07 |
+| vector | 1.14 | **0.87** |
+| combined | 3.64 | **5.24** |
+
+**The answer to §0's question.**
+- The shared-objective study's "OPC training gap" of 3.81 points (§0) is here 2.40 + 1.39 = 3.8, measured against the
+  value optimum.
+  - 2.40 is not training: it is the objective mismatch of harmonic DR's population objective with the reward model's
+    limit q̂_∞ (§2). Harmonic OPC does not aim at θ_value*.
+  - The finite-sample and optimization part relative to its own target is 1.39, smaller than the likelihood's 2.00.
+- The convention of that study (OPC's objective mismatch = 0) holds for raw DR, not for harmonic DR with a learned q̂.
+
+### 15.6 Answers to the questions of the directive
+
+**A. Is the raw DR gradient unbiased in our implementation?** Yes.
+- **Analytically.** Under exact propensities and cross-fitting (§2), raw IPS and raw DR are unbiased for any fixed
+  q̂, and so is raw DR with the cross-fitted q̂. Tests §13: exact enumeration on a tiny world; the training loss's own
+  gradient.
+- **Empirically.** Consistent with g* in every cell of Stage 8A (75 per estimator, R = 300) and Stage 8B (435,
+  R = 40) with the calibrated tests (§12.2), with two kinds of exception:
+  - **Practical support failure** at ml combined θ_value* (§12.3). 44% of the target's mass lies on pairs expected
+    less than once in 7.5M rows. G3 matches the supported-region gradient and G2 matches g*. The estimator is unbiased
+    in expectation but unusable at the available sample size; this is not mathematical bias.
+  - **Two chance excursions at 100k** (R = 40), each resolved by 80 fresh replicates (§12.4).
+- The logged propensities equal the exact logger to 6e-6, relative.
+
+**B. How biased is the harmonic gradient?**
+- Relative to g* at the state, G5's bias is 0.3% at the source, 10% [3, 18] at mid and 31% [24, 38] at mid_greedy (8A).
+  In absolute terms it is about 3.5% of the source gradient's norm.
+- Three estimates agree: direct, paired against G3, and the exact conditional formula.
+- It does not shrink with N: flat from 5k to 100k at every support level (§15.2).
+- Its price buys a large variance reduction. At mid_greedy, SNR is 7.0 against 0.13 for raw DR, the cosine with g* is
+  0.87 against 0.39, and the MSE is about 70× smaller. The tail share of tr Ĉ falls from about 0.33 for the raw estimators to 0.06 for harmonic DR with the true q (G4).
+- With the true q the transform is unbiased (G4) and keeps the variance reduction.
+
+**C. What dominates the current OPC training gap?** For harmonic OPC at 25k, current support, pooled, against the
+value optimum (3.91 points), the contributions rank:
+1. **The harmonic transformation combined with the reward model's error:** M = 2.40, the population mismatch of
+   harmonic DR with q̂_∞. The true q removes it entirely.
+2. **The finite logged sample with optimization and search:** E + O = 1.39, smaller than the likelihood's 2.00.
+3. **Selection:** 0.12.
+4. **Minibatch noise:** negligible. Batch 8192 changes E + O by −0.11 [−0.25, +0.04], the full batch by −0.09 [−0.35,
+   +0.17].
+
+The likelihood's own gap is 3.69. The OPC − likelihood difference (+0.23) is +0.91 in M partly offset by −0.61 in
+E + O.
+
+**D. Does a better q̂ help? How much of the gap disappears with the oracle q?**
+- With the true q in the loss, harmonic OPC's gap to the value optimum falls from 3.91 to 2.80 (−1.12 [−2.02, −0.22];
+  11 of 12 worlds). That is 28% of OPC's gap.
+- The objective mismatch disappears (−2.40), partly offset by a larger finite-sample part (+1.22).
+- OPC with the true q is ahead of the likelihood: +0.89 [−0.00, +1.79] native, +1.01 [+0.18, +1.84] common, 10–11 of
+  12 worlds; in ml +1.57, kuairand +0.11, anime +0.99.
+- For raw DR, the true q helps less: +0.42 [−0.06, +0.89].
+
+**E. Does more data help as expected?**
+- **The gradient: yes.** SNR grows about in proportion to N for every estimator and support level (E4), and the
+  cosines rise (at mid_greedy, G5's from 0.65 at 5k to 0.95 at 100k, current support).
+- **The value: both arms improve,** pooled native gain at the current support:
+  - likelihood 2.02 → 2.97 → 3.93;
+  - harmonic OPC 1.61 → 2.74 → 3.31;
+  - raw DR 1.50 → 2.24 → 2.90.
+- **OPC improves less from 25k to 100k** (+0.57 against +0.96). Its gradient bias does not fall with N (§15.2), so its
+  gap to the likelihood widens (dT 1.57 → 1.80 → 2.00).
+
+**F. Does better logger support help?**
+- **The gradient: yes.** At the mid state, better support lowers the weights' maxima (at 25k: 184 better, 263 current, 608 poor) and
+  raises SNR 4–12×. It also cuts G5's bias from 0.17 (poor) to 0.07 (better).
+- **OPC's training disadvantage dT shrinks with support** at every N:
+  - 5k: 1.91 / 1.57 / 1.10 (poor / current / better);
+  - 25k: 2.10 / 1.80 / 1.64;
+  - 100k: 2.18 / 2.00 / 1.93.
+- **The value outcome is dataset-dependent.**
+  - ml improves at every N (5k: −0.13 / −0.33 / +0.17 for poor / current / better).
+  - kuairand does not (−0.50 / −0.29 / −0.46): its likelihood is only mildly misspecified (M_L ≈ 1.0), and OPC's
+    selection costs more there.
+  - Poor support makes OPC worse almost everywhere.
+
+**G. Where does OPC actually win?**
+- **Pooled:** no cell under native selection with a CI above zero. The best is 5k with better support, −0.16 [−0.61,
+  +0.30], 5 of 12 worlds. Under the common DR selection the same cell is +0.41 [−0.16, +0.98], 9 of 12.
+- **Per dataset:** ml at 5k with better support, +0.17 [−1.37, +1.70], 2 of 4. anime at 25k current, +0.09 [−0.24,
+  +0.41], 2 of 4.
+- **Single worlds:** 26 of 108 corrupted cells (§15.4): vector 14, combined 10, warp 2, group 0. The largest:
+  - ml combined, 5k, better support: +1.11;
+  - ml vector, 5k, better support: +0.78;
+  - kuairand combined, 5k, current support: +0.60.
+
+  With one seed per cell there is no within-cell paired CI; the pooled CIs above are the paired uncertainty.
+
+**H. Why does it win there?** The drivers, measured:
+- **The likelihood's objective mismatch relative to OPC's own.**
+  - Under vector corruption harmonic OPC's population target is closer to V* than the likelihood's (M 0.87 against
+    1.14). That is where most wins are, at every N in ml.
+  - Under combined corruption the likelihood's mismatch is large (3.64) but OPC's is larger (5.24). OPC wins there
+    only at small N, where the likelihood's finite-sample gap is still large.
+- **Overlap.** Across the 108 rows, OPC's standing correlates with the weights' maximum (ρ = −0.35) and the population
+  ESS share (+0.31), and the wins concentrate at better support.
+- **Data size:** wins are mostly at 5k–25k. OPC's dT grows with N faster than M_L changes.
+- **Not the measured gradient quality at a fixed state:** SNR, cosine, bias and MSE give \|ρ\| ≤ 0.06.
+- **Not a better reward model:** q̂'s error correlates +0.19, a confound with misspecification.
+- **In sum:** larger likelihood mismatch relative to OPC's, with better overlap, at small N.
+
+**I. Where does OPC still lose despite a population advantage?**
+- **Harmonic OPC has a population advantage only where its own mismatch is below the likelihood's:** vector and group
+  corruption (M 0.87 and 1.07 against 1.14 and 1.21).
+- **Under group corruption** it still loses (−0.03 to −0.87 in every cell). The advantage is small (0.14), and OPC's
+  selection and finite-sample costs exceed it.
+- **Under combined corruption the value optimum is far better than the likelihood's** (M_L = 3.64), but OPC loses at
+  25k and 100k:
+  - its harmonic surrogate is even further off (5.24);
+  - its gradient bias does not shrink with N;
+  - at θ_value*, the logging data cannot support the target (practical support failure, §12.3).
+- **Raw DR has no population mismatch anywhere and loses everywhere,** by its variance: E + O 4.19 against 2.00.
+- **With the true q,** harmonic OPC's population advantage is real (M = 0), and it beats the likelihood (+0.89).
+
+**Success criterion (Phase 13).**
+- **The transition exists in measurable quantities.** At 5k with better support, OPC's training disadvantage falls
+  below the likelihood's misspecification (dT 1.10 < M_L 1.47). As N grows or support worsens, dT rises above M_L.
+  Across worlds, the margin tracks M_L and overlap.
+- **Under the native selection the transition is not realized as a significant win.** Selection costs OPC the margin
+  at that cell, and no cell has a CI above zero.
+- **Negative and null results are kept:**
+  - no winning regime under native selection;
+  - batch size without effect;
+  - raw DR below harmonic DR everywhere;
+  - expectation E2 not confirmed.
+
+## 16. Recommendations (for review; nothing here has been started)
+
+**12. Which variance-reduction method to develop next.** The binding constraint for harmonic OPC is not variance. It
+is the bias of the fixed shrinkage acting on the reward model's error: 2.40 of its 3.91 points, flat in N. Raw DR's
+binding constraint is variance. The next method should reduce variance without a bias that persists as N grows, and
+without depending on q̂'s accuracy. In order of how directly the data point to them:
+1. **N-adaptive or bias-aware shrinkage.** A transform whose shrinkage vanishes as data accumulate, or one tuned by an
+   estimate of its own bias. That lets OPC's target converge to θ_value*.
+2. **Weights on action embeddings** (marginalized importance sampling). The importance weights shrink in a catalog of
+   thousands of items without relying on q̂.
+3. **A reward model fitted for the DR estimator's variance**, or under target weighting. q̂'s error is larger where
+   the target policy goes: RMSE 0.088 against 0.066.
+
+Larger or full batches and other optimizer-level fixes are not indicated.
+
+**13. Whether to proceed to hierarchical correction.** Not as the next step for OPC.
+- OPC's deficit at 25k is in its objective: the shrinkage bias with q̂.
+- A richer correction class adds parameters, which raises the counterfactual gradient's variance, and does not touch
+  that bias.
+- The likelihood would gain from the extra capacity as well.
+- Fixing the objective first (item 12) makes a hierarchical comparison interpretable. A hierarchical study of the
+  likelihood arm alone does not depend on this.

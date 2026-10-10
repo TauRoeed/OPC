@@ -1,0 +1,169 @@
+opc_arm,state,feature,rho,p,n
+shared_opc,source,G5-G3 (paired bias)_cond_rel_bias,-0.2026,0.03546,108
+shared_opc,source,G3_cos_mean,-0.07932,0.4145,108
+shared_opc,source,G5_cos_mean,-0.06912,0.4772,108
+shared_opc,source,G3_p_positive,,,108
+shared_opc,source,G5_p_positive,,,108
+shared_opc,source,G3_pop_ess_share,,,108
+shared_opc,source,G5_pop_ess_share,,,108
+shared_opc,source,G5-G3 (paired bias)_pop_ess_share,,,108
+shared_opc,source,G3_qhat_rmse_logging,0.1912,0.04743,108
+shared_opc,source,G5_qhat_rmse_logging,0.1912,0.04743,108
+shared_opc,source,G5-G3 (paired bias)_qhat_rmse_logging,0.1912,0.04743,108
+shared_opc,source,G3_rel_bias,0.1516,0.1174,108
+shared_opc,source,G5_rel_bias,-0.1185,0.2219,108
+shared_opc,source,G5-G3 (paired bias)_rel_bias,-0.2546,0.00783,108
+shared_opc,source,G3_rel_mse,0.1315,0.175,108
+shared_opc,source,G5_rel_mse,0.1316,0.1747,108
+shared_opc,source,G3_snr,-0.1273,0.1892,108
+shared_opc,source,G5_snr,-0.1302,0.1793,108
+shared_opc,source,G3_w_ess_share,0.04526,0.6419,108
+shared_opc,source,G5_w_ess_share,0.04526,0.6419,108
+shared_opc,source,G5-G3 (paired bias)_w_ess_share,0.04526,0.6419,108
+shared_opc,source,G3_w_max,-0.0268,0.7831,108
+shared_opc,source,G5_w_max,-0.0268,0.7831,108
+shared_opc,source,G5-G3 (paired bias)_w_max,-0.0268,0.7831,108
+shared_opc,source,M_L,0.4498,1.044e-06,108
+shared_opc,source,dT,0.09236,0.3417,108
+shared_opc,source,n_eff_value,0.1434,0.1387,108
+shared_opc,source,low_p0_value,-0.09775,0.3142,108
+shared_opc_raw,source,G5-G3 (paired bias)_cond_rel_bias,-0.252,0.008521,108
+shared_opc_raw,source,G3_cos_mean,-0.06174,0.5256,108
+shared_opc_raw,source,G5_cos_mean,-0.05465,0.5743,108
+shared_opc_raw,source,G3_p_positive,,,108
+shared_opc_raw,source,G5_p_positive,,,108
+shared_opc_raw,source,G3_pop_ess_share,,,108
+shared_opc_raw,source,G5_pop_ess_share,,,108
+shared_opc_raw,source,G5-G3 (paired bias)_pop_ess_share,,,108
+shared_opc_raw,source,G3_qhat_rmse_logging,0.2924,0.002132,108
+shared_opc_raw,source,G5_qhat_rmse_logging,0.2924,0.002132,108
+shared_opc_raw,source,G5-G3 (paired bias)_qhat_rmse_logging,0.2924,0.002132,108
+shared_opc_raw,source,G3_rel_bias,0.08129,0.4029,108
+shared_opc_raw,source,G5_rel_bias,-0.2099,0.0292,108
+shared_opc_raw,source,G5-G3 (paired bias)_rel_bias,-0.2793,0.003415,108
+shared_opc_raw,source,G3_rel_mse,0.1224,0.2069,108
+shared_opc_raw,source,G5_rel_mse,0.1219,0.2087,108
+shared_opc_raw,source,G3_snr,-0.1223,0.2073,108
+shared_opc_raw,source,G5_snr,-0.1249,0.1976,108
+shared_opc_raw,source,G3_w_ess_share,0.04689,0.6299,108
+shared_opc_raw,source,G5_w_ess_share,0.04689,0.6299,108
+shared_opc_raw,source,G5-G3 (paired bias)_w_ess_share,0.04689,0.6299,108
+shared_opc_raw,source,G3_w_max,-0.03289,0.7354,108
+shared_opc_raw,source,G5_w_max,-0.03289,0.7354,108
+shared_opc_raw,source,G5-G3 (paired bias)_w_max,-0.03289,0.7354,108
+shared_opc_raw,source,M_L,0.1558,0.1074,108
+shared_opc_raw,source,dT,-0.2916,0.002202,108
+shared_opc_raw,source,n_eff_value,0.3299,0.00049,108
+shared_opc_raw,source,low_p0_value,-0.3649,0.0001033,108
+shared_opc,mid,G5-G3 (paired bias)_cond_rel_bias,-0.1859,0.05412,108
+shared_opc,mid,G3_cos_mean,-0.00422,0.9654,108
+shared_opc,mid,G5_cos_mean,-0.0426,0.6615,108
+shared_opc,mid,G3_p_positive,-0.1246,0.1987,108
+shared_opc,mid,G5_p_positive,-0.1374,0.156,108
+shared_opc,mid,G3_pop_ess_share,0.2693,0.004833,108
+shared_opc,mid,G5_pop_ess_share,0.2693,0.004833,108
+shared_opc,mid,G5-G3 (paired bias)_pop_ess_share,0.2693,0.004833,108
+shared_opc,mid,G3_qhat_rmse_logging,0.1912,0.04743,108
+shared_opc,mid,G5_qhat_rmse_logging,0.1912,0.04743,108
+shared_opc,mid,G5-G3 (paired bias)_qhat_rmse_logging,0.1912,0.04743,108
+shared_opc,mid,G3_rel_bias,-0.1279,0.1872,108
+shared_opc,mid,G5_rel_bias,-0.1704,0.07781,108
+shared_opc,mid,G5-G3 (paired bias)_rel_bias,-0.09589,0.3236,108
+shared_opc,mid,G3_rel_mse,-0.01394,0.8862,108
+shared_opc,mid,G5_rel_mse,-0.00383,0.9686,108
+shared_opc,mid,G3_snr,0.02238,0.8182,108
+shared_opc,mid,G5_snr,-0.1005,0.3008,108
+shared_opc,mid,G3_w_ess_share,0.2494,0.009247,108
+shared_opc,mid,G5_w_ess_share,0.2494,0.009247,108
+shared_opc,mid,G5-G3 (paired bias)_w_ess_share,0.2494,0.009247,108
+shared_opc,mid,G3_w_max,-0.3392,0.000329,108
+shared_opc,mid,G5_w_max,-0.3392,0.000329,108
+shared_opc,mid,G5-G3 (paired bias)_w_max,-0.3392,0.000329,108
+shared_opc,mid,M_L,0.4498,1.044e-06,108
+shared_opc,mid,dT,0.09236,0.3417,108
+shared_opc,mid,n_eff_value,0.1434,0.1387,108
+shared_opc,mid,low_p0_value,-0.09775,0.3142,108
+shared_opc_raw,mid,G5-G3 (paired bias)_cond_rel_bias,-0.387,3.516e-05,108
+shared_opc_raw,mid,G3_cos_mean,0.1904,0.04842,108
+shared_opc_raw,mid,G5_cos_mean,0.1173,0.2266,108
+shared_opc_raw,mid,G3_p_positive,0.07774,0.4239,108
+shared_opc_raw,mid,G5_p_positive,-0.07046,0.4687,108
+shared_opc_raw,mid,G3_pop_ess_share,0.4896,7.539e-08,108
+shared_opc_raw,mid,G5_pop_ess_share,0.4896,7.539e-08,108
+shared_opc_raw,mid,G5-G3 (paired bias)_pop_ess_share,0.4896,7.539e-08,108
+shared_opc_raw,mid,G3_qhat_rmse_logging,0.2924,0.002132,108
+shared_opc_raw,mid,G5_qhat_rmse_logging,0.2924,0.002132,108
+shared_opc_raw,mid,G5-G3 (paired bias)_qhat_rmse_logging,0.2924,0.002132,108
+shared_opc_raw,mid,G3_rel_bias,-0.0161,0.8686,108
+shared_opc_raw,mid,G5_rel_bias,-0.3564,0.000153,108
+shared_opc_raw,mid,G5-G3 (paired bias)_rel_bias,-0.3214,0.0006956,108
+shared_opc_raw,mid,G3_rel_mse,-0.2091,0.02987,108
+shared_opc_raw,mid,G5_rel_mse,-0.1212,0.2115,108
+shared_opc_raw,mid,G3_snr,0.2144,0.0259,108
+shared_opc_raw,mid,G5_snr,-0.01423,0.8838,108
+shared_opc_raw,mid,G3_w_ess_share,0.5001,3.576e-08,108
+shared_opc_raw,mid,G5_w_ess_share,0.5001,3.576e-08,108
+shared_opc_raw,mid,G5-G3 (paired bias)_w_ess_share,0.5001,3.576e-08,108
+shared_opc_raw,mid,G3_w_max,-0.5726,9.505e-11,108
+shared_opc_raw,mid,G5_w_max,-0.5726,9.505e-11,108
+shared_opc_raw,mid,G5-G3 (paired bias)_w_max,-0.5726,9.505e-11,108
+shared_opc_raw,mid,M_L,0.1558,0.1074,108
+shared_opc_raw,mid,dT,-0.2916,0.002202,108
+shared_opc_raw,mid,n_eff_value,0.3299,0.00049,108
+shared_opc_raw,mid,low_p0_value,-0.3649,0.0001033,108
+shared_opc,mid_greedy,G5-G3 (paired bias)_cond_rel_bias,-0.02385,0.8065,108
+shared_opc,mid_greedy,G3_cos_mean,-0.04409,0.6505,108
+shared_opc,mid_greedy,G5_cos_mean,-0.05063,0.6028,108
+shared_opc,mid_greedy,G3_p_positive,-0.0934,0.3363,108
+shared_opc,mid_greedy,G5_p_positive,-0.02384,0.8066,108
+shared_opc,mid_greedy,G3_pop_ess_share,0.3135,0.0009521,108
+shared_opc,mid_greedy,G5_pop_ess_share,0.3135,0.0009521,108
+shared_opc,mid_greedy,G5-G3 (paired bias)_pop_ess_share,0.3135,0.0009521,108
+shared_opc,mid_greedy,G3_qhat_rmse_logging,0.1912,0.04743,108
+shared_opc,mid_greedy,G5_qhat_rmse_logging,0.1912,0.04743,108
+shared_opc,mid_greedy,G5-G3 (paired bias)_qhat_rmse_logging,0.1912,0.04743,108
+shared_opc,mid_greedy,G3_rel_bias,-0.01022,0.9164,108
+shared_opc,mid_greedy,G5_rel_bias,-0.03338,0.7316,108
+shared_opc,mid_greedy,G5-G3 (paired bias)_rel_bias,0.05185,0.5941,108
+shared_opc,mid_greedy,G3_rel_mse,-0.04662,0.6318,108
+shared_opc,mid_greedy,G5_rel_mse,0.0318,0.7439,108
+shared_opc,mid_greedy,G3_snr,0.008631,0.9294,108
+shared_opc,mid_greedy,G5_snr,-0.05089,0.6009,108
+shared_opc,mid_greedy,G3_w_ess_share,0.1503,0.1205,108
+shared_opc,mid_greedy,G5_w_ess_share,0.1503,0.1205,108
+shared_opc,mid_greedy,G5-G3 (paired bias)_w_ess_share,0.1503,0.1205,108
+shared_opc,mid_greedy,G3_w_max,-0.3483,0.0002208,108
+shared_opc,mid_greedy,G5_w_max,-0.3483,0.0002208,108
+shared_opc,mid_greedy,G5-G3 (paired bias)_w_max,-0.3483,0.0002208,108
+shared_opc,mid_greedy,M_L,0.4498,1.044e-06,108
+shared_opc,mid_greedy,dT,0.09236,0.3417,108
+shared_opc,mid_greedy,n_eff_value,0.1434,0.1387,108
+shared_opc,mid_greedy,low_p0_value,-0.09775,0.3142,108
+shared_opc_raw,mid_greedy,G5-G3 (paired bias)_cond_rel_bias,-0.02589,0.7902,108
+shared_opc_raw,mid_greedy,G3_cos_mean,-0.091,0.3489,108
+shared_opc_raw,mid_greedy,G5_cos_mean,-0.1627,0.09242,108
+shared_opc_raw,mid_greedy,G3_p_positive,-0.1139,0.2404,108
+shared_opc_raw,mid_greedy,G5_p_positive,-0.1156,0.2337,108
+shared_opc_raw,mid_greedy,G3_pop_ess_share,0.4721,2.503e-07,108
+shared_opc_raw,mid_greedy,G5_pop_ess_share,0.4721,2.503e-07,108
+shared_opc_raw,mid_greedy,G5-G3 (paired bias)_pop_ess_share,0.4721,2.503e-07,108
+shared_opc_raw,mid_greedy,G3_qhat_rmse_logging,0.2924,0.002132,108
+shared_opc_raw,mid_greedy,G5_qhat_rmse_logging,0.2924,0.002132,108
+shared_opc_raw,mid_greedy,G5-G3 (paired bias)_qhat_rmse_logging,0.2924,0.002132,108
+shared_opc_raw,mid_greedy,G3_rel_bias,-0.09754,0.3152,108
+shared_opc_raw,mid_greedy,G5_rel_bias,-0.03321,0.7329,108
+shared_opc_raw,mid_greedy,G5-G3 (paired bias)_rel_bias,-0.05128,0.5981,108
+shared_opc_raw,mid_greedy,G3_rel_mse,-0.03047,0.7543,108
+shared_opc_raw,mid_greedy,G5_rel_mse,0.1489,0.1241,108
+shared_opc_raw,mid_greedy,G3_snr,-0.0163,0.867,108
+shared_opc_raw,mid_greedy,G5_snr,-0.1779,0.06545,108
+shared_opc_raw,mid_greedy,G3_w_ess_share,0.3162,0.0008576,108
+shared_opc_raw,mid_greedy,G5_w_ess_share,0.3162,0.0008576,108
+shared_opc_raw,mid_greedy,G5-G3 (paired bias)_w_ess_share,0.3162,0.0008576,108
+shared_opc_raw,mid_greedy,G3_w_max,-0.5023,3.044e-08,108
+shared_opc_raw,mid_greedy,G5_w_max,-0.5023,3.044e-08,108
+shared_opc_raw,mid_greedy,G5-G3 (paired bias)_w_max,-0.5023,3.044e-08,108
+shared_opc_raw,mid_greedy,M_L,0.1558,0.1074,108
+shared_opc_raw,mid_greedy,dT,-0.2916,0.002202,108
+shared_opc_raw,mid_greedy,n_eff_value,0.3299,0.00049,108
+shared_opc_raw,mid_greedy,low_p0_value,-0.3649,0.0001033,108
