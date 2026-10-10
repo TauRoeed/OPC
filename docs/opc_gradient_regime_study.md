@@ -760,3 +760,86 @@ Dataset × corruption cells are in `opc_gradient_regime/interventions_25k/table_
   likelihood's best configurations are better, while OPC is more uniform across configurations, so the likelihood's
   lead under native selection comes from its best trials rather than its typical trial.
 - The oracle-q arms are diagnostics. The simulator's q is not available in practice.
+
+### 15.4 The regime map: N × logging support × corruption (Phases 7–11)
+
+**Data.**
+- `run_opc_regime_lgs{0.6,0.8,0.9}`: the 15 seed-100 worlds × N ∈ {5k, 25k, 100k} × three arms × 20 paired trials,
+  8,100 trials in all, none diverged.
+- The 25k-current cell reproduces `run_shared_main_25k` bit for bit (both arms, all 15 worlds, 30 cells): §11's third
+  condition is met.
+- Tables and figures: `opc_gradient_regime/regime_map`.
+
+**Harmonic OPC − likelihood**, native selection, greedy CTR points, mean [95% t-interval] over the 12 corrupted
+worlds and the worlds where OPC is ahead:
+
+| N | Better support (0.6) | Current (0.8) | Poor (0.9) |
+|---|---|---|---|
+| 5k | −0.16 [−0.61, +0.30] 5/12 | −0.41 [−0.78, −0.03] 3/12 | −0.35 [−0.69, −0.02] 3/12 |
+| 25k | −0.39 [−0.83, +0.05] 4/12 | −0.23 [−0.53, +0.08] 4/12 | −0.49 [−0.88, −0.10] 2/12 |
+| 100k | −0.63 [−1.14, −0.13] 3/12 | −0.62 [−0.98, −0.25] 1/12 | −0.66 [−1.04, −0.29] 1/12 |
+
+**Per dataset** (corrupted worlds; better / current / poor support):
+
+| N | ml | kuairand | anime |
+|---|---|---|---|
+| 5k | +0.17 / −0.33 / −0.13 | −0.46 / −0.29 / −0.50 | −0.18 / −0.60 / −0.43 |
+| 25k | −0.10 / −0.39 / −0.55 | −0.55 / −0.38 / −0.72 | −0.52 / +0.09 / −0.21 |
+| 100k | −0.62 / −0.66 / −0.79 | −0.75 / −0.67 / −0.79 | −0.53 / −0.52 / −0.41 |
+
+**Raw DR − likelihood** is below harmonic OPC in every pooled cell: from −0.25 (5k, better support) to −1.12 (100k,
+poor support).
+
+**Other selection rules.**
+- With the common DR selection, OPC is ahead at 5k with better support: +0.41 [−0.16, +0.98], 9 of 12 worlds. It is
+  behind elsewhere: −0.04 to −0.40.
+- Averaged over the 20 trials, OPC is ahead in most cells (+0.14 to +0.38), as at 25k (§15.3). The likelihood's lead
+  comes from its best configurations.
+
+**The margin F (Phase 10).**
+- F = M_L − (T_O − T_L) − (S_O − S_L) equals the observed difference in every world and cell (largest error 1.6e-15),
+  so F explains the crossover exactly by construction. Its parts show where the crossover comes from.
+- Pooled corrupted worlds, native selection:
+
+| Cell | M_L | dT = T_O − T_L | dS = S_O − S_L | Observed |
+|---|---|---|---|---|
+| better, 5k | 1.47 | **1.10** | 0.53 | −0.16 |
+| better, 25k | 1.47 | 1.64 | 0.22 | −0.39 |
+| better, 100k | 1.47 | 1.93 | 0.17 | −0.63 |
+| current, 5k / 25k / 100k | 1.51 | 1.57 / 1.80 / 2.00 | 0.34 / −0.07 / 0.12 | −0.41 / −0.23 / −0.62 |
+| poor, 5k / 25k / 100k | 1.65 | 1.91 / 2.10 / 2.18 | 0.10 / 0.04 / 0.13 | −0.35 / −0.49 / −0.66 |
+
+- OPC's extra training gap dT grows with N at every support level.
+- It falls below the likelihood's misspecification M_L only at 5k with better support. There, native selection
+  (dS = 0.53) costs OPC the lead that the common selection keeps.
+- Worse support raises M_L slightly and dT more.
+
+**The cells where OPC is ahead** (dataset × corruption × N × support, one world each, native selection): 26 of 108.
+- Vector corruption: ml at every support level and N except one; anime at 25k (current) and 100k (poor); kuairand
+  at 25k (current).
+- Combined corruption at small N: ml 5k (better +1.11, poor +0.54) and 25k (better +0.54); kuairand 5k (current +0.60,
+  better +0.42); anime 5k (better +0.25) and 25k (current +0.22) and 100k (better +0.27).
+- Warp (near well specified): two anime cells only (+0.34, +0.12).
+- Group: none.
+- The full list is `table_dataset_corruption.csv`.
+
+**Relating OPC's standing to gradient quality and overlap (Phase 11; exploratory).** Spearman correlations over the
+108 corrupted world × cell rows between the observed difference (harmonic OPC, native) and each feature:
+
+| Feature | ρ | p |
+|---|---|---|
+| The likelihood's misspecification M_L | +0.45 | < 0.001 |
+| The weights' maximum at mid_greedy | −0.35 | < 0.001 |
+| The population ESS share at mid_greedy | +0.31 | 0.001 |
+| The reward model's logging-weighted error | +0.19 | 0.047 |
+| G5's SNR, cosine, bias and MSE at mid_greedy; G3's | \|ρ\| ≤ 0.06 | ≥ 0.60 |
+| θ_value*'s effective sample size N × ESS share (§12.3) | +0.14 | 0.14 |
+
+- **Reading.** Across regimes, OPC's relative standing tracks how misspecified the likelihood is and how much overlap
+  the logging data has. It does not track the gradient-quality measures at a fixed state.
+- These correlations are descriptive. The features are confounded with dataset and corruption: q̂'s error, for
+  instance, is larger exactly where the likelihood is more misspecified.
+- **No reproducible winning regime under the native selection.** The transition the study looked for appears in F's
+  parts, where dT drops below M_L at 5k with better support. It is lost to selection under the native rule and
+  visible under the common one. It sits where the likelihood is misspecified (vector, combined), overlap is good and
+  N is small.
