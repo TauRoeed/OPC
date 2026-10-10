@@ -132,6 +132,32 @@ def test_the_truth_adapter_reproduces_the_target_score_and_ranking():
     assert (s.argmax(axis=1) == sB.argmax(axis=1)).all()
 
 
+def test_the_gated_truth_adapter_reproduces_the_gated_target_where_the_gate_is_not_clipped():
+    from utils.structured_shift import gate_affine
+
+    ds = world("s-moderate.r-moderate.gated")
+    st = ds["structured"]
+    assert ds["world"]["shift_corr"] == pytest.approx(SHIFT_LEVELS["moderate"], abs=0.005)
+    x = ds["our_x"].astype(np.float64)
+    v, d, clipped = gate_affine(x, ds["user_prior"], st["seed"])
+    inside = np.abs(expit(x @ v + d) - st["gate"]) < 1e-6  # float32 vectors
+    assert inside.mean() > 0.97 and clipped < 0.03
+    t = lambda z: torch.as_tensor(np.asarray(z, dtype=np.float32))
+    m = SharedLowRankModel(ds["n_users"], ds["n_actions"], ds["emb_dim"], initial_user_embeddings=t(ds["our_x"]),
+                           initial_actions_embeddings=t(ds["our_a"]), temperature=ds["policy_temperature"],
+                           seed=st["seed"], mode="policy", gated=True).double()
+    with torch.no_grad():
+        m.action_transform.U.copy_(torch.as_tensor(st["directions"]["U"] * (st["gamma"] * st["directions"]["signs"])))
+        m.action_transform.V.copy_(torch.as_tensor(st["directions"]["V"]))
+        m.gate_w.copy_(torch.as_tensor(v))
+        m.gate_b.copy_(torch.as_tensor(d))
+    s = m.score(torch.arange(ds["n_users"])).detach().numpy()
+    a = ds["our_a"].astype(np.float64)
+    sB = (x + st["gate"][:, None] * (x @ st["delta"])) @ a.T
+    np.testing.assert_allclose(s[inside], sB[inside], rtol=1e-5, atol=1e-5)
+    assert (s.argmax(axis=1) == sB.argmax(axis=1)).mean() > 0.99
+
+
 def test_the_calibration_aware_head_starts_as_the_ordinary_head_and_represents_the_truth():
     ds = world("s-moderate.r-strong", z_clip=50.0)  # no clipping: the nuisance is exactly linear in x
     st = ds["structured"]

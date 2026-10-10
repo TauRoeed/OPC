@@ -52,15 +52,20 @@ def world_dir_name(ds: str, label: str, seed: int, share: float) -> str:
 
 
 def truth_adapter(dataset: dict, device=None):
-    """The adapter set to the truth: U = U* diag(γ ε), V = V* (U Vᵀ = Δ*), logit scale 1."""
+    """The adapter set to the truth: U = U* diag(γ ε), V = V* (U Vᵀ = Δ*), logit scale 1; in the gated family also
+    the gate (v, d) of ``gate_affine``, exact for every user whose gate projection is not clipped."""
+    from utils.structured_shift import gate_affine
+
     st = dataset["structured"]
-    if st["levels"]["gated"]:
-        raise NotImplementedError("the gated truth adapter is set in Stage 2")
     model = build_model(dataset, device=device)
     d = st["directions"]
     with torch.no_grad():
         model.action_transform.U.copy_(torch.as_tensor(d["U"] * (st["gamma"] * d["signs"]), dtype=torch.float32))
         model.action_transform.V.copy_(torch.as_tensor(d["V"], dtype=torch.float32))
+        if st["levels"]["gated"]:
+            v, b, _clipped = gate_affine(np.asarray(dataset["our_x"], np.float64), _prior(dataset), int(st["seed"]))
+            model.gate_w.copy_(torch.as_tensor(v, dtype=torch.float32))
+            model.gate_b.copy_(torch.as_tensor(b, dtype=torch.float32))
     return model
 
 

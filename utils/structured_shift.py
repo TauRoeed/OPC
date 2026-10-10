@@ -103,6 +103,24 @@ def gate_values(X: np.ndarray, prior: np.ndarray, seed: int) -> np.ndarray:
     return expit(GATE_SLOPE * z)
 
 
+def gate_affine(X: np.ndarray, prior: np.ndarray, seed: int, clip: float = Z_CLIP) -> tuple[np.ndarray, float, float]:
+    """The gate in the learner's gated family, g(x) = σ(vᵀx + d) (§7, Stage 2): ``_standardized_projection`` is affine
+    in x for every user whose first standardization lies inside ±clip, so (v, d) reproduce ``gate_values`` there
+    exactly. Returns (v, d, the prior share of users outside, where the clipped truth is flatter)."""
+    p = np.asarray(prior, np.float64) / np.sum(prior)
+    w = _response_coeffs(X, prior, seed, "gate")
+    z = X @ w
+    mu1 = p @ z
+    sd1 = np.sqrt(p @ (z - mu1) ** 2)
+    z1 = (z - mu1) / sd1
+    zc = np.clip(z1, -clip, clip)
+    mu2 = p @ zc
+    sd2 = np.sqrt(p @ (zc - mu2) ** 2)
+    v = GATE_SLOPE * w / (sd1 * sd2)
+    d = -GATE_SLOPE * (mu1 / (sd1 * sd2) + mu2 / sd2)
+    return v, float(d), float(p @ (np.abs(z1) > clip))
+
+
 def target_user_vectors(X: np.ndarray, delta: np.ndarray, gate: np.ndarray | None = None) -> np.ndarray:
     """y_u = (I + g_u Δ)ᵀ x_u, so that s_B(u, i) = y_u · a_i (row vectors: y = x + g ⊙ (x Δ))."""
     shift = X @ delta
