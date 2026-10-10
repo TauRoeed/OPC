@@ -88,3 +88,15 @@ def test_the_tail_share_separates_gaussian_noise_from_a_few_extreme_replicates()
     assert bias_tests(G, gstar)["top5_var_share"] < 0.03  # about 5 / 300 without heavy tails
     G[:3] += 40 * np.eye(G.shape[1])[:3]  # three replicates far out
     assert bias_tests(G, gstar)["top5_var_share"] > 0.9
+
+
+def test_the_pooled_summary_never_mixes_cells():
+    from training.analyze_opc_gradients import pooled
+
+    rows = [{"dataset": ds, "bias": "high", "seed": 100, "train_size": n, "share": sh, "state": "mid",
+             "estimator": "G3", "snr": float(n) * (2.0 if sh == 0.6 else 1.0)}
+            for ds in ("ml", "kuairand") for n in (5000, 100000) for sh in (0.6, 0.8)]
+    s = pooled(pd.DataFrame(rows), ["snr"])
+    b = s[s["panel"] == "biased"]
+    assert len(b) == 4 and (b["worlds"] == 2).all()  # one row per (N, share): two worlds each
+    assert b.set_index(["train_size", "share"]).loc[(100000, 0.6), "snr"] == pytest.approx(200000.0)
