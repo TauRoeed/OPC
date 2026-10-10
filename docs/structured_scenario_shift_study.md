@@ -395,6 +395,58 @@ The shift levels hit their correlation targets exactly:
 
 **Frozen from here.** No level is changed after any method result.
 
+### 13.2 Tuning outcome and the main grid's spaces (2026-10-10, before the main grid)
+
+`run_ss_tune_s200` (d7fd60f, pinned worktree, 21:14–23:09, 2 workers): seeds 200 and 201 × 3 datasets ×
+{(moderate, moderate), (strong, strong)}, the four tuned arms, 20 paired trials each. 960 trials, none diverged. In every
+world the arms saw identical training and validation rows (row hashes) and trial k trained the same configuration in
+every arm. Tables: `artifacts/full_study/structured_scenario_shift/tuning/`.
+
+**The edge rule** (the shared-objective study's §8, as §7 pre-registers): mean gap of a trial's greedy gain below its
+world's best trial of the same arm, in points, per learning-rate bin (configurations: 15 / 17 / 8).
+
+| arm | 1e-4–3.2e-4 | 3.2e-4–1e-3 | 1e-3–2e-3 | margin of the top bin | extend |
+|---|---|---|---|---|---|
+| `lr_likelihood` | −2.83 | −1.67 | −0.66 | 1.01 | yes |
+| `lr_likelihood_calib` | −4.11 | −2.67 | −1.08 | 1.59 | yes |
+| `lr_opc` | −2.38 | −1.11 | −0.29 | 0.82 | yes |
+| `lr_opc_raw` | −1.90 | −0.89 | −0.30 | 0.60 | yes |
+
+- The rule fires for all four arms, on the learning rate at the top edge.
+- Not extended: every arm's best epoch bin (18–24) and best λ (0.1 for the likelihood, 0.001 for the others) are
+  interior. Batch size 512 (the low edge) and lr decay 0.9–1.0 (the high edge) are edges the protocol does not extend.
+
+**Decision.**
+- The main grid's learning rate for all five arms: **1e-4–6.3246e-3**, one half-decade past 2e-3. `lr_opc_oq`, not
+  tuned, takes `lr_opc`'s space. One shared space keeps trial k's configuration identical across the arms. Every other
+  range is as in §7.
+- **Supplementary round** `run_ss_tune_s200_supp`, after the main grid (by the protocol an extension changes only the
+  main grid's range and there is no second one, so the round cannot change the grid): the four arms on the same 12
+  worlds, 20 new paired trials (seed tag `shared_supplement`), lr 1e-4–6.3246e-3. The rule is applied again to both
+  rounds pooled. A second firing is reported and the boundary stays.
+
+The tuning worlds' native gains over the logger (one replicate per world; a diagnostic, not a result): ordinary
+likelihood 3.47, calibration-aware likelihood 4.98, harmonic OPC 3.08, raw DR 2.54 points, mean over the 12 worlds.
+
+**Order of the main grid.** One dataset at a time (ml, kuairand, anime). Each starts only after its 18 population worlds
+are finished with every check of §6 passing, so the population optima of a world always precede its finite-sample runs.
+The tuning round ran beside the population analysis, on other seeds (200 and 201 against 100 and 101).
+
+**Pre-launch checks (§7).**
+- Unit tests: `tests/test_structured_shift.py` (12, including the gated truth adapter of Stage 2) and
+  `tests/test_structured_shift_analysis.py` (4) pass.
+- Smoke world (ml, seed 200, the five arms, 2 trials, `--save-policies`): each arm's saved policy reproduces its recorded
+  greedy value exactly.
+- Population identities: the population source's greedy value equals the trainer's logger greedy value (0.25004889 on
+  the smoke world), so population and trial values can be subtracted. The 25k reward model rebuilt by
+  `ss_population --finite-qhat` sees the trainer's rows (25,000 rows, 5,021 clicks).
+- Data identity and training stability: the tuning round above.
+- Runtime: 14–18 minutes per pair of worlds in tuning (four arms, two workers, beside the population jobs).
+
+**A metadata note.** A structured world's `run_meta.json` carries the legacy `noise_mode`, `noise_axis` and
+`noise_component` fields at their defaults (`representation_bias`, `both`, `combined`). `world_family`, `shift_level`
+and `response_level` identify the world; the analysis reads only those.
+
 ## 14. Provenance
 
 - Artifacts: `artifacts/full_study/structured_scenario_shift/`, with a README.
