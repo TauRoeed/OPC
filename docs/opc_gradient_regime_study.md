@@ -815,12 +815,16 @@ poor support).
 - Worse support raises M_L slightly and dT more.
 
 **The cells where OPC is ahead** (dataset × corruption × N × support, one world each, native selection): 26 of 108.
-- Vector corruption: ml at every support level and N except one; anime at 25k (current) and 100k (poor); kuairand
-  at 25k (current).
-- Combined corruption at small N: ml 5k (better +1.11, poor +0.54) and 25k (better +0.54); kuairand 5k (current +0.60,
-  better +0.42); anime 5k (better +0.25) and 25k (current +0.22) and 100k (better +0.27).
-- Warp (near well specified): two anime cells only (+0.34, +0.12).
-- Group: none.
+- **Vector corruption, 14 cells.**
+  - ml: 8 of 9 cells, all but 100k at poor support (+0.08 to +0.78).
+  - anime: better 100k +0.06; current 25k +0.30; poor 5k +0.06 and 100k +0.13.
+  - kuairand: better 25k +0.06; current 25k +0.25.
+- **Combined corruption, 10 cells, mostly at small N.**
+  - ml: better 5k +1.11 and 25k +0.54; current 5k +0.01; poor 5k +0.54.
+  - kuairand: better 5k +0.42; current 5k +0.60.
+  - anime: better 5k +0.25, 25k +0.06 and 100k +0.27; current 25k +0.22.
+- **Warp (near well specified), 2 cells, both anime:** better 5k +0.34; poor 25k +0.12.
+- **Group:** none.
 - The full list is `table_dataset_corruption.csv`.
 
 **Relating OPC's standing to gradient quality and overlap (Phase 11; exploratory).** Spearman correlations over the
