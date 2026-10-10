@@ -660,3 +660,103 @@ target. It is worse where the policy is heading.
   there.
 - The bias is the reward model's error passed through the transform's shrinkage (G4 with the true q is unbiased).
 - These are gradient properties. Whether they explain the training gap is §15.3–§15.5's question.
+
+### 15.2 Stage 8B: the gradient across N × support
+
+**Data.**
+- The 8 `run_opc_gradients_N*_lgs*` cells plus Stage 8A (the 25k-current cell): 15 worlds, R = 40 per cell (300 for 8A).
+- Estimators G1–G5 at the source, mid and mid_greedy states.
+- Each support level's states are fitted from its own logger, so a state at one level is not the same policy as at
+  another.
+- Tables and figures: `opc_gradient_regime/gradients_regime`.
+
+**The unbiasedness check (§11, §12.2–§12.4).** 435 cells per estimator, Holm over the family.
+- G2 and G4 are consistent everywhere.
+- G3 is consistent everywhere except the practical support failure at ml combined θ_value* (§12.3); its smallest
+  calibrated Holm p elsewhere is 0.13.
+- The second §11 stop (ml combined, 100k, better support) was a chance excursion (§12.4); in the full family its
+  Holm p is 0.13.
+- G1 is rejected only in kuairand combined at poor support. Its mid and mid_greedy coincide there (both step 5 of
+  the value path). The population ESS share is 3e-4, near the 1e-4 threshold, and the 5 most extreme of 40
+  replicates carry 67–87% of tr Ĉ; the calibrated ratio test gives p = 0.02–0.18. That is IPS's heavy tail near the
+  support threshold; G2–G4 are consistent in the same world.
+
+**The estimators by cell.** 12 corrupted worlds; SNR and cosine are means over worlds; OPC's bias is relative to the
+state's own ‖g*‖, with a 95% t-interval.
+
+| State | N | G3 SNR (better / current / poor) | G5 SNR | G5 cosine | G5 bias (better / current / poor) | Max w |
+|---|---|---|---|---|---|---|
+| mid | 5k | 7.2 / 4.9 / 1.2 | 31 / 16 / 6.0 | 0.99 / 0.95 / 0.85 | 0.06 / 0.10 / 0.14 | 103 / 123 / 193 |
+| mid | 25k | 44 / 25 / 5.0 | 176 / 90 / 27 | 1.00 / 0.99 / 0.94 | 0.07 / 0.10 / 0.17 | 184 / 263 / 608 |
+| mid | 100k | 195 / 101 / 16 | 734 / 381 / 102 | 1.00 / 1.00 / 0.97 | 0.07 / 0.10 / 0.17 | 262 / 494 / 1,281 |
+| mid_greedy | 5k | 0.02 / 0.04 / 0.23 | 1.7 / 1.6 / 1.8 | 0.52 / 0.65 / 0.66 | 0.44 / 0.28 / 0.25 | 366 / 323 / 338 |
+| mid_greedy | 25k | 0.33 / 0.13 / 1.03 | 9.4 / 7.0 / 9.0 | 0.76 / 0.87 / 0.84 | 0.40 / 0.31 / 0.30 | 751 / 737 / 1,027 |
+| mid_greedy | 100k | 1.06 / 0.51 / 3.37 | 41 / 30 / 30 | 0.86 / 0.95 / 0.93 | 0.42 / 0.31 / 0.29 | 1,198 / 1,442 / 2,318 |
+
+The G5 bias intervals are about ±0.03–0.12 at mid and ±0.10–0.15 at mid_greedy.
+
+**Expectation E4.**
+- **More data.** SNR grows roughly in proportion to N for every estimator and support level.
+- **Better support at mid.** It lowers the weights' maxima and raises SNR 4–12× for raw DR, as E4 expected. At
+  θ_value* only the current level was measured (8A).
+
+**Beyond the expectations.**
+- **G5's bias does not shrink with N.** At every support level and state it is flat from 5k to 100k: 0.06–0.17 at
+  mid, 0.25–0.44 at mid_greedy. This is the population bias of the harmonic surrogate with the reward model's limit
+  q̂_∞ (§2). More data makes OPC's gradient more precise, not more accurate.
+- **At mid, G5's bias grows as support falls** (0.07 → 0.10 → 0.17). **At mid_greedy the order reverses** (0.42 /
+  0.31 / 0.29). These states are refitted per level, so this compares different policies. It is reported without an
+  explanation.
+
+**Per dataset (corrupted worlds, mid_greedy).** The same pattern holds in ml, kuairand and anime. OPC's bias at 25k
+(better / current / poor):
+- ml: 0.45 / 0.37 / 0.37;
+- kuairand: 0.29 / 0.26 / 0.28;
+- anime: 0.45 / 0.29 / 0.25.
+
+The full tables are `table_gradients_summary.csv` (panels `ml (biased)` etc.) and `table_gradients_world.csv`.
+
+### 15.3 The interventions at 25k (current support)
+
+**Data.**
+- `run_opc_regime_lgs0.8` (the standard arms);
+- `run_opc_interventions_25k` (oracle q, batch 8192);
+- `run_opc_interventions_bfull_25k` (full batch; ml and kuairand only, 8 corrupted worlds).
+
+The table is a − b paired by world in greedy CTR points: mean [95% t-interval] over the 12 corrupted worlds (8 for
+the full batch), and the worlds where a is higher.
+
+| Contrast | Native | Common (DR) | Best of 20 | Mean over trials |
+|---|---|---|---|---|
+| OPC − likelihood | −0.23 [−0.53, +0.08] 4/12 | −0.24 [−0.54, +0.06] 4/12 | −0.30 [−0.61, +0.02] 5/12 | **+0.24 [+0.02, +0.46] 10/12** |
+| **OPC, oracle q − OPC** | **+1.12 [+0.22, +2.02] 11/12** | +1.25 [+0.40, +2.09] 12/12 | +1.18 [+0.31, +2.05] 12/12 | +0.69 [+0.34, +1.03] 12/12 |
+| OPC, oracle q − likelihood | +0.89 [−0.00, +1.79] 10/12 | +1.01 [+0.18, +1.84] 11/12 | +0.89 [−0.01, +1.78] 10/12 | +0.93 [+0.41, +1.44] 12/12 |
+| OPC, batch 8192 − OPC | −0.02 [−0.26, +0.22] 4/12 | +0.12 [−0.07, +0.32] 8/12 | +0.11 [−0.04, +0.25] 9/12 | +0.07 [−0.05, +0.18] 7/12 |
+| OPC, full batch − OPC | −0.18 [−0.62, +0.26] 2/8 | +0.06 [−0.29, +0.40] 2/8 | +0.09 [−0.17, +0.35] 5/8 | +0.01 [−0.22, +0.24] 5/8 |
+| raw DR − OPC | −0.50 [−0.79, −0.20] 0/12 | −0.40 [−0.71, −0.09] 1/12 | −0.39 [−0.69, −0.09] 1/12 | −0.31 [−0.50, −0.12] 0/12 |
+| raw DR, oracle q − OPC, oracle q | −1.20 [−1.94, −0.45] 0/12 | −1.28 [−2.01, −0.54] 0/12 | −1.16 [−1.91, −0.40] 0/12 | −0.83 [−1.21, −0.45] 0/12 |
+| raw DR, oracle q − raw DR | +0.42 [−0.06, +0.89] 10/12 | +0.37 [−0.11, +0.85] 8/12 | +0.42 [−0.04, +0.88] 10/12 | +0.17 [+0.02, +0.31] 12/12 |
+| raw DR − likelihood | −0.72 [−1.21, −0.23] 2/12 | −0.64 [−1.09, −0.18] 3/12 | −0.69 [−1.18, −0.19] 2/12 | −0.07 [−0.28, +0.14] 5/12 |
+
+**Per dataset (native).**
+
+| Contrast | ml | kuairand | anime |
+|---|---|---|---|
+| OPC − likelihood | −0.39 | −0.38 | +0.09 |
+| OPC, oracle q − OPC | +1.96 (4/4) | +0.49 (4/4) | +0.90 (3/4) |
+| OPC, full batch − OPC | +0.13 | −0.48 [−0.82, −0.14] | not run |
+
+Dataset × corruption cells are in `opc_gradient_regime/interventions_25k/table_interventions_dataset_corruption.csv`.
+
+**Reading.**
+- **The reward model's error is the largest lever.** The true q in the loss helps harmonic OPC under every selection
+  rule, in all three datasets; with it, OPC is ahead of the likelihood.
+- **Minibatch noise is not limiting.** Neither a batch of 8,192 nor the full batch helps on average. The full batch
+  hurts in kuairand. The one exception is ml combined (+0.98 harmonic, +1.34 raw), the world whose θ_value* lies
+  outside the logger's practical support (§12.3); it is a single world.
+- **The harmonic transform is necessary.** Raw DR is below harmonic DR in 0–1 of 12 worlds under every rule, with the
+  true q as well.
+- **Selection matters.** Averaged over the 20 configurations, OPC is ahead of the likelihood (+0.24, 10/12). The
+  likelihood's best configurations are better, while OPC is more uniform across configurations, so the likelihood's
+  lead under native selection comes from its best trials rather than its typical trial.
+- The oracle-q arms are diagnostics. The simulator's q is not available in practice.
