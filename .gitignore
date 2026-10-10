@@ -19,3 +19,4 @@ datasets/**/*.csv
 /artifacts/full_study/blob_prior_calibration/logs/
 /artifacts/full_study/shared_logs/
 /artifacts/full_study/opc_logs/
+/artifacts/full_study/ss_logs/

@@ -1087,10 +1087,22 @@ def _finalize_summary_df(opc_df, noprop_df, meta: dict, *, extra: dict | None = 
         summary_df[k] = v
     summary_df["ctr"] = float(meta["ctr"])
     world = meta.get("world")
+    if world and world.get("family") == "structured_shift":  # docs/structured_scenario_shift_study.md §8
+        summary_df["world_family"] = "structured_shift"
+        for k in ("shift", "response"):
+            summary_df[f"{k}_level"] = world["structured"][k]
+        summary_df["gated"] = bool(world["structured"]["gated"])
+        for k in ("rank", "gamma", "shift_corr", "top1_agreement", "top10_overlap", "shift_frobenius", "available_gain",
+                  "source_greedy_ctr", "target_greedy_ctr", "sigma_alpha", "sigma_beta", "kappa", "click_intercept",
+                  "best_item_ctr", "reference_ctr"):
+            summary_df[k] = world.get(k)
+        summary_df["sd_log_alpha"] = world["log_alpha"]["sd"]
+        summary_df["sd_beta"] = world["beta_stats"]["sd"]
     if world:
-        for k in BIAS_TYPES:
-            summary_df[f"bias_{k}"] = world["bias"][k]
-        summary_df["signal_kept"] = float(world["signal_kept"])
+        if world.get("family") != "structured_shift":
+            for k in BIAS_TYPES:
+                summary_df[f"bias_{k}"] = world["bias"][k]
+            summary_df["signal_kept"] = float(world["signal_kept"])
         summary_df["logging_temperature"] = float(world["logging_temperature"])
         summary_df["pop_strength"] = float(world.get("pop_strength", 0.0))
         summary_df["logger_pop_strength"] = float(world.get("logger_pop_strength", 0.0))
