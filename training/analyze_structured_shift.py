@@ -400,11 +400,19 @@ def harmonic_dominance(pop: pd.DataFrame, ac: pd.DataFrame) -> dict:
     """The gate's stop criterion: M_harm ≥ M_L in most worlds, and harmonic OPC's pooled 25k gap to θ_value* (native)
     the largest of the arms trained on the data (the oracle-q arm excluded)."""
     share = float((pop["M_harm"] >= pop["M_L"]).mean()) if len(pop) else np.nan
+    # the same without the worlds where the two differ by less than the checks' 0.25-point threshold (e.g. both ≈ 0
+    # without shift or heterogeneity, where "≥" is decided by optimizer noise): reported beside the strict count
+    d = pop["M_harm"] - pop["M_L"]
+    clear = d.abs() >= WARN_POINTS
+    share_clear = float((d[clear] > 0).mean()) if clear.any() else np.nan
     pooled = ac[(ac["scope"] == "all") & (ac["dataset"] == "all")].set_index("arm")
     gaps = {a: float(pooled.at[a, "gap_native"]) for a in pooled.index if a != "opc_oq" and "gap_native" in pooled}
     largest = max(gaps, key=gaps.get) if gaps else None
-    return {"share_worlds_M_harm_ge_M_L": share, "gap_native_pooled": gaps, "largest_gap_arm": largest,
-            "dominant": bool(share > 0.5 and largest == "opc")}
+    return {"share_worlds_M_harm_ge_M_L": share, "worlds": int(len(pop)),
+            "share_M_harm_gt_M_L_beyond_0.25": share_clear, "worlds_beyond_0.25": int(clear.sum()),
+            "gap_native_pooled": gaps, "largest_gap_arm": largest,
+            "dominant": bool(share > 0.5 and largest == "opc"),
+            "dominant_beyond_0.25": bool(share_clear > 0.5 and largest == "opc")}
 
 
 def compare_main(args) -> None:
