@@ -205,6 +205,8 @@ def test_study_runs_the_baseline_arms(tmp_path):
     shared = {"shared_likelihood", "shared_iw_likelihood", "shared_iw_likelihood_clip10", "shared_opc", "shared_opc_raw",
               "shared_opc_oq", "shared_opc_raw_oq", "shared_opc_b8192", "shared_opc_raw_b8192", "shared_opc_bfull",
               "shared_opc_raw_bfull"}
+    shared |= {f"shared_{fam}_{n}" for fam in ("lr", "lrg")  # docs/structured_scenario_shift_study.md §5, §7
+               for n in ("likelihood", "likelihood_calib", "opc", "opc_raw", "opc_oq")}
     assert set(ALL_STUDY_METHODS) == {"opc", "no_propensity", "dm", "tempered_logger", "cause", "blob"} | shared
     # the shared-objective arms are tested in tests/test_shared_objectives.py and tests/test_opc_regime_arms.py
     arms = tuple(m for m in ALL_STUDY_METHODS if m not in ("cause", "blob") and m not in shared)

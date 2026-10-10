@@ -52,6 +52,7 @@ LEVEL_SIGNAL_KEPT = {"none": 1.0, "low": 0.90, "medium": 0.75, "high": 0.50}
 GROUP_SOURCES = ("cluster", "metadata")
 CTR_REFERENCES = ("logger", "uniform")
 DEFAULT_LOGGER_GREEDY_SHARE = 0.8  # the logger earns this share of its own greedy CTR (0 = off)
+WORLD_FAMILIES = ("representation_bias", "structured_shift")  # the legacy worlds; utils/structured_shift.py
 
 
 def parse_logger_greedy_share(value) -> float:
@@ -723,6 +724,10 @@ def _mean_cosine(C: np.ndarray, B: np.ndarray) -> float:
 
 def describe_world(world: dict) -> str:
     """One-line summary of a built world (for logs)."""
+    if world.get("family") == "structured_shift":
+        from utils.structured_shift import describe_structured_world
+
+        return describe_structured_world(world)
     b = world["bias"]
     share = world.get("logger_greedy_share", 0.0)
     sharp = (f"x{world['logger_sharpness']:.3g}, {world['logger_share_achieved']:.0%} of its greedy CTR "
@@ -803,6 +808,13 @@ def add_world_arguments(parser, *, bias_default=("low", "medium", "high"), ctr_r
         default=d.best_ctr,
         help="Click probability of each user's best item, averaged over users (default %(default)s).",
     )
+    g.add_argument(
+        "--world-family",
+        choices=list(WORLD_FAMILIES),
+        default=WORLD_FAMILIES[0],
+        help="representation_bias (default: the legacy worlds, --bias-configs are bias levels) or structured_shift "
+        "(docs/structured_scenario_shift_study.md: --bias-configs are labels s-<shift>.r-<response>[.gated]).",
+    )
     if ctr_reference:
         g.add_argument(
             "--ctr-reference",
@@ -827,21 +839,24 @@ def world_options_from_args(args) -> dict:
         opts["ctr_reference"] = str(args.ctr_reference)
     if getattr(args, "logger_pop_strength", None) is not None:
         opts["logger_pop_strength"] = float(args.logger_pop_strength)
+    family = getattr(args, "world_family", WORLD_FAMILIES[0])
+    if family != WORLD_FAMILIES[0]:  # recorded only when not the legacy family: old configurations stay identical
+        opts["world_family"] = str(family)
     return opts
 
 
 WORLD_RUN_KEY_TAGS = (  # world option -> run-key tag, added only when the option is not the default
     ("pop_strength", "pop"), ("logger_pop_strength", "logpop"), ("centering", "center"),
     ("logging_spread", "spread"), ("best_ctr", "best"), ("group_source", "groups"), ("ctr_reference", "ref"),
-    ("logger_greedy_share", "lgs"),
+    ("logger_greedy_share", "lgs"), ("world_family", "family"),
 )
 
 
 def world_run_key_suffix(world_options: dict, defaults: dict | None = None) -> str:
     """'__pop=0.5__logpop=1' style suffix for the world options that differ from the defaults, so
     runs of different worlds never share (and skip) each other's condition folders."""
-    base = (asdict(WorldConfig()) | {"logger_pop_strength": None, "logger_greedy_share": DEFAULT_LOGGER_GREEDY_SHARE}
-            | dict(defaults or {}))
+    base = (asdict(WorldConfig()) | {"logger_pop_strength": None, "logger_greedy_share": DEFAULT_LOGGER_GREEDY_SHARE,
+                                      "world_family": WORLD_FAMILIES[0]} | dict(defaults or {}))
     opts = dict(world_options or {})
     if opts.get("logger_pop_strength") is not None and opts["logger_pop_strength"] == opts.get("pop_strength", base["pop_strength"]):
         opts.pop("logger_pop_strength")  # same as the truth: the default
@@ -855,9 +870,11 @@ def world_run_key_suffix(world_options: dict, defaults: dict | None = None) -> s
 
 def resolve_bias_configs(specs) -> list[str]:
     """Validated, de-duplicated bias labels in the given order."""
+    from utils.structured_shift import is_structured_label
+
     out = []
     for spec in specs:
-        label = bias_label(spec)
+        label = spec.strip() if is_structured_label(spec) else bias_label(spec)  # structured labels pass through
         if label not in out:
             out.append(label)
     if not out:

@@ -134,6 +134,7 @@ from training.training_utils import (
     train,
 )
 
+from models.lowrank_adapter import ADAPTER_RANK, LowRankAnchor, SharedLowRankModel
 from models.shared_objectives import (
     IW_CLIP,
     LAMBDA_GRID,
@@ -223,6 +224,8 @@ DEFAULT_SELECT_WEIGHTS = "clip:10"
 VALID_OPTUNA_SELECTION = ("ci_low", "r_hat", "actual_reward")
 VALID_REWARD_MODELS = ("regression", "logging_score", "oracle")
 TRAIN_REWARDS = ("crossfit", "oracle")  # the shared OPC arms' training-loss reward model (docs/opc_gradient_regime_study.md §7)
+SHARED_ADAPTERS = (None, "lowrank", "lowrank_gated")  # docs/structured_scenario_shift_study.md §4, §7
+SHARED_HEADS = ("standard", "calib")  # the likelihood arms' click head (§4)
 
 
 def _optuna_selection_value(
@@ -2412,8 +2415,11 @@ def _shared_trial_diagnostics(model, trial_x, trial_a, val_data, dataset, scores
     if objective in ("likelihood", "iw_likelihood"):
         c = float(model.click_intercept.detach())
         users_v, items_v = np.asarray(val_data["x_idx"], np.int64), np.asarray(val_data["a"], np.int64)
-        z = (np.asarray(trial_x, np.float64)[users_v] * np.asarray(trial_a, np.float64)[items_v]).sum(axis=1)
-        z = z / _policy_temperature(dataset) + c
+        if hasattr(model, "pair_click_logits"):  # the low-rank arms: their own head (the calibration-aware one too)
+            z = model.pair_click_logits(users_v, items_v)
+        else:
+            z = (np.asarray(trial_x, np.float64)[users_v] * np.asarray(trial_a, np.float64)[items_v]).sum(axis=1)
+            z = z / _policy_temperature(dataset) + c
         clicks, pscore = val_data["r"], np.asarray(val_data["pscore"], np.float64)
         n_actions = int(dataset["n_actions"])
         d.update({"click_intercept": c, "val_nll": weighted_nll(z, clicks),
@@ -3117,6 +3123,8 @@ def regression_trainer_trial(
     iw_clip: float | None = None,
     train_reward: str = "crossfit",
     train_batch=None,
+    shared_adapter: str | None = None,
+    shared_head_kind: str = "standard",
 ):
     """
     OPC / no-propensity trainer with Optuna over CF hyperparameters.
@@ -3245,6 +3253,16 @@ def regression_trainer_trial(
         raise ValueError("train_reward / train_batch are options of the shared OPC arms only")
     if train_batch is not None and train_batch != "full" and not (isinstance(train_batch, int) and train_batch > 0):
         raise ValueError(f"train_batch must be a positive int or 'full', got {train_batch!r}")
+    # docs/structured_scenario_shift_study.md §4: the matched rank-4 adapter (optionally user-gated) in place of the
+    # global affine correction, and the calibration-aware likelihood head; unset, the shared arms are unchanged
+    if shared_adapter not in SHARED_ADAPTERS:
+        raise ValueError(f"shared_adapter must be one of {SHARED_ADAPTERS}, got {shared_adapter!r}")
+    if shared_head_kind not in SHARED_HEADS:
+        raise ValueError(f"shared_head_kind must be one of {SHARED_HEADS}, got {shared_head_kind!r}")
+    if shared_adapter is not None and shared_objective not in ("likelihood", "opc"):
+        raise ValueError("the low-rank adapter is defined for the likelihood and OPC shared arms")
+    if shared_head_kind != "standard" and (shared_objective != "likelihood" or shared_adapter is None):
+        raise ValueError("the calibration-aware head is a likelihood arm of the low-rank adapter")
     shared_likelihood = shared_objective in ("likelihood", "iw_likelihood")
     trained_loss_label = ({"likelihood": "nll", "iw_likelihood": "iw_nll"}.get(shared_objective)
                           or str(policy_loss_types[0]))
@@ -3406,7 +3424,8 @@ def regression_trainer_trial(
     if shared_objective is not None:
         if cf_popularity:
             raise ValueError("the shared arms are defined for worlds without a popularity column")
-        shared_anchor = SourceAnchor(cf_x_orig, cf_a_orig).to(device)
+        shared_anchor = (SourceAnchor(cf_x_orig, cf_a_orig) if shared_adapter is None
+                         else LowRankAnchor(cf_a_orig)).to(device)
         _, logger_greedy_picks = calc_greedy_reward(dataset, our_x_orig, our_a_orig, return_picks=True)
 
     # ===== Main loop over training sizes =====
@@ -3547,7 +3566,22 @@ def regression_trainer_trial(
             trial_scores_all = shared_scores_all_t
 
             # Initialize CF model
-            if shared_objective is not None:  # OPC's model; the likelihood arms read its logits as click logits
+            if shared_adapter is not None:  # the matched rank-4 adapter (docs/structured_scenario_shift_study.md §4)
+                trial_model = SharedLowRankModel(
+                    n_users,
+                    n_actions,
+                    emb_dim,
+                    initial_user_embeddings=T(cf_x_orig),
+                    initial_actions_embeddings=T(cf_a_orig),
+                    temperature=_policy_temperature(dataset),
+                    seed=int(seed),
+                    mode=("calib" if shared_head_kind == "calib" else "click") if shared_likelihood else "policy",
+                    rank=ADAPTER_RANK,
+                    logit_scale=shared_head.get("head_logit_scale", logit_scale),
+                    click_intercept=shared_head.get("head_intercept", 0.0),
+                    gated=shared_adapter == "lowrank_gated",
+                ).to(device)
+            elif shared_objective is not None:  # OPC's model; the likelihood arms read its logits as click logits
                 trial_model = SharedCorrectionModel(
                     n_users,
                     n_actions,

@@ -52,17 +52,31 @@ def _prior(dataset: dict) -> np.ndarray:
 
 
 # ------------------------------------------------------------------------------------------------------- the model
-def build_model(dataset: dict, *, mode: str = "policy", device=None, dtype=torch.float32) -> SharedCorrectionModel:
+def build_model(dataset: dict, *, mode: str = "policy", device=None, dtype=torch.float32):
     """OPC's policy class at θ = 0 (the logger): the shared model on the frozen biased vectors, the learned scale
-    starting at 1, the logger's temperature. ``mode='click'`` adds the click intercept (the likelihood's head)."""
+    starting at 1, the logger's temperature. ``mode='click'`` adds the click intercept (the likelihood's head).
+
+    A structured-shift world (``dataset['structured']``, docs/structured_scenario_shift_study.md §4) gets the matched
+    rank-4 adapter instead (gated in the gated family), started at the identity with the world's V_0;
+    ``mode='calib'`` is its calibration-aware head."""
     from training.trainer_trials import _policy_temperature
 
     t = lambda z: torch.as_tensor(np.asarray(z, dtype=np.float32))
     k = int(np.asarray(dataset["our_x"]).shape[1])
-    model = SharedCorrectionModel(int(dataset["n_users"]), int(dataset["n_actions"]), k,
-                                  initial_user_embeddings=t(dataset["our_x"]),
-                                  initial_actions_embeddings=t(dataset["our_a"]),
-                                  temperature=_policy_temperature(dataset), mode=mode)
+    if "structured" in dataset:
+        from models.lowrank_adapter import ADAPTER_RANK, SharedLowRankModel
+
+        st = dataset["structured"]
+        model = SharedLowRankModel(int(dataset["n_users"]), int(dataset["n_actions"]), k,
+                                   initial_user_embeddings=t(dataset["our_x"]),
+                                   initial_actions_embeddings=t(dataset["our_a"]),
+                                   temperature=_policy_temperature(dataset), seed=int(st["seed"]), mode=mode,
+                                   rank=ADAPTER_RANK, gated=bool(st["levels"]["gated"]))
+    else:
+        model = SharedCorrectionModel(int(dataset["n_users"]), int(dataset["n_actions"]), k,
+                                      initial_user_embeddings=t(dataset["our_x"]),
+                                      initial_actions_embeddings=t(dataset["our_a"]),
+                                      temperature=_policy_temperature(dataset), mode=mode)
     for emb in (model.user_embeddings, model.actions_embeddings):
         emb.weight.requires_grad_(False)
     model = model.to(_device(device))
@@ -70,8 +84,13 @@ def build_model(dataset: dict, *, mode: str = "policy", device=None, dtype=torch
 
 
 def policy_params(model) -> list:
-    """θ = (D_u, b_u, D_a, b_a, θ_s) in a fixed order: the policy's parameters (the click intercept excluded)."""
-    u, a = model.user_transform, model.action_transform
+    """θ = (D_u, b_u, D_a, b_a, θ_s) in a fixed order: the policy's parameters (the click intercept excluded). For the
+    rank-4 adapter θ = (U, V, θ_s), with the gate (w_g, d_g) in the gated family."""
+    a = model.action_transform
+    if hasattr(a, "U"):
+        extra = [model.gate_w, model.gate_b] if getattr(model, "gated", False) else []
+        return [a.U, a.V, *extra, model.log_logit_scale]
+    u = model.user_transform
     return [u.delta, u.bias, a.delta, a.bias, model.log_logit_scale]
 
 
@@ -268,14 +287,15 @@ def population_head(dataset: dict, users: np.ndarray, *, world: WorldTensors, ch
 
 def fit_likelihood_population(dataset: dict, *, lr: float, seed: int, steps: int = FIT_STEPS,
                               fit_users: int = FIT_USERS, batch_users: int = BATCH_USERS, device=None,
-                              world: WorldTensors | None = None, head=None):
+                              world: WorldTensors | None = None, head=None, mode: str = "click"):
     """Adam descent of the logging-weighted population NLL Σ_u Σ_j π0(j|u) CE(q(u, j), σ(s g/T + c)) from the
     source with the head at its population fit (``population_head``): the click model of the shared likelihood arm
-    at infinite data. Returns the click-mode model."""
+    at infinite data. Returns the click-mode model. ``mode='calib'`` (the structured-shift worlds' calibration-aware
+    head, docs/structured_scenario_shift_study.md §4) also fits its nuisance (w_α, w_β, γ, starting at 0)."""
     device = _device(device)
     world = world or WorldTensors(dataset, device)
-    seed_everything(derive_seed(int(seed), "opc_gradients_likelihood", f"{lr:g}"))
-    model = build_model(dataset, mode="click", device=device)
+    seed_everything(derive_seed(int(seed), "opc_gradients_likelihood", f"{lr:g}", *(() if mode == "click" else (mode,))))
+    model = build_model(dataset, mode=mode, device=device)
     users = _fit_users(dataset, seed, "likelihood", fit_users)
     theta_s, c0 = head if head is not None else population_head(dataset, users, world=world)
     with torch.no_grad():
@@ -283,6 +303,8 @@ def fit_likelihood_population(dataset: dict, *, lr: float, seed: int, steps: int
         model.click_intercept.fill_(c0)
     rng = np.random.default_rng(derive_seed(int(seed), "opc_gradients_likelihood_order", f"{lr:g}"))
     params = policy_params(model) + [model.click_intercept]
+    if mode == "calib":
+        params += [model.w_alpha, model.w_beta, model.gamma]
     opt = torch.optim.Adam(params, lr=float(lr))
     sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=int(steps))
     order, pos = rng.permutation(len(users)), 0

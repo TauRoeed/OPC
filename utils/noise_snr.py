@@ -47,6 +47,8 @@ def dataset_snr_report(dataset: dict[str, Any]) -> dict[str, Any]:
     ``dataset['world']['signal_kept']`` (see utils.representation_bias). Taste parts only: the
     popularity column (if any) is not part of the representation bias.
     """
+    if "structured" in dataset:  # structured-shift worlds: no representation bias; the shift is in world["shift_corr"]
+        return {"family": "structured_shift"}
     d = int(dataset["emb_dim"]) if dataset.get("pop_column") else None
     action = embedding_noise_metrics(dataset["emb_a"][:, :d], dataset["our_a"][:, :d])
     context = embedding_noise_metrics(dataset["emb_x"][:, :d], dataset["our_x"][:, :d])

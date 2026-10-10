@@ -81,6 +81,15 @@ SHARED_OBJECTIVE_ARMS = {
     "shared_opc_raw_b8192": {"shared_objective": "opc", "train_weights": "none", "train_batch": 8192},
     "shared_opc_bfull": {"shared_objective": "opc", "train_batch": "full"},
     "shared_opc_raw_bfull": {"shared_objective": "opc", "train_weights": "none", "train_batch": "full"},
+    # docs/structured_scenario_shift_study.md §4-§5, §7: the matched rank-4 adapter (lr) and its user-gated form (lrg),
+    # the ordinary and the calibration-aware likelihood, harmonic / raw DR OPC, harmonic OPC with the simulator's q
+    **{f"shared_{fam}_{name}": {**spec, "shared_adapter": adapter}
+       for fam, adapter in (("lr", "lowrank"), ("lrg", "lowrank_gated"))
+       for name, spec in (("likelihood", {"shared_objective": "likelihood"}),
+                          ("likelihood_calib", {"shared_objective": "likelihood", "shared_head_kind": "calib"}),
+                          ("opc", {"shared_objective": "opc"}),
+                          ("opc_raw", {"shared_objective": "opc", "train_weights": "none"}),
+                          ("opc_oq", {"shared_objective": "opc", "train_reward": "oracle"}))},
 }
 SHARED_OBJECTIVE_METHODS = tuple(SHARED_OBJECTIVE_ARMS)
 SHARED_DEFAULTS = {"lambdas": list(LAMBDA_GRID)}
@@ -416,9 +425,12 @@ def build_condition_world(dataset_name: str, emb_dir: Path, bias: str, ctr: floa
     """The simulated world of one condition, exactly as ``_run_condition`` builds it (call after
     ``seed_everything(seed)``, as it does). Returns ``(dataset, params, levels, label)``; the oracle
     repair bound (``training.oracle_repair``) uses the same worlds."""
+    world_options = dict(world_options or {})
+    if world_options.get("world_family", "representation_bias") == "structured_shift":
+        return _build_structured_condition_world(dataset_name, emb_dir, bias, ctr, seed, world_options=world_options,
+                                                 logging_uniform_mix=logging_uniform_mix)
     levels = parse_bias(bias)
     label = bias_label(levels)
-    world_options = dict(world_options or {})
     user_path, item_path, user_meta_path, item_meta_path = _dataset_paths(emb_dir, dataset_name)
     emb_x = np.load(user_path)
     emb_a = np.load(item_path)
@@ -442,6 +454,33 @@ def build_condition_world(dataset_name: str, emb_dir: Path, bias: str, ctr: floa
         metadata_x=metadata_x,
         item_bias=item_bias,
     )
+    return dataset, params, levels, label
+
+
+def _build_structured_condition_world(dataset_name: str, emb_dir: Path, label: str, ctr: float, seed: int, *,
+                                      world_options: dict, logging_uniform_mix: float = 0.0):
+    """``build_condition_world`` for the structured-shift family (docs/structured_scenario_shift_study.md §1-§3):
+    the BPR vectors as source, the label s-<shift>.r-<response>[.gated]."""
+    from utils.representation_bias import DEFAULT_LOGGER_GREEDY_SHARE, WorldConfig
+    from utils.structured_shift import build_structured_world, parse_structured
+
+    levels = parse_structured(label)
+    label = str(label).strip()
+    if float(world_options.get("pop_strength", 0.0)) > 0.0 or world_options.get("logger_pop_strength"):
+        raise ValueError("the structured-shift worlds have no popularity term")
+    if world_options.get("ctr_reference", "logger") != "logger" or world_options.get("group_source", "cluster") != "cluster":
+        raise ValueError("the structured-shift worlds use the logger reference and the default groups")
+    user_path, item_path, _, _ = _dataset_paths(emb_dir, dataset_name)
+    d = WorldConfig()
+    config = WorldConfig(centering=float(world_options.get("centering", d.centering)),
+                         logging_spread=float(world_options.get("logging_spread", d.logging_spread)),
+                         target_ctr=float(ctr), best_ctr=float(world_options.get("best_ctr", d.best_ctr)))
+    params = {"bias": label, "ctr": float(ctr), "logging_uniform_mix": float(np.clip(logging_uniform_mix, 0.0, 1.0)),
+              **world_options}
+    dataset = build_structured_world(np.load(user_path), np.load(item_path), label, seed=int(seed), config=config,
+                                     logging_uniform_mix=logging_uniform_mix,
+                                     logger_greedy_share=world_options.get("logger_greedy_share",
+                                                                           DEFAULT_LOGGER_GREEDY_SHARE))
     return dataset, params, levels, label
 
 

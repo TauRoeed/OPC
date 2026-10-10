@@ -91,7 +91,7 @@ prediction and calibration, never the correct ranking.
 - **log α_u = σ_α z_α,u − log E_prior[exp(σ_α z_α)],** so the prior mean of α is 1 and sd_prior(log α) = σ_α.
 - **β_u = σ_β z_β,u,** with prior mean 0.
 
-**Levels** (pre-specified starting targets):
+**Levels** (pre-specified starting targets; **amended in §13.1 to half these values**):
 
 | Level | sd(log α) = σ_α | sd(β) = σ_β |
 |---|---|---|
@@ -328,7 +328,72 @@ Stop and report before proceeding if:
 
 ## 13. Addenda
 
-None yet.
+### 13.1 The response levels and the click calibration (2026-10-10, before any method was trained; the user's decision)
+
+**What failed.** World statistics only, no method trained:
+- **Calibration.** With the reference CTR held at 5%, users with low β click rarely on every item, so the mean
+  best-item CTR saturates as κ grows. On ml seed 100 the supremum is 72% / 49% / 29.3% for response none / moderate /
+  strong, and on kuairand 46% / 30.0% / 20.8%. The 30% target is unreachable at strong response, and on kuairand even at
+  moderate.
+- **Pathology.** The §3 pathology rule (more than 1% of users with a best item above 0.95) also flagged worlds without
+  heterogeneity: kuairand's homogeneous world, the legacy calibration itself, has 1.4%.
+- **The one pre-registered adjustment** (clipping at ±2) fixed neither. A scan of 3 datasets × seeds 100, 101, 200, 201
+  × 9 cells at both clips found:
+  - strong response: pathological or failing calibration in most worlds (up to 13% near-deterministic best items, or
+    up to 67% of users with a logger click probability below 0.001);
+  - moderate: pathological in about a third of worlds.
+
+  By §3 and §11 this was a stop.
+
+**The options put to the user**, evaluated on the same worlds:
+1. keep the σ targets and fix κ at the homogeneous world's value;
+2. halve the σ targets and keep both CTR targets;
+3. halve the σ targets and fix κ;
+4. stop and redesign.
+
+The user chose option 3.
+
+**The definition as amended and frozen:**
+- **Response levels:**
+
+  | Level | sd(log α) | sd(β) |
+  |---|---|---|
+  | none | 0 | 0 |
+  | moderate | 0.125 | 0.25 |
+  | strong | 0.25 | 0.5 |
+
+  The strong level equals the first moderate one. The construction of §3 is unchanged, including the clipping at ±3.
+- **Click calibration.**
+  - κ is the homogeneous world's κ for the same dataset, seed and shift: the legacy targets of 5% reference CTR and
+    30% best-item CTR, as before.
+  - With heterogeneity, c is re-solved so the reference CTR stays at 5%.
+  - The best item's CTR becomes an outcome and is reported. With response none, κ and c are exactly the legacy ones.
+- **Pathology, judged relative to the homogeneous world** (§3's role). A world is pathological if any of these holds:
+  - its share of users with a best item above 0.95 exceeds the homogeneous world's by more than 10 points;
+  - that share exceeds 15%;
+  - more than 5% of users have a logger click probability below 0.001.
+
+  A pathological world raises and stops the study (`utils/structured_shift.py`).
+
+**The worlds under the amended definition.** 108 worlds (3 datasets × seeds 100, 101, 200, 201 × 9 cells): all
+calibrate, none pathological.
+
+| | Best-item CTR | Near-deterministic share | Excess over the homogeneous world |
+|---|---|---|---|
+| response none | 30.0% | at most 1.4% | — |
+| response moderate | 27.0–30.6% | at most 4.8% | at most 3.5 points |
+| response strong | 23.3–30.1% | at most 6.7% | at most 5.6 points |
+
+At most 0.1% of users have a logger click probability below 0.001.
+
+The shift levels hit their correlation targets exactly:
+
+| Shift | Score correlation | Top-1 agreement | Available gain |
+|---|---|---|---|
+| moderate | 0.90 | 32% | 3.7–8.1 points |
+| strong | 0.75 | 15% | 7.0–15.0 points |
+
+**Frozen from here.** No level is changed after any method result.
 
 ## 14. Provenance
 
