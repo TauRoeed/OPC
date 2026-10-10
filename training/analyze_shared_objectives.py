@@ -40,6 +40,11 @@ NATIVE = {"shared_likelihood": ("diag_val_nll", "min"), "shared_iw_likelihood": 
 # docs/opc_gradient_regime_study.md: the other shared OPC arms select as shared_opc (the DR lower bound of π_θ)
 NATIVE.update({m: ("value", "max") for m in ("shared_opc_raw", "shared_opc_oq", "shared_opc_raw_oq", "shared_opc_b8192",
                                              "shared_opc_raw_b8192", "shared_opc_bfull", "shared_opc_raw_bfull")})
+# docs/structured_scenario_shift_study.md §8: the low-rank arms select as their full-rank counterparts (the likelihood
+# arms by their own head's validation NLL, the calibration-aware head's too)
+NATIVE.update({f"shared_{fam}_{name}": rule for fam in ("lr", "lrg") for name, rule in (
+    ("likelihood", ("diag_val_nll", "min")), ("likelihood_calib", ("diag_val_nll", "min")), ("opc", ("value", "max")),
+    ("opc_raw", ("value", "max")), ("opc_oq", ("value", "max")))})
 COMMON = "diag_dr_greedy_low"  # the common selector: the DR lower bound of the greedy policy
 ORACLE_RUNS = {"value": Path("artifacts/full_study/run_class_oracles_20261005"),
                "likelihood": Path("artifacts/full_study/run_class_oracles_20261005"),

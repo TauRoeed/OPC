@@ -12,6 +12,8 @@ Mismatches in greedy CTR points: M_L = V_g(θ_value*) − V_g(θ_lik*), M_calib,
 V_g(truth) − V_g(θ_value*). The sanity checks A-C of §6 are evaluated per world.
 
     python -m training.ss_population --datasets ml --seeds 100 101 --labels s-none.r-none ... --out RUN
+
+``--finite-qhat`` instead adds, per finished world, the 25k grid's reward model's errors (``finite_qhat_errors``).
 """
 from __future__ import annotations
 
@@ -76,6 +78,32 @@ def qhat_errors(qinf: dict, model, dataset: dict, world: WorldTensors, chunk: in
         out["logging"] += float(((world.logger(u).double() * e2).sum(dim=1) * w).sum())
         out["target"] += float(((_policy(model, u).double() * e2).sum(dim=1) * w).sum())
     return {k: float(np.sqrt(v)) for k, v in out.items()}
+
+
+@torch.no_grad()
+def finite_qhat_errors(dataset: dict, seed: int, model, world: WorldTensors, *, n: int = 25_000,
+                       chunk: int = 1024) -> dict:
+    """The finite-sample reward model of the 25k grid (§8): the study's training rows of the world at size n, its
+    cross-fitted q̂ (the training loss's) and full-data q̂ (the selection rules'), each one's RMSE against q_B under the
+    logger and under ``model``'s policy (prior over users)."""
+    from training.opc_empirical_objective import study_crossfit_lookup, study_training_rows
+
+    rows = study_training_rows(dataset, seed, n)
+    lookup = study_crossfit_lookup(dataset, rows, seed, world.device)
+    prior = _prior(dataset)
+    out = {f"{m}_{w}": 0.0 for m in ("crossfit", "full") for w in ("logging", "target")}
+    for s in range(0, int(dataset["n_users"]), chunk):
+        u = torch.arange(s, min(s + chunk, int(dataset["n_users"])), device=world.device)
+        q = world.q(u).double()
+        lw, pw = world.logger(u).double(), _policy(model, u).double()
+        w = torch.as_tensor(prior[s:s + chunk], device=world.device)
+        for name, qh in (("crossfit", lookup[u]), ("full", lookup.full_lookup[u])):
+            e2 = (torch.as_tensor(qh, device=world.device).double() - q) ** 2
+            out[f"{name}_logging"] += float(((lw * e2).sum(dim=1) * w).sum())
+            out[f"{name}_target"] += float(((pw * e2).sum(dim=1) * w).sum())
+    res = {k: float(np.sqrt(v)) for k, v in out.items()}
+    res.update({"train_rows": int(len(rows["r"])), "train_click_sum": float(np.sum(rows["r"])), "n": int(n)})
+    return res
 
 
 def _likelihood_optimum(dataset, world, seed, mode, head, log) -> tuple:
@@ -150,6 +178,29 @@ def world_population(dataset: dict, *, seed: int, log=print) -> dict:
     return {"result": res, "thetas": thetas}
 
 
+def _finite_qhat_world(args, ds: str, label: str, seed: int, wdir: Path) -> None:
+    """``--finite-qhat`` for one world: under the logger and under θ_value*'s policy (population_thetas.npz)."""
+    from training.run_full_study import build_condition_world
+    from utils.seeding import seed_everything
+
+    target = wdir / f"qhat_finite_n{args.train_size}.json"
+    if target.exists() or not (wdir / "population_thetas.npz").exists():
+        return
+    t0 = time.time()
+    seed_everything(seed)
+    dataset, *_ = build_condition_world(
+        ds, Path(args.emb_dir), label, 0.05, seed,
+        world_options={"world_family": "structured_shift", "logger_greedy_share": args.logger_greedy_share})
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    world = WorldTensors(dataset, device)
+    model = build_model(dataset, device=device)
+    set_theta(model, np.load(wdir / "population_thetas.npz")["value"])
+    res = finite_qhat_errors(dataset, seed, model, world, n=args.train_size)
+    res["seconds"] = time.time() - t0
+    target.write_text(json.dumps(res, indent=2))
+    print(json.dumps({"world": wdir.name, **res}), flush=True)
+
+
 def main(argv=None) -> None:
     from training.run_full_study import build_condition_world
     from utils.seeding import enable_determinism, pin_cpu_threads, seed_everything
@@ -162,6 +213,9 @@ def main(argv=None) -> None:
     ap.add_argument("--emb-dir", default="BPR/embeddings")
     ap.add_argument("--cpu-threads", type=int, default=4)
     ap.add_argument("--out", required=True)
+    ap.add_argument("--finite-qhat", action="store_true",
+                    help="instead: the 25k grid's reward model's errors per finished world (qhat_finite.json)")
+    ap.add_argument("--train-size", type=int, default=25_000)
     args = ap.parse_args(argv)
     enable_determinism(True)
     pin_cpu_threads(int(args.cpu_threads))
@@ -170,6 +224,9 @@ def main(argv=None) -> None:
         for ds in args.datasets:
             for label in args.labels:
                 wdir = out / world_dir_name(ds, label, seed, args.logger_greedy_share)
+                if args.finite_qhat:
+                    _finite_qhat_world(args, ds, label, int(seed), wdir)
+                    continue
                 if (wdir / "population.json").exists():
                     continue
                 wdir.mkdir(parents=True, exist_ok=True)
