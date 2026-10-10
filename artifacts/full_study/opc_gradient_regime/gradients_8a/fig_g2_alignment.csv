@@ -10,11 +10,11 @@ mid,p_positive,G3,1,12
 mid,p_positive,G4,1,12
 mid,p_positive,G5,1,12
 mid_greedy,p_positive,G1,0.76,12
-mid_greedy,p_positive,G2,0.786667,12
+mid_greedy,p_positive,G2,0.786666,12
 mid_greedy,p_positive,G3,0.78,12
 mid_greedy,p_positive,G4,1,12
 mid_greedy,p_positive,G5,1,12
-source,cos_mean,G1,0.99977,12
+source,cos_mean,G1,0.999769,12
 source,cos_mean,G2,0.999821,12
 source,cos_mean,G3,0.999815,12
 source,cos_mean,G4,0.999855,12
@@ -23,9 +23,9 @@ mid,cos_mean,G1,0.985932,12
 mid,cos_mean,G2,0.990027,12
 mid,cos_mean,G3,0.989582,12
 mid,cos_mean,G4,0.998872,12
-mid,cos_mean,G5,0.998006,12
+mid,cos_mean,G5,0.998005,12
 mid_greedy,cos_mean,G1,0.325628,12
 mid_greedy,cos_mean,G2,0.378275,12
-mid_greedy,cos_mean,G3,0.374006,12
-mid_greedy,cos_mean,G4,0.961109,12
+mid_greedy,cos_mean,G3,0.374007,12
+mid_greedy,cos_mean,G4,0.96111,12
 mid_greedy,cos_mean,G5,0.875093,12
