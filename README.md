@@ -24,7 +24,8 @@ the headline 25k results, the code review and its fixes, and the open decisions.
 **BLOB's catalog-size prior: the derivation, the pre-registered calibration and the 25k check of BLOB-Pnorm:** [`docs/blob_prior_calibration.md`](docs/blob_prior_calibration.md)  
 **What BLOB-NQ, CausE-capacity-matched (ρ = 0) and OPC each optimize (audit of the executable objectives):** [`docs/training_objectives_audit.md`](docs/training_objectives_audit.md)  
 **Handoff and status, 2026-10-06 (branch map, results, the code review and its fixes, verification, open decisions):** [`docs/handoff_20261006.md`](docs/handoff_20261006.md)  
-**Three training objectives on one global correction model (penalized likelihood, uniform-weighted likelihood, OPC's value objective; branch `representation-mismatch-research-next`):** [`docs/shared_objective_study.md`](docs/shared_objective_study.md)
+**Three training objectives on one global correction model (penalized likelihood, uniform-weighted likelihood, OPC's value objective; branch `representation-mismatch-research-next`):** [`docs/shared_objective_study.md`](docs/shared_objective_study.md)  
+**Why OPC's training gap is larger, and where OPC can win (the exact population gradient against raw and harmonic DR, the 25k gap decomposition, the N × logging-support × corruption regime map; branch `representation-mismatch-research-next`):** [`docs/opc_gradient_regime_study.md`](docs/opc_gradient_regime_study.md); tables and figures in [`artifacts/full_study/opc_gradient_regime/`](artifacts/full_study/opc_gradient_regime/README.md)
 
 Main flow:
 1. Fit/generate BPR artifacts (user/item factors + metadata arrays).
