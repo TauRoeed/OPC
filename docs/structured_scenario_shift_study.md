@@ -494,6 +494,22 @@ and `response_level` identify the world; the analysis reads only those.
 - The 18 gated worlds calibrate: ρ = 0.900 at every response level, best-item CTR 24–30%, available gain 3.8–8.3
   points, none pathological (`scripts/ss_world_scan.py --gated`, `world_scan/world_scan_gated.csv`).
 
+### 13.4 The expansion is held for review (2026-10-11 05:15, before any of it ran)
+
+§13.3's mechanical reading of the gate selects 8 of the 9 cells: in effect the full N × support grid. The directive's
+gate (its §12) asks for the opposite: not to repeat the full grid, not to expand every cell because compute is
+available, and to expand only selected, mechanistically informative conditions; or, if fixed harmonic shrinkage is
+again the dominant obstacle, to finish the population and 25k characterization and stop for review. Whether Stage 1
+shows that obstacle is a judgment the §7 operationalization does not settle:
+- **For it:** harmonic OPC's population target misses the value optimum by 1.3–1.5 points under moderate shift and
+  4.4–4.9 under strong shift, at every response level. That miss is the largest part of its 25k gap under strong
+  shift (4.6 of 6.7 points).
+- **Against it:** the arm without shrinkage, raw DR, has the largest 25k gap (variance, not bias), so the criterion
+  §13.3 tested does not hold.
+
+None of the expansion has run. The supplementary tuning round of §13.2 and Stage 2 continue as planned. The scope of
+the expansion (none, a selected subset, or §13.3's eight cells) is left to the review.
+
 ## 14. Provenance
 
 - Artifacts: `artifacts/full_study/structured_scenario_shift/`, with a README.
