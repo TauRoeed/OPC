@@ -184,6 +184,7 @@ def population_main(args) -> None:
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     pop = population_table(Path(args.run))
+    pop = pop[pop["gated"] == (args.family == "lrg")].reset_index(drop=True)  # Stage 1 or Stage 2's worlds
     pop.to_csv(out / "table_population.csv", index=False, float_format="%.6g")
     cells = population_cells(pop)
     cells.to_csv(out / "population_cells.csv", index=False, float_format="%.6g")
@@ -744,6 +745,8 @@ def main(argv=None) -> None:
     sub = ap.add_subparsers(dest="cmd", required=True)
     p = sub.add_parser("population")
     p.add_argument("--run", required=True)
+    p.add_argument("--family", choices=("lr", "lrg"), default="lr",
+                   help="lr: Stage 1's ungated worlds; lrg: Stage 2's gated worlds")
     p.add_argument("--out", required=True)
     c = sub.add_parser("compare")
     c.add_argument("--runs", nargs="+", required=True)
