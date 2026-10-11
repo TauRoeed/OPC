@@ -1,0 +1,22 @@
+{
+  "worlds": 54,
+  "trials": 5400,
+  "identical_worlds": 54,
+  "cells_over_divergence": 0,
+  "harmonic_dominance": {
+    "share_worlds_M_harm_ge_M_L": 0.6666666666666666,
+    "worlds": 54,
+    "share_M_harm_gt_M_L_beyond_0.25": 0.6086956521739131,
+    "worlds_beyond_0.25": 46,
+    "gap_native_pooled": {
+      "likelihood": 2.753994611325796,
+      "likelihood_calib": 1.761614866635396,
+      "opc": 3.378394250935651,
+      "opc_raw": 3.982378367263351
+    },
+    "largest_gap_arm": "opc_raw",
+    "dominant": false,
+    "dominant_beyond_0.25": false
+  },
+  "logger_check_max_abs": 2.0517824661503425e-07
+}
