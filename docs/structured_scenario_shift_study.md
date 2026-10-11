@@ -447,6 +447,53 @@ The tuning round ran beside the population analysis, on other seeds (200 and 201
 `noise_component` fields at their defaults (`representation_bias`, `both`, `combined`). `world_family`, `shift_level`
 and `response_level` identify the world; the analysis reads only those.
 
+### 13.3 Stage 1's expansion gate and the expansion's design (2026-10-11, after Stage 1, before the expansion)
+
+**The gate** (§7), on the pooled cells (6 worlds each; `artifacts/full_study/structured_scenario_shift/compare/expansion_gate.csv`):
+
+| cell (shift / response) | M_L − M_calib | (a) | OPC − likelihood, native | (b) | (c) | calibration-aware − ordinary likelihood, native [95% CI] | (d) | expand |
+|---|---|---|---|---|---|---|---|---|
+| none / none | −0.00 | no | −0.18 | yes | no | +0.00 [−0.00, +0.00] | no | **yes** |
+| none / moderate | +0.64 | yes | +0.58 | yes | no | +0.71 [+0.44, +0.97] | yes | **yes** |
+| none / strong | +1.46 | yes | +1.61 | yes | no | +1.80 [+0.98, +2.63] | yes | **yes** |
+| moderate / none | −0.00 | no | −1.65 | yes | no | +0.08 [−0.04, +0.19] | no | **yes** |
+| moderate / moderate | +0.93 | yes | −0.61 | yes | no | +0.82 [+0.70, +0.94] | yes | **yes** |
+| moderate / strong | +2.00 | yes | +0.70 | yes | no | +1.98 [+1.27, +2.69] | yes | **yes** |
+| strong / none | −0.00 | no | −2.95 | no | no | +0.56 [−0.15, +1.27] | no | no |
+| strong / moderate | +0.93 | yes | −2.37 | no | no | +0.85 [−0.08, +1.78] | no | **yes** |
+| strong / strong | +2.37 | yes | −0.75 | no | no | +2.14 [+1.18, +3.10] | yes | **yes** |
+
+- **(b)** is read as a property of a shift level: every cell of a level whose OPC − likelihood changes sign across the
+  response levels (none: −, +, +; moderate: −, −, +; strong: −, −, −). The reading is the analysis code's
+  (`expansion_gate`, fea48d5), committed before Stage 1's first result.
+- **The stop criterion** (fixed harmonic shrinkage dominant) does not hold. M_harm ≥ M_L holds in 36 of 54 worlds (28 of
+  the 46 where the two differ by 0.25 points or more). But the largest pooled 25k gap to θ_value* (native) is raw DR's,
+  3.98 points, against harmonic OPC 3.38, ordinary likelihood 2.75 and calibration-aware likelihood 1.76.
+- **8 of the 9 cells are expanded**, all but strong shift with homogeneous response.
+
+**The expansion** (fixed before any of it runs):
+- 8 cells × 3 datasets × seeds 100 and 101: 48 worlds.
+- Settings: N ∈ {5k, 25k, 100k} × logger greedy share ∈ {0.6, 0.8, 0.9}, without Stage 1's 25k at 0.8: 8 per world.
+- The five arms, 20 paired trials, Stage 1's spaces (lr 1e-4–6.3246e-3, epochs 5–30, the λ grid), validation 20,000
+  rows, selected policies saved. Run tag `run_ss_expand`. One dataset at a time (ml, kuairand, anime), share 0.8 first.
+- **Population optima at shares 0.6 and 0.9.** θ_lik*, θ_calib* and θ_harm* depend on the logger; θ_value* and the
+  truth do not. 96 world runs beside the grids. They split the gap to θ_value* into M and E+O at those supports and
+  gate nothing; the gap itself needs only θ_value*. The anime grid waits for the anime population jobs (at most 3 anime
+  processes).
+- **Estimated cost:** 38,400 trials, about 20–25 hours, from Stage 1's trial times and the regime study's 5k / 25k / 100k
+  time ratios (0.3 / 1 / 1.6–2.3).
+- **Analysis:** OPC − likelihood and the other pairs under every rule per (N, share) and cell, per dataset and pooled;
+  each arm's gap to θ_value*, decomposed where the population optima exist.
+- **Order with the rest:** after Stage 2 and the supplementary tuning round of §13.2.
+
+**Stage 2's pre-launch checks** (on tuning seed 200, before Stage 2's worlds):
+- The gated arms (ml, `s-moderate.r-moderate.gated`, 2 trials, `--save-policies`): the 36-dimensional policies they
+  export (the user vector [s x, s g(x) xU], the item vector [a, aV]) reproduce each recorded greedy value exactly.
+- The gated population (the same world): checks B and C pass; the class optimizer's gap is 0.0007 points. On ml's
+  Stage 2 worlds, the gate's clip touches at most 0.02% of users, so the gated truth adapter is exact for the rest.
+- The gated worlds calibrate: ρ = 0.900 at every response level, best-item CTR 28–30%, none pathological
+  (`scripts/ss_world_scan.py --gated`).
+
 ## 14. Provenance
 
 - Artifacts: `artifacts/full_study/structured_scenario_shift/`, with a README.
