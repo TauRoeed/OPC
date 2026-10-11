@@ -24,8 +24,9 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
-from training.analyze_cause_fair import _md, mean_ci
+from training.analyze_cause_fair import _md, _tags, mean_ci
 from training.analyze_shared_objectives import _plt, _save, load_summaries, load_trials, selections
+from training.run_state import read_trials_long
 from training.ss_population import WARN_POINTS, world_dir_name
 from utils.structured_shift import parse_structured
 
@@ -739,6 +740,188 @@ def compare_md(wt, pc, ac, ident, div, gate, info) -> str:
         out += [_md(over.round(3)), ""]
     return "\n".join(out)
 
+# ------------------------------------------------------------------------------------------------------- expansion
+SHARES = (0.6, 0.8, 0.9)
+SIZES = (5_000, 25_000, 100_000)
+EXPAND_PAIRS = (("opc", "likelihood"), ("likelihood_calib", "likelihood"), ("opc_oq", "likelihood"),
+                ("opc_raw", "likelihood"), ("opc", "likelihood_calib"))
+SHARE_COLORS = {0.6: "#9ECAE1", 0.8: "#4292C6", 0.9: "#08519C"}  # one hue, light (better support) to dark (poorer)
+
+
+def load_grid(run_dirs, arms) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Every trial and summary row (train size > 0) of the given runs' finished conditions, as ``load_trials`` /
+    ``load_summaries``, also tagged with the logger greedy share (``share``; the folder's ``lgs``, 0.8 by default): the
+    expansion's conditions differ by it alone."""
+    tf, sf = [], []
+    for run in run_dirs:
+        for cond in sorted(Path(run).glob("dataset=*")):
+            if not (cond / "trials_long.csv").exists() or not (cond / "summary_metrics.csv").exists():
+                continue
+            tags = _tags(cond.name)
+            share = float(tags.get("lgs", 0.8))
+            w = {"dataset": tags["dataset"], "bias": tags["bias"], "seed": int(tags["seed"]), "share": share}
+            s = pd.read_csv(cond / "summary_metrics.csv")
+            t = read_trials_long(cond / "trials_long.csv")
+            t = t[t["method"].isin(arms)].copy()
+            if t.empty:
+                continue
+            v0 = float(s.loc[s["train_size"] == 0, "policy_rewards_greedy"].iloc[0])
+            v0s = float(s.loc[s["train_size"] == 0, "policy_rewards"].iloc[0])
+            t = t.assign(**w, run_tag=Path(run).name, V_logger_greedy=v0, V_logger=v0s)
+            t["gain_greedy"] = 100 * (t["actual_reward_greedy"] - v0)
+            tf.append(t)
+            sf.append(s[s["method"].isin(arms) & (s["train_size"] > 0)].assign(**w))
+    if not tf:
+        raise FileNotFoundError(f"no trials under {run_dirs}")
+    return pd.concat(tf, ignore_index=True), pd.concat(sf, ignore_index=True)
+
+
+def expand_tables(t: pd.DataFrame, s: pd.DataFrame, pop: pd.DataFrame | None) -> dict:
+    """Per (N, share): ``world_table`` against that share's population optima (θ_lik*, θ_calib*, θ_harm* depend on the
+    logger); the gap to θ_value* from the share-0.8 optima when the share's own are missing (θ_value* does not depend on
+    the logger). Then the paired differences and arm summaries per (N, share)."""
+    wts, pcs, acs = [], [], []
+    for (n, share), tg in t.groupby(["train_size", "share"]):
+        sg = s[(s["train_size"] == n) & (s["share"] == share)]
+        pg = None
+        if pop is not None:
+            idx = tg.set_index(WORLD).index.unique()
+            pg = pop[np.isclose(pop["logger_greedy_share"], share)]
+            pg = pg[pg.set_index(WORLD).index.isin(idx)]
+        wt = world_table(tg, sg, pg if pg is not None and len(pg) else None)
+        if pop is not None and ("gap_native" not in wt or wt["gap_native"].isna().any()):
+            v8 = pop[np.isclose(pop["logger_greedy_share"], 0.8)].set_index(WORLD)["Vg_value"]
+            vstar = np.array([v8.get(tuple(k), np.nan) for k in wt[WORLD].itertuples(index=False)], dtype=float)
+            for rule in ("native", "common"):
+                col = f"gap_{rule}"
+                fill = 100 * (vstar - wt[f"{rule}_V_greedy"])
+                wt[col] = wt[col].fillna(fill) if col in wt else fill
+        wt = wt.assign(N=int(n), share=float(share))
+        pw = paired_worlds(wt)
+        pcs.append(paired_cells(pw).assign(N=int(n), share=float(share)))
+        acs.append(arm_cells(wt).assign(N=int(n), share=float(share)))
+        wts.append(wt)
+    return {"worlds": pd.concat(wts, ignore_index=True), "paired": pd.concat(pcs, ignore_index=True),
+            "arms": pd.concat(acs, ignore_index=True)}
+
+
+def fig_expand(pc: pd.DataFrame, out: Path, pair=("opc", "likelihood"), rule: str = "native", name: str | None = None):
+    """One panel per expanded cell: a − b against N (log scale), one line per logger greedy share, pooled mean and 95%
+    CI over the worlds."""
+    plt = _plt()
+    c = pc[(pc["scope"] == "cell") & (pc["dataset"] == "all") & (pc["a"] == pair[0]) & (pc["b"] == pair[1])
+           & (pc["rule"] == rule)]
+    cells = [(sh, r) for sh in LEVELS for r in LEVELS if ((c["shift"] == sh) & (c["response"] == r)).any()]
+    ncol = 3
+    nrow = int(np.ceil(len(cells) / ncol))
+    fig, axes = plt.subplots(nrow, ncol, figsize=(10.5, 2.9 * nrow), sharey=True, squeeze=False)
+    rows = []
+    for ax, (sh, r) in zip(axes.ravel(), cells):
+        g = c[(c["shift"] == sh) & (c["response"] == r)]
+        for j, share in enumerate(SHARES):
+            gs = g[np.isclose(g["share"], share)].sort_values("N")
+            if gs.empty:
+                continue
+            x = gs["N"].to_numpy() * (1 + 0.06 * (j - 1))
+            err = np.vstack([(gs["a_minus_b"] - gs["ci_lo"]).to_numpy(), (gs["ci_hi"] - gs["a_minus_b"]).to_numpy()])
+            ax.errorbar(x, gs["a_minus_b"], yerr=np.nan_to_num(err), fmt="-o", color=SHARE_COLORS[share],
+                        markersize=4.5, linewidth=2, capsize=2, label=f"logger greedy share {share:g}")
+            rows += [{"shift": sh, "response": r, "share": share, "N": int(v.N), "mean": v.a_minus_b, "lo": v.ci_lo,
+                      "hi": v.ci_hi, "worlds": v.worlds, "a_higher": v.a_higher} for v in gs.itertuples()]
+        ax.axhline(0, color="#8A8A8A", linewidth=0.8)
+        ax.set_xscale("log")
+        ax.set_xticks(list(SIZES), ["5k", "25k", "100k"])
+        ax.minorticks_off()
+        ax.set_title(f"shift {sh}, response {r}", fontsize=9)
+    for ax in axes.ravel()[len(cells):]:
+        ax.set_visible(False)
+    for row in axes:
+        row[0].set_ylabel(f"{pair[0]} − {pair[1]} (points)")
+    h, lab = axes[0][0].get_legend_handles_labels()
+    fig.legend(h, lab, loc="lower center", ncol=3, frameon=False, bbox_to_anchor=(0.5, -0.03))
+    fig.suptitle(f"{ARM_NAMES[pair[0]]} − {ARM_NAMES[pair[1]]} ({rule} rule) against N and the logger's support",
+                 fontsize=10)
+    fig.tight_layout(rect=(0, 0.04, 1, 1))
+    _save(fig, out, name or f"fig_expand_{pair[0]}_vs_{pair[1]}_{rule}", pd.DataFrame(rows))
+    plt.close(fig)
+
+
+def expand_md(pc: pd.DataFrame, ac: pd.DataFrame, info: dict) -> str:
+    out = ["# Structured scenario shift: the expansion over N and the logger's support", "",
+           f"{info['worlds']} world settings, {info['trials']} trials. Greedy CTR points; mean [95% CI] over worlds "
+           "(worlds where a is higher / worlds). The 25k / 0.8 column is Stage 1.", ""]
+
+    def table(a, b, rule, ds="all"):
+        c = pc[(pc["scope"] == "cell") & (pc["dataset"] == ds) & (pc["a"] == a) & (pc["b"] == b) & (pc["rule"] == rule)]
+        lines = ["| cell | share | " + " | ".join(f"N = {n // 1000}k" for n in SIZES) + " |",
+                 "|---|---|" + "---|" * len(SIZES)]
+        for sh in LEVELS:
+            for r in LEVELS:
+                g = c[(c["shift"] == sh) & (c["response"] == r)]
+                if g.empty:
+                    continue
+                for share in SHARES:
+                    cells_ = []
+                    for n in SIZES:
+                        v = g[np.isclose(g["share"], share) & (g["N"] == n)]
+                        cells_.append("–" if v.empty else _fmt(v["a_minus_b"].iloc[0], v["ci_lo"].iloc[0],
+                                                               v["ci_hi"].iloc[0])
+                                      + f" ({int(v['a_higher'].iloc[0])}/{int(v['worlds'].iloc[0])})")
+                    lines.append(f"| {sh} / {r} | {share:g} | " + " | ".join(cells_) + " |")
+        return lines
+
+    out += ["## 1. Harmonic OPC − likelihood (ordinary head)", ""]
+    for rule in ("native", "best", "mean"):
+        out += [f"### {rule} rule, pooled", ""] + table("opc", "likelihood", rule) + [""]
+    for ds in DATASETS:
+        if (pc["dataset"] == ds).any():
+            out += [f"### native rule, {ds}", ""] + table("opc", "likelihood", "native", ds) + [""]
+    out += ["## 2. The other pairs (native rule, pooled)", ""]
+    for a, b in EXPAND_PAIRS[1:]:
+        out += [f"### {ARM_NAMES[a]} − {ARM_NAMES[b]}", ""] + table(a, b, "native") + [""]
+    out += ["## 3. Gap to θ_value* per arm (native rule, pooled over the expanded cells)", "",
+            "| arm | share | " + " | ".join(f"N = {n // 1000}k" for n in SIZES) + " |", "|---|---|" + "---|" * len(SIZES)]
+    a_all = ac[(ac["scope"] == "all") & (ac["dataset"] == "all")]
+    for arm in SHORT:
+        for share in SHARES:
+            cells_ = []
+            for n in SIZES:
+                v = a_all[(a_all["arm"] == arm) & np.isclose(a_all["share"], share) & (a_all["N"] == n)]
+                cells_.append("–" if v.empty or "gap_native" not in v else
+                              _fmt(v["gap_native"].iloc[0], v.get("gap_native_lo", pd.Series([np.nan])).iloc[0],
+                                   v.get("gap_native_hi", pd.Series([np.nan])).iloc[0], signed=False))
+            out.append(f"| {arm} | {share:g} | " + " | ".join(cells_) + " |")
+    return "\n".join(out + [""])
+
+
+def expand_main(args) -> None:
+    out = Path(args.out)
+    out.mkdir(parents=True, exist_ok=True)
+    arms = list(args.arms) if args.arms else list(ARMS["lr"])
+    t, s = load_grid(args.runs, arms)
+    if len(args.runs) > 1:  # Stage 1's 25k / 0.8 rows of the expanded cells only (those of the expansion run)
+        t = t[t["bias"].isin(set(t.loc[t["run_tag"] == Path(args.runs[0]).name, "bias"]))]
+    s = s[s["bias"].isin(set(t["bias"]))]
+    pop = population_table(Path(args.population)) if args.population else None
+    if pop is not None:
+        pop = pop[~pop["gated"].astype(bool)]
+    res = expand_tables(t, s, pop)
+    res["worlds"].to_csv(out / "table_world_settings.csv", index=False, float_format="%.6g")
+    res["paired"].to_csv(out / "paired_cells.csv", index=False, float_format="%.6g")
+    res["arms"].to_csv(out / "arm_cells.csv", index=False, float_format="%.6g")
+    div = pd.concat([divergence_table(g).assign(N=int(n), share=float(sh))
+                     for (n, sh), g in t.groupby(["train_size", "share"])], ignore_index=True)
+    div.to_csv(out / "divergence.csv", index=False, float_format="%.6g")
+    info = {"worlds": int(t[WORLD + ["share", "train_size"]].drop_duplicates().shape[0]), "trials": int(len(t)),
+            "diverged_trials": int(t.get("diverged", pd.Series(False, index=t.index)).astype(bool).sum()),
+            "cells_over_divergence": int(div["over"].sum())}
+    (out / "expand_info.json").write_text(json.dumps(info, indent=2))
+    for pair in (("opc", "likelihood"), ("likelihood_calib", "likelihood"), ("opc_oq", "likelihood")):
+        fig_expand(res["paired"], out, pair, "native")
+    fig_expand(res["paired"], out, ("opc", "likelihood"), "best")
+    (out / "tables.md").write_text(expand_md(res["paired"], res["arms"], info))
+    print(f"wrote {out}: {info['worlds']} world settings, {info['trials']} trials, {info['diverged_trials']} diverged")
+
 
 def main(argv=None) -> None:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
@@ -753,8 +936,13 @@ def main(argv=None) -> None:
     c.add_argument("--population", default=None)
     c.add_argument("--arms", nargs="+", default=None)
     c.add_argument("--out", required=True)
+    e = sub.add_parser("expand")
+    e.add_argument("--runs", nargs="+", required=True, help="the expansion run first, then Stage 1's 25k run")
+    e.add_argument("--population", default=None)
+    e.add_argument("--arms", nargs="+", default=None)
+    e.add_argument("--out", required=True)
     args = ap.parse_args(argv)
-    {"population": population_main, "compare": compare_main}[args.cmd](args)
+    {"population": population_main, "compare": compare_main, "expand": expand_main}[args.cmd](args)
 
 
 if __name__ == "__main__":
