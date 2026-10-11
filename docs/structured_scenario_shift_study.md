@@ -665,3 +665,48 @@ best of 20) + S (selection), mean over the 18 worlds of each shift level:
 - **Support** (logger greedy share 0.8): the selected OPC policies keep a validation ESS of about 2,200–3,400 of 20,000
   rows (median by shift level) and change 16–57% of users' greedy picks against the logger's; the likelihood arms change
   31–82%. Support was not varied in Stage 1; that is what the held expansion would vary (§13.4).
+
+### 15.5 Stage 2: the user-gated shift (18 worlds)
+
+Runs: the `.gated` worlds of `run_ss_population` and `run_ss_stage2_25k`. Tables: `stage2_population/`,
+`stage2_compare/`. Moderate shift (ρ = 0.90 with the gate), the matched gated adapter in every arm.
+
+**Validation.** Every population check passes; the class optimizer's gap is at most 0.009 points and |M_calib| at most
+0.008. Identical rows and paired configurations in all 18 worlds; none of the 1,800 trials diverged.
+
+**Population** (pooled, 6 worlds per response level; the ungated moderate-shift row of §15.2 for comparison):
+
+| response | M_L | M_calib | M_harm | available gain | q̂_∞ RMSE under θ_value* | ungated M_L | ungated M_harm |
+|---|---|---|---|---|---|---|---|
+| none | 0.00 | 0.00 | 2.38 [1.72, 3.04] | 6.38 | 0.149 | 0.00 | 1.52 |
+| moderate | 1.05 [0.49, 1.60] | 0.00 | 2.37 [1.88, 2.85] | 6.33 | 0.151 | 0.93 | 1.44 |
+| strong | 2.54 [1.08, 4.01] | 0.00 | 2.22 [1.77, 2.67] | 5.96 | 0.150 | 2.01 | 1.29 |
+
+**Harmonic OPC − ordinary likelihood, native rule** (per dataset: seed 100, seed 101):
+
+| response | ml | kuairand | anime | pooled, gated | pooled, ungated (§15.3) |
+|---|---|---|---|---|---|
+| none | −2.63, −1.16 | −3.80, −1.19 | −0.86, −1.05 | −1.78 [−3.02, −0.55] (0/6) | −1.65 [−2.35, −0.96] (0/6) |
+| moderate | −2.04, −1.03 | −2.00, −0.21 | −0.92, −0.46 | −1.11 [−1.92, −0.31] (0/6) | −0.61 [−1.29, +0.08] (1/6) |
+| strong | −0.45, −0.26 | −1.06, +1.99 | +1.88, +0.46 | +0.42 [−0.90, +1.75] (3/6) | +0.70 [+0.21, +1.18] (6/6) |
+
+Best of 20: −1.87, −1.01, +0.34 (0, 1, 3 of 6); mean of 20: −0.42, +0.04, +0.78 (1, 4, 6 of 6).
+
+Native gains over the logger, pooled (value optimum, likelihood, calibration-aware, harmonic OPC, raw DR, oracle q):
+none 6.38 / +3.68 / +3.92 / +1.90 / +1.62 / +2.24; moderate 6.33 / +3.12 / +4.07 / +2.00 / +1.55 / +2.34; strong
+5.96 / +1.77 / +3.75 / +2.19 / +1.57 / +2.51.
+
+All 18 worlds, native (gated; ungated moderate shift in brackets): calibration-aware − likelihood +1.06 [+0.59, +1.53],
+17/18 (+0.96, 16/18); harmonic OPC − calibration-aware −1.88 [−2.36, −1.41], 0/18 (−1.48, 0/18); oracle q − harmonic
+OPC +0.33 [+0.18, +0.49], 16/18 (+0.27, 14/18); raw DR − harmonic OPC −0.45 [−0.64, −0.26], 1/18 (−0.51, 0/18).
+Decomposition (all 18 worlds): harmonic OPC gap 4.19 = M 2.32 + E+O 1.80 + S 0.08; likelihood 3.37 = 1.20 + 2.08 +
+0.10; calibration-aware 2.31 = 0.00 + 2.28 + 0.03; raw DR 4.64 = 0 + 4.53 + 0.11; oracle q 3.86 = 0 + 3.26 + 0.60.
+
+- **The gate leaves the likelihood's mismatch about where it was and moves harmonic DR's target further away.** M_harm
+  rises from 1.3–1.5 to 2.2–2.4 points. The reward model's logistic features on [x, a, x ⊙ a] describe a user-gated
+  score worse than an ungated one (q̂_∞'s error under θ_value*'s policy 0.15 against 0.10).
+- **Same direction, lower level.** OPC − likelihood still rises with the response level, but less of it is above 0:
+  at strong heterogeneity OPC wins 3 of 6 worlds (two anime, one kuairand), against 6 of 6 ungated.
+- **The mechanism across worlds holds:** OPC − likelihood against M_L − M_harm, Spearman 0.82, slope 0.78
+  [0.51, 1.04], intercept 0.05 (`stage2_compare/mechanism.csv`).
+- **The calibration-aware likelihood is again the strongest arm** (ahead of harmonic OPC in all 18 worlds).

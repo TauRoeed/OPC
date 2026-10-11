@@ -69,3 +69,14 @@ python -m training.analyze_structured_shift compare --population artifacts/full_
 | `compare_info.json` | counts, the harmonic-dominance criterion of the gate, the population-trainer identity check |
 | `tables.md` | the tables as markdown |
 | `fig_paired_25k.*`, `fig_mechanism.*`, `fig_decomposition_25k.*` | the figures, each with its data as CSV |
+
+## `stage2_population/` and `stage2_compare/`: Stage 2, the user-gated shift (§7, §15.5)
+
+```bash
+python -m training.ss_population --datasets ml --seeds 100 101 --labels s-moderate.r-none.gated s-moderate.r-moderate.gated s-moderate.r-strong.gated --emb-dir BPR/embeddings --out artifacts/full_study/run_ss_population
+python -m training.analyze_structured_shift population --family lrg --run artifacts/full_study/run_ss_population --out artifacts/full_study/structured_scenario_shift/stage2_population
+python -m training.analyze_structured_shift compare --population artifacts/full_study/run_ss_population --runs artifacts/full_study/run_ss_stage2_25k --arms shared_lrg_likelihood shared_lrg_likelihood_calib shared_lrg_opc shared_lrg_opc_raw shared_lrg_opc_oq --out artifacts/full_study/structured_scenario_shift/stage2_compare
+```
+
+The files are as in `population/` and `compare/`, for the 18 gated worlds and the gated arms (`shared_lrg_*`). The
+expansion gate's table there is computed by the same code but is not a decision: the gate concerns Stage 1 (§13.3–§13.4).

@@ -1,0 +1,16 @@
+shift,response,method,diverged,trials,share,over
+moderate,none,shared_lrg_likelihood,0,120,0,False
+moderate,none,shared_lrg_likelihood_calib,0,120,0,False
+moderate,none,shared_lrg_opc,0,120,0,False
+moderate,none,shared_lrg_opc_oq,0,120,0,False
+moderate,none,shared_lrg_opc_raw,0,120,0,False
+moderate,moderate,shared_lrg_likelihood,0,120,0,False
+moderate,moderate,shared_lrg_likelihood_calib,0,120,0,False
+moderate,moderate,shared_lrg_opc,0,120,0,False
+moderate,moderate,shared_lrg_opc_oq,0,120,0,False
+moderate,moderate,shared_lrg_opc_raw,0,120,0,False
+moderate,strong,shared_lrg_likelihood,0,120,0,False
+moderate,strong,shared_lrg_likelihood_calib,0,120,0,False
+moderate,strong,shared_lrg_opc,0,120,0,False
+moderate,strong,shared_lrg_opc_oq,0,120,0,False
+moderate,strong,shared_lrg_opc_raw,0,120,0,False

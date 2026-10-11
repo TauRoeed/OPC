@@ -1,0 +1,4 @@
+shift,response,M_L,M_calib,M_harm,M_L_minus_M_calib,opc_minus_lik,calib_minus_lik,calib_minus_lik_lo,calib_minus_lik_hi,a,b,c,d,expand
+moderate,none,-0.00122769,-0.00120368,2.37629,-2.4004e-05,-1.78362,0.242433,-0.124681,0.609547,False,True,False,False,True
+moderate,moderate,1.04606,-0.00342784,2.365,1.04949,-1.1127,0.950305,0.531659,1.36895,True,True,False,True,True
+moderate,strong,2.54475,-0.000186404,2.22161,2.54494,0.424738,1.98664,0.990135,2.98315,True,True,False,True,True

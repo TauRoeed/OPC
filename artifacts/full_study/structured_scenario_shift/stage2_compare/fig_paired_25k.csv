@@ -1,0 +1,25 @@
+rule,shift,response,pair,mean,lo,hi,worlds
+native,moderate,none,harmonic OPC − likelihood,-1.78362,-3.01762,-0.549623,6
+native,moderate,moderate,harmonic OPC − likelihood,-1.1127,-1.91518,-0.31022,6
+native,moderate,strong,harmonic OPC − likelihood,0.424738,-0.904811,1.75429,6
+native,moderate,none,raw DR − likelihood,-2.06452,-3.13717,-0.991874,6
+native,moderate,moderate,raw DR − likelihood,-1.56636,-2.483,-0.64972,6
+native,moderate,strong,raw DR − likelihood,-0.19931,-1.45856,1.05994,6
+native,moderate,none,harmonic OPC (oracle q) − likelihood,-1.4364,-2.58798,-0.284818,6
+native,moderate,moderate,harmonic OPC (oracle q) − likelihood,-0.782427,-1.54494,-0.0199163,6
+native,moderate,strong,harmonic OPC (oracle q) − likelihood,0.740072,-0.375465,1.85561,6
+native,moderate,none,calibration-aware − ordinary likelihood,0.242433,-0.124681,0.609547,6
+native,moderate,moderate,calibration-aware − ordinary likelihood,0.950305,0.531659,1.36895,6
+native,moderate,strong,calibration-aware − ordinary likelihood,1.98664,0.990135,2.98315,6
+best,moderate,none,harmonic OPC − likelihood,-1.86701,-3.01509,-0.718922,6
+best,moderate,moderate,harmonic OPC − likelihood,-1.01058,-1.90726,-0.113893,6
+best,moderate,strong,harmonic OPC − likelihood,0.342841,-0.73844,1.42412,6
+best,moderate,none,raw DR − likelihood,-2.03693,-3.14029,-0.933574,6
+best,moderate,moderate,raw DR − likelihood,-1.50071,-2.48365,-0.517777,6
+best,moderate,strong,raw DR − likelihood,-0.244861,-1.23284,0.74312,6
+best,moderate,none,harmonic OPC (oracle q) − likelihood,-1.07099,-2.12292,-0.0190634,6
+best,moderate,moderate,harmonic OPC (oracle q) − likelihood,-0.0401506,-0.839111,0.758809,6
+best,moderate,strong,harmonic OPC (oracle q) − likelihood,1.13667,0.23313,2.0402,6
+best,moderate,none,calibration-aware − ordinary likelihood,0.220827,-0.189512,0.631165,6
+best,moderate,moderate,calibration-aware − ordinary likelihood,0.953329,0.537563,1.3691,6
+best,moderate,strong,calibration-aware − ordinary likelihood,1.81952,0.894092,2.74494,6
