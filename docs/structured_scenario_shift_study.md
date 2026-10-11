@@ -516,3 +516,152 @@ the expansion (none, a selected subset, or §13.3's eight cells) is left to the 
 - Every run goes into `artifacts/full_study/run_registry.csv`.
 - Long runs use pinned worktrees.
 - World configurations and fingerprints are recorded per world.
+
+## 15. Results: Stage 1 (54 worlds; 2026-10-11)
+
+Runs: `run_ss_population` (the population optima), `run_ss_main_25k` (the 25k grid). Tables and figures:
+`artifacts/full_study/structured_scenario_shift/population/` and `compare/`. Greedy CTR points throughout; intervals are
+95% CIs over worlds, paired by world. A cell pools 6 worlds (3 datasets × 2 seeds), so per-dataset cells (2 worlds) give
+directions, not intervals.
+
+### 15.1 Validation
+
+- Every world passes checks A–C (§6). The truth adapter reaches the target greedy value. The value path reaches the
+  truth within 0.004 points in every world, so the rank-4 class is correctly specified and its optimum is found.
+- In every world the five arms saw identical training and validation rows (row hashes) and trial k trained the same
+  configuration in every arm. None of the 5,400 trials diverged.
+- The population source's greedy value equals the trainer's logger greedy value to 2e-7 points in all 54 worlds, so
+  population and trial values can be subtracted (the decomposition below).
+- The 25k cross-fitted reward model's error under θ_value*'s policy (`qhat25k_*`) is about 0.03–0.04 without shift and
+  0.09–0.20 with shift, close to q̂_∞'s population error: under shift, the reward model's error is misspecification of
+  its features, not sample size.
+
+### 15.2 Population optima (the first report of §6)
+
+| shift / response | M_L | M_calib | M_harm | available gain |
+|---|---|---|---|---|
+| none / none | 0.00 | 0.00 | 0.00 | 0.00 |
+| none / moderate | 0.64 [0.53, 0.76] | 0.00 | 0.00 [0.00, 0.01] | 0.00 |
+| none / strong | 1.47 [1.03, 1.90] | 0.00 | 0.01 [0.01, 0.02] | 0.00 |
+| moderate / none | 0.00 | 0.00 | 1.52 [1.26, 1.79] | 5.99 |
+| moderate / moderate | 0.93 [0.65, 1.21] | 0.00 | 1.44 [1.29, 1.59] | 5.59 |
+| moderate / strong | 2.01 [1.44, 2.57] | 0.00 | 1.29 [1.12, 1.46] | 4.99 |
+| strong / none | 0.00 | 0.00 | 4.86 [3.90, 5.81] | 12.02 |
+| strong / moderate | 0.93 [0.73, 1.12] | 0.00 | 4.63 [3.83, 5.44] | 11.48 |
+| strong / strong | 2.37 [1.53, 3.21] | 0.00 | 4.37 [3.73, 5.00] | 10.61 |
+
+Per dataset (mean of the two seeds):
+
+| shift / response | ml M_L | kuairand M_L | anime M_L | ml M_harm | kuairand M_harm | anime M_harm |
+|---|---|---|---|---|---|---|
+| none / moderate | 0.67 | 0.57 | 0.68 | 0.00 | 0.01 | 0.00 |
+| none / strong | 1.59 | 1.12 | 1.69 | 0.01 | 0.01 | 0.01 |
+| moderate / none | 0.00 | 0.00 | 0.00 | 1.53 | 1.55 | 1.48 |
+| moderate / moderate | 1.09 | 0.89 | 0.82 | 1.50 | 1.35 | 1.45 |
+| moderate / strong | 2.18 | 1.78 | 2.05 | 1.43 | 1.13 | 1.33 |
+| strong / none | 0.00 | 0.00 | 0.00 | 5.10 | 4.54 | 4.93 |
+| strong / moderate | 0.94 | 0.95 | 0.90 | 5.15 | 4.05 | 4.70 |
+| strong / strong | 2.73 | 2.05 | 2.33 | 4.90 | 3.63 | 4.57 |
+
+- **H1 holds in the population:** with homogeneous response, the likelihood's optimum is decision-optimal at every
+  shift level (M_L = 0.00 in all 18 worlds).
+- **H2:** response heterogeneity makes the prediction-optimal adapter differ from the decision-optimal one, with the
+  rank-4 correction correctly specified. M_L grows with the response level at every shift level and on every dataset.
+  Its size varies by seed (on ml, seed 101's M_L is about half of seed 100's).
+- **H3:** the calibration-aware head removes it: |M_calib| < 0.01 in every world.
+- **Harmonic DR's population target** (with q̂_∞) is on the value optimum without shift (M_harm ≤ 0.02) and misses it
+  under shift, by 1.3–1.5 points (moderate) and 4.4–4.9 (strong), almost independently of the response level. Its miss
+  is smaller than the likelihood's only without shift (with heterogeneity) and at moderate shift with strong response.
+
+### 15.3 The 25k grid
+
+**Harmonic OPC − ordinary likelihood, native rule** (per dataset: seed 100, seed 101):
+
+| shift / response | ml | kuairand | anime | pooled (OPC higher / 6) |
+|---|---|---|---|---|
+| none / none | −0.19, −0.27 | −0.04, −0.09 | −0.23, −0.25 | −0.18 [−0.28, −0.08] (0/6) |
+| none / moderate | +0.97, +0.59 | +0.49, +0.38 | +0.53, +0.53 | +0.58 [+0.37, +0.79] (6/6) |
+| none / strong | +2.54, +1.26 | +0.93, +1.24 | +2.42, +1.25 | +1.61 [+0.89, +2.33] (6/6) |
+| moderate / none | −2.28, −1.08 | −2.42, −0.98 | −2.05, −1.12 | −1.65 [−2.35, −0.96] (0/6) |
+| moderate / moderate | −1.39, −0.59 | +0.22, −0.13 | −1.34, −0.40 | −0.61 [−1.29, +0.08] (1/6) |
+| moderate / strong | +0.16, +0.25 | +1.25, +0.79 | +1.18, +0.54 | +0.70 [+0.21, +1.18] (6/6) |
+| strong / none | −5.73, −1.54 | −3.58, −1.27 | −3.63, −1.94 | −2.95 [−4.73, −1.17] (0/6) |
+| strong / moderate | −4.01, −0.73 | −1.93, −1.14 | −5.57, −0.82 | −2.37 [−4.45, −0.28] (0/6) |
+| strong / strong | −1.45, −0.25 | −0.82, −0.41 | −1.71, +0.13 | −0.75 [−1.50, +0.00] (1/6) |
+
+**Native gains over the logger, pooled** (the value optimum's gain is the ceiling):
+
+| shift / response | value optimum | likelihood | calibration-aware | harmonic OPC | raw DR | harmonic OPC, oracle q |
+|---|---|---|---|---|---|---|
+| none / none | 0.00 | 0.00 | 0.00 | −0.18 | −0.15 | −0.16 |
+| none / moderate | 0.00 | −0.72 | −0.02 | −0.14 | −0.16 | −0.15 |
+| none / strong | 0.00 | −1.82 | −0.02 | −0.21 | −0.15 | −0.23 |
+| moderate / none | 5.99 | +4.08 | +4.15 | +2.42 | +2.05 | +2.86 |
+| moderate / moderate | 5.59 | +2.92 | +3.74 | +2.31 | +1.73 | +2.29 |
+| moderate / strong | 4.99 | +1.31 | +3.28 | +2.00 | +1.44 | +2.40 |
+| strong / none | 12.02 | +8.00 | +8.56 | +5.05 | +3.51 | +5.90 |
+| strong / moderate | 11.48 | +6.91 | +7.76 | +4.54 | +3.48 | +6.34 |
+| strong / strong | 10.61 | +5.23 | +7.37 | +4.48 | +3.10 | +5.62 |
+
+**All 54 worlds, every rule** (a − b: mean [95% CI] (a higher / 54)):
+
+| pair | native | best of 20 | mean of 20 |
+|---|---|---|---|
+| harmonic OPC − likelihood | −0.62 [−1.09, −0.16] (20) | −0.89 [−1.29, −0.49] (13) | +0.12 [−0.05, +0.29] (26) |
+| calibration-aware − likelihood | +0.99 [+0.74, +1.25] (49) | +0.67 [+0.44, +0.90] (50) | +0.38 [+0.26, +0.50] (45) |
+| harmonic OPC − calibration-aware | −1.62 [−2.05, −1.18] (1) | −1.56 [−2.02, −1.11] (2) | −0.26 [−0.33, −0.19] (9) |
+| oracle q − harmonic OPC | +0.51 [+0.24, +0.78] (39) | +0.89 [+0.59, +1.18] (49) | +0.36 [+0.26, +0.47] (50) |
+| raw DR − harmonic OPC | −0.60 [−0.80, −0.41] (9) | −0.55 [−0.74, −0.36] (15) | −0.33 [−0.42, −0.24] (0) |
+
+Per dataset, harmonic OPC − likelihood pooled over the 18 cells (native): ml −0.76 (6/18), kuairand −0.42 (7/18),
+anime −0.69 (7/18) (`compare/tables.md` §3).
+
+- **H4 is supported in direction.** At every shift level OPC − likelihood rises with the response level, pooled and on
+  every dataset but one row: anime under strong shift goes −2.79, −3.20, −0.79 (none, moderate, strong; 2 worlds
+  each). OPC wins every world of three cells: no shift with moderate or strong heterogeneity, and moderate shift with
+  strong heterogeneity.
+- **Across the 54 worlds, OPC − likelihood follows the difference of the population mismatches.** Against M_L − M_harm:
+  Spearman 0.87; OLS slope 0.61 [0.46, 0.76], intercept 0.04 (`compare/mechanism.csv`; best rule 0.83, mean rule 0.70).
+  It is an association across designed worlds; the slope below 1 means the 25k differences are smaller than the
+  population ones.
+- **H5 holds:** under strong shift, harmonic OPC loses at every response level, its population target being 4.4–4.9
+  points from the value optimum.
+- **H6:** the strongest arm is the calibration-aware likelihood, the correctly specified response model. It beats
+  harmonic OPC in 53 of 54 worlds.
+- **Without shift**, the ordinary likelihood's 25k loss (0.7–1.8 points) is mostly selection: the best of its 20 trials
+  loses 0.02, while the trial its validation NLL picks bends the ranking to fit the heterogeneity (§15.4).
+
+### 15.4 Decomposition and diagnostics
+
+Gap to θ_value* at 25k, native rule = M (the arm's population objective) + E+O (finite sample and optimization, to the
+best of 20) + S (selection), mean over the 18 worlds of each shift level:
+
+| shift | arm | gap | M | E+O | S |
+|---|---|---|---|---|---|
+| none | likelihood | 0.85 | 0.70 | −0.69 | 0.84 |
+| none | calibration-aware | 0.01 | 0.00 | 0.00 | 0.01 |
+| none | harmonic OPC | 0.18 | 0.01 | 0.01 | 0.16 |
+| none | raw DR | 0.15 | 0.00 | 0.01 | 0.14 |
+| none | oracle q | 0.18 | 0.00 | 0.02 | 0.16 |
+| moderate | likelihood | 2.76 | 0.98 | 1.54 | 0.24 |
+| moderate | calibration-aware | 1.80 | 0.00 | 1.66 | 0.14 |
+| moderate | harmonic OPC | 3.28 | 1.42 | 1.75 | 0.11 |
+| moderate | raw DR | 3.79 | 0.00 | 3.56 | 0.23 |
+| moderate | oracle q | 3.01 | 0.00 | 2.65 | 0.36 |
+| strong | likelihood | 4.66 | 1.10 | 3.46 | 0.10 |
+| strong | calibration-aware | 3.47 | 0.00 | 3.41 | 0.06 |
+| strong | harmonic OPC | 6.68 | 4.62 | 1.96 | 0.10 |
+| strong | raw DR | 8.01 | 0.00 | 7.84 | 0.16 |
+| strong | oracle q | 5.42 | 0.00 | 4.44 | 0.98 |
+
+- **Harmonic OPC under shift: the target, not the learning.** Its E+O is the smallest of the five arms under strong
+  shift (1.96) and level with the likelihoods' under moderate shift (1.75 against 1.54–1.66). Its objective misses by
+  M = 1.4 (moderate) and 4.6 (strong). Its selection gap is small (≈ 0.1).
+- **Removing the target's bias exposes variance.** Raw DR (no shrinkage) and harmonic DR with the oracle q both have
+  M = 0, but larger E+O: 3.6 / 2.7 (moderate) and 7.8 / 4.4 (strong). The oracle q recovers part of harmonic OPC's
+  loss (+0.51 pooled, native), not all of it.
+- **The likelihoods' gap under shift is mostly E+O** (1.5–3.5), the finite-sample and optimization cost of fitting the
+  click model, plus M_L where responses differ.
+- **Support** (logger greedy share 0.8): the selected OPC policies keep a validation ESS of about 2,200–3,400 of 20,000
+  rows (median by shift level) and change 16–57% of users' greedy picks against the logger's; the likelihood arms change
+  31–82%. Support was not varied in Stage 1; that is what the held expansion would vary (§13.4).
