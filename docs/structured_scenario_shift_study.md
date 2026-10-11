@@ -491,8 +491,8 @@ and `response_level` identify the world; the analysis reads only those.
   export (the user vector [s x, s g(x) xU], the item vector [a, aV]) reproduce each recorded greedy value exactly.
 - The gated population (the same world): checks B and C pass; the class optimizer's gap is 0.0007 points. On ml's
   Stage 2 worlds, the gate's clip touches at most 0.02% of users, so the gated truth adapter is exact for the rest.
-- The gated worlds calibrate: ρ = 0.900 at every response level, best-item CTR 28–30%, none pathological
-  (`scripts/ss_world_scan.py --gated`).
+- The 18 gated worlds calibrate: ρ = 0.900 at every response level, best-item CTR 24–30%, available gain 3.8–8.3
+  points, none pathological (`scripts/ss_world_scan.py --gated`, `world_scan/world_scan_gated.csv`).
 
 ## 14. Provenance
 

@@ -14,6 +14,7 @@ python scripts/ss_world_scan.py --datasets ml kuairand anime --seeds 100 101 200
 | file | content |
 |---|---|
 | `world_scan_preregistered.csv` | the first response levels (sd log α 0.25 / 0.5, sd β 0.5 / 1.0) with κ and c solved for both CTR targets: the worlds that fail to calibrate or are pathological (§13.1, "What failed"); written by the scan's earlier version, before the amendment |
+| `world_scan_gated.csv` | Stage 2's 18 gated worlds (moderate shift, `--gated --shifts moderate --seeds 100 101`), the same columns and the gate's quantiles |
 | `world_scan_amended.csv` | the amended levels (sd log α 0.125 / 0.25, sd β 0.25 / 0.5), κ of the homogeneous world, c for the 5% reference CTR: 108 worlds, none pathological. Per world: the best-item CTR and its homogeneous value, the reference and logging CTR, the pathology shares, ρ, top-1 agreement, the available gain, the response factors' spread, κ and c |
 
 ## `tuning/`: the tuning round (§7, §13.2)
