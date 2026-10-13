@@ -416,6 +416,9 @@ def main(argv=None) -> None:
                     help="run folders with the selected policies (searched in order)")
     ap.add_argument("--arms", nargs="+", default=list(STAGE_A_ARMS))
     ap.add_argument("--stage", default="stage_a", help="the replicate seeds' label")
+    ap.add_argument("--reward-model", default="logistic", choices=("logistic", "lowrank", "hetero"),
+                    help="the fixed q̂: the world's full-data D0 (default) or the D1 / D2 model of the same rows, with "
+                         "the trainer's seeds (models/reward_models.py, §5.4)")
     ap.add_argument("--population", default="artifacts/full_study/run_ss_population")
     ap.add_argument("--n", type=int, default=25_000)
     ap.add_argument("--replicates", type=int, default=50)
@@ -438,7 +441,17 @@ def main(argv=None) -> None:
                 dataset, *_ = build_condition_world(ds, Path(args.emb_dir), label, 0.05, int(seed),
                                                     world_options={"world_family": "structured_shift"})
                 rows = study_training_rows(dataset, int(seed), 25_000)
-                qhat = study_crossfit_lookup(dataset, rows, int(seed), device).full_lookup
+                if args.reward_model == "logistic":
+                    qhat = study_crossfit_lookup(dataset, rows, int(seed), device).full_lookup
+                else:  # the D arm's full-data model, as its native selection reads it (trainer_trials: rm_seed)
+                    from models.reward_models import BilinearRewardLookup, fit_bilinear_reward
+
+                    X, A = np.asarray(dataset["our_x"]), np.asarray(dataset["our_a"])
+                    u_, a_ = np.asarray(rows["x_idx"], np.int64), np.asarray(rows["a"], np.int64)
+                    rm_seed = derive_seed(int(seed), "reward_model", args.reward_model, 25_000)
+                    qhat = BilinearRewardLookup(fit_bilinear_reward(X[u_], A[a_], np.asarray(rows["r"], np.float64),
+                                                                    kind=args.reward_model, seed=rm_seed * 31 + 5,
+                                                                    device=device), X, A, device)
                 run_dirs = [d for run in args.run
                             for d in Path(run).glob(f"dataset={ds}__bias={label}__ctr=0.05__seed={seed}__*")]
                 world = DenseWorld(dataset, qhat, device)
