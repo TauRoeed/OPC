@@ -412,6 +412,33 @@ constraint's loss, finite-sample and optimization error, and selection error.
 - **Metrics** (regime study §4): bias norm, relative bias, variance, MSE, signal-to-noise ratio, cosine with the true
   gradient.
 
+### 10a Amendment: how the states and estimators are computed (2026-10-13, before any gradient diagnostic)
+
+**The selected policy's θ** is recovered from its exported vectors (`training/ae_gradients.py`, tested):
+- the user vectors are s·x, so s is their least-squares ratio;
+- the item vectors are a + a M with M = VUᵀ of rank 4, so M is an exact least-squares solve;
+- (U, V) is taken as its balanced SVD factorization.
+
+The policy is reproduced exactly. Gradients are reported in this parameterization, the same for every estimator at a
+state.
+
+**The intermediate state.** The point on the straight path θ(t) = (√t U, √t V, t log s), so M(t) = t M, whose true
+value is halfway between the source's and the selected policy's (bisection on t). It replaces §10's replay of the
+selected trial with a checkpoint, which the saved artifacts do not allow without re-running the trial. It is
+deterministic and policy-meaningful, but it is not a point the optimizer visited.
+
+**Fixed reward models.** The world's selection-time full-data models: D0, and D1 / D2 with the trainer's seeds. They
+are fit on its training rows, so they are independent of the fresh datasets.
+- For an estimator linear in the rows (a fixed λ), the expected gradient is the gradient of its exact expectation, so
+  its bias is exact. Raw DR's expected gradient equals the true gradient for any fixed q̂ (tested).
+- A2, A3 and the CRM objective (γ = 1 on raw DR) take the mean over the replicates.
+- The variance comes from 100 fresh datasets of 25,000 rows.
+
+**Estimators:** raw DR; h₀.₁; h₀.₂ (family A's representative); A2; A3; CRM (γ = 1); h₀.₁ with D1; h₀.₁ with D2;
+h₀.₁ with the oracle q (reference).
+
+**Subset:** R1 and R2 × ml and kuairand × seed 300, with harmonic OPC's (B3) selected pilot policy.
+
 ## 11. Stages and gates
 
 **Stage A: audit and diagnostic baseline** (now).
