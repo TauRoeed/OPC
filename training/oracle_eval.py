@@ -359,18 +359,23 @@ STAGE_A_ARMS = ("shared_lr_likelihood", "shared_lr_likelihood_calib", "shared_lr
 
 
 def world_policies(dataset: dict, run_dir, population_dir, device, arms=STAGE_A_ARMS, n: int = 25_000) -> list:
-    """The fixed policies of one world: each arm's selected policy (``--save-policies``), the source (the logger's own
-    vectors: π = μ) and θ_value* (the population value optimum, ``population_thetas.npz``), each as its softmax
-    and its greedy counterpart."""
+    """The fixed policies of one world: each arm's selected policy (``--save-policies``; ``run_dir`` is one condition
+    folder or a list of them, searched in order), the source (the logger's own vectors: π = μ) and θ_value* (the
+    population value optimum, ``population_thetas.npz``, when it exists), each as its softmax and its greedy
+    counterpart."""
     from pathlib import Path
 
     from training.opc_gradients import build_model, set_theta
     from training.trainer_trials import _policy_temperature
 
     T = float(_policy_temperature(dataset))
+    dirs = [Path(d) for d in (run_dir if isinstance(run_dir, (list, tuple)) else [run_dir])]
     specs = [("source", dataset["our_x"], dataset["our_a"])]
     for arm in arms:
-        f = Path(run_dir) / f"{arm}_n{n}_r0_selected_policy.npz"
+        f = next((d / f"{arm}_n{n}_r0_selected_policy.npz" for d in dirs
+                  if (d / f"{arm}_n{n}_r0_selected_policy.npz").exists()), None)
+        if f is None:
+            raise FileNotFoundError(f"no selected policy of {arm} in {dirs}")
         z = np.load(f)
         specs.append((arm.replace("shared_lr_", "").replace("shared_lrg_", ""), z["ux"], z["ia"]))
     if population_dir is not None and (Path(population_dir) / "population_thetas.npz").exists():
@@ -407,7 +412,10 @@ def main(argv=None) -> None:
     ap.add_argument("--datasets", nargs="+", required=True)
     ap.add_argument("--seeds", nargs="+", type=int, required=True)
     ap.add_argument("--labels", nargs="+", required=True)
-    ap.add_argument("--run", default="artifacts/full_study/run_ss_main_25k")
+    ap.add_argument("--run", nargs="+", default=["artifacts/full_study/run_ss_main_25k"],
+                    help="run folders with the selected policies (searched in order)")
+    ap.add_argument("--arms", nargs="+", default=list(STAGE_A_ARMS))
+    ap.add_argument("--stage", default="stage_a", help="the replicate seeds' label")
     ap.add_argument("--population", default="artifacts/full_study/run_ss_population")
     ap.add_argument("--n", type=int, default=25_000)
     ap.add_argument("--replicates", type=int, default=50)
@@ -431,16 +439,17 @@ def main(argv=None) -> None:
                                                     world_options={"world_family": "structured_shift"})
                 rows = study_training_rows(dataset, int(seed), 25_000)
                 qhat = study_crossfit_lookup(dataset, rows, int(seed), device).full_lookup
-                run_dir = next(Path(args.run).glob(f"dataset={ds}__bias={label}__ctr=0.05__seed={seed}__*"))
+                run_dirs = [d for run in args.run
+                            for d in Path(run).glob(f"dataset={ds}__bias={label}__ctr=0.05__seed={seed}__*")]
                 world = DenseWorld(dataset, qhat, device)
-                pols = world_policies(dataset, run_dir, Path(args.population) / name, device)
+                pols = world_policies(dataset, run_dirs, Path(args.population) / name, device, arms=args.arms)
                 t1 = time.time()
                 src = {"softmax": "source", "greedy": "source_g"}
                 ex = exact_world(world, pols, n=args.n, source=src)
                 (wdir / "exact.json").write_text(json.dumps(ex, indent=1, default=float))
                 t2 = time.time()
                 mc = mc_world(world, pols, n=args.n, replicates=args.replicates,
-                              seed=derive_seed(int(seed), ds, label, "stage_a"), source=src)
+                              seed=derive_seed(int(seed), ds, label, args.stage), source=src)
                 pd.DataFrame(mc).to_csv(wdir / f"mc_rows_R{args.replicates}.csv.gz", index=False, float_format="%.8g")
                 summ = summarize_mc(mc, ex)
                 summ.to_csv(wdir / f"summary_R{args.replicates}.csv", index=False, float_format="%.8g")

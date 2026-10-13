@@ -257,6 +257,154 @@ def stage_a_main(args) -> None:
     print(f"wrote {out}: {info}")
 
 
+# ----------------------------------------------------------------------------------------------------------- Stage B
+BASELINES = {"shared_lr_likelihood": "B1", "shared_lr_likelihood_calib": "B2", "shared_lr_opc": "B3",
+             "shared_lr_opc_raw": "B4", "shared_lr_opc_oq": "B5"}
+COMPARATORS = (("B3", "shared_lr_opc"), ("B1", "shared_lr_likelihood"), ("B2", "shared_lr_likelihood_calib"))
+RULE_COLS = {"native": "native_gain", "best": "best_gain", "mean": "trial_mean_gain"}
+
+
+def family_of(arm: str) -> str:
+    if arm in BASELINES:
+        return BASELINES[arm]
+    short = arm.replace("shared_lr_opc_", "")
+    if short.startswith("h") and short[1:2].isdigit() or short in ("a2", "a3"):
+        return "A"
+    if short.startswith(("s2b", "s2c", "klb")):
+        return "B"
+    if short.startswith(("crm", "hcrm", "dcrm")):
+        return "C"
+    if short in ("d1", "d2"):
+        return "D"
+    return "?"
+
+
+def stage_b_tables(runs) -> dict:
+    """Per world and arm: the selections (native / best / mean of the trials) as gains over the logger's greedy value
+    (TrueGain, points), the recovery fraction, divergences and the extension's diagnostics; the paired differences
+    against B3, B1 and B2 per world and rule."""
+    from training.analyze_shared_objectives import load_summaries, load_trials, selections
+
+    frames = []  # every arm present in the runs (load_trials needs an arm list)
+    for run in runs:
+        for cond in sorted(Path(run).glob("dataset=*")):
+            if (cond / "summary_metrics.csv").exists():
+                frames.append(pd.read_csv(cond / "summary_metrics.csv", usecols=["method"])["method"])
+    arms = sorted(set(pd.concat(frames)) if frames else set())
+    t = load_trials(*runs, arms=arms)
+    s = load_summaries(*runs, arms=arms)
+    sel = selections(t)
+    sel["family"] = sel["arm"].map(family_of)
+    sel["regime"] = sel["bias"].map(REGIMES)
+    ag = s.drop_duplicates(["dataset", "bias", "seed"]).set_index(["dataset", "bias", "seed"])["available_gain"]
+    sel["available_gain_pts"] = [100 * ag.get((r.dataset, r.bias, r.seed), np.nan) for r in sel.itertuples()]
+    sel["recovery_native"] = np.where(sel["available_gain_pts"] >= 0.5, sel["native_gain"] / sel["available_gain_pts"],
+                                      np.nan)
+    diag = t[t["is_best_in_run"].astype(bool)].set_index(["dataset", "bias", "seed", "method"])
+    for col in ("diag_ext_lambda_final", "diag_ext_lambda_mean", "diag_ext_s2_train_final", "diag_ext_nu_final",
+                "trial_time_s"):
+        if col in diag:
+            sel[col] = [diag[col].get((r.dataset, r.bias, r.seed, r.arm), np.nan) for r in sel.itertuples()]
+    sel["trial_time_mean_s"] = [float(t.loc[(t["dataset"] == r.dataset) & (t["bias"] == r.bias) & (t["seed"] == r.seed)
+                                            & (t["method"] == r.arm), "trial_time_s"].mean()) for r in sel.itertuples()]
+    keys = ["dataset", "bias", "seed"]
+    idx = sel.set_index(keys + ["arm"])
+    rows = []
+    for (ds, b, seed), g in sel.groupby(keys):
+        for arm in g["arm"]:
+            for cname, carm in COMPARATORS:
+                if arm == carm or (ds, b, seed, carm) not in idx.index:
+                    continue
+                for rule, col in RULE_COLS.items():
+                    rows.append({"dataset": ds, "bias": b, "regime": REGIMES.get(b), "seed": seed, "arm": arm,
+                                 "family": family_of(arm), "vs": cname, "rule": rule,
+                                 "d": float(idx.at[(ds, b, seed, arm), col]) - float(idx.at[(ds, b, seed, carm), col])})
+    return {"worlds": sel, "paired": pd.DataFrame(rows), "trials": t}
+
+
+def paired_summary(pw: pd.DataFrame) -> pd.DataFrame:
+    """Mean [95% CI] over worlds and the worlds where the arm is higher: per arm, comparator and rule, pooled, per
+    regime, per dataset and per regime × dataset."""
+    out = []
+    panels = [("all", "all", pw)] + [("all", reg, g) for reg, g in pw.groupby("regime")] \
+        + [(ds, "all", g) for ds, g in pw.groupby("dataset")] \
+        + [(ds, reg, g) for (ds, reg), g in pw.groupby(["dataset", "regime"])]
+    for ds, reg, g in panels:
+        for (arm, vs, rule), gg in g.groupby(["arm", "vs", "rule"]):
+            m, lo, hi, n = mean_ci(gg["d"])
+            out.append({"dataset": ds, "regime": reg, "arm": arm, "family": family_of(arm), "vs": vs, "rule": rule,
+                        "mean": m, "lo": lo, "hi": hi, "worlds": n, "higher": int((gg["d"] > 0).sum())})
+    return pd.DataFrame(out)
+
+
+def family_decision(worlds: pd.DataFrame, paired: pd.DataFrame, family: str) -> dict:
+    """§11's rule: among the family's stable variants (≤ 5% diverged trials), the highest mean native TrueGain over
+    the pilot worlds; if the best two differ by less than the SE of their paired difference, the earlier in the fixed
+    order. The constraint check of the hard S2 arms reads the oracle evaluation's exact S2 (reported separately)."""
+    order = {"A": ["shared_lr_opc_a2", "shared_lr_opc_a3", "shared_lr_opc_h0.005", "shared_lr_opc_h0.01",
+                   "shared_lr_opc_h0.03", "shared_lr_opc_h0.2"],
+             "B": ["shared_lr_opc_s2c50", "shared_lr_opc_s2c20", "shared_lr_opc_s2c10", "shared_lr_opc_s2c5",
+                   "shared_lr_opc_s2b0.0003", "shared_lr_opc_s2b0.001", "shared_lr_opc_s2b0.003", "shared_lr_opc_s2b0.01",
+                   "shared_lr_opc_klb0.001", "shared_lr_opc_klb0.003"],
+             "C": ["shared_lr_opc_crm0.5", "shared_lr_opc_crm1", "shared_lr_opc_crm2"],
+             "D": ["shared_lr_opc_d1", "shared_lr_opc_d2"]}[family]
+    w = worlds[worlds["family"] == family]
+    if w.empty:
+        return {"family": family, "decision": None}
+    stats_ = w.groupby("arm").agg(gain=("native_gain", "mean"), worlds=("native_gain", "size"),
+                                  diverged=("diverged", "sum"), trials=("trials", "sum"))
+    stats_["diverged_share"] = stats_["diverged"] / stats_["trials"]
+    stable = stats_[stats_["diverged_share"] <= 0.05].sort_values("gain", ascending=False)
+    if stable.empty:
+        return {"family": family, "decision": None, "reason": "no stable variant"}
+    best = stable.index[0]
+    pick, reason = best, "highest mean native TrueGain"
+    if len(stable) > 1:
+        second = stable.index[1]
+        a = w[w["arm"] == best].set_index(["dataset", "bias", "seed"])["native_gain"]
+        b = w[w["arm"] == second].set_index(["dataset", "bias", "seed"])["native_gain"]
+        d = (a - b).dropna()
+        se = float(d.std(ddof=1) / np.sqrt(len(d))) if len(d) > 1 else np.inf
+        if float(d.mean()) < se:
+            pick = min((best, second), key=lambda m: order.index(m) if m in order else 99)
+            reason = f"best two within one paired SE ({float(d.mean()):.3f} < {se:.3f}): the earlier in the fixed order"
+    b3 = paired[(paired["arm"] == pick) & (paired["vs"] == "B3") & (paired["rule"] == "native")]["d"]
+    m, lo, hi, n = mean_ci(b3)
+    return {"family": family, "decision": pick, "reason": reason,
+            "ranking": {a: round(float(g), 4) for a, g in stable["gain"].items()},
+            "vs_B3_native": {"mean": m, "lo": lo, "hi": hi, "worlds": n}}
+
+
+def stage_b_main(args) -> None:
+    out = Path(args.out)
+    out.mkdir(parents=True, exist_ok=True)
+    res = stage_b_tables(args.runs)
+    res["worlds"].to_csv(out / "table_worlds.csv", index=False, float_format="%.6g")
+    res["paired"].to_csv(out / "paired_worlds.csv", index=False, float_format="%.6g")
+    ps = paired_summary(res["paired"])
+    ps.to_csv(out / "paired_summary.csv", index=False, float_format="%.6g")
+    fams = sorted(set(res["worlds"]["family"]) & {"A", "B", "C", "D"})
+    dec = {f: family_decision(res["worlds"], res["paired"], f) for f in fams}
+    (out / "decisions.json").write_text(json.dumps(dec, indent=2, default=float))
+    w = res["worlds"]
+    lines = ["# Stage B pilots", "", f"{w[['dataset', 'bias', 'seed']].drop_duplicates().shape[0]} worlds; "
+             f"{len(res['trials'])} trials; points; TrueGain = the selected policy's greedy gain over the source's.", ""]
+    g = w.groupby(["family", "arm"]).agg(native=("native_gain", "mean"), best=("best_gain", "mean"),
+                                         mean=("trial_mean_gain", "mean"), recovery=("recovery_native", "mean"),
+                                         diverged=("diverged", "sum"), sec_per_trial=("trial_time_mean_s", "mean"))
+    lines += ["## Mean over worlds", "", _md(g.round(3).reset_index()), ""]
+    for reg in ("R1", "R2", "R3"):
+        gr = w[w["regime"] == reg].groupby("arm")["native_gain"].mean().round(2)
+        lines += [f"### {reg}: native TrueGain per arm", "", _md(gr.reset_index()), ""]
+    for vs in ("B3", "B1", "B2"):
+        q = ps[(ps["vs"] == vs) & (ps["rule"] == "native") & (ps["dataset"] == "all")]
+        q = q.pivot_table(index="arm", columns="regime", values="mean").round(2)
+        lines += [f"## arm − {vs} (native; mean over worlds, by regime)", "", _md(q.reset_index()), ""]
+    lines += ["## Decisions (§11)", "", "```", json.dumps(dec, indent=1, default=float), "```", ""]
+    (out / "tables.md").write_text("\n".join(lines))
+    print(f"wrote {out}: {json.dumps({f: d.get('decision') for f, d in dec.items()})}")
+
+
 def main(argv=None) -> None:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -265,8 +413,11 @@ def main(argv=None) -> None:
     a.add_argument("--replicates", type=int, required=True)
     a.add_argument("--trials", default=None)
     a.add_argument("--out", required=True)
+    b = sub.add_parser("stage_b")
+    b.add_argument("--runs", nargs="+", required=True)
+    b.add_argument("--out", required=True)
     args = ap.parse_args(argv)
-    {"stage_a": stage_a_main}[args.cmd](args)
+    {"stage_a": stage_a_main, "stage_b": stage_b_main}[args.cmd](args)
 
 
 if __name__ == "__main__":
