@@ -726,3 +726,52 @@ the 1,800 trials diverged. Tables: `stage_b_B/`.
 - Hard caps act only where they bind.
 - The price is conservatism, measured at the population level by the frontier (§9): 0.4–2.3 points for S2 ≤ 5, and
   0–0.55 for S2 ≤ 50.
+
+### 16.6 Stage B, family C (CRM): the pilot, and the gates of C2 and C3
+
+`run_ae_pilot_C` (ec808d4): the 18 pilot worlds × CRM on raw DR (γ = 0.5, 1, 2) × 10 paired trials. None of the 540
+trials diverged. Tables: `stage_b_C/`.
+
+| arm | R1 | R2 | R3 | all 18 | − raw DR | − B3 [95% CI] (higher / 18) |
+|---|---|---|---|---|---|---|
+| raw DR (B4) | 0.38 | 0.87 | 1.02 | 0.76 | | −0.28 |
+| CRM γ = 0.5 | 0.46 | 0.86 | 1.08 | 0.80 | +0.04 | −0.23 [−0.40, −0.07] (3) |
+| CRM γ = 1 | 0.46 | 1.00 | 0.96 | 0.81 | +0.05 | −0.23 [−0.41, −0.05] (4) |
+| CRM γ = 2 | 0.37 | 1.08 | 1.03 | 0.83 | +0.07 | −0.21 [−0.36, −0.07] (3) |
+
+- **Per dataset**, CRM − B3: ml −0.03 to +0.04, kuairand −0.41 to −0.57, anime −0.15 to −0.26.
+- **The decision (§11):** the best two (γ = 2, γ = 1) differ by 0.019, under one paired standard error (0.049); the
+  earlier in the fixed order is γ = 1. It goes to Stage C as a documented null (it does not beat B3).
+- **C2's gate** (C1 stable: no diverged trial, every penalty finite) is open. Harmonic CRM is training as
+  `run_ae_pilot_C2`; if it beats C1, it becomes family C's representative by the same rule.
+- **C3's gate is closed.** Delta-CRM's penalty differs from C1's only through the cancellation of noise common to the
+  learned policy and the source. Stage A measured it for raw DR: the paired variance is 0.96–1.00 of the independent
+  one under shift (0.56 without; §16.1). Its penalty is therefore practically C1's, and C1 gains 0.05 over raw DR.
+
+### 16.7 Stage B: the representatives, and Stage C
+
+| family | representative | TrueGain (all 18) | − B3 [95% CI] (higher / 18) |
+|---|---|---|---|
+| A (shrinkage) | harmonic λ = 0.2 | 1.13 | +0.09 [−0.01, +0.20] (12) |
+| B (support) | S2 penalty β = 0.01 | 1.15 | +0.11 [−0.03, +0.25] (12) |
+| C (CRM) | CRM γ = 1 on raw DR (C2 pending) | 0.81 | −0.23 [−0.41, −0.05] (4) |
+| D (reward model) | D1, the low-rank bilinear model | 1.28 | +0.24 [+0.07, +0.42] (16) |
+
+The calibration-aware likelihood (B2) gains 2.38 (+1.34 over B3, 18 / 18).
+
+**Stage C** (§11) runs A, B and D's representatives on the 36 development worlds (seeds 100 and 101 × 3 datasets ×
+R1, R2, R3, C1, C2, S1) with 20 paired trials, and the five baselines on R1 (`run_ae_main_R1_baselines`). The other
+regimes reuse `run_ss_main_25k`: the same worlds, rows, space and 20-trial search (§4). C's representative follows
+once C2 is settled. The budget is about 3,000 training fits and 216 reward-model fits, about 7 GPU-hours: under the
+caps.
+
+**The gradient diagnostics** (§10, §10a; `gradients/`, 4 worlds) at B3's selected policies:
+- At the source and the intermediate state, every estimator's expected gradient is aligned with the true one (cosine
+  1.00) with a signal-to-noise ratio of 15–33.
+- At the selected policy the ratio falls to 0.14–0.35, and a single dataset's gradient has a cosine of 0.13–0.31 with
+  the true gradient.
+- There shrinkage tilts the expected gradient: cosine 0.61 (λ = 0.1), 0.48 (λ = 0.2) and 0.64 (A3), against 1.00 for
+  raw DR. The D reward models restore it: 0.87 (D1), 0.92 (D2).
+- Gradient MSE: raw DR 0.11, A2 0.10, CRM 0.11, λ = 0.1 0.024, λ = 0.2 0.014, D1 / D2 0.021.
+- Late in training, then, the gradient is mostly noise. Variance reduction (shrinkage, the S2 penalty) wins over
+  unbiasedness (raw DR, A2), and a better reward model reduces the bias without adding variance.
