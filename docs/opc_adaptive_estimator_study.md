@@ -554,3 +554,28 @@ conditional bias at those policies, within −0.006 ± 0.30 points over 72 world
 
 **Reward model (D0) RMSE:** 0.065–0.079 under the logger, 0.073–0.094 under the selected OPC policies, 0.108–0.172
 under θ_value*.
+
+### 16.2 Stage A, the principal pass (R = 200)
+
+Tables: `stage_a_R200/`. The linear estimators' moments are exact, so their numbers are those of §16.1.
+
+**Checks.** No bounded-weight bias beyond 4 standard errors in 1,680 comparisons; 94 variance misses (5.6%). The
+gate (§11) passes.
+
+**The nonlinear estimators at R = 200** (bias / RMSE, points, means over 6 worlds):
+
+| policy | estimator | R2 | R3 | C2 | S1 |
+|---|---|---|---|---|---|
+| harmonic OPC's selected softmax | SNDR | −0.03 / 0.87 | −0.02 / 1.07 | −0.00 / 0.59 | −0.10 / 2.55 |
+| | A2 | −0.06 / 0.73 | −0.06 / 0.90 | −0.01 / 0.57 | −0.19 / 2.30 |
+| | A3 | −0.26 / 0.67 | −0.31 / 0.80 | −0.01 / 0.43 | −0.49 / 1.38 |
+| calibration-aware likelihood's greedy | SNDR | −0.11 / 2.44 | −0.12 / 2.62 | −0.01 / 0.59 | −0.62 / 6.06 |
+| | A2 | −0.32 / 2.11 | −0.25 / 2.38 | −0.02 / 0.57 | −0.60 / 9.43 |
+| | A3 | −1.09 / 1.65 | −1.21 / 1.82 | −0.05 / 0.43 | −3.14 / 4.09 |
+
+**What this shows.**
+- A2's λ removes most of the fixed λ's bias: at the far-moving greedy policies, −0.3 against −1.9 for λ = 0.1. It
+  costs most of the variance that λ = 0.1 saves.
+- A3 lands near the fixed λ = 0.03.
+- Which trade-off helps learning is Stage B's question: the training objective's bias at the policies a run visits,
+  against its noise.
