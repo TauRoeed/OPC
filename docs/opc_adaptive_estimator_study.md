@@ -694,3 +694,35 @@ minutes to fit per world (6 L-BFGS fits). Tables: `stage_b_D/`.
 - They remove most of harmonic OPC's population mismatch (§9: M ≈ 0–0.16 against 0.5–1.7 points) without adding the
   variance that smaller λ adds.
 - In R1, the small shift, they do not help.
+
+### 16.5 Stage B, family B (support control): the pilot
+
+`run_ae_pilot_B` (ec808d4, after §5.2a's fix): the 18 pilot worlds × 10 arms × 10 paired trials, on raw DR. None of
+the 1,800 trials diverged. Tables: `stage_b_B/`.
+
+| arm | R1 | R2 | R3 | all 18 | − B3 [95% CI] (higher / 18) |
+|---|---|---|---|---|---|
+| raw DR (B4) | 0.38 | 0.87 | 1.02 | 0.76 | −0.28 [−0.45, −0.12] (2) |
+| S2, β = 0.0003 | 0.37 | 0.96 | 1.02 | 0.78 | −0.25 [−0.41, −0.10] (3) |
+| S2, β = 0.001 | 0.47 | 1.01 | 1.00 | 0.83 | −0.21 [−0.36, −0.06] (4) |
+| S2, β = 0.003 | 0.52 | 1.17 | 1.18 | 0.96 | −0.08 [−0.22, +0.06] (6) |
+| S2, β = 0.01 | 0.59 | 1.44 | 1.42 | 1.15 | +0.11 [−0.03, +0.25] (12) |
+| S2 ≤ 5 (binding: S2 ≈ 5.0) | 0.51 | 1.19 | 1.16 | 0.95 | −0.09 [−0.21, +0.04] (4) |
+| S2 ≤ 10 / 20 / 50 (not binding: S2 ≈ 10–11.5) | | | | 0.74 / 0.78 / 0.75 | −0.30 / −0.26 / −0.28 |
+| KL, β = 0.001 / 0.003 | | | | 0.82 / 0.84 | −0.22 / −0.20 |
+| B3 (harmonic λ = 0.1) | 0.62 | 1.22 | 1.27 | 1.04 | |
+
+- **Per dataset**, β = 0.01 − B3: ml +0.22, kuairand −0.05, anime +0.17.
+- **Other selections:** best of 10 +0.11 [+0.03, +0.20] (14 / 18); mean of the trials +0.03 [−0.01, +0.07].
+- **Against the likelihoods:** against B2, −1.23 (0 / 18); against B1, +0.39 (11 / 18).
+- **The decision (§11):** β = 0.01, the highest mean; the next (β = 0.003) is more than one paired standard error
+  behind. It is the grid's largest β. §5.2 has no edge rule for β, so a stronger penalty is untested here: a stated
+  limitation, not an extension.
+
+**Reading.**
+- An S2 penalty raises raw DR by 0.39 points: it reduces the variance of the unbiased objective, whose gradient
+  variance at the selected policies is about five times harmonic DR's (§16.7).
+- At β = 0.01 it reaches fixed harmonic shrinkage's level.
+- Hard caps act only where they bind.
+- The price is conservatism, measured at the population level by the frontier (§9): 0.4–2.3 points for S2 ≤ 5, and
+  0–0.55 for S2 ≤ 50.
