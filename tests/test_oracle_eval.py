@@ -92,7 +92,7 @@ def test_raw_and_oracle_dr_are_unbiased_and_the_source_has_unit_weights():
         est = ex[p.name]["estimators"]
         assert abs(est["dr_raw"]["bias"]) < 1e-9 and abs(est["dr_oracle"]["bias"]) < 1e-9
         assert abs(est["dr_raw"]["delta_bias"]) < 1e-9
-    assert ex["source"]["S2"] == pytest.approx(1.0, abs=1e-9)  # the source is the logger: w ≡ 1
+    assert ex["source"]["S2"] == pytest.approx(1.0, abs=1e-6)  # the source is the logger: w ≡ 1 (float32 policies)
     for e in ("dr_h0.1", "dr_clip10", "dr_raw"):
         assert abs(ex["source"]["estimators"][e]["bias"]) < 1e-9  # h(1) = 1: no shrinkage at the logger
 
