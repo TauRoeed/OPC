@@ -3510,16 +3510,22 @@ def regression_trainer_trial(
             )
         common_scores_t = shared_scores_all_t  # the common selector's q̂: D0 for every arm
         if reward_model_kind is not None:  # docs/opc_adaptive_estimator_study.md §5.4: D1 / D2, fit on the logs only
-            from models.reward_models import crossfit_bilinear
+            from models.reward_models import BilinearRewardLookup, crossfit_bilinear, fit_bilinear_reward
 
-            if size_crossfit is None or int(train_size) not in size_crossfit:
-                raise ValueError("reward_model_kind needs the study's cross-fitting folds")
             _t_rm = time.time()
-            _, user_fold_rm = size_crossfit[int(train_size)]
-            d_folds, d_full = crossfit_bilinear(dataset, train_data, user_fold_rm, kind=str(reward_model_kind),
-                                                seed=derive_seed(seed, "reward_model", reward_model_kind, train_size),
-                                                device=device)
-            train_scores_t = CrossFitScoresLookup(d_folds, user_fold_rm, d_full)
+            rm_seed = derive_seed(seed, "reward_model", reward_model_kind, train_size)
+            if size_crossfit is not None and int(train_size) in size_crossfit:  # cross-fitted as D0 is
+                _, user_fold_rm = size_crossfit[int(train_size)]
+                d_folds, d_full = crossfit_bilinear(dataset, train_data, user_fold_rm, kind=str(reward_model_kind),
+                                                    seed=rm_seed, device=device)
+                train_scores_t = CrossFitScoresLookup(d_folds, user_fold_rm, d_full)
+            else:  # without folds D0 trains on its full-data model, and so does the D model
+                X_rm, A_rm = np.asarray(dataset["our_x"]), np.asarray(dataset["our_a"])
+                u_rm, a_rm = np.asarray(train_data["x_idx"], np.int64), np.asarray(train_data["a"], np.int64)
+                d_full = BilinearRewardLookup(
+                    fit_bilinear_reward(X_rm[u_rm], A_rm[a_rm], np.asarray(train_data["r"], np.float64),
+                                        kind=str(reward_model_kind), seed=rm_seed, device=device), X_rm, A_rm, device)
+                train_scores_t = d_full
             shared_scores_all_t = d_full  # the native selection's q̂ is the arm's own model
             shared_record = {**shared_record, "reward_model_kind": str(reward_model_kind),
                              "reward_model_params": int(d_full.model.n_parameters()),
