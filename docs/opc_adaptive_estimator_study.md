@@ -604,3 +604,39 @@ gate (§11) passes.
 - A3 lands near the fixed λ = 0.03.
 - Which trade-off helps learning is Stage B's question: the training objective's bias at the policies a run visits,
   against its noise.
+
+### 16.3 Stage B, family A (adaptive shrinkage): the pilot
+
+`run_ae_pilot_A` (8e4dada), seeds 300 and 301 × 3 datasets × {R1, R2, R3}: 18 worlds × 11 arms (the baselines and
+family A) × 10 paired trials, N = 25,000. None of the 1,980 trials diverged. Tables:
+`artifacts/full_study/opc_adaptive_estimator/stage_b_A/`.
+
+**TrueGain** (native selection, points; per regime the mean over 6 worlds; the available gain is 2.36 / 4.47 / 4.85):
+
+| arm | R1 | R2 | R3 | all 18 | − B3 [95% CI] (higher / 18) | recovery |
+|---|---|---|---|---|---|---|
+| raw DR (B4, λ = 0) | 0.38 | 0.87 | 1.02 | 0.76 | −0.28 [−0.45, −0.12] (2) | 0.19 |
+| λ = 0.005 | 0.48 | 0.84 | 1.06 | 0.79 | −0.24 [−0.43, −0.05] (4) | 0.20 |
+| λ = 0.01 | 0.47 | 0.99 | 1.04 | 0.83 | −0.20 [−0.35, −0.06] (4) | 0.22 |
+| λ = 0.03 | 0.41 | 1.12 | 1.17 | 0.90 | −0.14 [−0.28, −0.00] (3) | 0.22 |
+| λ = 0.1 (B3) | 0.62 | 1.22 | 1.27 | 1.04 | | 0.28 |
+| λ = 0.2 | 0.55 | 1.31 | 1.52 | 1.13 | +0.09 [−0.01, +0.20] (12) | 0.29 |
+| A2 | 0.46 | 1.00 | 0.95 | 0.81 | −0.23 [−0.42, −0.05] (3) | 0.21 |
+| A3 | 0.50 | 0.92 | 1.40 | 0.94 | −0.10 [−0.33, +0.13] (7) | 0.24 |
+| oracle q (B5) | 0.78 | 1.62 | 1.72 | 1.38 | +0.34 [+0.21, +0.47] (17) | 0.36 |
+| ordinary likelihood (B1) | −0.82 | 0.73 | 2.39 | 0.76 | −0.27 [−1.01, +0.46] (8) | 0.13 |
+| calibration-aware (B2) | 1.21 | 2.68 | 3.25 | 2.38 | +1.34 [+0.95, +1.74] (18) | 0.60 |
+
+**Per dataset**, λ = 0.2 − B3 is +0.08 on each of ml, kuairand and anime. **Against B1**, B3 gains +1.45 in R1 and
++0.49 in R2 and loses 1.12 in R3. Every OPC variant is below B2 in all 18 worlds. **The adaptive λ:** A2's settles
+at 0.002–0.007, so A2 trains as raw DR. A3's moves over the epochs (median 0.13), and in some trials it drops to 0
+late, where S2 reaches the thousands.
+
+**The decision (§11):** family A's representative is λ = 0.2. It has the highest mean, and the runner-up (A3) is more
+than one paired standard error behind.
+
+**Reading** (a pilot of 10 trials).
+- At N = 25,000 less shrinkage trains worse: the curve rises monotonically from λ = 0 to 0.2.
+- Shrinkage's bias cost is real: harmonic OPC's population target moves from about 2 points from the value optimum
+  (λ = 0.2) to about 0.4 (λ = 0.005) on the first pilot worlds (§9). At this N its variance cost is larger.
+- Reducing the reward model's error (the oracle q) is the one change here that improves on B3 in nearly every world.

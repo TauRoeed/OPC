@@ -1,0 +1,21 @@
+{
+  "A": {
+    "family": "A",
+    "decision": "shared_lr_opc_h0.2",
+    "reason": "highest mean native TrueGain",
+    "ranking": {
+      "shared_lr_opc_h0.2": 1.1279,
+      "shared_lr_opc_a3": 0.9382,
+      "shared_lr_opc_h0.03": 0.8988,
+      "shared_lr_opc_h0.01": 0.8345,
+      "shared_lr_opc_a2": 0.8051,
+      "shared_lr_opc_h0.005": 0.7945
+    },
+    "vs_B3_native": {
+      "mean": 0.09051711008865439,
+      "lo": -0.014469353350138409,
+      "hi": 0.19550357352744718,
+      "worlds": 18
+    }
+  }
+}
