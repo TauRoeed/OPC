@@ -152,8 +152,7 @@ def fig_lambda_curve(rs: pd.DataFrame, out: Path, arms=("opc", "value_star"), ki
     lams = [0.0] + list(HARMONIC_GRID)
     names = ["dr_raw"] + [f"dr_h{lam:g}" for lam in HARMONIC_GRID]
     regs = [r for r in REGIME_ORDER if (rs["regime"] == r).any()]
-    fig, axes = plt.subplots(len(arms), len(regs), figsize=(3.0 * len(regs), 2.9 * len(arms)), squeeze=False,
-                             sharey="row")
+    fig, axes = plt.subplots(len(arms), len(regs), figsize=(3.0 * len(regs), 2.9 * len(arms)), squeeze=False)
     x = np.array([0.002] + list(HARMONIC_GRID))  # λ = 0 placed at 0.002 on the log axis
     rows = []
     colors = {"abs_bias_pts": "#D55E00", "sd_pts": "#0072B2", "rmse_pts": "#333333"}
@@ -163,22 +162,24 @@ def fig_lambda_curve(rs: pd.DataFrame, out: Path, arms=("opc", "value_star"), ki
             ax = axes[i][j]
             g = rs[(rs["dataset"] == "all") & (rs["regime"] == reg) & (rs["arm"] == arm) & (rs["kind"] == kind)]
             g = g.set_index("estimator").reindex(names)
-            for col in ("abs_bias_pts", "sd_pts", "rmse_pts"):
-                ax.plot(x, g[col].to_numpy(), "-o", color=colors[col], markersize=4, linewidth=1.8,
+            for col in ("abs_bias_pts", "sd_pts", "rmse_pts"):  # log scale: raw DR's SD spans orders of magnitude
+                ax.plot(x, np.maximum(g[col].to_numpy(), 1e-3), "-o", color=colors[col], markersize=4, linewidth=1.8,
                         label=labels[col])
                 rows += [{"arm": arm, "regime": reg, "lambda": lam, "metric": col, "value": v}
                          for lam, v in zip(lams, g[col].to_numpy())]
             ax.set_xscale("log")
+            ax.set_yscale("log")
             ax.set_xticks(x, ["0"] + [f"{v:g}" for v in HARMONIC_GRID], fontsize=7)
             ax.minorticks_off()
             ax.set_title(f"{reg}, {arm}", fontsize=9)
             if j == 0:
-                ax.set_ylabel("CTR points")
+                ax.set_ylabel("CTR points (log; floor 0.001)")
             if i == len(arms) - 1:
                 ax.set_xlabel("harmonic λ")
     h, lab = axes[0][0].get_legend_handles_labels()
     fig.legend(h, lab, loc="lower center", ncol=3, frameon=False, bbox_to_anchor=(0.5, -0.03))
-    fig.suptitle("Harmonic DR at a fixed policy: exact bias, SD and RMSE against λ (n = 25,000, fixed q̂)", fontsize=10)
+    fig.suptitle(f"Harmonic DR at fixed {kind} policies: exact |bias|, SD and RMSE against λ (n = 25,000, fixed q̂; "
+                 "mean over worlds)", fontsize=10)
     fig.tight_layout(rect=(0, 0.05, 1, 1))
     _save(fig, out, f"fig_lambda_curve_{kind}", pd.DataFrame(rows))
     plt.close(fig)

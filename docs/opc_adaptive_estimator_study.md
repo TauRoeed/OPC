@@ -497,3 +497,60 @@ Stop and diagnose when:
   A stage above 12 GPU-hours or 8,000 fits is presented before launch.
 - Long runs from pinned worktrees, with run fingerprints and registry rows (`run_ae_*`).
 - Artifacts in `artifacts/full_study/opc_adaptive_estimator/`, with a README.
+
+## 16. Results
+
+### 16.1 Stage A, the pilot (R = 50; 2026-10-13)
+
+`run_ae_stage_a` (9022474), 24 worlds (R2, R3, C2, S1 × 3 datasets × seeds 100 and 101), 14 fixed policies each.
+Tables: `artifacts/full_study/opc_adaptive_estimator/stage_a_R50/`. Linear estimators: exact moments; the others:
+the replicates. Points; means over the 6 worlds of a regime. The principal pass (R = 200) follows in §16.2.
+
+**Checks.**
+- None of the 1,680 bounded-weight comparisons of replicates with exact moments has a bias beyond 4 standard errors.
+- 99 (5.9%) fall outside their 95% variance interval: the nominal rate, clustered by world because every policy
+  shares the world's logs.
+- Raw-weight estimators are heavy-tailed: in 10% of the comparisons the replicates' variance is below 1% of the exact
+  one (§8).
+
+**At harmonic OPC's selected policy:**
+
+| regime | raw DR: bias / SD | h₀.₁: bias / SD / RMSE | RMSE-best fixed λ (RMSE) | clip-10 DR: bias / RMSE | DM bias |
+|---|---|---|---|---|---|
+| R2 | 0 / 0.94 | −0.46 / 0.37 / 0.63 | 0.03 (0.61) | −0.25 / 0.61 | −0.95 |
+| R3 | 0 / 1.92 | −0.51 / 0.38 / 0.73 | 0.03 (0.70) | −0.31 / 0.71 | −0.98 |
+| C2 | 0 / 0.59 | 0.00 / 0.37 / 0.38 | 0.2 (0.32) | +0.01 / 0.51 | 0.00 |
+| S1 | 0 / 122 | −0.57 / 0.33 / 1.11 | 0.01–0.03 (0.99) | −0.42 / 1.02 | −0.91 |
+
+**The bias grows as a policy moves from the logger.**
+- At the calibration-aware likelihood's greedy policy, h₀.₁ underestimates by 1.86 (R2), 2.05 (R3) and 4.21 (S1);
+  clip-10 DR by 1.53, 1.68 and 3.95; DM by 2.66, 2.95 and 4.91. Raw DR's SD there is 43, 1,121 and 218,000.
+- At θ_value*, harmonic DR's |bias| is about 2 points already at λ = 0.005 under moderate shift, and above 5 under
+  strong shift.
+- The estimators OPC trains with (h₀.₁) and selects with (clip 10) thus undervalue the policies that move furthest,
+  the finite-sample counterpart of the population mismatch M_harm.
+
+**Support (medians over worlds).**
+- The value-optimal greedy policy has S2 ≈ 2,400 (R2), 2,900 (R3) and 2·10⁷ (S1), with 22%, 22% and 55% of its mass
+  on weights above 100. Without shift (C2) it is the source's greedy policy, S2 ≈ 8.
+- Harmonic OPC's selected policies: S2 ≈ 13 (R2), 22 (R3) and 140 (S1).
+- Under shift, the gain thus lies largely where the logger (greedy share 0.8) gives little support. An S2 cap at
+  C ≤ 50 excludes the optimum: Family B's population analysis (§9) measures the price.
+
+**Adaptive λ at fixed policies.**
+- A2's λ is ≈ 0.002–0.003 at the OPC policies (≈ 0.0007 in S1). Bias −0.11 to −0.32; SD close to raw DR's (0.68 R2,
+  0.84 R3, 2.2 S1).
+- A3 (λ chosen on each log) does not beat the best fixed λ (RMSE 0.62 R2, 0.82 R3, 1.43 S1).
+
+**Paired improvement.** The paired estimate of V(π) − V(source) has, against two independent logs, a variance ratio:
+- 0.96–1.00 for raw DR under shift (0.56 without);
+- 0.45–0.57 for h₀.₁;
+- 0.01–0.11 for DM.
+
+Common noise cancels little for raw DR under shift: the evidence C3's gate reads (§5.3).
+
+**Selection adaptivity.** The selected OPC trials' validation estimates (clip-10 DR) err by the evaluator's exact
+conditional bias at those policies, within −0.006 ± 0.30 points over 72 world-arms: no detectable winner's curse.
+
+**Reward model (D0) RMSE:** 0.065–0.079 under the logger, 0.073–0.094 under the selected OPC policies, 0.108–0.172
+under θ_value*.

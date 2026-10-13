@@ -20,3 +20,4 @@ datasets/**/*.csv
 /artifacts/full_study/shared_logs/
 /artifacts/full_study/opc_logs/
 /artifacts/full_study/ss_logs/
+/artifacts/full_study/ae_logs/
