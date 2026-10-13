@@ -20,7 +20,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from utils.representation_bias import WorldConfig  # noqa: E402
 from utils.seeding import enable_determinism, pin_cpu_threads, seed_everything  # noqa: E402
-from utils.structured_shift import SHIFT_LEVELS, build_structured_world, structured_label  # noqa: E402
+from utils.structured_shift import RESPONSE_LEVELS, SHIFT_LEVELS, build_structured_world, structured_label  # noqa: E402,E501
 
 
 def scan_row(x, a, ds: str, seed: int, shift: str, response: str, gated: bool) -> dict:
@@ -51,7 +51,7 @@ def main(argv=None) -> None:
     ap.add_argument("--datasets", nargs="+", default=["ml", "kuairand", "anime"])
     ap.add_argument("--seeds", nargs="+", type=int, default=[100, 101, 200, 201])
     ap.add_argument("--shifts", nargs="+", default=list(SHIFT_LEVELS))
-    ap.add_argument("--responses", nargs="+", default=list(SHIFT_LEVELS))
+    ap.add_argument("--responses", nargs="+", default=list(RESPONSE_LEVELS))
     ap.add_argument("--gated", action="store_true")
     ap.add_argument("--emb-dir", default="BPR/embeddings")
     ap.add_argument("--out", required=True)

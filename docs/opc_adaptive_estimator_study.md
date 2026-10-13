@@ -133,6 +133,12 @@ worlds before Stage F.
 
 **Shared training rules.**
 - Every OPC arm maximizes V̂^g − λ_anchor R(θ) [+ the method's own term].
+- **The base estimator per family** (fixed here, before any pilot):
+  - A changes g itself.
+  - B (support) and C (CRM) keep raw DR (g = w), the unbiased estimator, and act on the policy (B) or on the
+    estimate's variance (C). The gated C2 alone uses h₀.₁. This separates "shrink the weights" (A) from "keep the
+    policy where the logger has support" (B) and "penalize the estimate's uncertainty" (C).
+  - D keeps the current harmonic λ = 0.1, so that it isolates the reward model's effect on the existing method.
 - It uses the direct gradient, the current minibatch loop, optimizer and paired search (§6).
 - Method parameters (λ, β, C, γ) are not searched inside a trial budget. Each value is its own arm in Stage B, and
   Stage C freezes one per family (§11).
@@ -224,8 +230,12 @@ selection.
   - 2K + 2 + 16K = 578 parameters, fit by full-batch L-BFGS on the Bernoulli NLL with an L2 penalty of 1e-4 on
     (u, v, P, Q).
   - It can express the low-rank shift; the response factors only approximately.
-- **D2, heterogeneity-aware:** logit q̂ = exp(v_αᵀx) (s · xᵀ(I + PQᵀ)a + γ) + v_βᵀx + c, D1's interaction inside the
-  calibration-aware head's form. 578 + 2K + 1 parameters; the same fit.
+- **D2, heterogeneity-aware:** logit q̂ = exp(v_αᵀx) (s · xᵀ(I + PQᵀ)a + γ) + v_βᵀx + v·a + c. It puts D1's
+  interaction inside the calibration-aware head's form, with v_β as the user main effect and v·a as the item main
+  effect: 611 parameters, the same fit.
+- **The fit (D1 and D2).** Q starts as a seeded orthonormal matrix and P at 0, so the fit starts at the bilinear
+  source model. c and s start at the one-dimensional logistic fit on xᵀa. The penalty is on ‖P‖² + ‖Q‖² and the
+  linear terms. L-BFGS runs up to 400 iterations.
 - **D3, target-weighted (gated):** D1 refit with row weights min(π̂(a|x)/μ(a|x), 10), π̂ the first-stage policy of the
   D1 arm.
   - The fold structure is kept: fold k's model never sees fold k's outcomes.
@@ -245,6 +255,37 @@ selection.
   Also: calibration (reliability in 10 bins of q̂ under the logger), RMSE on low-support pairs (μ < 1e-3, π-weighted),
   the resulting estimator bias and variance at the selected policy (§8), and the final policy value. Prediction
   accuracy and decision quality are reported separately.
+
+### 5.5 Implementation (`models/adaptive_losses.py`, `models/reward_models.py`, `training/ae_arms.py`)
+
+- **One criterion for families A–C:** `AdaptiveOPCLoss`.
+  - With fixed weights and no term it equals the existing `DRPolicyLoss`, with its anchor, in value and gradient.
+  - The training loop gains two generic hooks, inert for every existing criterion:
+    - the minibatch's users go to a criterion that asks for them (the enumerated S2 and KL, delta-CRM);
+    - `epoch_start` (the adaptive λ) and `epoch_end` (the multiplier) are called when a criterion defines them.
+- **Family D:** `BilinearRewardLookup` serves q̂ with the trainer's lookup interface.
+  - The D arms train with the cross-fitted D model and select natively with its full-data model.
+  - The common selector keeps D0 for every arm.
+- **One registry of the new arms:** `training/ae_arms.py`, shared by the runner, the run state and the analysis.
+  - `shared_lr_opc_h{λ}` (A1); `_a2`, `_a3`; `_s2b{β}`, `_s2c{C}`, `_klb{β}` (B); `_crm{γ}` (C1); `_d1`, `_d2`.
+  - Gated: `_hcrm{γ}` (C2), `_dcrm{γ}` (C3).
+- **Per trial, recorded:** the adaptive λ (last and mean over epochs), the training S2 and the multiplier; per arm,
+  the reward model's parameters and fit time.
+- **Tests:** `tests/test_adaptive_losses.py` (5) and `tests/test_reward_models.py` (4).
+  - The equivalence with the existing loss; the support terms against enumeration; the CRM terms; gradients against
+    finite differences.
+  - The adaptive λ's and the multiplier's rules.
+  - The recovery of a known click model; the lookup interface; cross-fitting without a fold's own rows.
+- **A smoke run** (ml, seed 200, outside the study's seeds, 2 trials of 3–4 epochs per arm): all 27 new arms run
+  end to end on identical rows, none diverged.
+
+### 5.6 The small shift level's world scan (statistics only, before any method)
+
+`world_scan/world_scan_small.csv`, 3 datasets × seeds 100, 101, 300, 301 × response none / moderate / strong:
+- all 36 worlds calibrate: ρ = 0.95; top-1 agreement 0.41–0.55; best-item CTR 23–30%; none pathological;
+- the available gain is 1.7–4.5 points, and 1.7–3.2 at strong response (R1).
+
+The pilot seeds' other worlds (`world_scan_pilot_seeds.csv`, 54 worlds) also calibrate with none pathological.
 
 ## 6. Training, search and budgets
 

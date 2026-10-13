@@ -7,6 +7,7 @@ import numpy as np
 import torch
 import pandas as pd
 
+from training.ae_arms import AE_ARMS
 from training.metrics_utils import add_paired_method_pct_columns
 from training.run_state import (
     CONFIG_KEY_COLUMN,
@@ -91,6 +92,7 @@ SHARED_OBJECTIVE_ARMS = {
                           ("opc_raw", {"shared_objective": "opc", "train_weights": "none"}),
                           ("opc_oq", {"shared_objective": "opc", "train_reward": "oracle"}))},
 }
+SHARED_OBJECTIVE_ARMS.update(AE_ARMS)  # docs/opc_adaptive_estimator_study.md §5 (training/ae_arms.py)
 SHARED_OBJECTIVE_METHODS = tuple(SHARED_OBJECTIVE_ARMS)
 SHARED_DEFAULTS = {"lambdas": list(LAMBDA_GRID)}
 SHARED_SEED_TAG = "shared"  # the paired search's seed label; another tag draws independent trials (a supplementary round)

@@ -24,7 +24,8 @@ from scipy.special import expit
 from utils.seeding import derive_seed
 
 FAMILY = "structured_shift"
-SHIFT_LEVELS = {"none": 1.0, "moderate": 0.90, "strong": 0.75}  # mean user-level score correlation (§2)
+SHIFT_LEVELS = {"none": 1.0, "small": 0.95, "moderate": 0.90, "strong": 0.75}  # mean user-level score correlation
+# (structured study §2; "small" added by docs/opc_adaptive_estimator_study.md §2, the same construction)
 # sd(log α), sd(β) (§3 as amended in §13.1: half the first targets, which the legacy CTR targets could not carry)
 RESPONSE_LEVELS = {"none": (0.0, 0.0), "moderate": (0.125, 0.25), "strong": (0.25, 0.5)}
 PATHOLOGY = {"best_q": 0.95, "best_q_excess": 0.10, "best_q_max": 0.15, "low_q": 1e-3, "low_q_share": 0.05}  # §13.1
@@ -35,7 +36,7 @@ Z_CLIP = 3.0  # standardized projections are clipped here (§3; the one-time san
 GATE_SLOPE = 2.0  # g(x) = σ(2 z_g(x)) in the gated family (§7)
 RHO_TOL = 0.005
 TOP_K = 10
-_LABEL = re.compile(r"^s-(none|moderate|strong)\.r-(none|moderate|strong)(\.gated)?$")
+_LABEL = re.compile(r"^s-(none|small|moderate|strong)\.r-(none|moderate|strong)(\.gated)?$")
 
 
 class StructuredCalibrationError(RuntimeError):

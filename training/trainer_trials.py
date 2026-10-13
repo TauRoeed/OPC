@@ -3125,6 +3125,8 @@ def regression_trainer_trial(
     train_batch=None,
     shared_adapter: str | None = None,
     shared_head_kind: str = "standard",
+    opc_extension: dict | None = None,
+    reward_model_kind: str | None = None,
 ):
     """
     OPC / no-propensity trainer with Optuna over CF hyperparameters.
@@ -3263,6 +3265,13 @@ def regression_trainer_trial(
         raise ValueError("the low-rank adapter is defined for the likelihood and OPC shared arms")
     if shared_head_kind != "standard" and (shared_objective != "likelihood" or shared_adapter is None):
         raise ValueError("the calibration-aware head is a likelihood arm of the low-rank adapter")
+    # docs/opc_adaptive_estimator_study.md §5: the adaptive λ, support and CRM terms of the low-rank OPC arms
+    if opc_extension is not None and (shared_objective != "opc" or shared_adapter is None or train_reward != "crossfit"
+                                      or train_batch is not None):
+        raise ValueError("opc_extension is an option of the low-rank OPC arms (cross-fitted q̂, standard batches)")
+    if reward_model_kind is not None and (shared_objective != "opc" or shared_adapter is None or train_reward != "crossfit"
+                                          or train_batch is not None):
+        raise ValueError("reward_model_kind is an option of the low-rank OPC arms (cross-fitted q̂, standard batches)")
     shared_likelihood = shared_objective in ("likelihood", "iw_likelihood")
     trained_loss_label = ({"likelihood": "nll", "iw_likelihood": "iw_nll"}.get(shared_objective)
                           or str(policy_loss_types[0]))
@@ -3499,6 +3508,22 @@ def regression_trainer_trial(
             train_scores_t = CrossFitScoresLookup(
                 [_scores_lookup_from_bundle(b, device) for b in fold_bundles], user_fold, shared_scores_all_t
             )
+        common_scores_t = shared_scores_all_t  # the common selector's q̂: D0 for every arm
+        if reward_model_kind is not None:  # docs/opc_adaptive_estimator_study.md §5.4: D1 / D2, fit on the logs only
+            from models.reward_models import crossfit_bilinear
+
+            if size_crossfit is None or int(train_size) not in size_crossfit:
+                raise ValueError("reward_model_kind needs the study's cross-fitting folds")
+            _t_rm = time.time()
+            _, user_fold_rm = size_crossfit[int(train_size)]
+            d_folds, d_full = crossfit_bilinear(dataset, train_data, user_fold_rm, kind=str(reward_model_kind),
+                                                seed=derive_seed(seed, "reward_model", reward_model_kind, train_size),
+                                                device=device)
+            train_scores_t = CrossFitScoresLookup(d_folds, user_fold_rm, d_full)
+            shared_scores_all_t = d_full  # the native selection's q̂ is the arm's own model
+            shared_record = {**shared_record, "reward_model_kind": str(reward_model_kind),
+                             "reward_model_params": int(d_full.model.n_parameters()),
+                             "reward_model_fit_seconds": float(time.time() - _t_rm)}
         if train_reward == "oracle":  # the simulator's q in the training loss (diagnostic; selection is unchanged)
             train_scores_t = _scores_lookup_from_bundle(
                 fit_shared_regression_bundle(dataset, None, reward_model="oracle"), device)
@@ -3639,6 +3664,17 @@ def regression_trainer_trial(
             if shared_likelihood:
                 criterion = LikelihoodLoss(n_actions, weighting="none" if shared_objective == "likelihood" else "uniform",
                                            clip=iw_clip, lam=anchor_lambda, penalty=anchor_penalty)
+            elif opc_extension is not None:  # docs/opc_adaptive_estimator_study.md §5 (families A-C)
+                from models.adaptive_losses import AdaptiveOPCLoss, LoggerRows
+
+                ext = dict(opc_extension)
+                crm = ext.get("crm")
+                criterion = AdaptiveOPCLoss(
+                    weights=ext.get("weights", weight_spec_label(train_spec)),
+                    logger=LoggerRows(dataset["our_x"], dataset["our_a"], _policy_temperature(dataset), device),
+                    support=None if ext.get("support") is None else tuple(ext["support"]),
+                    crm=None if crm is None else (float(crm[0]), len(cf_dataset), str(crm[1])),
+                    anchor_lambda=anchor_lambda, anchor_penalty=anchor_penalty, n_train=len(cf_dataset))
             else:
                 criterion = _policy_loss_from_name(
                     trial_policy_loss,
@@ -3673,6 +3709,14 @@ def regression_trainer_trial(
                     print(f"[trial {trial.number}] training stopped at a non-finite gradient: {e}", flush=True)
                     trial.set_user_attr("diverged", True)
 
+            if opc_extension is not None:  # the adaptive λ, S2 and multiplier per epoch (diagnostics)
+                hist = getattr(criterion, "history", [])
+                lams = [h["lambda"] for h in hist if "lambda" in h]
+                s2s = [h["S2_train"] for h in hist if "S2_train" in h]
+                trial.set_user_attr("diag_ext_lambda_final", float(lams[-1]) if lams else float("nan"))
+                trial.set_user_attr("diag_ext_lambda_mean", float(np.mean(lams)) if lams else float("nan"))
+                trial.set_user_attr("diag_ext_s2_train_final", float(s2s[-1]) if s2s else float("nan"))
+                trial.set_user_attr("diag_ext_nu_final", float(criterion.nu))
             # Evaluate validation score
             trial_model.eval()
             trial.set_user_attr("logit_scale", float(trial_model.logit_scale))
@@ -3735,7 +3779,7 @@ def regression_trainer_trial(
             )
             if shared_objective is not None:
                 shared_diag, native = _shared_trial_diagnostics(
-                    trial_model, trial_x, trial_a, val_data, dataset, trial_scores_all, shared_anchor, greedy_picks,
+                    trial_model, trial_x, trial_a, val_data, dataset, common_scores_t, shared_anchor, greedy_picks,
                     logger_greedy_picks, shared_objective, iw_clip)
                 for k, v_ in shared_diag.items():
                     trial.set_user_attr(f"diag_{k}", v_)
@@ -3898,6 +3942,10 @@ def regression_trainer_trial(
             # the arm's own training settings (docs/opc_gradient_regime_study.md §6-§7)
             trial_res.update({"arm_train_weights": weight_spec_label(train_spec), "arm_train_reward": str(train_reward),
                               "arm_train_batch": "standard" if train_batch is None else str(train_batch)})
+            if opc_extension is not None:
+                import json as _json
+
+                trial_res["arm_extension"] = _json.dumps(opc_extension, sort_keys=True)
             trial_res.update(shared_record)
             trial_res.update(shared_head)
         if post_temper and not temper_only:

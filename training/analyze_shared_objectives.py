@@ -45,6 +45,10 @@ NATIVE.update({m: ("value", "max") for m in ("shared_opc_raw", "shared_opc_oq", 
 NATIVE.update({f"shared_{fam}_{name}": rule for fam in ("lr", "lrg") for name, rule in (
     ("likelihood", ("diag_val_nll", "min")), ("likelihood_calib", ("diag_val_nll", "min")), ("opc", ("value", "max")),
     ("opc_raw", ("value", "max")), ("opc_oq", ("value", "max")))})
+# docs/opc_adaptive_estimator_study.md: every new OPC arm selects as shared_opc
+from training.ae_arms import AE_ARMS  # noqa: E402
+
+NATIVE.update({m: ("value", "max") for m in AE_ARMS})
 COMMON = "diag_dr_greedy_low"  # the common selector: the DR lower bound of the greedy policy
 ORACLE_RUNS = {"value": Path("artifacts/full_study/run_class_oracles_20261005"),
                "likelihood": Path("artifacts/full_study/run_class_oracles_20261005"),

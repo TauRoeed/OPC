@@ -85,6 +85,8 @@ def train(
             criterion.set_global_normalizer(full_data_mean_weight(model, train_loader.dataset, criterion, device))
         if getattr(criterion, "needs_sn_constants", False):  # SNDR with --sn-scope exact
             criterion.set_sn_constants(*full_data_sn_constants(model, train_loader.dataset, scores_all, criterion, device))
+        if hasattr(criterion, "epoch_start"):  # docs/opc_adaptive_estimator_study.md §5: the adaptive λ
+            criterion.epoch_start(model, train_loader.dataset, scores_all, device)
 
         if torch.cuda.is_available():
             torch.cuda.reset_peak_memory_stats()
@@ -98,6 +100,8 @@ def train(
             device=device,
             check_nan=check_nan,
         )
+        if hasattr(criterion, "epoch_end"):  # the hard support constraint's multiplier
+            criterion.epoch_end(model, train_loader.dataset, scores_all, device)
 
         if log_gpu and torch.cuda.is_available():
             torch.cuda.synchronize()
@@ -262,6 +266,8 @@ def run_train_loop(
         else:
             scores = None
 
+        if getattr(criterion, "wants_users", False):  # the enumerated support / delta terms read the batch's users
+            criterion.batch_users = user_idx
         optimizer.zero_grad(set_to_none=True)
         loss = minibatch_loss(criterion, pscore, scores, policy, rewards, action_idx, nominal_batch_size)
         loss.backward()

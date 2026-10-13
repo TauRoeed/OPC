@@ -29,6 +29,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from training.ae_arms import AE_ARMS
+
 # arms trained by training/trainer_trials.py (one summary label each, the method's name) and their log-file prefixes
 OPC_FAMILY_ARMS = {"opc": "opc", "no_propensity": "no_prop", "dm": "dm", "tempered_logger": "tempered_logger",
                    "shared_likelihood": "shared_likelihood", "shared_iw_likelihood": "shared_iw_likelihood",
@@ -37,7 +39,9 @@ OPC_FAMILY_ARMS = {"opc": "opc", "no_propensity": "no_prop", "dm": "dm", "temper
                                      "shared_opc_raw_b8192", "shared_opc_bfull", "shared_opc_raw_bfull")},
                    # docs/structured_scenario_shift_study.md: the rank-4 adapter arms (lr) and their gated form (lrg)
                    **{f"shared_{fam}_{n}": f"shared_{fam}_{n}" for fam in ("lr", "lrg")
-                      for n in ("likelihood", "likelihood_calib", "opc", "opc_raw", "opc_oq")}}
+                      for n in ("likelihood", "likelihood_calib", "opc", "opc_raw", "opc_oq")},
+                   # docs/opc_adaptive_estimator_study.md §5
+                   **{m: m for m in AE_ARMS}}
 TRIAL_KEY = ("method", "train_size", "run", "trial_number")
 RUN_KEY = ("method", "train_size", "run")
 ROW_KEY = ("method", "train_size")  # summary rows and the per-label trial files of the CausE and BLOB arms
@@ -119,7 +123,8 @@ def arm_config(method: str, cfg: dict) -> dict:
             overrides = SHARED_OBJECTIVE_ARMS[method]  # docs/opc_gradient_regime_study.md: an arm's own settings
             if "train_weights" in overrides:
                 out["train_weights"] = overrides["train_weights"]
-            for k in ("train_reward", "train_batch", "shared_adapter", "shared_head_kind"):
+            for k in ("train_reward", "train_batch", "shared_adapter", "shared_head_kind", "opc_extension",
+                      "reward_model_kind"):
                 if k in overrides:
                     out["shared"][k] = overrides[k]
     elif method == "cause":
