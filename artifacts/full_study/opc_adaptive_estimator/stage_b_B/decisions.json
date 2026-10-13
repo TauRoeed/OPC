@@ -1,0 +1,44 @@
+{
+  "A": {
+    "family": "A",
+    "decision": "shared_lr_opc_h0.2",
+    "reason": "highest mean native TrueGain",
+    "ranking": {
+      "shared_lr_opc_h0.2": 1.1279,
+      "shared_lr_opc_a3": 0.9382,
+      "shared_lr_opc_h0.03": 0.8988,
+      "shared_lr_opc_h0.01": 0.8345,
+      "shared_lr_opc_a2": 0.8051,
+      "shared_lr_opc_h0.005": 0.7945
+    },
+    "vs_B3_native": {
+      "mean": 0.09051711008865439,
+      "lo": -0.014469353350138409,
+      "hi": 0.19550357352744718,
+      "worlds": 18
+    }
+  },
+  "B": {
+    "family": "B",
+    "decision": "shared_lr_opc_s2b0.01",
+    "reason": "highest mean native TrueGain",
+    "ranking": {
+      "shared_lr_opc_s2b0.01": 1.1501,
+      "shared_lr_opc_s2b0.003": 0.9602,
+      "shared_lr_opc_s2c5": 0.9522,
+      "shared_lr_opc_klb0.003": 0.8405,
+      "shared_lr_opc_s2b0.001": 0.8255,
+      "shared_lr_opc_klb0.001": 0.8208,
+      "shared_lr_opc_s2b0.0003": 0.7831,
+      "shared_lr_opc_s2c20": 0.777,
+      "shared_lr_opc_s2c50": 0.7538,
+      "shared_lr_opc_s2c10": 0.739
+    },
+    "vs_B3_native": {
+      "mean": 0.1127224992764456,
+      "lo": -0.025456052184771524,
+      "hi": 0.2509010507376627,
+      "worlds": 18
+    }
+  }
+}
