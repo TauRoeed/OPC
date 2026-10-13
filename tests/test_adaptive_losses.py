@@ -74,8 +74,8 @@ def test_support_terms_are_the_enumerated_statistics():
         assert float(crit(b.pscore, b.scores, p, b.rewards, b.acts)) == pytest.approx(base + extra, rel=1e-9)
     crit = AdaptiveOPCLoss(weights="none", logger=b.logger, support=("s2_hard", 2.0))
     crit.logger, crit.batch_users, crit.nu = _logger64(b), b.users, 0.4
-    viol = s2 - 2.0
-    expect = base + 0.4 * viol + 0.5 * max(viol, 0.0) ** 2
+    viol = s2 / 2.0 - 1.0  # the normalized violation, ρ = 0.1
+    expect = base + 0.4 * viol + 0.05 * max(viol, 0.0) ** 2
     assert float(crit(b.pscore, b.scores, p, b.rewards, b.acts)) == pytest.approx(expect, rel=1e-9)
 
 
@@ -173,4 +173,4 @@ def test_adaptive_lambda_and_the_multiplier_follow_their_rules():
     hard = AdaptiveOPCLoss(weights="none", logger=b.logger, support=("s2_hard", 1.5))
     hard.logger = _logger64(b)
     hard.epoch_end(model, rows, sc, "cpu")
-    assert hard.nu == pytest.approx(max(0.0, s2 - 1.5), rel=1e-9)
+    assert hard.nu == pytest.approx(max(0.0, 0.1 * (s2 / 1.5 - 1.0)), rel=1e-9)

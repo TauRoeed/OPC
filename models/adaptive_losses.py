@@ -14,8 +14,9 @@ self-normalization). The criterion is the negative of
   2021, Theorem 5.1, with I₂ = S2). ``a3``: the λ of a grid minimizing max(0, mean(d)² − var(d)/n) + var(f_λ)/n
   over the training rows, d = f_λ − f_raw. Both are set at the start of each epoch from the current θ
   (``epoch_start``) and held fixed during the epoch: no gradient flows through λ.
-- **support**: ``("s2", β)``: β (S2_B − 1); ``("s2_hard", C)``: the augmented Lagrangian ν (S2_B − C) +
-  (ρ/2) max(0, S2_B − C)², ν ← max(0, ν + ρ (S2 − C)) at each epoch's end over the training users (``epoch_end``);
+- **support**: ``("s2", β)``: β (S2_B − 1); ``("s2_hard", C)``: the augmented Lagrangian on the normalized violation
+  g = S2/C − 1, ν g_B + (ρ/2) max(0, g_B)², ν ← max(0, ν + ρ g) at each epoch's end over the training users
+  (``epoch_end``), ρ = 0.1;
   ``("kl", β)``: β KL_B(π‖μ). S2_B and KL_B are means over the minibatch's users of Σ_a π²/μ and Σ_a π log(π/μ),
   enumerated over the catalog with the known logger μ.
 - **crm**: ``(γ, N, "abs")``: γ sqrt(var_B(f) / N + 1e-12), the standard error of the full-data estimate with the
@@ -38,7 +39,8 @@ from utils.importance_weights import parse_weight_spec
 
 A2_DELTA = 0.05
 A3_GRID = (0.0, 0.005, 0.01, 0.03, 0.1, 0.2)
-HARD_RHO = 1.0
+HARD_RHO = 0.1  # value units on the normalized violation S2/C − 1 (docs/opc_adaptive_estimator_study.md §5.2a:
+# ρ = 1 on the raw S2 − C dwarfs the value and stalls Adam)
 
 
 def a2_lambda(s2: float, n: int, delta: float = A2_DELTA) -> float:
@@ -123,7 +125,7 @@ class AdaptiveOPCLoss(nn.Module):
                 if kind == "s2":
                     loss = loss + float(par) * (s2 - 1.0)
                 else:
-                    viol = s2 - float(par)
+                    viol = s2 / float(par) - 1.0
                     loss = loss + self.nu * viol + 0.5 * HARD_RHO * torch.clamp(viol, min=0.0) ** 2
         if self.crm is not None:
             gamma, n_full, kind = self.crm
@@ -193,7 +195,7 @@ class AdaptiveOPCLoss(nn.Module):
             return
         s2_rows, _ = self._full_pass_s2_only(model, dataset, device)
         s2 = float(s2_rows.mean())
-        self.nu = max(0.0, self.nu + HARD_RHO * (s2 - float(self.support[1])))
+        self.nu = max(0.0, self.nu + HARD_RHO * (s2 / float(self.support[1]) - 1.0))
         self.history.append({"S2_train": s2, "nu": self.nu})
 
     @torch.no_grad()

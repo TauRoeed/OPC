@@ -201,6 +201,31 @@ worlds before Stage F.
 - **Reported:** the true value lost to conservatism, V_g(B3) − V_g(B-variant) where positive, beside the variance
   reduction.
 
+### 5.2a Amendment: the hard constraint's scale (2026-10-13, before any family-B run)
+
+**What failed.**
+- The pilot worlds' population fits (§9) solved the S2-capped value problem with the augmented Lagrangian of §5.2,
+  ρ = 1 on the raw violation S2 − C.
+- On the first world (ml, R1, seed 300) the capped optima were not monotone in C: C = 10 lost 2.4 points and C = 5
+  lost 0.4. Every multiplier ended at 0 with S2 well inside its cap.
+- **The cause:** a violation of a few S2 units costs ρ/2 · (S2 − C)², tens of times the value's whole range. Its
+  gradients inflate Adam's second-moment estimates, and the value gradients then barely move the parameters for
+  hundreds of steps: the fit stalls where the penalty left it.
+- The B-hard training arms used the same form. None of them had run.
+
+**The fix** (applied identically to every cap, before any family-B pilot):
+- **Training (B-hard):** the augmented Lagrangian on the normalized violation g = S2/C − 1, with ρ = 0.1 in value
+  units: ν g_B + (ρ/2) max(0, g_B)², and ν ← max(0, ν + ρ g) at each epoch's end. The 5% tolerance check (§13) is
+  unchanged.
+- **Population (§9):** the value–S2 frontier by Lagrangian relaxation. θ*(ν) = argmax V − ν (S2 − 1) for
+  ν ∈ {0.0003, 0.001, 0.003, 0.01, 0.03, 0.1}, by continuation from θ_value*, 1,500 Adam steps each at θ_value*'s
+  learning rate.
+  - The grid contains B-soft's β values, so θ*(β) is B-soft's population target.
+  - The cap-C optimum is the best greedy value among θ_value* and the path points with exact S2 ≤ C: a monotone
+    inner approximation of the capped optimum.
+- On the same world the frontier is smooth: S2 from 27 (θ_value*) down to 1.1, the loss from 0 up to 1.7 points.
+  Caps 5 / 10 / 20 / 50 cost 0.38 / 0.19 / 0.07 / 0.00 points.
+
 ### 5.3 Family C: counterfactual risk minimization (CRM)
 
 - **Variance and dependence.** Rows are i.i.d. draws (user from the prior, action from the logger), so f_i are i.i.d.
@@ -370,7 +395,7 @@ As in the structured study §6, per world and adapter class:
 - the fixed-λ harmonic optima θ_harm*(λ) for λ ∈ {0.005, 0.01, 0.03, 0.2} with q̂_∞, and with the D1 and D2 reward
   models' population fits where feasible;
 - the S2-constrained value optima for C ∈ {5, 10, 20, 50}: the loss imposed by the support constraint, V_g(θ_value*)
-  − V_g(θ_C*).
+  − V_g(θ_C*), from the Lagrangian frontier of §5.2a.
 
 Each is distinguished: the unconstrained optimum, the class optimum, each modified objective's optimum, the
 constraint's loss, finite-sample and optimization error, and selection error.
