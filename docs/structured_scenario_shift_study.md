@@ -510,6 +510,27 @@ shows that obstacle is a judgment the §7 operationalization does not settle:
 None of the expansion has run. The supplementary tuning round of §13.2 and Stage 2 continue as planned. The scope of
 the expansion (none, a selected subset, or §13.3's eight cells) is left to the review.
 
+### 13.5 The supplementary tuning round's outcome (recorded 2026-10-13; the run finished 2026-10-11 07:09)
+
+`run_ss_tune_s200_supp` (518dba7, pinned worktree, 06:42–07:09, 3 workers): the four tuned arms on the 12 tuning worlds,
+20 new paired trials (seed tag `shared_supplement`), lr 1e-4–6.3246e-3. 960 trials, none diverged. Tables:
+`tuning_round2/` (both rounds pooled, the decision) and `tuning_round2_supplement_only/` (the check).
+
+| arm | best lr bin (configurations) | margin over 1e-3–3.2e-3 | best epoch bin | margin over 18–24 |
+|---|---|---|---|---|
+| `lr_likelihood` | 3.2e-3–6.3e-3 (6) | 0.17 | 25–30 | 0.22 |
+| `lr_likelihood_calib` | 3.2e-3–6.3e-3 (6) | **0.31** | 25–30 | **0.62** |
+| `lr_opc` | 3.2e-3–6.3e-3 (6) | 0.09 | 25–30 | **0.41** |
+| `lr_opc_raw` | 3.2e-3–6.3e-3 (6) | 0.13 | 25–30 | **0.34** |
+
+- The extended learning-rate bin is the best for every arm. Its margin exceeds 0.25 only for the calibration-aware
+  likelihood. That is a second firing: by the protocol (§13.2) it is reported and the boundary stays.
+- The epoch dimension now fires at the top (30) for three arms. It fires only in the check round, which by the
+  protocol changes nothing.
+- The main grid's ranges therefore stand. All arms share the same range, and all lean toward its upper edge in
+  learning rate and epochs: every arm, the calibration-aware likelihood most, may be somewhat under-trained at 25k.
+  The comparisons are paired within this common budget.
+
 ## 14. Provenance
 
 - Artifacts: `artifacts/full_study/structured_scenario_shift/`, with a README.

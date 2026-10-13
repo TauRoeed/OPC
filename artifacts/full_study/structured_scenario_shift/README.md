@@ -34,6 +34,15 @@ python -m training.analyze_shared_objectives tune --runs artifacts/full_study/ru
 
 The rule fires on the learning rate at the top for all four arms; the main grid's range is 1e-4–6.3246e-3 (§13.2).
 
+## `tuning_round2/` and `tuning_round2_supplement_only/`: the supplementary round (§13.2, §13.5)
+
+```bash
+python -m training.analyze_shared_objectives tune --runs artifacts/full_study/run_ss_tune_s200 artifacts/full_study/run_ss_tune_s200_supp --arms shared_lr_likelihood shared_lr_likelihood_calib shared_lr_opc shared_lr_opc_raw --out artifacts/full_study/structured_scenario_shift/tuning_round2
+python -m training.analyze_shared_objectives tune --runs artifacts/full_study/run_ss_tune_s200_supp --arms shared_lr_likelihood shared_lr_likelihood_calib shared_lr_opc shared_lr_opc_raw --out artifacts/full_study/structured_scenario_shift/tuning_round2_supplement_only
+```
+
+The files are as in `tuning/`. Both rounds pooled decide; the supplement alone is the check. No further extension.
+
 ## `population/`: the population optima of Stage 1 (§6)
 
 ```bash

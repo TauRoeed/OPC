@@ -1,0 +1,21 @@
+arm,dimension,best_value,best_configs,best_below_best,edge,neighbour,margin,extendable,extend
+shared_lr_likelihood,anchor_lambda,0.1,27,-1.8689,,,,False,False
+shared_lr_likelihood,batch_size,512,25,-1.61841,low,1024,0.768065,False,False
+shared_lr_likelihood,epochs,25-30,21,-2.06861,high,18-24,0.218649,True,False
+shared_lr_likelihood,lr,"[0.0032, 0.01)",6,-1.11019,high,"[0.001, 0.0032)",0.166964,True,False
+shared_lr_likelihood,lr_decay,"[0.9, 1.0]",36,-1.87529,high,"[0.8, 0.9)",0.684671,False,False
+shared_lr_likelihood_calib,anchor_lambda,0.1,27,-2.89937,,,,False,False
+shared_lr_likelihood_calib,batch_size,512,25,-2.26446,low,1024,1.26151,False,False
+shared_lr_likelihood_calib,epochs,25-30,21,-2.78351,high,18-24,0.615093,True,True
+shared_lr_likelihood_calib,lr,"[0.0032, 0.01)",6,-1.59061,high,"[0.001, 0.0032)",0.31156,True,True
+shared_lr_likelihood_calib,lr_decay,"[0.9, 1.0]",36,-2.83539,high,"[0.8, 0.9)",0.773672,False,False
+shared_lr_opc,anchor_lambda,0.1,27,-1.06813,,,,False,False
+shared_lr_opc,batch_size,512,25,-0.751435,low,1024,0.796866,False,False
+shared_lr_opc,epochs,25-30,21,-1.03339,high,18-24,0.411121,True,True
+shared_lr_opc,lr,"[0.0032, 0.01)",6,-0.349981,high,"[0.001, 0.0032)",0.0855923,True,False
+shared_lr_opc,lr_decay,"[0.9, 1.0]",36,-0.980639,high,"[0.8, 0.9)",0.60605,False,False
+shared_lr_opc_raw,anchor_lambda,0.1,27,-1.04044,,,,False,False
+shared_lr_opc_raw,batch_size,512,25,-0.794212,low,1024,0.642132,False,False
+shared_lr_opc_raw,epochs,25-30,21,-0.995829,high,18-24,0.343536,True,True
+shared_lr_opc_raw,lr,"[0.0032, 0.01)",6,-0.434865,high,"[0.001, 0.0032)",0.127367,True,False
+shared_lr_opc_raw,lr_decay,"[0.9, 1.0]",36,-0.96072,high,"[0.8, 0.9)",0.492241,False,False

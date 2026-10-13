@@ -1,0 +1,73 @@
+arm,dimension,value,position,of,trials,configs,below_best_mean
+shared_lr_likelihood,lr,"[0.0001, 0.00032)",0,4,60,10,-3.38985
+shared_lr_likelihood,lr,"[0.00032, 0.001)",1,4,72,12,-2.00996
+shared_lr_likelihood,lr,"[0.001, 0.0032)",2,4,72,12,-1.2776
+shared_lr_likelihood,lr,"[0.0032, 0.01)",3,4,36,6,-1.11019
+shared_lr_likelihood,epochs,5-11,0,4,48,8,-2.19089
+shared_lr_likelihood,epochs,12-17,1,4,18,3,-1.6372
+shared_lr_likelihood,epochs,18-24,2,4,90,15,-2.31074
+shared_lr_likelihood,epochs,25-30,3,4,84,14,-1.63646
+shared_lr_likelihood,lr_decay,"[0.8, 0.9)",0,2,120,20,-2.26248
+shared_lr_likelihood,lr_decay,"[0.9, 1.0]",1,2,120,20,-1.73803
+shared_lr_likelihood,batch_size,512,0,3,90,15,-1.53024
+shared_lr_likelihood,batch_size,1024,1,3,60,10,-2.49964
+shared_lr_likelihood,batch_size,2048,2,3,90,15,-2.13735
+shared_lr_likelihood,anchor_lambda,0,0,5,48,8,-2.32936
+shared_lr_likelihood,anchor_lambda,0.001,1,5,42,7,-2.39848
+shared_lr_likelihood,anchor_lambda,0.01,2,5,30,5,-1.76096
+shared_lr_likelihood,anchor_lambda,0.1,3,5,78,13,-1.46706
+shared_lr_likelihood,anchor_lambda,1,4,5,42,7,-2.38707
+shared_lr_likelihood_calib,lr,"[0.0001, 0.00032)",0,4,60,10,-4.56468
+shared_lr_likelihood_calib,lr,"[0.00032, 0.001)",1,4,72,12,-3.22577
+shared_lr_likelihood_calib,lr,"[0.001, 0.0032)",2,4,72,12,-1.97074
+shared_lr_likelihood_calib,lr,"[0.0032, 0.01)",3,4,36,6,-1.59061
+shared_lr_likelihood_calib,epochs,5-11,0,4,48,8,-3.19823
+shared_lr_likelihood_calib,epochs,12-17,1,4,18,3,-2.49064
+shared_lr_likelihood_calib,epochs,18-24,2,4,90,15,-3.46584
+shared_lr_likelihood_calib,epochs,25-30,3,4,84,14,-2.32166
+shared_lr_likelihood_calib,lr_decay,"[0.8, 0.9)",0,2,120,20,-3.11391
+shared_lr_likelihood_calib,lr_decay,"[0.9, 1.0]",1,2,120,20,-2.76352
+shared_lr_likelihood_calib,batch_size,512,0,3,90,15,-2.12605
+shared_lr_likelihood_calib,batch_size,1024,1,3,60,10,-3.57585
+shared_lr_likelihood_calib,batch_size,2048,2,3,90,15,-3.32662
+shared_lr_likelihood_calib,anchor_lambda,0,0,5,48,8,-3.0376
+shared_lr_likelihood_calib,anchor_lambda,0.001,1,5,42,7,-3.35577
+shared_lr_likelihood_calib,anchor_lambda,0.01,2,5,30,5,-2.53155
+shared_lr_likelihood_calib,anchor_lambda,0.1,3,5,78,13,-2.23149
+shared_lr_likelihood_calib,anchor_lambda,1,4,5,42,7,-4.01289
+shared_lr_opc,lr,"[0.0001, 0.00032)",0,4,60,10,-2.32711
+shared_lr_opc,lr,"[0.00032, 0.001)",1,4,72,12,-1.1081
+shared_lr_opc,lr,"[0.001, 0.0032)",2,4,72,12,-0.47291
+shared_lr_opc,lr,"[0.0032, 0.01)",3,4,36,6,-0.347093
+shared_lr_opc,epochs,5-11,0,4,48,8,-1.09874
+shared_lr_opc,epochs,12-17,1,4,18,3,-0.812374
+shared_lr_opc,epochs,18-24,2,4,90,15,-1.49271
+shared_lr_opc,epochs,25-30,3,4,84,14,-0.764863
+shared_lr_opc,lr_decay,"[0.8, 0.9)",0,2,120,20,-1.31702
+shared_lr_opc,lr_decay,"[0.9, 1.0]",1,2,120,20,-0.899272
+shared_lr_opc,batch_size,512,0,3,90,15,-0.754108
+shared_lr_opc,batch_size,1024,1,3,60,10,-1.60145
+shared_lr_opc,batch_size,2048,2,3,90,15,-1.13331
+shared_lr_opc,anchor_lambda,0,0,5,48,8,-1.36389
+shared_lr_opc,anchor_lambda,0.001,1,5,42,7,-1.35816
+shared_lr_opc,anchor_lambda,0.01,2,5,30,5,-1.08877
+shared_lr_opc,anchor_lambda,0.1,3,5,78,13,-0.665645
+shared_lr_opc,anchor_lambda,1,4,5,42,7,-1.40147
+shared_lr_opc_raw,lr,"[0.0001, 0.00032)",0,4,60,10,-1.99762
+shared_lr_opc_raw,lr,"[0.00032, 0.001)",1,4,72,12,-1.06736
+shared_lr_opc_raw,lr,"[0.001, 0.0032)",2,4,72,12,-0.573284
+shared_lr_opc_raw,lr,"[0.0032, 0.01)",3,4,36,6,-0.415055
+shared_lr_opc_raw,epochs,5-11,0,4,48,8,-1.04292
+shared_lr_opc_raw,epochs,12-17,1,4,18,3,-0.856429
+shared_lr_opc_raw,epochs,18-24,2,4,90,15,-1.3525
+shared_lr_opc_raw,epochs,25-30,3,4,84,14,-0.782441
+shared_lr_opc_raw,lr_decay,"[0.8, 0.9)",0,2,120,20,-1.22973
+shared_lr_opc_raw,lr_decay,"[0.9, 1.0]",1,2,120,20,-0.877978
+shared_lr_opc_raw,batch_size,512,0,3,90,15,-0.768535
+shared_lr_opc_raw,batch_size,1024,1,3,60,10,-1.46281
+shared_lr_opc_raw,batch_size,2048,2,3,90,15,-1.06654
+shared_lr_opc_raw,anchor_lambda,0,0,5,48,8,-1.27297
+shared_lr_opc_raw,anchor_lambda,0.001,1,5,42,7,-1.25574
+shared_lr_opc_raw,anchor_lambda,0.01,2,5,30,5,-1.03253
+shared_lr_opc_raw,anchor_lambda,0.1,3,5,78,13,-0.714431
+shared_lr_opc_raw,anchor_lambda,1,4,5,42,7,-1.24715
