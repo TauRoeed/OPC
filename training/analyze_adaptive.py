@@ -405,6 +405,35 @@ def stage_b_main(args) -> None:
     print(f"wrote {out}: {json.dumps({f: d.get('decision') for f, d in dec.items()})}")
 
 
+# ------------------------------------------------------------------------------------------------------- gradients
+def gradients_main(args) -> None:
+    """§10: per world, state and estimator the gradient metrics (``ae_gradients``), and their means per state."""
+    out = Path(args.out)
+    out.mkdir(parents=True, exist_ok=True)
+    rows = []
+    for f in sorted(Path(args.run).glob("dataset=*/gradients_*.json")):
+        r = json.loads(f.read_text())
+        tags = _world_tags(Path(r["world"]).name)
+        for st, v in r["states"].items():
+            for e, m in v.items():
+                if isinstance(m, dict):
+                    rows.append({**tags, "arm": r["arm"], "t_mid": r["t_mid"], "state": st, "V": v["V"],
+                                 "lam_a2_median": v.get("lam_a2_median"), "estimator": e, **m})
+    d = pd.DataFrame(rows)
+    d.to_csv(out / "table_world_state_estimator.csv", index=False, float_format="%.6g")
+    cols = ["rel_bias", "variance", "mse", "snr", "cos_mean", "cos_single"]
+    g = d.groupby(["state", "estimator"])[cols].mean().reset_index()
+    g.to_csv(out / "summary_by_state.csv", index=False, float_format="%.6g")
+    lines = ["# Oracle gradient diagnostics (§10, §10a)", "",
+             f"{d[['dataset', 'label', 'seed']].drop_duplicates().shape[0]} worlds; harmonic OPC's (B3) selected pilot "
+             "policy, the intermediate point and the source; means over worlds. rel_bias = ‖E ĝ − g*‖ / ‖g*(source)‖; "
+             "snr = ‖E ĝ‖ / sqrt(trace Var ĝ); cos_mean = cos(E ĝ, g*); cos_single = mean cos(ĝ, g*) over datasets.", ""]
+    for st in ("source", "intermediate", "final"):
+        lines += [f"## {st}", "", _md(g[g["state"] == st].drop(columns="state").round(4)), ""]
+    (out / "tables.md").write_text("\n".join(lines))
+    print(f"wrote {out}: {len(d)} rows")
+
+
 def main(argv=None) -> None:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -416,8 +445,11 @@ def main(argv=None) -> None:
     b = sub.add_parser("stage_b")
     b.add_argument("--runs", nargs="+", required=True)
     b.add_argument("--out", required=True)
+    gr = sub.add_parser("gradients")
+    gr.add_argument("--run", required=True)
+    gr.add_argument("--out", required=True)
     args = ap.parse_args(argv)
-    {"stage_a": stage_a_main, "stage_b": stage_b_main}[args.cmd](args)
+    {"stage_a": stage_a_main, "stage_b": stage_b_main, "gradients": gradients_main}[args.cmd](args)
 
 
 if __name__ == "__main__":
