@@ -667,3 +667,30 @@ than one paired standard error behind.
 - Shrinkage's bias cost is real: harmonic OPC's population target moves from about 2 points from the value optimum
   (λ = 0.2) to about 0.4 (λ = 0.005) on the first pilot worlds (§9). At this N its variance cost is larger.
 - Reducing the reward model's error (the oracle q) is the one change here that improves on B3 in nearly every world.
+
+### 16.4 Stage B, family D (reward models): the pilot
+
+`run_ae_pilot_D` (ec808d4): the 18 pilot worlds × the two D arms × 10 paired trials. The baselines are those of
+§16.3: the same worlds, rows and configurations. None of the 360 trials diverged; each D model took about five
+minutes to fit per world (6 L-BFGS fits). Tables: `stage_b_D/`.
+
+| arm | R1 | R2 | R3 | all 18 | − B3 [95% CI] (higher / 18) | − B1 | − B2 |
+|---|---|---|---|---|---|---|---|
+| B3 (D0) | 0.62 | 1.22 | 1.27 | 1.04 | | +0.27 | −1.34 |
+| D1 | 0.58 | 1.62 | 1.64 | 1.28 | +0.24 [+0.07, +0.42] (16) | +0.52 (12) | −1.10 (0) |
+| D2 | 0.50 | 1.64 | 1.71 | 1.28 | +0.25 [+0.05, +0.44] (13) | +0.52 (11) | −1.10 (0) |
+| oracle q (B5) | 0.78 | 1.62 | 1.72 | 1.38 | +0.34 (17) | | |
+
+- **Per dataset**, − B3: D1 +0.42 (ml), +0.27 (kuairand), +0.05 (anime); D2 +0.43, +0.28, +0.02; the oracle q +0.43,
+  +0.43, +0.16.
+- **Other selections:** best of 10 +0.25 (18 / 18) for D1, +0.28 (17) for D2; mean of the trials +0.12 (17) and
+  +0.15 (16).
+- **The decision (§11):** D1 and D2 are level (difference 0.001, under one paired SE of 0.046), so the fixed order
+  takes D1.
+
+**Reading.**
+- The richer reward models recover about 70% of the oracle q's gain from the logs alone, where the logistic model is
+  misspecified (moderate shift; ml and kuairand).
+- They remove most of harmonic OPC's population mismatch (§9: M ≈ 0–0.16 against 0.5–1.7 points) without adding the
+  variance that smaller λ adds.
+- In R1, the small shift, they do not help.
