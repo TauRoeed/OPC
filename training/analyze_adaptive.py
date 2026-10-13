@@ -152,6 +152,9 @@ def fig_lambda_curve(rs: pd.DataFrame, out: Path, arms=("opc", "value_star"), ki
     lams = [0.0] + list(HARMONIC_GRID)
     names = ["dr_raw"] + [f"dr_h{lam:g}" for lam in HARMONIC_GRID]
     regs = [r for r in REGIME_ORDER if (rs["regime"] == r).any()]
+    arms = tuple(a for a in arms if ((rs["arm"] == a) & (rs["kind"] == kind)).any())  # the arms this run evaluated
+    if not arms or not regs:
+        return
     fig, axes = plt.subplots(len(arms), len(regs), figsize=(3.0 * len(regs), 2.9 * len(arms)), squeeze=False)
     x = np.array([0.002] + list(HARMONIC_GRID))  # λ = 0 placed at 0.002 on the log axis
     rows = []
