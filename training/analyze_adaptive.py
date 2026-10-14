@@ -349,7 +349,8 @@ def family_decision(worlds: pd.DataFrame, paired: pd.DataFrame, family: str) -> 
              "B": ["shared_lr_opc_s2c50", "shared_lr_opc_s2c20", "shared_lr_opc_s2c10", "shared_lr_opc_s2c5",
                    "shared_lr_opc_s2b0.0003", "shared_lr_opc_s2b0.001", "shared_lr_opc_s2b0.003", "shared_lr_opc_s2b0.01",
                    "shared_lr_opc_klb0.001", "shared_lr_opc_klb0.003"],
-             "C": ["shared_lr_opc_crm0.5", "shared_lr_opc_crm1", "shared_lr_opc_crm2"],
+             # the smallest γ; at equal γ the ungated C1 first (a gated variant replaces it only by beating it)
+             "C": [f"shared_lr_opc_{v}{g}" for g in ("0.5", "1", "2") for v in ("crm", "hcrm", "dcrm")],
              "D": ["shared_lr_opc_d1", "shared_lr_opc_d2"]}[family]
     w = worlds[worlds["family"] == family]
     if w.empty:
@@ -369,7 +370,7 @@ def family_decision(worlds: pd.DataFrame, paired: pd.DataFrame, family: str) -> 
         d = (a - b).dropna()
         se = float(d.std(ddof=1) / np.sqrt(len(d))) if len(d) > 1 else np.inf
         if float(d.mean()) < se:
-            pick = min((best, second), key=lambda m: order.index(m) if m in order else 99)
+            pick = min((best, second), key=order.index)  # an arm outside the order is an error, not a silent last
             reason = f"best two within one paired SE ({float(d.mean()):.3f} < {se:.3f}): the earlier in the fixed order"
     b3 = paired[(paired["arm"] == pick) & (paired["vs"] == "B3") & (paired["rule"] == "native")]["d"]
     m, lo, hi, n = mean_ci(b3)

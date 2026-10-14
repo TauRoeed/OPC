@@ -744,6 +744,25 @@ trials diverged. Tables: `stage_b_C/`.
   earlier in the fixed order is γ = 1. It goes to Stage C as a documented null (it does not beat B3).
 - **C2's gate** (C1 stable: no diverged trial, every penalty finite) is open. Harmonic CRM is training as
   `run_ae_pilot_C2`; if it beats C1, it becomes family C's representative by the same rule.
+- **C2, harmonic CRM** (`run_ae_pilot_C2`, ec808d4; the anime worlds finished 2026-10-14 after the interruption of
+  §16.8): the 18 pilot worlds × γ = 0.5, 1, 2 on h₀.₁ × 10 paired trials, none diverged. Tables: `stage_b_C_C2/`.
+
+  | arm | R1 | R2 | R3 | all 18 | − B3 [95% CI] (higher / 18) |
+  |---|---|---|---|---|---|
+  | B3 (h₀.₁) | 0.62 | 1.22 | 1.27 | 1.04 | |
+  | CRM γ = 1 (C1) | 0.46 | 1.00 | 0.96 | 0.81 | −0.23 [−0.41, −0.05] (4) |
+  | harmonic CRM γ = 0.5 | 0.55 | 1.30 | 1.24 | 1.03 | −0.01 [−0.08, +0.07] (8) |
+  | harmonic CRM γ = 1 | 0.60 | 1.30 | 1.35 | 1.08 | +0.04 [−0.03, +0.12] (11) |
+  | harmonic CRM γ = 2 | 0.57 | 1.31 | 1.39 | 1.09 | +0.05 [−0.02, +0.12] (10) |
+
+  - Per dataset, harmonic CRM γ = 1 − B3: ml +0.11, kuairand −0.00, anime +0.01. It is above C1 (CRM γ = 1) by
+    +0.27 (paired SE 0.07; 15 / 18 worlds): the penalty on h₀.₁ keeps B3's level, the penalty on raw DR does not.
+  - **The decision (§11):** the best two (γ = 2, γ = 1) differ by 0.012, under one paired SE (0.025); the fixed order
+    (the smallest γ) gives **γ = 1**. C2 replaces C1 as family C's representative; it does not beat B3 (CI includes 0)
+    and goes to Stage C as a near-null.
+  - The analysis' fixed order for family C listed only C1's arms, so its first output named γ = 2 (a gated arm
+    outside the order fell to last place silently). Corrected before Stage C's C run: the order is the smallest γ, the
+    ungated C1 first at equal γ, and an arm outside the order is an error (tests/test_analyze_adaptive.py).
 - **C3's gate is closed.** Delta-CRM's penalty differs from C1's only through the cancellation of noise common to the
   learned policy and the source. Stage A measured it for raw DR: the paired variance is 0.96–1.00 of the independent
   one under shift (0.56 without; §16.1). Its penalty is therefore practically C1's, and C1 gains 0.05 over raw DR.
@@ -754,7 +773,7 @@ trials diverged. Tables: `stage_b_C/`.
 |---|---|---|---|
 | A (shrinkage) | harmonic λ = 0.2 | 1.13 | +0.09 [−0.01, +0.20] (12) |
 | B (support) | S2 penalty β = 0.01 | 1.15 | +0.11 [−0.03, +0.25] (12) |
-| C (CRM) | CRM γ = 1 on raw DR (C2 pending) | 0.81 | −0.23 [−0.41, −0.05] (4) |
+| C (CRM) | harmonic CRM γ = 1 (C2; C1's γ = 1 gave 0.81) | 1.08 | +0.04 [−0.03, +0.12] (11) |
 | D (reward model) | D1, the low-rank bilinear model | 1.28 | +0.24 [+0.07, +0.42] (16) |
 
 The calibration-aware likelihood (B2) gains 2.38 (+1.34 over B3, 18 / 18).
@@ -762,8 +781,9 @@ The calibration-aware likelihood (B2) gains 2.38 (+1.34 over B3, 18 / 18).
 **Stage C** (§11) runs A, B and D's representatives on the 36 development worlds (seeds 100 and 101 × 3 datasets ×
 R1, R2, R3, C1, C2, S1) with 20 paired trials, and the five baselines on R1 (`run_ae_main_R1_baselines`). The other
 regimes reuse `run_ss_main_25k`: the same worlds, rows, space and 20-trial search (§4). C's representative follows
-once C2 is settled. The budget is about 3,000 training fits and 216 reward-model fits, about 7 GPU-hours: under the
-caps.
+once C2 is settled (harmonic CRM γ = 1, §16.6: `run_ae_main_C`, the same 36 worlds and search). The budget is about
+3,000 training fits and 216 reward-model fits, about 7 GPU-hours, with C's 720 fits about 3,700 and 8 GPU-hours:
+under the caps.
 
 **The gradient diagnostics** (§10, §10a; `gradients/`, 4 worlds) at B3's selected policies:
 - At the source and the intermediate state, every estimator's expected gradient is aligned with the true one (cosine
@@ -775,3 +795,19 @@ caps.
 - Gradient MSE: raw DR 0.11, A2 0.10, CRM 0.11, λ = 0.1 0.024, λ = 0.2 0.014, D1 / D2 0.021.
 - Late in training, then, the gradient is mostly noise. Variance reduction (shrinkage, the S2 penalty) wins over
   unbiasedness (raw DR, A2), and a better reward model reduces the bias without adding variance.
+
+### 16.8 The interruption of 2026-10-13 and the resume
+
+The workstation stopped abruptly at 23:45:01 on 2026-10-13 (the system journal ends without a shutdown) and restarted
+at 07:09 on 2026-10-14. Every running job died; no committed result and no completed run folder was affected (all
+3,040 result files load).
+- **Interrupted:** Stage C's `run_ae_main_ABD` (ml, kuairand): 6 of 24 conditions complete (360 trials, ml seed 100);
+  three kuairand seed-100 conditions held h₀.₂'s 20 trials each without a summary row. The pilot populations' anime
+  seed-301 worlds (nothing written). Not yet started: C2's anime worlds, the anime oracle evaluations, Stage C's anime
+  worlds.
+- **The resume** (2026-10-14 08:28, the same commit ec808d4 and arguments; launchers in `ae_logs/launchers/`): the
+  runner's skip-completed reran only the conditions without a summary row; an interrupted arm's rows are removed before
+  it reruns, so no trial is counted twice. The 60 recomputed h₀.₂ trials equal the interrupted ones in all 37 numeric
+  columns, and their selected policies are bit-identical (seeded, deterministic training).
+- `run_ae_main_ABD`'s first invocation (2026-10-13 22:30) left no line in `run_invocations.jsonl` (it was killed); the
+  resume's invocation is the run's first record.

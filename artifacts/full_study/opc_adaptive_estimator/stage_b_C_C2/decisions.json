@@ -1,0 +1,40 @@
+{
+  "A": {
+    "family": "A",
+    "decision": "shared_lr_opc_h0.2",
+    "reason": "highest mean native TrueGain",
+    "ranking": {
+      "shared_lr_opc_h0.2": 1.1279,
+      "shared_lr_opc_a3": 0.9382,
+      "shared_lr_opc_h0.03": 0.8988,
+      "shared_lr_opc_h0.01": 0.8345,
+      "shared_lr_opc_a2": 0.8051,
+      "shared_lr_opc_h0.005": 0.7945
+    },
+    "vs_B3_native": {
+      "mean": 0.09051711008865439,
+      "lo": -0.014469353350138409,
+      "hi": 0.19550357352744718,
+      "worlds": 18
+    }
+  },
+  "C": {
+    "family": "C",
+    "decision": "shared_lr_opc_hcrm1",
+    "reason": "best two within one paired SE (0.012 < 0.025): the earlier in the fixed order",
+    "ranking": {
+      "shared_lr_opc_hcrm2": 1.0912,
+      "shared_lr_opc_hcrm1": 1.0797,
+      "shared_lr_opc_hcrm0.5": 1.0308,
+      "shared_lr_opc_crm2": 0.8258,
+      "shared_lr_opc_crm1": 0.807,
+      "shared_lr_opc_crm0.5": 0.8029
+    },
+    "vs_B3_native": {
+      "mean": 0.04226512992597258,
+      "lo": -0.03314539208440454,
+      "hi": 0.11767565193634971,
+      "worlds": 18
+    }
+  }
+}
