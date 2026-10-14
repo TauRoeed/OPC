@@ -932,3 +932,102 @@ Under these conditions (N = 25,000, greedy share 0.8, the rank-4 adapter, 36 dev
   evidence supports. B (negative) and C (null) give no basis for a combination. Stage D is not started; its budget is
   presented before launch.
 
+### 16.12 Stage C summary: weak logging support, population regret and estimator bias
+
+**Two kinds of error, measured separately.**
+- **Population-objective regret M** is a property of an objective: the value its own optimum gives up when data are
+  unlimited (q̂ at its population fit; §9). It is zero for any unbiased objective (raw DR, the oracle q) and for the
+  calibration-aware likelihood (it nests the truth).
+- **Fixed-policy estimator bias** is a property of an estimator at one policy with finite logs: E[V̂(π)] − V(π) at
+  n = 25,000 with the fixed selection-time q̂ (§8; exact moments). A constant bias leaves an objective's optimum where
+  it is; regret comes from how the bias changes across policies, so the two need not move together. h₀.₂ is more
+  biased than h₀.₁ at the selected policies (−0.42 against −0.37) and has more regret (1.92 against 1.53), yet a
+  higher true gain.
+- **The rest of the shortfall** (finite-sample estimation, optimization and selection together) is the residual in
+  TrueGain = available gain − M − residual (points, means over the 36 worlds; the available gain is the population
+  runs' 4.97):
+
+| arm | M | residual | TrueGain | recovery |
+|---|---|---|---|---|
+| B4 raw DR | 0 | 3.49 | 1.48 | 30% |
+| B5 oracle-q h₀.₁ | 0 | 2.66 | 2.31 | 46% |
+| B3 h₀.₁ | 1.53 | 1.46 | 1.99 | 40% |
+| C harmonic CRM (h₀.₁'s population objective) | 1.53 | 1.48 | 1.96 | 39% |
+| A h₀.₂ | 1.92 | 0.89 | 2.17 | 44% |
+| B S2 penalty β = 0.01 | 2.20 | 1.17 | 1.60 | 32% |
+| D D1 | 0.40 | 2.09 | 2.49 | 50% |
+| B1 likelihood | 1.44 | 1.62 | 1.92 | 39% |
+| B2 calibration-aware likelihood | 0 | 1.62 | 3.35 | 67% |
+
+  Unbiased weighting objectives have no regret and the largest residual; shrinkage trades regret for residual (A);
+  the D1 reward model trades the other way (D): its target is better but lies further from the logger and is harder
+  to reach with 25,000 logged rows.
+
+**The practical limitation: weak logging support.** The logger (greedy share 0.8) puts little probability where the
+value optimum acts. θ_value*'s greedy policy has S2 ≈ 1,650 (median; 2,300–3,200 in R2–C1, ≈ 2·10⁷ in S1), an exact
+ESS fraction of 0.1% and 19% of its mass on importance weights above 100. Every OPC objective, raw or shrunk, settles
+where its estimate is reliable: greedy S2 11–21, ESS 5–9%. The residual column is the cost: even with the true q (B5)
+the weighting objective recovers 46% of the available gain. Shrinkage, support penalties and variance penalties
+re-weight the trade near the logger; none creates support. A better reward model helps by carrying more of the
+estimate outside it (D1, 50%), and the calibration-aware likelihood, which needs no weights, recovers 67%. Under
+these conditions the weak support, not the choice of correction, bounds what OPC can learn; the logger's exploration
+(Stage E's greedy share) is the direct lever.
+
+## 17. Stage D proposal (draft, 2026-10-14; not launched, awaiting approval)
+
+**Question.** Does stronger harmonic shrinkage (λ = 0.2) add to the D1 reward model? A lowered the residual at a
+higher regret; D lowered the regret at a higher residual (§16.12). The combination is justified only if the effects
+are complementary.
+
+**Arms.** A 2 × 2 factorial in the reward model (D0, D1) and λ (0.1, 0.2), on the 36 development worlds, paired with
+Stage C (same worlds, rows, search space, sampler and trial seeds):
+- B3 = (D0, 0.1), A = (D0, 0.2), D = (D1, 0.1): Stage C's trials, reused;
+- **AD = (D1, 0.2)**, `shared_lr_opc_h0.2_d1`: new, 720 trials;
+- references, reused: B1 likelihood, B2 calibration-aware likelihood, B4 raw DR, B5 oracle-q h₀.₁;
+- optional reference (not a practical method): oracle q at λ = 0.2, `shared_lr_opc_h0.2_oq`, 720 trials: shrinkage
+  with a perfect reward model, the ceiling of the q̂ axis.
+No other λ or reward model; no arm added after results.
+
+**Estimands.** Primary: AD − D (does shrinkage add to D1?), native TrueGain, paired over the 36 worlds, mean [95% CI]
+and worlds higher. Secondary: AD − A; the interaction I = (AD − D) − (A − B3); AD − B2; per dataset and regime.
+Decision: AD − D's CI above 0 → AD is Stage E's candidate; CI including 0 → D1 alone (simpler) stays the candidate, a
+null reported as such; CI below 0 → a negative result.
+
+**Expected interaction (hypotheses, not claims).** Harmonic DR's bias at a fixed policy is −E_x Σ_a π (1 − h_λ(w)/w)
+(q − q̂): shrinkage's bias is the reward model's error weighted by the shrinkage factor. D1 reduces |q − q̂|, so
+shrinkage becomes cheaper (positive interaction). The variance of g(w)(r − q̂) is mostly reward noise q(1 − q), which
+no q̂ removes, so shrinkage's variance benefit should persist. Against additivity: (i) as λ grows the estimate leans on
+q̂ where weights are large, so D1's extrapolation error outside the logger's support enters undamped (S1, where D1's
+M is still 1.15); (ii) shrinkage pulls policies toward the logger, against D1's better but more distant target; (iii)
+D1's regret gain (1.53 → 0.40) leaves little population room, so further gains must come from the residual.
+
+**Diagnostics (§8–§10).**
+- Population (§9 extended): harmonic λ = 0.2 with the D1 population fit on the 36 worlds (M of AD's objective);
+  the oracle-q objectives have M = 0.
+- Fixed-policy estimator error: the oracle evaluator, R = 200, at the selected softmax and greedy policies of B3, A,
+  D, AD (and the references), the source and θ_value*, twice: with D0 and with D1 as the fixed q̂ (`--reward-model
+  lowrank`), so each arm's own training and selection estimators are measured; bias, SD, RMSE, coverage, the paired
+  improvement's error; exact S2, ESS fraction, Kish ESS, maximum weight and mass on w > 10 / 100.
+- Gradients (§10a): h_λ with D0 and D1 at λ 0.1 and 0.2, at the source, the half-value state and the selected policy:
+  the 4 pilot worlds (B3's pilot policy) and 4 development worlds (R2, S1 × ml, kuairand, seed 100; AD's policy);
+  bias norm, cosine with the true gradient, variance over 100 datasets, SNR, MSE.
+- Policy improvement: TrueGain (exact), recovery, and the decomposition available − M − residual per arm.
+
+**Objective, optimization or selection.** M isolates the objective (no data, no optimizer). The fixed-policy errors
+compare estimators at the same policies. Every arm has the same search space, 20 trials and paired trial seeds; the
+trial mean (a typical run) and the best trial (oracle choice among 20) separate optimization from selection; the
+common selector (D0-based, identical for every arm) against the native one separates the selector; the adaptivity of
+selection is measured with the matching q̂. A better objective shows as a lower M and a better trial mean; better
+selection only as native minus trial mean.
+
+**Budget and stopping.** Measured costs (Stage C): a D1 arm about 22 s per trial.
+- Core: AD training about 5.5 GPU-hours (720 fits); population about 3; oracle (D0 and D1 q̂) about 3.5; gradients
+  about 1. About 13 GPU-hours, about 6–8 hours wall-clock: above the 12-hour cap, presented here.
+- Optional: the oracle-q λ = 0.2 reference about 3 GPU-hours (720 fits); AD on the 18 pilot worlds (10 trials) about
+  1.2.
+- Before launch: the arm code tested, and Stage C's B3 and D trials reproduced bit-identically at the new commit on
+  one world.
+- Stop: AD with more than 5% diverged trials (unstable, reported); GPU memory above 45 GB (pause); cost above 1.5× the
+  estimate (pause and report). No tuning after results; every result kept. The confirmation seeds 900–903 stay
+  untouched until Stage F.
+
