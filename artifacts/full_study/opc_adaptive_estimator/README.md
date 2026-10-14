@@ -42,3 +42,56 @@ estimators' moments are exact. R fresh logs of 25,000 rows, shared by every poli
 | `adaptivity.csv` | per world and arm: the selected trial's validation estimate minus its true value, the mean over all trials, the evaluator's exact conditional bias at the selected policy, and the difference (selection adaptivity) |
 | `tables.md` | the tables as markdown |
 | `fig_lambda_curve_softmax.*`, `fig_lambda_curve_greedy.*` | harmonic DR's exact bias, SD and RMSE against λ at fixed policies, per regime |
+
+## `stage_b_{A,B,C,D}/`, `stage_b_C_C2/`: the Stage B pilots (§11, §16.3–§16.6)
+
+```bash
+python -m training.run_full_study_parallel --run-tag ae_pilot_A --world-family structured_shift --ctr-levels 0.05 --n-trials 10 --sampler random --stage development --slim --learn-logit-scale --lr-range 1e-4 6.3246e-3 --epochs-range 5 30 --seeds 300 301 --datasets ml kuairand --bias-configs s-small.r-strong s-moderate.r-strong s-moderate.r-moderate --train-sizes 25000 --methods <the family's arms> --max-workers 3 --save-policies
+# (then --datasets anime; the same for ae_pilot_D, ae_pilot_B, ae_pilot_C and the gated ae_pilot_C2)
+python -m training.analyze_adaptive stage_b --runs artifacts/full_study/run_ae_pilot_C artifacts/full_study/run_ae_pilot_C2 artifacts/full_study/run_ae_pilot_A --out artifacts/full_study/opc_adaptive_estimator/stage_b_C_C2
+```
+
+| file | content |
+|---|---|
+| `table_worlds.csv` | per world and arm: native / best / trial-mean TrueGain (points), recovery, divergences, the extension's diagnostics (λ, S2, ν) |
+| `paired_worlds.csv`, `paired_summary.csv` | arm − B3 / B1 / B2 per world and rule; mean [95% CI] and worlds higher, pooled, per regime, dataset and regime × dataset |
+| `decisions.json`, `tables.md` | §11's per-family decision and the tables |
+
+## `stage_b_*_oracle/`, `stage_c_oracle/`: the oracle evaluator at the selected policies (§8)
+
+```bash
+python -m training.oracle_eval --datasets ml --seeds 300 301 --labels s-small.r-strong s-moderate.r-strong s-moderate.r-moderate --replicates 50 --stage stage_b --run artifacts/full_study/run_ae_pilot_B artifacts/full_study/run_ae_pilot_A --arms <arms> --population artifacts/full_study/run_ae_population --out artifacts/full_study/run_ae_oracle_ae_pilot_B
+# (--reward-model lowrank | hetero for family D's q̂ variants)
+python -m training.oracle_eval --datasets ml --seeds 100 101 --labels s-small.r-strong s-moderate.r-strong s-moderate.r-moderate s-moderate.r-none s-none.r-strong s-strong.r-strong --replicates 200 --stage stage_c --run artifacts/full_study/run_ae_main_ABD artifacts/full_study/run_ae_main_C artifacts/full_study/run_ae_main_R1_baselines artifacts/full_study/run_ss_main_25k --arms shared_lr_likelihood shared_lr_likelihood_calib shared_lr_opc shared_lr_opc_raw shared_lr_opc_oq shared_lr_opc_h0.2 shared_lr_opc_s2b0.01 shared_lr_opc_hcrm1 shared_lr_opc_d1 --population artifacts/full_study/run_ae_population --out artifacts/full_study/run_ae_oracle_stage_c
+python -m training.analyze_adaptive stage_a --run artifacts/full_study/run_ae_oracle_stage_c --replicates 200 --trials artifacts/full_study/run_ae_main_ABD artifacts/full_study/run_ae_main_C artifacts/full_study/run_ae_main_R1_baselines artifacts/full_study/run_ss_main_25k --out artifacts/full_study/opc_adaptive_estimator/stage_c_oracle
+```
+
+The files are those of `stage_a_*`; `tables.md` adds every evaluated arm, each arm's selection and training
+estimator at its selected policy, and (Stage C) the adaptivity of selection over the four training runs.
+
+## `gradients/`: the oracle gradient diagnostics (§10, §10a)
+
+`python -m training.ae_gradients` (defaults: ml, kuairand × seed 300 × R1, R2, B3's selected policy) into
+`run_ae_gradients`, then `python -m training.analyze_adaptive gradients --run artifacts/full_study/run_ae_gradients --out artifacts/full_study/opc_adaptive_estimator/gradients`.
+
+## `stage_c/`: the controlled main comparison (§11, §16.9)
+
+```bash
+python -m training.run_full_study_parallel --run-tag ae_main_ABD ... --n-trials 20 --seeds 100 101 --bias-configs s-small.r-strong s-moderate.r-strong s-moderate.r-moderate s-moderate.r-none s-none.r-strong s-strong.r-strong --methods shared_lr_opc_h0.2 shared_lr_opc_s2b0.01 shared_lr_opc_d1 --save-policies
+# (ae_main_C: shared_lr_opc_hcrm1; ae_main_R1_baselines: the five baselines on s-small.r-strong; the launchers are in artifacts/full_study/ae_logs/launchers/)
+python -m training.analyze_adaptive stage_c --runs artifacts/full_study/run_ae_main_ABD artifacts/full_study/run_ae_main_C artifacts/full_study/run_ae_main_R1_baselines artifacts/full_study/run_ss_main_25k --out artifacts/full_study/opc_adaptive_estimator/stage_c
+```
+
+The 36 development worlds only (`run_ss_main_25k` holds more); the files are those of `stage_b_*`.
+
+## `stage_b_population/`, `stage_c_population/`: the population objectives (§9)
+
+```bash
+python -m training.ae_population --datasets ml --seeds 100 101 --labels <labels> --out artifacts/full_study/run_ae_population
+python -m training.analyze_adaptive population --population artifacts/full_study/run_ae_population --seeds 100 101 --out artifacts/full_study/opc_adaptive_estimator/stage_c_population
+```
+
+`table_worlds.csv`: per world, M = V_g(θ_value*) − V_g(θ_obj*) (points) for the likelihood, the calibration-aware
+likelihood, harmonic λ = 0.005–0.2, harmonic 0.1 with the D1 / D2 population fits, the S2 penalty path and caps; the
+optima's S2; the available gain. Stage C's R2–S1 base optima are `run_ss_population`'s (copied; bit-identical when
+recomputed).

@@ -851,3 +851,84 @@ What the training results show, under these conditions (N = 25,000, share 0.8, t
 - Pending: the oracle evaluation (R = 200) of these selected policies (§8, §11) and their population analysis (§9);
   the mechanism account before Stage D (§11).
 
+### 16.10 Stage C: the oracle evaluation (R = 200) and the population objectives
+
+`run_ae_oracle_stage_c` (03106b0): the 9 arms' selected policies (softmax and greedy), the source and θ_value* on the
+36 worlds, 200 fresh logs of 25,000 rows, the selection-time D0 as the fixed q̂. The replicates agree with the exact
+moments (bounded-weight estimators: 3,753 of 3,960 checks pass, 5.2% misses, as in Stage A). `run_ae_population`
+holds the 36 worlds' §9 optima. Tables: `stage_c_oracle/`, `stage_c_population/` (`stage_b_population/` for the pilot).
+
+**Support of the selected policies** (median over the 36 worlds; greedy S2 / softmax S2 / softmax mass on w > 10):
+
+| policy | greedy S2 | softmax S2 | mass w > 10 |
+|---|---|---|---|
+| source | 8.5 | 1 | 0 |
+| B4 raw DR | 11.5 | 10.5 | 0.33 |
+| B: S2 penalty β = 0.01 | 12.7 | 3.7 | 0.06 |
+| C: harmonic CRM γ = 1 | 16.4 | 14.5 | 0.39 |
+| B3 h₀.₁ | 18.2 | 15.6 | 0.39 |
+| A: h₀.₂ | 18.7 | 16.7 | 0.42 |
+| D: D1 | 20.7 | 18.8 | 0.42 |
+| B2 calibration-aware likelihood | 149 | 5.5·10⁶ | 0.69 |
+| θ_value* | 1,652 | 1,648 | 0.63 |
+
+**The estimators at each arm's selected softmax policy** (bias / SD / RMSE, points, mean over worlds; D0 as q̂, so
+the D1 and B5 rows are not their own estimators):
+
+| arm | selection estimator (clip-10 DR) | training estimator |
+|---|---|---|
+| B3 | −0.23 / 0.51 / 0.69 | h₀.₁: −0.37 / 0.37 / 0.68 |
+| A: h₀.₂ | −0.22 / 0.51 / 0.70 | h₀.₂: −0.42 / 0.29 / 0.73 |
+| B: S2 penalty | −0.07 / 0.44 / 0.45 | raw DR: 0 / 0.48 / 0.48 |
+| C: harmonic CRM | −0.24 / 0.51 / 0.69 | h₀.₁: −0.38 / 0.37 / 0.69 |
+| D: D1 | −0.88 / 0.50 / 1.18 (D0) | h₀.₁ with D0: −1.07 / 0.36 / 1.24 |
+| B4 raw DR | −0.20 / 0.51 / 0.63 | raw DR: 0 / 1.03 / 1.03 |
+
+The adaptivity of selection (the selected trial's validation error beyond the selector's exact bias) is −0.03 to
++0.03 points for B1–B4, A and C (no winner's curse), −0.16 for the S2 penalty (conservative); not measurable for D1
+and B5 (different q̂).
+
+**Population mismatch M** (points, the value each objective's population optimum gives up; mean over worlds):
+
+| objective | R1 | R2 | R3 | C1 | C2 | S1 | all |
+|---|---|---|---|---|---|---|---|
+| available gain | 2.65 | 4.99 | 5.59 | 5.99 | 0 | 10.61 | 4.97 |
+| B3: harmonic 0.1 (q̂_∞) | 0.55 | 1.29 | 1.44 | 1.52 | 0.01 | 4.37 | 1.53 |
+| A: harmonic 0.2 | 0.75 | 1.65 | 1.86 | 2.01 | 0.02 | 5.23 | 1.92 |
+| D: harmonic 0.1 with D1 | 0.07 | 0.11 | 0.47 | 0.56 | 0.02 | 1.15 | 0.40 |
+| B: raw value − 0.01 S2 | 0.87 | 1.99 | 2.25 | 2.40 | 0.02 | 5.67 | 2.20 |
+| B1 likelihood | 1.84 | 2.01 | 0.93 | 0 | 1.47 | 2.37 | 1.44 |
+| B2 calibration-aware likelihood | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+
+### 16.11 Before Stage D: which mechanism each method changed, and whether the true value improved
+
+Under these conditions (N = 25,000, greedy share 0.8, the rank-4 adapter, 36 development worlds); not yet confirmed
+(Stage F).
+- **A, harmonic λ = 0.2 (shrinkage).** It changes the training estimator's bias-variance trade: at the selected
+  policy its SD is 0.29 against h₀.₁'s 0.37 (the pilot gradient MSE 0.014 against 0.024), at a larger bias, and its
+  population target is worse (M 1.92 against 1.53). The true value improved: +0.18 [+0.10, +0.26] (31 / 36), in
+  every dataset (+0.13 to +0.21) and most in R2, R3 and S1 (+0.25 to +0.33), not in R1 (+0.01). The gain is a
+  finite-sample variance effect, not a better target. The adaptive rules (A2, A3) did not improve on fixed λ in the pilot.
+- **B, the S2 penalty (support).** It changes the selected policy's support: softmax S2 3.7 against 15.6, mass on
+  w > 10 0.06 against 0.39, and the selection estimate becomes more accurate (bias −0.07 against −0.23). But the
+  penalized objective's population optimum gives up 2.20 points (B3's 1.53), and the true value fell: −0.38 [−0.60,
+  −0.17] (8 / 36), largest where that cost is (S1 −1.09). Reliability was bought with value; the pilot's +0.11 did
+  not replicate.
+- **C, harmonic CRM (variance penalty).** It changes nothing measurable: support, estimator errors and true value are
+  B3's (−0.03 [−0.10, +0.05]). At N = 25,000 the penalty is too small against the objective to move the selected
+  policy; on raw DR (C1) it added only +0.04 to +0.07 over raw DR in the pilot.
+- **D, the D1 reward model (bias).** It changes the reward model inside the estimator and so the surrogate's bias: the
+  population mismatch falls from 1.53 to 0.40 (S1: 4.37 to 1.15); in the pilot the evaluator's bias at θ_value* fell
+  from −3.27 (D0) to −0.44 (D1) and the expected gradient's cosine with the true one rose from 0.61 to 0.87. Its
+  policies move slightly further (greedy S2 20.7). The true value improved most: +0.50 [+0.31, +0.70] (31 / 36),
+  growing with shift (S1 +1.48), none in R1 (−0.03) or without shift (C2). In R2–S1 it realizes 35–67% of the
+  population gap it closes (R2 0.41 of 1.18, R3 0.47 of 0.97, C1 0.64 of 0.96, S1 1.48 of 3.22).
+- **What none of them changes.** Every OPC objective keeps the policy close to the logger (greedy S2 11–21), while
+  the value optimum lies far outside its support (S2 ≈ 1,650; S1 ≈ 2·10⁷). The calibration-aware likelihood, which
+  does not weight by the logger, moves much further (greedy S2 149) and stays ahead of every OPC variant (D1 − B2
+  −0.86 [−1.16, −0.56], 1 / 36).
+- **For Stage D (§11: only complementary methods):** A and D change different things (variance; bias) and both
+  improved the true value; D − A is +0.33 (paired SE 0.09; 25 / 36). Shrinkage + reward model is the combination the
+  evidence supports. B (negative) and C (null) give no basis for a combination. Stage D is not started; its budget is
+  presented before launch.
+

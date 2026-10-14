@@ -191,6 +191,57 @@ def fig_lambda_curve(rs: pd.DataFrame, out: Path, arms=("opc", "value_star"), ki
     plt.close(fig)
 
 
+def training_estimator(arm: str) -> str | None:
+    """The estimator an arm's objective is built on (docs/opc_adaptive_estimator_study.md §5): the harmonic λ of A1
+    and B3; raw DR under the S2 / KL penalties and CRM (C1); h₀.₁ under harmonic CRM (C2) and with the D reward models
+    (here with the fixed D0 q̂, not the arm's own); the oracle q for B5; A2 / A3's adaptive λ."""
+    short = arm.replace("opc_", "", 1) if arm.startswith("opc_") else ("h0.1" if arm == "opc" else None)
+    if short is None:
+        return None
+    if short.startswith("h") and short[1:2].isdigit():
+        return f"dr_{short}"
+    if short.startswith("hcrm") or short in ("d1", "d2"):
+        return "dr_h0.1"
+    return {"raw": "dr_raw", "oq": "dr_oracle", "a2": "dr_hA2", "a3": "dr_hA3"}.get(
+        short, "dr_raw" if short.startswith(("s2b", "s2c", "klb", "crm", "dcrm")) else None)
+
+
+def mechanism_md(rs: pd.DataFrame, supp: pd.DataFrame) -> list[str]:
+    """Per arm, at its selected softmax policy (mean over worlds): the selection estimator's error (DR with clip-10
+    weights and D0, the native selector's) and the training estimator's, bias / SD / RMSE in points, and the policy's
+    S2 (median); pooled, then the two biases by regime."""
+    g = rs[(rs["dataset"] == "all") & (rs["kind"] == "softmax")]
+    arms = [a for a in sorted(set(g["arm"])) if training_estimator(a)]
+    if len(arms) <= 2:
+        return []
+    s = supp[~supp["policy"].str.endswith("_g")].groupby("policy")["S2"].median()
+    pooled = rs[(rs["dataset"] == "all") & (rs["kind"] == "softmax")].groupby(["arm", "estimator"])[
+        ["bias_pts", "sd_pts", "rmse_pts"]].mean()
+    rows, by_reg = [], []
+    for a in arms:
+        te = training_estimator(a)
+        sel = pooled.loc[(a, "dr_clip10")] if (a, "dr_clip10") in pooled.index else None
+        tr = pooled.loc[(a, te)] if (a, te) in pooled.index else None
+        f = lambda r: "–" if r is None else f"{r['bias_pts']:+.2f} / {r['sd_pts']:.2f} / {r['rmse_pts']:.2f}"
+        rows.append({"arm": a, "training estimator": te, "selector (clip-10 DR)": f(sel), "training estimator ": f(tr),
+                     "S2 (median)": round(float(s.get(a, np.nan)), 1)})
+        for reg in REGIME_ORDER:
+            for name, e in (("selector bias", "dr_clip10"), ("training-estimator bias", te)):
+                v = g[(g["arm"] == a) & (g["regime"] == reg) & (g["estimator"] == e)]
+                if not v.empty:
+                    by_reg.append({"arm": a, "quantity": name, "regime": reg, "v": float(v["bias_pts"].iloc[0])})
+    out = ["## Each arm's selected softmax policy: selection and training estimators (bias / SD / RMSE, points)", "",
+           "Mean over worlds. The evaluator's q̂ is the fixed D0 throughout: for the D arms (trained and selected with "
+           "their D model) and B5 (the oracle q) neither column is their own estimator; the D q̂ runs of Stage B "
+           "(`--reward-model`) measure that.", "",
+           _md(pd.DataFrame(rows)), ""]
+    if by_reg:
+        t = pd.DataFrame(by_reg).pivot_table(index=["arm", "quantity"], columns="regime", values="v")
+        out += ["### The two biases by regime (points)", "",
+                _md(t[[r for r in REGIME_ORDER if r in t.columns]].round(2).reset_index()), ""]
+    return out
+
+
 def stage_a_md(rs, checks, supp, delta, adapt, info) -> str:
     out = ["# Stage A: fixed-policy oracle evaluator diagnostics", "",
            f"{info['worlds']} worlds, {info['replicates']} fresh logs of 25,000 rows each. CTR points; means over "
@@ -198,8 +249,10 @@ def stage_a_md(rs, checks, supp, delta, adapt, info) -> str:
     out += ["## Replicates against the exact moments", "",
             f"Bounded-weight estimators passing (|z| < 4, exact variance in the χ² interval): "
             f"{int(checks.loc[checks['bounded'], 'ok'].sum())} of {int(checks['bounded'].sum())}.", ""]
+    first = ["opc", "opc_raw", "likelihood", "likelihood_calib", "value_star", "source"]
+    arms = first + sorted(set(rs["arm"]) - set(first))  # Stage B / C runs add their arms' policies
     for kind in ("softmax", "greedy"):
-        for arm in ("opc", "opc_raw", "likelihood", "likelihood_calib", "value_star", "source"):
+        for arm in arms:
             g = rs[(rs["dataset"] == "all") & (rs["kind"] == kind) & (rs["arm"] == arm)]
             if g.empty:
                 continue
@@ -215,6 +268,7 @@ def stage_a_md(rs, checks, supp, delta, adapt, info) -> str:
                                      f"{v['rmse_pts'].iloc[0]:.2f}")
                 out.append(f"| {e} | " + " | ".join(cells) + " |")
             out.append("")
+    out += mechanism_md(rs, supp)
     out += ["## Support (mean over worlds)", ""]
     s = supp.copy()
     s[["arm", "kind"]] = pd.DataFrame([_arm(p) for p in s["policy"]], index=s.index)
@@ -227,7 +281,10 @@ def stage_a_md(rs, checks, supp, delta, adapt, info) -> str:
     if adapt is not None and not adapt.empty:
         a = adapt.groupby("arm")[["err_selected_pts", "err_all_trials_pts", "exact_clip10_bias_selected_pts",
                                    "adaptivity_pts"]].mean().round(3).reset_index()
-        out += ["## Adaptivity of selection (validation estimate − truth, points; mean over worlds)", "", _md(a), ""]
+        out += ["## Adaptivity of selection (validation estimate − truth, points; mean over worlds)", "",
+                "The selected trial's own validation estimate (its arm's selector) minus the exact bias of clip-10 DR "
+                "with D0: for the D arms and B5 the two use different q̂, so their adaptivity column is not a "
+                "winner's-curse measure.", "", _md(a), ""]
     return "\n".join(out)
 
 
@@ -247,10 +304,12 @@ def stage_a_main(args) -> None:
     delta = delta_table(summ)
     delta.to_csv(out / "delta_paired_vs_independent.csv", index=False, float_format="%.6g")
     adapt = None
-    if args.trials:
+    if args.trials:  # one or more training runs holding the evaluated policies' trials
         clip = summ[(summ["estimator"] == "dr_clip10") & ~summ["policy"].str.endswith("_g")]
         cb = {(r.dataset, r.label, int(r.seed), r.policy): float(r.exact_bias) for r in clip.itertuples()}
-        adapt = adaptivity(Path(args.trials), summ[["dataset", "label", "seed"]].drop_duplicates(), cb)
+        worlds = summ[["dataset", "label", "seed"]].drop_duplicates()
+        adapt = pd.concat([adaptivity(Path(t), worlds, cb) for t in args.trials], ignore_index=True)
+        adapt = adapt[adapt["arm"].isin(set(summ["policy"]))]  # the runs' other arms were not evaluated
         adapt.to_csv(out / "adaptivity.csv", index=False, float_format="%.6g")
     fig_lambda_curve(rs, out, kind="softmax")
     fig_lambda_curve(rs, out, arms=("opc", "likelihood_calib", "value_star"), kind="greedy")
@@ -474,6 +533,62 @@ def stage_c_main(args) -> None:
     print(f"wrote {out}: {len(w)} (world, arm) cells, {len(missing)} missing")
 
 
+def population_table(pop_dir: Path, seeds) -> pd.DataFrame:
+    """§9 per world (``run_ae_population``): the mismatch M = V_g(θ_value*) − V_g(θ_obj*) (points) of the likelihood,
+    the calibration-aware likelihood, harmonic λ = 0.005–0.2 (λ = 0.1 is B3's, with q̂_∞), harmonic 0.1 with the D1 /
+    D2 population fits, the S2 penalty path (penalty ν; B's β = 0.01 objective is ν = 0.01) and the S2 caps; each
+    optimum's S2; the available gain."""
+    import re
+
+    rows = []
+    for w in sorted(Path(pop_dir).glob("dataset=*")):
+        m = re.match(r"dataset=(\w+)__bias=([\w.\-]+)__seed=(\d+)__", w.name)
+        if not m or int(m.group(3)) not in set(seeds) or m.group(2) not in REGIMES:
+            continue
+        files = [w / f for f in ("population.json", "ae_population.json", "ae_population_s2.json")]
+        if not all(f.exists() for f in files):
+            continue
+        base, ex, s2 = (json.loads(f.read_text()) for f in files)
+        mm = base["mismatch"]
+        r = {"dataset": m.group(1), "bias": m.group(2), "regime": REGIMES[m.group(2)], "seed": int(m.group(3)),
+             "available_gain": mm["available_gain"], "M_likelihood": mm["M_L"], "M_calib": mm["M_calib"],
+             "M_h0.1": mm["M_harm"], "S2_value_star": s2["path"][0]["S2"]}
+        for lam in (0.005, 0.01, 0.03, 0.2):
+            r[f"M_h{lam:g}"], r[f"S2_h{lam:g}"] = ex[f"harmonic_{lam:g}"]["M"], ex[f"harmonic_{lam:g}"]["S2"]
+        r["M_h0.1_D1"], r["M_h0.1_D2"] = ex["harmonic_lowrank"]["M"], ex["harmonic_hetero"]["M"]
+        for pt in s2["path"][1:]:
+            r[f"M_s2pen{pt['nu']:g}"], r[f"S2_s2pen{pt['nu']:g}"] = pt["M"], pt["S2"]
+        for k, v in s2["caps"].items():
+            r[f"M_{k}"] = np.nan if v is None else v["M"]
+        rows.append(r)
+    return pd.DataFrame(rows)
+
+
+def population_main(args) -> None:
+    out = Path(args.out)
+    out.mkdir(parents=True, exist_ok=True)
+    t = population_table(Path(args.population), args.seeds)
+    t.to_csv(out / "table_worlds.csv", index=False, float_format="%.6g")
+    mcols = ["available_gain", "M_likelihood", "M_calib", "M_h0.005", "M_h0.01", "M_h0.03", "M_h0.1", "M_h0.2",
+             "M_h0.1_D1", "M_h0.1_D2", "M_s2pen0.001", "M_s2pen0.01", "M_s2cap_5", "M_s2cap_50"]
+    scols = ["S2_value_star", "S2_h0.005", "S2_h0.2", "S2_s2pen0.01"]
+    mcols, scols = [c for c in mcols if c in t], [c for c in scols if c in t]
+    reg = t.groupby("regime")[mcols].mean().reindex([r for r in REGIME_ORDER if (t["regime"] == r).any()])
+    reg.loc["all"] = t[mcols].mean()
+    ds = t.groupby("dataset")[mcols].mean().reindex([d for d in DATASETS if (t["dataset"] == d).any()])
+    s2 = t.groupby("regime")[scols].median().reindex(reg.index[:-1])
+    lines = ["# Population objectives (§9)", "",
+             f"{len(t)} worlds (seeds {', '.join(map(str, args.seeds))}). M = V_g(θ_value*) − V_g(θ_obj*), points: what "
+             "each objective's population optimum gives up against the value optimum (greedy policies). M_h0.1 is "
+             "B3's target; M_h0.2 A's; M_h0.1_D1 D's (harmonic 0.1 with the D1 population fit); M_s2pen0.01 B's "
+             "(raw value − 0.01 S2). Harmonic CRM has no population objective here (its penalty vanishes as N grows).",
+             "", "## M by regime (mean over worlds)", "", _md(reg.T.round(2).rename_axis("quantity").reset_index()), "",
+             "## M by dataset (mean over worlds)", "", _md(ds.T.round(2).rename_axis("quantity").reset_index()), "",
+             "## The optima's S2 (median over worlds)", "", _md(s2.round(1).reset_index()), ""]
+    (out / "tables.md").write_text("\n".join(lines))
+    print(f"wrote {out}: {len(t)} worlds")
+
+
 # ------------------------------------------------------------------------------------------------------- gradients
 def gradients_main(args) -> None:
     """§10: per world, state and estimator the gradient metrics (``ae_gradients``), and their means per state."""
@@ -509,7 +624,7 @@ def main(argv=None) -> None:
     a = sub.add_parser("stage_a")
     a.add_argument("--run", required=True)
     a.add_argument("--replicates", type=int, required=True)
-    a.add_argument("--trials", default=None)
+    a.add_argument("--trials", nargs="+", default=None)
     a.add_argument("--out", required=True)
     b = sub.add_parser("stage_b")
     b.add_argument("--runs", nargs="+", required=True)
@@ -517,11 +632,16 @@ def main(argv=None) -> None:
     c = sub.add_parser("stage_c")
     c.add_argument("--runs", nargs="+", required=True)
     c.add_argument("--out", required=True)
+    po = sub.add_parser("population")
+    po.add_argument("--population", required=True)
+    po.add_argument("--seeds", nargs="+", type=int, required=True)
+    po.add_argument("--out", required=True)
     gr = sub.add_parser("gradients")
     gr.add_argument("--run", required=True)
     gr.add_argument("--out", required=True)
     args = ap.parse_args(argv)
-    {"stage_a": stage_a_main, "stage_b": stage_b_main, "stage_c": stage_c_main, "gradients": gradients_main}[args.cmd](args)
+    {"stage_a": stage_a_main, "stage_b": stage_b_main, "stage_c": stage_c_main, "population": population_main,
+     "gradients": gradients_main}[args.cmd](args)
 
 
 if __name__ == "__main__":
