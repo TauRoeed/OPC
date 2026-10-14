@@ -811,3 +811,43 @@ at 07:09 on 2026-10-14. Every running job died; no committed result and no compl
   columns, and their selected policies are bit-identical (seeded, deterministic training).
 - `run_ae_main_ABD`'s first invocation (2026-10-13 22:30) left no line in `run_invocations.jsonl` (it was killed); the
   resume's invocation is the run's first record.
+
+### 16.9 Stage C: the controlled main comparison, training results
+
+`run_ae_main_ABD` (A, B, D's representatives), `run_ae_main_C` (C's) and `run_ae_main_R1_baselines` (ec808d4; R2–S1's
+baselines from `run_ss_main_25k`): 36 worlds (seeds 100, 101 × 3 datasets × R1, R2, R3, C1, C2, S1), 20 paired trials,
+3,480 new training trials, none missing. Native selection; TrueGain in points. Tables: `stage_c/`
+(`analyze_adaptive stage_c`).
+
+| arm | TrueGain (36) | − B3 [95% CI] (higher / 36) | − B3 ml | kuairand | anime |
+|---|---|---|---|---|---|
+| B3 (h₀.₁) | 1.99 | | | | |
+| A: h₀.₂ | 2.17 | +0.18 [+0.10, +0.26] (31) | +0.13 | +0.19 | +0.21 |
+| B: S2 penalty β = 0.01 | 1.60 | −0.38 [−0.60, −0.17] (8) | −0.23 | −0.90 | −0.03 |
+| C: harmonic CRM γ = 1 | 1.96 | −0.03 [−0.10, +0.05] (17) | −0.01 | −0.01 | −0.05 |
+| D: D1 reward model | 2.49 | +0.50 [+0.31, +0.70] (31) | +0.34 | +0.70 | +0.47 |
+| B4 raw DR | 1.48 | −0.51 [−0.69, −0.32] (5) | −0.62 | −0.54 | −0.36 |
+| B5 oracle q | 2.31 | +0.32 [+0.07, +0.58] (24) | +0.35 | +0.07 | +0.54 |
+| B1 likelihood | 1.92 | −0.07 [−0.51, +0.37] (16) | +0.07 | −0.18 | −0.10 |
+| B2 calibration-aware likelihood | 3.35 | +1.36 [+0.98, +1.75] (36) | +1.58 | +1.02 | +1.49 |
+
+− B3 by regime (R1 / R2 / R3 / C1 / C2 / S1):
+- D1: −0.03 / +0.41 / +0.47 / +0.64 / +0.05 / +1.48 (6 / 6 higher in R2, R3, C1, S1).
+- h₀.₂: +0.01 / +0.26 / +0.25 / +0.13 / +0.09 / +0.33.
+- S2 penalty: −0.16 / −0.21 / −0.44 / −0.35 / −0.05 / −1.09.
+- harmonic CRM: −0.08 / +0.01 / +0.01 / −0.14 / +0.07 / −0.02.
+
+What the training results show, under these conditions (N = 25,000, share 0.8, the rank-4 adapter):
+- **D1 and h₀.₂ replicate their pilot direction** on the 36 new worlds, with intervals excluding 0. D1's gain over
+  B3 grows with the shift (largest in S1) and is absent in R1 and in the no-shift control C2. Under the best-trial and
+  trial-mean rules D1 − B3 is +0.46 and +0.24, h₀.₂ − B3 +0.14 and +0.12 (36 / 36 higher by the trial mean).
+- **The S2 penalty's pilot gain did not replicate.** In the pilot (R1–R3, seeds 300 / 301) β = 0.01 was +0.11
+  [−0.03, +0.25] over B3; in Stage C it is below B3 in every regime, most on kuairand and in S1. β = 0.01 was the
+  grid's edge (§16.5), and the pilot interval included 0.
+- **Harmonic CRM is level with B3** (a null).
+- **No OPC variant reaches the calibration-aware likelihood:** D1 − B2 −0.86 [−1.16, −0.56] (1 / 36), h₀.₂ − B2 −1.18.
+  By the trial mean, D1 is level with B2 (+0.04 [−0.04, +0.13]); the gap is in native selection.
+- D1 − B5 (the oracle-q harmonic baseline) is +0.18 (paired SE 0.12; 19 / 36): not distinguishable.
+- Pending: the oracle evaluation (R = 200) of these selected policies (§8, §11) and their population analysis (§9);
+  the mechanism account before Stage D (§11).
+

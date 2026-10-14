@@ -7,6 +7,9 @@ estimate; the adaptivity of selection from the recorded trials of ``run_ss_main_
 
     python -m training.analyze_adaptive stage_a --run artifacts/full_study/run_ae_stage_a --replicates 200 \
         --trials artifacts/full_study/run_ss_main_25k --out artifacts/full_study/opc_adaptive_estimator/stage_a
+
+``stage_b``: the pilots' tables and §11's per-family decision. ``stage_c``: the baselines and the representatives on the
+36 development worlds (the runs' other worlds and arms left out). ``gradients``: the oracle gradient diagnostics.
 """
 from __future__ import annotations
 
@@ -409,6 +412,68 @@ def stage_b_main(args) -> None:
     print(f"wrote {out}: {json.dumps({f: d.get('decision') for f, d in dec.items()})}")
 
 
+STAGE_C_SEEDS = (100, 101)
+STAGE_C_ARMS = tuple(BASELINES) + ("shared_lr_opc_h0.2", "shared_lr_opc_s2b0.01", "shared_lr_opc_hcrm1",
+                                   "shared_lr_opc_d1")
+
+
+def stage_c_main(args) -> None:
+    """Stage C (§11): the five baselines and the four representatives on the 36 development worlds (seeds 100, 101 ×
+    3 datasets × R1–S1); other worlds and arms of the runs (``run_ss_main_25k`` holds more) are left out. Native
+    TrueGain per arm by regime and dataset, and the paired differences against B3, B1 and B2."""
+    out = Path(args.out)
+    out.mkdir(parents=True, exist_ok=True)
+    res = stage_b_tables(args.runs)
+    keep = lambda df: df[df["bias"].isin(list(REGIMES)) & df["seed"].isin(STAGE_C_SEEDS)
+                         & df["dataset"].isin(DATASETS) & df["arm"].isin(STAGE_C_ARMS)]
+    w, pw = keep(res["worlds"]), keep(res["paired"])
+    missing = [(ds, b, s, a) for ds in DATASETS for b in REGIMES for s in STAGE_C_SEEDS for a in STAGE_C_ARMS
+               if w[(w.dataset == ds) & (w.bias == b) & (w.seed == s) & (w.arm == a)].empty]
+    w.to_csv(out / "table_worlds.csv", index=False, float_format="%.6g")
+    pw.to_csv(out / "paired_worlds.csv", index=False, float_format="%.6g")
+    ps = paired_summary(pw)
+    ps.to_csv(out / "paired_summary.csv", index=False, float_format="%.6g")
+    name = lambda a: f"{family_of(a)} {a.replace('shared_lr_', '')}"
+    order = [name(a) for a in STAGE_C_ARMS]
+    piv = lambda df, col: df.assign(arm=df["arm"].map(name)).pivot_table(index="arm", columns=col,
+                                                                          values="native_gain").reindex(order)
+    by_reg = piv(w, "regime")[list(REGIME_ORDER)]
+    by_reg["all"] = w.assign(arm=w["arm"].map(name)).groupby("arm")["native_gain"].mean().reindex(order)
+    by_ds = piv(w, "dataset")[list(DATASETS)]
+    lines = ["# Stage C: the controlled main comparison", "",
+             f"{w[['dataset', 'bias', 'seed']].drop_duplicates().shape[0]} worlds; points; TrueGain = the selected "
+             "policy's greedy gain over the source's; native selection.", "",
+             f"Missing (world, arm) cells: {len(missing)}" + (f": {missing[:10]}" if missing else ""), "",
+             "## Native TrueGain by regime", "", _md(by_reg.round(2).reset_index()), "",
+             "## Native TrueGain by dataset", "", _md(by_ds.round(2).reset_index()), "",
+             "## Available gain (θ_value*'s, points) by regime", "",
+             _md(w.drop_duplicates(["dataset", "bias", "seed"]).groupby("regime")["available_gain_pts"].mean()
+                 .reindex(list(REGIME_ORDER)).round(2).reset_index()), ""]
+    fmt = lambda r: f"{r['mean']:+.2f} [{r['lo']:+.2f}, {r['hi']:+.2f}] ({int(r['higher'])}/{int(r['worlds'])})"
+    for vs in ("B3", "B1", "B2"):
+        q = ps[(ps["vs"] == vs) & (ps["rule"] == "native")]
+        tab = {}
+        for _, r in q[q["dataset"] == "all"].iterrows():
+            tab.setdefault(name(r["arm"]), {})[r["regime"]] = fmt(r)
+        for _, r in q[(q["dataset"] != "all") & (q["regime"] == "all")].iterrows():
+            tab.setdefault(name(r["arm"]), {})[r["dataset"]] = fmt(r)
+        t = pd.DataFrame(tab).T.reindex([o for o in order if o in tab])
+        t = t[[c for c in ("all",) + REGIME_ORDER + DATASETS if c in t.columns]].rename_axis("arm")
+        lines += [f"## arm − {vs} (native): mean [95% CI] (higher / worlds), pooled, by regime, by dataset", "",
+                  _md(t.reset_index()), ""]
+        rd = q[(q["dataset"] != "all") & (q["regime"] != "all")].assign(arm=lambda d: d["arm"].map(name))
+        rd = rd.pivot_table(index=["arm", "dataset"], columns="regime", values="mean")
+        lines += [f"### arm − {vs} (native), dataset × regime means", "",
+                  _md(rd[[c for c in REGIME_ORDER if c in rd.columns]].round(2).reset_index()), ""]
+    for rule in ("best", "mean"):
+        q = ps[(ps["vs"] == "B3") & (ps["rule"] == rule) & (ps["dataset"] == "all") & (ps["regime"] == "all")]
+        lines += [f"## arm − B3, {rule} selection (pooled)", "",
+                  _md(pd.DataFrame({name(r["arm"]): {"all": fmt(r)} for _, r in q.iterrows()}).T
+                      .rename_axis("arm").reset_index()), ""]
+    (out / "tables.md").write_text("\n".join(lines))
+    print(f"wrote {out}: {len(w)} (world, arm) cells, {len(missing)} missing")
+
+
 # ------------------------------------------------------------------------------------------------------- gradients
 def gradients_main(args) -> None:
     """§10: per world, state and estimator the gradient metrics (``ae_gradients``), and their means per state."""
@@ -449,11 +514,14 @@ def main(argv=None) -> None:
     b = sub.add_parser("stage_b")
     b.add_argument("--runs", nargs="+", required=True)
     b.add_argument("--out", required=True)
+    c = sub.add_parser("stage_c")
+    c.add_argument("--runs", nargs="+", required=True)
+    c.add_argument("--out", required=True)
     gr = sub.add_parser("gradients")
     gr.add_argument("--run", required=True)
     gr.add_argument("--out", required=True)
     args = ap.parse_args(argv)
-    {"stage_a": stage_a_main, "stage_b": stage_b_main, "gradients": gradients_main}[args.cmd](args)
+    {"stage_a": stage_a_main, "stage_b": stage_b_main, "stage_c": stage_c_main, "gradients": gradients_main}[args.cmd](args)
 
 
 if __name__ == "__main__":
