@@ -1,0 +1,17 @@
+Phase-1 DiD (misspec-DR-v1)
+D(gamma) = V(OPC/DR) - V(NLL/NLL)   [exact greedy CTR]
+DiD = D(gamma*) - D(0)   gamma*=0.5
+
+Mean D by gamma (CTR points):
+  gamma=0:  D=-0.97 pt  (sd=0.52, n=5)
+  gamma=0.5:  D=+0.34 pt  (sd=1.44, n=5)
+
+DiD = +1.31 pt   95% CI [+0.12, +2.49]   signs 4/5
+Go checks: point>=0.5? True  CI_LB>0? True  signs>=7/10? False
+
+Per-seed DiD (pt):
+  seed 300: +1.43
+  seed 301: -0.36
+  seed 302: +1.87
+  seed 303: +1.97
+  seed 304: +1.63

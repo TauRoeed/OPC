@@ -1,0 +1,48 @@
+Phase-2 (misspec-DR-v1)
+D(gamma) = V(OPC-mlp64) - V(CausE-cap-C-mlp64)   [exact greedy CTR]
+DiD = D(0.5) - D(0)
+
+Mean D by gamma (CTR points):
+  gamma=0:  D=-1.46 pt  (sd=0.44, n=10)
+  gamma=0.25:  D=-0.87 pt  (sd=0.37, n=10)
+  gamma=0.5:  D=+0.87 pt  (sd=1.50, n=10)
+
+DiD = +2.32 pt   95% CI [+1.11, +3.54]   signs 9/10
+
+Per-seed DiD (pt):
+  seed 300: +3.13
+  seed 301: +4.03
+  seed 302: +1.22
+  seed 303: +2.48
+  seed 304: -0.24
+  seed 305: +0.83
+  seed 306: +3.56
+  seed 307: +4.80
+  seed 308: +0.34
+  seed 309: +3.10
+
+Refs DiD (OPC-mlp - ref):
+  vs_causec_t_mlp: DiD=+2.64  CI[+1.64, +3.63]  signs 10/10  level@γ* OPC=19.55 ref=18.35
+  vs_causec_c_linear: DiD=+1.86  CI[+1.01, +2.71]  signs 10/10  level@γ* OPC=19.55 ref=19.04
+  vs_causec_t_linear: DiD=+1.82  CI[+0.99, +2.65]  signs 10/10  level@γ* OPC=19.55 ref=19.13
+  vs_blob_l10_nq: DiD=+1.20  CI[+0.54, +1.85]  signs 8/10  level@γ* OPC=19.55 ref=20.09
+
+Arm means (greedy CTR %):
+  gamma=0  causecap_c_r000        [mlp64]  +19.00  (sd 0.60, n=10)
+  gamma=0  causecap_t_r000        [mlp64]  +18.98  (sd 0.61, n=10)
+  gamma=0  opc                    [mlp64]  +17.54  (sd 0.45, n=10)
+  gamma=0  blob_l10_nq            [refs]  +19.28  (sd 0.77, n=10)
+  gamma=0  causecap_c_r000        [refs]  +18.90  (sd 0.68, n=10)
+  gamma=0  causecap_t_r000        [refs]  +18.94  (sd 0.64, n=10)
+  gamma=0.25  causecap_c_r000        [mlp64]  +19.11  (sd 0.65, n=10)
+  gamma=0.25  causecap_t_r000        [mlp64]  +18.98  (sd 0.51, n=10)
+  gamma=0.25  opc                    [mlp64]  +18.24  (sd 0.69, n=10)
+  gamma=0.25  blob_l10_nq            [refs]  +19.53  (sd 0.68, n=10)
+  gamma=0.25  causecap_c_r000        [refs]  +19.07  (sd 0.63, n=10)
+  gamma=0.25  causecap_t_r000        [refs]  +19.08  (sd 0.67, n=10)
+  gamma=0.5  causecap_c_r000        [mlp64]  +18.68  (sd 1.26, n=10)
+  gamma=0.5  causecap_t_r000        [mlp64]  +18.35  (sd 1.05, n=10)
+  gamma=0.5  opc                    [mlp64]  +19.55  (sd 0.92, n=10)
+  gamma=0.5  blob_l10_nq            [refs]  +20.09  (sd 0.98, n=10)
+  gamma=0.5  causecap_c_r000        [refs]  +19.04  (sd 0.76, n=10)
+  gamma=0.5  causecap_t_r000        [refs]  +19.13  (sd 0.72, n=10)
