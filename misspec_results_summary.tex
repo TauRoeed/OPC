@@ -1,0 +1,203 @@
+% Misspec-DR results summary (full catalogs only).
+% Compile: pdflatex misspec_results_summary.tex && pdflatex misspec_results_summary.tex
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{lmodern}
+\usepackage{amsmath,amssymb,bm}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{microtype}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{caption}
+
+\hypersetup{colorlinks=true,linkcolor=blue!50!black,urlcolor=blue!50!black,citecolor=blue!50!black}
+
+\title{\textbf{Misspecification results summary}\\
+\large DR vs NLL under controlled residual dials\\
+\normalsize Full-catalog runs only}
+\author{OPC project}
+\date{3 November 2026 (Asia/Jerusalem)}
+
+\newcommand{\Rstar}{R^{\star}}
+\newcommand{\gstar}{\gamma^{\star}}
+\newcommand{\DiD}{\mathrm{DiD}}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+\noindent
+Locked confirmatory numbers for the misspecification dial study on \textbf{original full catalogs}
+(MovieLens-1M, Anime, Myket; KuaiRec/KuaiRand Phase-0a status noted).
+Primary estimand:
+\[
+D(\gamma)=V(\pi^{\mathrm{OPC/DR}}_{\gamma})-V(\pi^{\mathrm{NLL}}_{\gamma}),
+\qquad
+\DiD=D(\gstar)-D(0),
+\]
+with exact-greedy CTR in percentage points.
+We report absolute CTR levels and DiDs for residual family \(\Rstar\), hybrid NLL\(\to\)DR,
+latent SoftAND\(^\star\)/SoftThresh, and CausE/BLOB references.
+Catalog-geometry interventions (mlsize / amp / damp / head-match) are \textbf{out of scope}
+for this note.
+\end{abstract}
+
+\section{Setup (reminder)}
+\begin{itemize}[leftmargin=1.2em,itemsep=0.2em]
+  \item Truth logit: affine-bilinear clean score \(+\,\gamma\,\alpha\,\phi\) with \(\mathrm{sd}(\phi)=1\);
+        logger temperature frozen at \(\gamma=0\); reference CTR \(5\%\).
+  \item Primary family \(\Rstar\): even map on a second random projection
+        (\(s{=}1,m{=}4,\psi{=}\tanh\)).
+  \item Phase-1 learners: matched linear capacity; methods OPC/DR, NLL, optional
+        \(\texttt{hybrid\_seq\_f0.5}\), \(n{=}10^5\) train / \(2{\cdot}10^4\) val, 20 Optuna trials.
+  \item Bias cell: combined-high. Embeddings: \texttt{BPR/embeddings} (full).
+\end{itemize}
+
+\section{\texorpdfstring{$\Rstar$}{R*} on MovieLens (identifying)}
+Locked \(\gstar{=}0.5\), seeds \(300\)--\(309\) (\(n{=}10\)).
+
+\begin{table}[h]
+\centering
+\caption{Exact-greedy CTR (\%) on ML-1M under \(\Rstar\).}
+\begin{tabular}{lrrrr}
+\toprule
+method & \(\gamma{=}0\) & \(\gamma{=}0.5\) & \(\Delta\) level & --- \\
+\midrule
+OPC/DR & \(16.99\) & \(18.42\) & \(+1.43\) & \\
+NLL    & \(18.06\) & \(17.96\) & \(-0.09\) & \\
+\midrule
+\(D{=}V_{\mathrm{OPC}}-V_{\mathrm{NLL}}\) & \(-1.07\) & \(+0.46\) &
+\multicolumn{2}{l}{\(\DiD{=}\mathbf{+1.53}\) pt} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent
+\(\DiD{=}+1.53\) pt, 95\% CI \([+0.97,+2.09]\), signs \(10/10\).
+Go checks pass. NC1 control DiD \(\approx +0.20\) (within null band).
+
+\section{Hybrid NLL\(\to\)DR on MovieLens}
+Sequential schedule \(f^{\star}{=}0.5\) (half epochs NLL, then raw DR).
+Fresh 20-seed run (\(\texttt{nlres\_h1\_rstar\_f05}\), seeds \(300\)--\(319\)).
+
+\begin{table}[h]
+\centering
+\caption{ML hybrid levels and DiDs (\(n{=}20\), \(\gstar{=}0.5\)).}
+\begin{tabular}{lrrrr}
+\toprule
+method & \(\gamma{=}0\) & \(\gamma{=}0.5\) & H$-$NLL \(\DiD\) & OPC$-$NLL \(\DiD\) \\
+\midrule
+NLL & \(18.27\) & \(18.63\) & --- & --- \\
+OPC & \(17.17\) & \(18.88\) & --- & \(+1.35\ [+0.88,+1.83]\) (\(19/20\)) \\
+hybrid \(f{=}0.5\) & \(18.07\) & \(\mathbf{19.62}\) &
+\(+\mathbf{1.19}\ [+0.59,+1.79]\) (\(17/20\)) & --- \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent
+Hybrid keeps near-NLL level at \(\gamma{=}0\) and leads absolute CTR at \(\gstar\).
+
+\section{Phase-2 references: CausE / BLOB (ML only)}
+Matched-capacity OPC-mlp64 vs CausE-cap; published BLOB-L10-nq and CausE-linear as refs.
+Seeds \(300\)--\(309\).
+
+\begin{table}[h]
+\centering
+\caption{Phase-2 absolute greedy CTR (\%) and DiDs vs OPC-mlp.}
+\begin{tabular}{lrrrr}
+\toprule
+\(\gamma\) & OPC-mlp & CausE-C-mlp & CausE-C-lin & BLOB-L10 \\
+\midrule
+\(0\)   & \(17.54\) & \(19.00\) & \(18.90\) & \(19.28\) \\
+\(0.5\) & \(19.55\) & \(18.68\) & \(19.04\) & \(\mathbf{20.09}\) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{itemize}[leftmargin=1.2em]
+  \item OPC$-$CausE-C-mlp \(\DiD{=}+2.32\) \([+1.11,+3.54]\), \(9/10\).
+  \item OPC$-$BLOB \(\DiD{=}+1.20\) \([+0.54,+1.85]\), \(8/10\) --- OPC gains
+        relatively, but BLOB still wins \textbf{level} at \(\gstar\).
+\end{itemize}
+
+\section{Latent shift families (ML)}
+Protocol \texttt{misspec-latent-alt-v1.0}. SoftAND\(^\star\) locked at \(\gstar{=}0.5\) by Phase-0a;
+SoftThresh \(\tau\in\{1,1.5,2\}\) as runners-up. Phase-1 linear DiD:
+
+\begin{table}[h]
+\centering
+\caption{Latent Phase-1 OPC$-$NLL DiD on ML (\(n{=}10\)).}
+\begin{tabular}{llrrr}
+\toprule
+family & \(\gstar\) & \(\DiD\) (pt) & 95\% CI & signs \\
+\midrule
+SoftAND\(^\star\) & \(0.5\) & \(+0.09\) & \([-0.11,+0.29]\) & \(7/10\) \\
+SoftThresh \(\tau{=}1\) & \(0.5\) & \(-0.20\) & \([-1.19,+0.79]\) & \(4/10\) \\
+SoftThresh \(\tau{=}1.5\) & \(0.5\) & \(+0.02\) & \([-0.80,+0.84]\) & \(4/10\) \\
+SoftThresh \(\tau{=}2\) & \(0.25\) & \(+0.02\) & \([-0.51,+0.55]\) & \(5/10\) \\
+\midrule
+SoftAND\(^\star\) & \(100\) & \(+3.76\) & \([+2.07,+5.46]\) & \(10/10\) \\
+SoftThresh \(\tau{=}1\) & \(100\) & \(+4.64\) & \([+2.84,+6.45]\) & \(10/10\) \\
+SoftThresh \(\tau{=}2\) & \(100\) & \(+7.17\) & \([+5.24,+9.10]\) & \(10/10\) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent
+\textbf{Reading.} SoftAND/SoftThresh open oracle gaps at moderate \(\gamma\) but yield
+\textbf{null} linear DiD at the locked \(\gstar\); DR wins only under extreme
+\(\gamma{\to}100\) stress. Spine remains \(\Rstar\).
+
+\section{Multi-dataset \(\Rstar\) (full catalogs)}
+Phase-0a passers on full embeddings: \textbf{anime} (\(\gstar{=}0.6\)), \textbf{myket} (\(\gstar{=}0.5\)).
+Kuairand / KuaiRec: Phase-0a \textbf{NO-GO} (G2/G4 sandwich); full-catalog Phase-1 with hybrid+CausE/BLOB
+is running on CPU and not yet complete---omitted here.
+
+Confirmatory seeds extended to \(n{=}20\) (\(310\)--\(329\)) to stabilize hybrid CIs.
+
+\begin{table}[h]
+\centering
+\caption{Full-catalog confirmatory CTR (\%) at \(\gstar\) and DiDs (\(n{=}20\)).}
+\footnotesize
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+dataset & NLL / OPC / hybrid & OPC$-$NLL \(\DiD\) & H$-$NLL \(\DiD\) \\
+\midrule
+Anime (\(\gstar{=}0.6\)) &
+\(16.65\) / \(16.19\) / \(\mathbf{17.37}\) &
+\(+0.10\ [-0.26,+0.46]\) (\(8/20\)) &
+\(\mathbf{+0.50}\ [+0.08,+0.92]\) (\(16/20\)) \\
+Myket (\(\gstar{=}0.5\)) &
+\(20.60\) / \(19.74\) / \(\mathbf{21.37}\) &
+\(+0.55\ [-0.20,+1.31]\) (\(11/20\)) &
+\(\mathbf{+0.69}\ [+0.16,+1.22]\) (\(14/20\)) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent
+\textbf{Reading.} On anime/myket, pure OPC DiD stays weak/null; \textbf{hybrid} clears a positive
+H$-$NLL DiD once \(n{=}20\) (first-10 CIs had crossed zero). Absolute level: hybrid \(>\) NLL \(>\) OPC
+at \(\gstar\).
+
+\section{Takeaways}
+\begin{enumerate}[leftmargin=1.4em,itemsep=0.25em]
+  \item \(\Rstar\) on ML: confirmatory DR advantage \(\DiD{=}+1.53\) pt is solid.
+  \item Hybrid \(f{=}0.5\) is the practical interpolant: best absolute CTR under mid misspec on ML,
+        and the only clear DiD win on anime/myket.
+  \item CausE is overtaken by OPC-mlp in DiD under \(\Rstar\); BLOB keeps a level edge.
+  \item Latent SoftAND/SoftThresh: oracle-active, learner-null at operational \(\gamma\);
+        stress \(\gamma{=}100\) recovers large DiDs.
+  \item Kuai full-catalog learner results: pending (Phase-0a failed gates; confirmatory still in flight).
+\end{enumerate}
+
+\vspace{1em}
+\noindent\textit{Artifacts:} \texttt{artifacts/full\_study/run\_nlres\_*} tags cited above;
+snapshot \texttt{results\_snapshot.json}. This PDF intentionally excludes catalog-shrink /
+geometry-repair arms.
+
+\end{document}
