@@ -537,13 +537,26 @@ def inventory_section(inv: dict | None) -> str:
     return "\n".join(lines)
 
 
+def _bf(text: str, yes: bool) -> str:
+    return rf"\textbf{{{text}}}" if yes else text
+
+
+def _best_idx(values: list[float], higher_is_better: bool = True) -> set[int]:
+    """Indices of finite best values (ties all marked)."""
+    finite = [(i, v) for i, v in enumerate(values) if v is not None and np.isfinite(v)]
+    if not finite:
+        return set()
+    target = max(v for _, v in finite) if higher_is_better else min(v for _, v in finite)
+    return {i for i, v in finite if v == target}
+
+
 def emit_setup_blocks(levels, contrasts, did, inv) -> str:
     chunks = [
         r"\section{Results by setup}",
-        r"Each subsection is one (\textbf{dataset}, \textbf{misspec}) pair. "
-        r"Absolute levels list \emph{every} planned $\gamma\times$method for the full grid "
-        r"(complete / partial / did not run). Contrasts and DiD show numbers when estimable; "
-        r"otherwise an explicit missing-row.",
+        r"One small table per setup $=(\textbf{dataset},\textbf{misspec},\boldsymbol{\gamma})$. "
+        r"\textbf{Bold} marks the best finite entry in that table "
+        r"(highest CTR for levels; highest mean for contrasts / DiD). "
+        r"Partial runs keep their current $n$; missing methods are ``did not run''.",
         "",
     ]
 
@@ -551,6 +564,7 @@ def emit_setup_blocks(levels, contrasts, did, inv) -> str:
     if inv:
         for c in inv["cells"]:
             keys.add((c["dataset"], c["misspec"]))
+
     for ds, misspec in sorted(keys):
         lv = levels[(levels.dataset == ds) & (levels.misspec == misspec)].copy()
         ct = contrasts[(contrasts.dataset == ds) & (contrasts.misspec == misspec)].copy()
@@ -559,7 +573,9 @@ def emit_setup_blocks(levels, contrasts, did, inv) -> str:
         inv_cells = [
             c for c in (inv or {}).get("cells", []) if c["dataset"] == ds and c["misspec"] == misspec
         ]
-        planned_gammas = sorted({float(c["gamma"]) for c in inv_cells}) if inv_cells else sorted(lv.gamma.unique())
+        planned_gammas = (
+            sorted({float(c["gamma"]) for c in inv_cells}) if inv_cells else sorted(lv.gamma.unique())
+        )
         target_n = int(inv_cells[0]["target_n"]) if inv_cells else TARGET_N_GRID
         methods_here = list(GRID_METHODS) if inv_cells else sorted(lv.method.unique(), key=method_sort_key)
 
@@ -570,141 +586,142 @@ def emit_setup_blocks(levels, contrasts, did, inv) -> str:
         chunks.append(rf"\subsection{{{esc(ds)} / {esc(misspec)}}}")
         if inv_cells:
             chunks.append(
-                rf"Full-grid cells for this setup: {len(inv_cells)} "
-                rf"(complete {n_complete}, partial {n_partial}, did not run {n_miss}). "
-                rf"Target $n={target_n}$. Planned $\gamma\in\{{{', '.join(f'{g:g}' for g in planned_gammas)}\}}$."
+                rf"Grid cells: {len(inv_cells)} "
+                rf"(complete {n_complete}, partial {n_partial}, did not run {n_miss}); "
+                rf"target $n={target_n}$."
             )
         else:
-            chunks.append(r"Legacy / non-grid locked tags (not in the 192-cell queue).")
+            chunks.append(r"Legacy / non-grid locked tags.")
 
-        # ---- Levels
-        chunks.append(r"\subsubsection*{Absolute greedy CTR (\%) by $\gamma$ and method}")
-        chunks.append(r"{\footnotesize\begin{longtable}{rrllrrr}")
-        chunks.append(
-            r"\toprule $\gamma$ & $n$ & status & method & mean CTR\% & 95\% CI lo & 95\% CI hi \\"
-        )
-        chunks.append(r"\midrule\endfirsthead")
-        cont = esc(f"{ds} / {misspec} levels")
-        chunks.append(rf"\toprule\multicolumn{{7}}{{l}}{{\emph{{continued: {cont}}}}} \\")
-        chunks.append(
-            r"\toprule $\gamma$ & $n$ & status & method & mean CTR\% & 95\% CI lo & 95\% CI hi \\"
-        )
-        chunks.append(r"\midrule\endhead\bottomrule\endfoot")
+        lv_idx = {(float(r.gamma), r.method): r for _, r in lv.iterrows()}
+        ct_idx = {(float(r.gamma), r.contrast): r for _, r in ct.iterrows()}
+        dd_idx = {(float(r.g0), float(r.g1), r.contrast): r for _, r in dd.iterrows()}
 
-        lv_idx = {
-            (float(r.gamma), r.method): r
-            for _, r in lv.iterrows()
-        }
         for g in planned_gammas:
+            # cell-level status from inventory if present
+            cell_st = next((c["status"] for c in inv_cells if float(c["gamma"]) == float(g)), None)
+            chunks.append(rf"\subsubsection{{{esc(ds)} / {esc(misspec)} / $\gamma={g:g}$}}")
+            if cell_st:
+                chunks.append(rf"\emph{{Cell status: {cell_st.replace('_', ' ')}}}.")
+
+            # ---- Levels table (methods)
+            rows = []
+            vals = []
             for m in methods_here:
                 r = lv_idx.get((float(g), m))
-                if r is None:
-                    chunks.append(
-                        f"{g:g} & 0 & did not run & {METHOD_LABEL.get(m, esc(m))} & --- & --- & --- \\\\"
-                    )
-                    continue
-                st = str(r.get("status", "complete")).replace("_", " ")
-                if int(r.n) <= 0 or st == "did not run":
-                    chunks.append(
-                        f"{g:g} & 0 & did not run & {METHOD_LABEL.get(m, esc(m))} & --- & --- & --- \\\\"
-                    )
+                if r is None or int(getattr(r, "n", 0) or 0) <= 0:
+                    rows.append((m, 0, "did not run", None, None, None))
+                    vals.append(float("nan"))
+                else:
+                    st = str(r.get("status", "complete")).replace("_", " ")
+                    rows.append((m, int(r.n), st, float(r.mean_ctr_pct), float(r.ci_lo), float(r.ci_hi)))
+                    vals.append(float(r.mean_ctr_pct))
+            best = _best_idx(vals, higher_is_better=True)
+
+            chunks.append(r"\paragraph{Levels (greedy CTR \%).}")
+            chunks.append(r"{\centering\small\begin{tabular}{llrrrr}")
+            chunks.append(r"\toprule method & status & $n$ & mean & CI lo & CI hi \\")
+            chunks.append(r"\midrule")
+            for i, (m, n, st, mean, lo, hi) in enumerate(rows):
+                is_best = i in best
+                mlab = METHOD_LABEL.get(m, esc(m))
+                if mean is None or not np.isfinite(mean):
+                    chunks.append(f"{mlab} & did not run & 0 & --- & --- & --- \\\\")
                 else:
                     chunks.append(
-                        f"{g:g} & {int(r.n)} & {esc(st)} & {METHOD_LABEL.get(m, esc(m))} & "
-                        f"{fmt(r.mean_ctr_pct)} & {fmt(r.ci_lo)} & {fmt(r.ci_hi)} \\\\"
+                        f"{_bf(mlab, is_best)} & {esc(st)} & {_bf(str(n), is_best)} & "
+                        f"{_bf(fmt(mean), is_best)} & {_bf(fmt(lo), is_best)} & {_bf(fmt(hi), is_best)} \\\\"
                     )
-        chunks.append(r"\end{longtable}}")
+            chunks.append(r"\bottomrule\end{tabular}\par}")
 
-        # ---- Contrasts
-        chunks.append(r"\subsubsection*{Paired contrasts (CTR points) by $\gamma$}")
-        chunks.append(r"{\footnotesize\begin{longtable}{rlrrrrl}")
-        chunks.append(
-            r"\toprule $\gamma$ & contrast & $n$ & mean & 95\% CI lo & 95\% CI hi & status \\"
-        )
-        chunks.append(r"\midrule\endfirsthead")
-        cont = esc(f"{ds} / {misspec} contrasts")
-        chunks.append(rf"\toprule\multicolumn{{7}}{{l}}{{\emph{{continued: {cont}}}}} \\")
-        chunks.append(
-            r"\toprule $\gamma$ & contrast & $n$ & mean & 95\% CI lo & 95\% CI hi & status \\"
-        )
-        chunks.append(r"\midrule\endhead\bottomrule\endfoot")
-        ct_idx = {(float(r.gamma), r.contrast): r for _, r in ct.iterrows()}
-        for g in planned_gammas:
-            for contrast in PRIMARY_DID_CONTRASTS:
+            # ---- Contrasts table
+            crow = []
+            cvals = []
+            extras = [
+                r.contrast
+                for _, r in ct[ct.gamma == g].iterrows()
+                if r.contrast not in PRIMARY_DID_CONTRASTS
+            ]
+            contrast_list = list(PRIMARY_DID_CONTRASTS) + sorted(set(extras), key=contrast_sort_key)
+            for contrast in contrast_list:
                 r = ct_idx.get((float(g), contrast))
-                if r is None:
-                    # only mark missing for grid methods that should produce this contrast
-                    chunks.append(
-                        f"{g:g} & {CONTRAST_LABEL.get(contrast, esc(contrast))} & 0 & --- & --- & --- & did not run \\\\"
-                    )
+                if r is None or int(r.n) <= 0:
+                    crow.append((contrast, 0, "did not run", None, None, None))
+                    cvals.append(float("nan"))
                 else:
                     st = "partial" if int(r.n) < target_n else "complete"
-                    chunks.append(
-                        f"{g:g} & {CONTRAST_LABEL.get(contrast, esc(contrast))} & {int(r.n)} & "
-                        f"{fmt(r.mean_pt, signed=True)} & {fmt(r.ci_lo, signed=True)} & "
-                        f"{fmt(r.ci_hi, signed=True)} & {st} \\\\"
+                    crow.append(
+                        (contrast, int(r.n), st, float(r.mean_pt), float(r.ci_lo), float(r.ci_hi))
                     )
-        # also emit any extra contrasts present (H-OPC etc.) that finished
-        for _, r in ct.sort_values(["gamma", "contrast"]).iterrows():
-            if r.contrast in PRIMARY_DID_CONTRASTS:
-                continue
-            st = "partial" if int(r.n) < target_n else "complete"
-            chunks.append(
-                f"{r.gamma:g} & {CONTRAST_LABEL.get(r.contrast, esc(r.contrast))} & {int(r.n)} & "
-                f"{fmt(r.mean_pt, signed=True)} & {fmt(r.ci_lo, signed=True)} & "
-                f"{fmt(r.ci_hi, signed=True)} & {st} \\\\"
-            )
-        chunks.append(r"\end{longtable}}")
+                    cvals.append(float(r.mean_pt))
+            cbest = _best_idx(cvals, higher_is_better=True)
 
-        # ---- DiD
-        chunks.append(r"\subsubsection*{DiD vs $\gamma{=}0$ (CTR points) with 95\% CI}")
-        chunks.append(
-            r"Definition: $\mathrm{DiD}=\Delta(\gamma_1)-\Delta(\gamma_0)$ for the named contrast, "
-            r"paired over seeds present at both $\gamma$. Rows with status ``did not run'' or "
-            r"``partial pair'' mean the $\gamma{=}0$ / $\gamma_1$ seed intersection was empty or incomplete."
-        )
-        chunks.append(r"{\footnotesize\begin{longtable}{rrlrrrrl}")
-        chunks.append(
-            r"\toprule $\gamma_0$ & $\gamma_1$ & contrast & $n$ & DiD & 95\% CI lo & 95\% CI hi & status \\"
-        )
-        chunks.append(r"\midrule\endfirsthead")
-        cont = esc(f"{ds} / {misspec} DiD")
-        chunks.append(rf"\toprule\multicolumn{{8}}{{l}}{{\emph{{continued: {cont}}}}} \\")
-        chunks.append(
-            r"\toprule $\gamma_0$ & $\gamma_1$ & contrast & $n$ & DiD & 95\% CI lo & 95\% CI hi & status \\"
-        )
-        chunks.append(r"\midrule\endhead\bottomrule\endfoot")
-        dd_idx = {(float(r.g0), float(r.g1), r.contrast): r for _, r in dd.iterrows()}
-        g1s = [g for g in planned_gammas if g != 0.0]
-        for g1 in g1s:
-            for contrast in PRIMARY_DID_CONTRASTS:
-                r = dd_idx.get((0.0, float(g1), contrast))
-                if r is None:
-                    chunks.append(
-                        f"0 & {g1:g} & {CONTRAST_LABEL.get(contrast, esc(contrast))} & 0 & "
-                        f"--- & --- & --- & did not run \\\\"
-                    )
+            chunks.append(r"\paragraph{Contrasts (CTR points).}")
+            chunks.append(r"{\centering\small\begin{tabular}{llrrrr}")
+            chunks.append(r"\toprule contrast & status & $n$ & mean & CI lo & CI hi \\")
+            chunks.append(r"\midrule")
+            for i, (contrast, n, st, mean, lo, hi) in enumerate(crow):
+                lab = CONTRAST_LABEL.get(contrast, esc(contrast))
+                is_best = i in cbest
+                if mean is None or not np.isfinite(mean):
+                    chunks.append(f"{lab} & did not run & 0 & --- & --- & --- \\\\")
                 else:
-                    st = "partial" if int(r.n) < target_n else "complete"
                     chunks.append(
-                        f"{r.g0:g} & {r.g1:g} & {CONTRAST_LABEL.get(r.contrast, esc(r.contrast))} & {int(r.n)} & "
-                        f"{fmt(r.DiD_pt, signed=True)} & {fmt(r.ci_lo, signed=True)} & "
-                        f"{fmt(r.ci_hi, signed=True)} & {st} \\\\"
+                        f"{_bf(lab, is_best)} & {st} & {_bf(str(n), is_best)} & "
+                        f"{_bf(fmt(mean, signed=True), is_best)} & "
+                        f"{_bf(fmt(lo, signed=True), is_best)} & "
+                        f"{_bf(fmt(hi, signed=True), is_best)} \\\\"
                     )
-        # extra DiD contrasts if any
-        for _, r in dd.sort_values(["g1", "contrast"]).iterrows():
-            if r.contrast in PRIMARY_DID_CONTRASTS and float(r.g0) == 0.0 and float(r.g1) in g1s:
-                continue
-            st = "partial" if int(r.n) < target_n else "complete"
-            chunks.append(
-                f"{r.g0:g} & {r.g1:g} & {CONTRAST_LABEL.get(r.contrast, esc(r.contrast))} & {int(r.n)} & "
-                f"{fmt(r.DiD_pt, signed=True)} & {fmt(r.ci_lo, signed=True)} & "
-                f"{fmt(r.ci_hi, signed=True)} & {st} \\\\"
-            )
-        chunks.append(r"\end{longtable}}")
+            chunks.append(r"\bottomrule\end{tabular}\par}")
+
+            # ---- DiD table (only for γ>0)
+            if float(g) != 0.0:
+                drow = []
+                dvals = []
+                dextras = [
+                    r.contrast
+                    for _, r in dd[(dd.g0 == 0.0) & (dd.g1 == g)].iterrows()
+                    if r.contrast not in PRIMARY_DID_CONTRASTS
+                ]
+                dlist = list(PRIMARY_DID_CONTRASTS) + sorted(set(dextras), key=contrast_sort_key)
+                for contrast in dlist:
+                    r = dd_idx.get((0.0, float(g), contrast))
+                    if r is None or int(r.n) <= 0:
+                        drow.append((contrast, 0, "did not run", None, None, None))
+                        dvals.append(float("nan"))
+                    else:
+                        st = "partial" if int(r.n) < target_n else "complete"
+                        drow.append(
+                            (contrast, int(r.n), st, float(r.DiD_pt), float(r.ci_lo), float(r.ci_hi))
+                        )
+                        dvals.append(float(r.DiD_pt))
+                dbest = _best_idx(dvals, higher_is_better=True)
+
+                chunks.append(
+                    rf"\paragraph{{DiD vs $\gamma=0$ (CTR points).}} "
+                    r"$\mathrm{DiD}=\Delta(\gamma)-\Delta(0)$."
+                )
+                chunks.append(r"{\centering\small\begin{tabular}{llrrrr}")
+                chunks.append(r"\toprule contrast & status & $n$ & DiD & CI lo & CI hi \\")
+                chunks.append(r"\midrule")
+                for i, (contrast, n, st, mean, lo, hi) in enumerate(drow):
+                    lab = CONTRAST_LABEL.get(contrast, esc(contrast))
+                    is_best = i in dbest
+                    if mean is None or not np.isfinite(mean):
+                        chunks.append(f"{lab} & did not run & 0 & --- & --- & --- \\\\")
+                    else:
+                        chunks.append(
+                            f"{_bf(lab, is_best)} & {st} & {_bf(str(n), is_best)} & "
+                            f"{_bf(fmt(mean, signed=True), is_best)} & "
+                            f"{_bf(fmt(lo, signed=True), is_best)} & "
+                            f"{_bf(fmt(hi, signed=True), is_best)} \\\\"
+                        )
+                chunks.append(r"\bottomrule\end{tabular}\par}")
+
+            chunks.append(r"\bigskip")
+
         chunks.append(r"\newpage")
     return "\n".join(chunks)
-
 def summary_did_table(did: pd.DataFrame) -> str:
     """Compact highlight: primary DiDs with any n>0 (partial included)."""
     dd = did[did.contrast.isin(PRIMARY_DID_CONTRASTS)].copy()
