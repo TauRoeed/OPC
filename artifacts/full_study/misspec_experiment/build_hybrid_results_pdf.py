@@ -16,9 +16,60 @@ import numpy as np
 import pandas as pd
 
 ROOT = Path("artifacts/full_study/misspec_experiment")
+STUDY = Path("artifacts/full_study")
 CELL = ROOT / "hybrid_by_cell"
 OUT_TEX = ROOT / "hybrid_results_by_setup.tex"
 OUT_PDF = ROOT / "hybrid_results_by_setup.pdf"
+INVENTORY = CELL / "study_inventory.json"
+TARGET_N_GRID = 40
+
+METHOD_ORDER = [
+    "opc",
+    "nll",
+    "nll_dr",
+    "hybrid_seq_f0.25",
+    "hybrid_seq_f0.5",
+    "hybrid_seq_f0.75",
+    "hybrid_seq_adapt",
+]
+METHOD_LABEL = {
+    "opc": "OPC/DR",
+    "nll": "NLL",
+    "nll_dr": "NLL$\\to$DR (ref)",
+    "hybrid_seq_f0.25": "hybrid $f{=}0.25$",
+    "hybrid_seq_f0.5": "hybrid $f{=}0.5$",
+    "hybrid_seq_f0.75": "hybrid $f{=}0.75$",
+    "hybrid_seq_adapt": "hybrid adapt",
+}
+CONTRAST_ORDER = [
+    "OPC-NLL",
+    "H25-NLL",
+    "H-NLL",
+    "H75-NLL",
+    "A-NLL",
+    "H-OPC",
+    "A-OPC",
+    "A-H",
+]
+CONTRAST_LABEL = {
+    "OPC-NLL": "$V_{\\mathrm{OPC}}-V_{\\mathrm{NLL}}$",
+    "H25-NLL": "$V_{f0.25}-V_{\\mathrm{NLL}}$",
+    "H-NLL": "$V_{f0.5}-V_{\\mathrm{NLL}}$",
+    "H75-NLL": "$V_{f0.75}-V_{\\mathrm{NLL}}$",
+    "A-NLL": "$V_{\\mathrm{adapt}}-V_{\\mathrm{NLL}}$",
+    "H-OPC": "$V_{f0.5}-V_{\\mathrm{OPC}}$",
+    "A-OPC": "$V_{\\mathrm{adapt}}-V_{\\mathrm{OPC}}$",
+    "A-H": "$V_{\\mathrm{adapt}}-V_{f0.5}$",
+}
+PRIMARY_DID_CONTRASTS = ["OPC-NLL", "H25-NLL", "H-NLL", "H75-NLL", "A-NLL"]
+GRID_METHODS = [
+    "opc",
+    "nll",
+    "hybrid_seq_f0.25",
+    "hybrid_seq_f0.5",
+    "hybrid_seq_f0.75",
+    "hybrid_seq_adapt",
+]
 
 
 def dedupe(df: pd.DataFrame, keys: list[str]) -> pd.DataFrame:
@@ -77,6 +128,47 @@ def esc_para(s: str) -> str:
     return esc(s)
 
 
+def _ci_arr(x: np.ndarray, alpha: float = 0.05):
+    from scipy import stats as st
+
+    x = np.asarray(x, dtype=float)
+    x = x[np.isfinite(x)]
+    n = int(x.size)
+    if n == 0:
+        return float("nan"), float("nan"), float("nan"), 0
+    mean = float(x.mean())
+    if n == 1:
+        return mean, mean, mean, 1
+    se = float(x.std(ddof=1) / np.sqrt(n))
+    t = float(st.t.ppf(1 - alpha / 2, n - 1))
+    return mean, mean - t * se, mean + t * se, n
+
+
+def load_tag_method_ctr(tag: str) -> dict[str, np.ndarray]:
+    """Seed-level greedy CTR (fraction) per method from summary_metrics.csv."""
+    import re
+
+    run = STUDY / f"run_{tag}"
+    out: dict[str, dict[int, float]] = {}
+    if not run.is_dir():
+        return {}
+    for sm in run.glob("dataset=*/summary_metrics.csv"):
+        seed_m = re.search(r"seed=(\d+)", sm.parent.name)
+        if not seed_m:
+            continue
+        seed = int(seed_m.group(1))
+        df = pd.read_csv(sm)
+        for _, r in df.iterrows():
+            meth = str(r.get("method", ""))
+            if meth not in METHOD_ORDER:
+                continue
+            g = r.get("policy_rewards_greedy")
+            if g is None or (isinstance(g, float) and not np.isfinite(g)):
+                continue
+            out.setdefault(meth, {})[seed] = float(g)
+    return {m: np.array(list(seeds.values()), dtype=float) for m, seeds in out.items()}
+
+
 def load():
     levels = dedupe(pd.read_csv(CELL / "levels_ci.csv"), ["dataset", "misspec", "gamma", "method"])
     contrasts = dedupe(pd.read_csv(CELL / "contrasts_ci.csv"), ["dataset", "misspec", "gamma", "contrast"])
@@ -86,48 +178,113 @@ def load():
     rp = CELL / "reward_ratios_summary.csv"
     if rp.exists():
         ratios = pd.read_csv(rp)
-    return levels, contrasts, did, when, ratios
+    inv = None
+    if INVENTORY.exists():
+        inv = json.loads(INVENTORY.read_text())
+    return levels, contrasts, did, when, ratios, inv
 
 
-METHOD_ORDER = [
-    "opc",
-    "nll",
-    "nll_dr",
-    "hybrid_seq_f0.25",
-    "hybrid_seq_f0.5",
-    "hybrid_seq_f0.75",
-    "hybrid_seq_adapt",
-]
-METHOD_LABEL = {
-    "opc": "OPC/DR",
-    "nll": "NLL",
-    "nll_dr": "NLL$\\to$DR (ref)",
-    "hybrid_seq_f0.25": "hybrid $f{=}0.25$",
-    "hybrid_seq_f0.5": "hybrid $f{=}0.5$",
-    "hybrid_seq_f0.75": "hybrid $f{=}0.75$",
-    "hybrid_seq_adapt": "hybrid adapt",
-}
-CONTRAST_ORDER = [
-    "OPC-NLL",
-    "H25-NLL",
-    "H-NLL",
-    "H75-NLL",
-    "A-NLL",
-    "H-OPC",
-    "A-OPC",
-    "A-H",
-]
-CONTRAST_LABEL = {
-    "OPC-NLL": "$V_{\\mathrm{OPC}}-V_{\\mathrm{NLL}}$",
-    "H25-NLL": "$V_{f0.25}-V_{\\mathrm{NLL}}$",
-    "H-NLL": "$V_{f0.5}-V_{\\mathrm{NLL}}$",
-    "H75-NLL": "$V_{f0.75}-V_{\\mathrm{NLL}}$",
-    "A-NLL": "$V_{\\mathrm{adapt}}-V_{\\mathrm{NLL}}$",
-    "H-OPC": "$V_{f0.5}-V_{\\mathrm{OPC}}$",
-    "A-OPC": "$V_{\\mathrm{adapt}}-V_{\\mathrm{OPC}}$",
-    "A-H": "$V_{\\mathrm{adapt}}-V_{f0.5}$",
-}
-
+def enrich_levels_from_inventory(levels: pd.DataFrame, inv: dict | None) -> pd.DataFrame:
+    """Ensure every inventory (dataset, misspec, gamma, method) has a row; fill from run dirs if needed."""
+    if not inv:
+        return levels
+    rows = levels.to_dict("records")
+    have = {(r["dataset"], r["misspec"], float(r["gamma"]), r["method"]) for r in rows}
+    for cell in inv.get("cells", []):
+        ds, misspec, g = cell["dataset"], cell["misspec"], float(cell["gamma"])
+        tag = cell["tag"]
+        target = int(cell.get("target_n", TARGET_N_GRID))
+        live = None
+        for m in cell.get("methods", GRID_METHODS):
+            if m not in GRID_METHODS:
+                continue
+            key = (ds, misspec, g, m)
+            n_file = int(cell.get("method_n", {}).get(m, 0))
+            if key in have:
+                # annotate later; do not duplicate
+                continue
+            if n_file == 0:
+                rows.append(
+                    dict(
+                        dataset=ds,
+                        misspec=misspec,
+                        gamma=g,
+                        method=m,
+                        n=0,
+                        mean_ctr_pct=float("nan"),
+                        ci_lo=float("nan"),
+                        ci_hi=float("nan"),
+                        status="did_not_run",
+                        target_n=target,
+                        tag=tag,
+                    )
+                )
+                have.add(key)
+                continue
+            if live is None:
+                live = load_tag_method_ctr(tag)
+            arr = live.get(m, np.array([]))
+            mean, lo, hi, n = _ci_arr(100.0 * arr)
+            st = "complete" if n >= target else ("partial" if n > 0 else "did_not_run")
+            rows.append(
+                dict(
+                    dataset=ds,
+                    misspec=misspec,
+                    gamma=g,
+                    method=m,
+                    n=n,
+                    mean_ctr_pct=mean,
+                    ci_lo=lo,
+                    ci_hi=hi,
+                    status=st,
+                    target_n=target,
+                    tag=tag,
+                )
+            )
+            have.add(key)
+    out = pd.DataFrame(rows)
+    if "status" not in out.columns:
+        out["status"] = np.nan
+    if "target_n" not in out.columns:
+        out["target_n"] = TARGET_N_GRID
+    # annotate existing analyze rows with status
+    inv_n = {}
+    for cell in inv.get("cells", []):
+        for m, n in cell.get("method_n", {}).items():
+            inv_n[(cell["dataset"], cell["misspec"], float(cell["gamma"]), m)] = (
+                int(n),
+                int(cell.get("target_n", TARGET_N_GRID)),
+                cell["tag"],
+            )
+    statuses = []
+    targets = []
+    tags = []
+    for _, r in out.iterrows():
+        key = (r.dataset, r.misspec, float(r.gamma), r.method)
+        if isinstance(r.get("status"), str) and r.get("status") in {"did_not_run", "partial", "complete"}:
+            statuses.append(r["status"])
+            targets.append(int(r.get("target_n", TARGET_N_GRID)))
+            tags.append(r.get("tag", ""))
+            continue
+        if key in inv_n:
+            n, tgt, tag = inv_n[key]
+            targets.append(tgt)
+            tags.append(tag)
+            if int(r.n) <= 0 and n <= 0:
+                statuses.append("did_not_run")
+            elif int(r.n) >= tgt:
+                statuses.append("complete")
+            else:
+                statuses.append("partial")
+        else:
+            # non-grid locked cell
+            targets.append(int(r.n) if int(r.n) >= 20 else 20)
+            tags.append("")
+            statuses.append("complete" if int(r.n) >= 10 else ("partial" if int(r.n) > 0 else "did_not_run"))
+    out["status"] = statuses
+    out["target_n"] = targets
+    out["tag"] = tags
+    return out
 
 def preamble() -> str:
     return r"""\documentclass[10pt,a4paper]{article}
@@ -343,151 +500,262 @@ def contrast_sort_key(c):
         return 100
 
 
-def emit_setup_blocks(levels, contrasts, did) -> str:
-    chunks = [r"\section{Results by setup}", r"Each subsection is one (\textbf{dataset}, \textbf{misspec}) pair. "
-              r"Within it: absolute levels by $\gamma$ and method, then paired contrasts at each $\gamma$, "
-              r"then DiD vs the family's $\gamma{=}0$ baseline (with 95\% CI).", ""]
+def inventory_section(inv: dict | None) -> str:
+    if not inv:
+        return r"\section{Full-grid study matrix}\emph{Inventory missing; run \_inventory\_grid.py.}"
+    lines = [
+        r"\section{Full-grid study matrix (complete picture)}",
+        (
+            r"Planned confirmatory grid: \textbf{"
+            f"{inv['n_planned_grid']}"
+            r"} cells "
+            r"(dataset$\times$misspec$\times\gamma$), each with methods "
+            r"OPC/DR, NLL, hybrid $f\in\{0.25,0.5,0.75\}$, adapt; target $n{=}40$ seeds. "
+            f"Status now: \\textbf{{{inv['n_complete']}}} complete, "
+            f"\\textbf{{{inv['n_partial']}}} partial, "
+            f"\\textbf{{{inv['n_did_not_run']}}} did not run. "
+            r"Partial cells still contribute seed-level estimates below (with current $n$ and CIs). "
+            r"Did-not-run cells appear explicitly as ``did not run''."
+        ),
+        r"{\footnotesize\begin{longtable}{llrrll}",
+        r"\toprule dataset & misspec & $\gamma$ & status & $n$ range (methods) & tag \\",
+        r"\midrule\endfirsthead",
+        r"\toprule dataset & misspec & $\gamma$ & status & $n$ range (methods) & tag \\",
+        r"\midrule\endhead\bottomrule\endfoot",
+    ]
+    for c in sorted(inv["cells"], key=lambda x: (x["dataset"], x["misspec"], x["gamma"])):
+        st = c["status"].replace("_", " ")
+        nlo, nhi = c["n_min"], c["n_max"]
+        n_s = f"{nlo}--{nhi}" if nlo != nhi else str(nlo)
+        if c["status"] == "did_not_run":
+            n_s = "0"
+        lines.append(
+            f"{esc(c['dataset'])} & {esc(c['misspec'])} & {c['gamma']:g} & {esc(st)} & {n_s} & "
+            f"\\texttt{{{esc(c['tag'])}}} \\\\"
+        )
+    lines += [r"\end{longtable}}", r"\newpage"]
+    return "\n".join(lines)
 
-    keys = sorted(levels.groupby(["dataset", "misspec"]).groups.keys())
-    for ds, misspec in keys:
+
+def emit_setup_blocks(levels, contrasts, did, inv) -> str:
+    chunks = [
+        r"\section{Results by setup}",
+        r"Each subsection is one (\textbf{dataset}, \textbf{misspec}) pair. "
+        r"Absolute levels list \emph{every} planned $\gamma\times$method for the full grid "
+        r"(complete / partial / did not run). Contrasts and DiD show numbers when estimable; "
+        r"otherwise an explicit missing-row.",
+        "",
+    ]
+
+    keys = set(map(tuple, levels[["dataset", "misspec"]].drop_duplicates().values.tolist()))
+    if inv:
+        for c in inv["cells"]:
+            keys.add((c["dataset"], c["misspec"]))
+    for ds, misspec in sorted(keys):
         lv = levels[(levels.dataset == ds) & (levels.misspec == misspec)].copy()
         ct = contrasts[(contrasts.dataset == ds) & (contrasts.misspec == misspec)].copy()
         dd = did[(did.dataset == ds) & (did.misspec == misspec)].copy()
-        if lv.empty:
-            continue
-        chunks.append(rf"\subsection{{{esc(ds)} / {esc(misspec)}}}")
-        gammas = sorted(lv.gamma.unique())
-        chunks.append(
-            rf"Gammas present: ${', '.join(f'{g:g}' for g in gammas)}$. "
-            rf"Seeds $n$ vary by method/cell (see tables)."
-        )
 
-        # ---- Levels longtable
+        inv_cells = [
+            c for c in (inv or {}).get("cells", []) if c["dataset"] == ds and c["misspec"] == misspec
+        ]
+        planned_gammas = sorted({float(c["gamma"]) for c in inv_cells}) if inv_cells else sorted(lv.gamma.unique())
+        target_n = int(inv_cells[0]["target_n"]) if inv_cells else TARGET_N_GRID
+        methods_here = list(GRID_METHODS) if inv_cells else sorted(lv.method.unique(), key=method_sort_key)
+
+        n_complete = sum(1 for c in inv_cells if c["status"] == "complete")
+        n_partial = sum(1 for c in inv_cells if c["status"] == "partial")
+        n_miss = sum(1 for c in inv_cells if c["status"] == "did_not_run")
+
+        chunks.append(rf"\subsection{{{esc(ds)} / {esc(misspec)}}}")
+        if inv_cells:
+            chunks.append(
+                rf"Full-grid cells for this setup: {len(inv_cells)} "
+                rf"(complete {n_complete}, partial {n_partial}, did not run {n_miss}). "
+                rf"Target $n={target_n}$. Planned $\gamma\in\{{{', '.join(f'{g:g}' for g in planned_gammas)}\}}$."
+            )
+        else:
+            chunks.append(r"Legacy / non-grid locked tags (not in the 192-cell queue).")
+
+        # ---- Levels
         chunks.append(r"\subsubsection*{Absolute greedy CTR (\%) by $\gamma$ and method}")
-        chunks.append(r"{\footnotesize\begin{longtable}{rrlrrr}")
+        chunks.append(r"{\footnotesize\begin{longtable}{rrllrrr}")
         chunks.append(
-            r"\toprule $\gamma$ & $n$ & method & mean CTR\% & 95\% CI lo & 95\% CI hi \\"
+            r"\toprule $\gamma$ & $n$ & status & method & mean CTR\% & 95\% CI lo & 95\% CI hi \\"
         )
         chunks.append(r"\midrule\endfirsthead")
         cont = esc(f"{ds} / {misspec} levels")
-        chunks.append(rf"\toprule\multicolumn{{6}}{{l}}{{\emph{{continued: {cont}}}}} \\")
+        chunks.append(rf"\toprule\multicolumn{{7}}{{l}}{{\emph{{continued: {cont}}}}} \\")
         chunks.append(
-            r"\toprule $\gamma$ & $n$ & method & mean CTR\% & 95\% CI lo & 95\% CI hi \\"
+            r"\toprule $\gamma$ & $n$ & status & method & mean CTR\% & 95\% CI lo & 95\% CI hi \\"
         )
         chunks.append(r"\midrule\endhead\bottomrule\endfoot")
-        for g in gammas:
-            sub = lv[lv.gamma == g].copy()
-            sub["_k"] = sub.method.map(method_sort_key)
-            sub = sub.sort_values(["_k", "method"])
-            for _, r in sub.iterrows():
-                chunks.append(
-                    f"{r.gamma:g} & {int(r.n)} & {METHOD_LABEL.get(r.method, esc(r.method))} & "
-                    f"{fmt(r.mean_ctr_pct)} & {fmt(r.ci_lo)} & {fmt(r.ci_hi)} \\\\"
-                )
+
+        lv_idx = {
+            (float(r.gamma), r.method): r
+            for _, r in lv.iterrows()
+        }
+        for g in planned_gammas:
+            for m in methods_here:
+                r = lv_idx.get((float(g), m))
+                if r is None:
+                    chunks.append(
+                        f"{g:g} & 0 & did not run & {METHOD_LABEL.get(m, esc(m))} & --- & --- & --- \\\\"
+                    )
+                    continue
+                st = str(r.get("status", "complete")).replace("_", " ")
+                if int(r.n) <= 0 or st == "did not run":
+                    chunks.append(
+                        f"{g:g} & 0 & did not run & {METHOD_LABEL.get(m, esc(m))} & --- & --- & --- \\\\"
+                    )
+                else:
+                    chunks.append(
+                        f"{g:g} & {int(r.n)} & {esc(st)} & {METHOD_LABEL.get(m, esc(m))} & "
+                        f"{fmt(r.mean_ctr_pct)} & {fmt(r.ci_lo)} & {fmt(r.ci_hi)} \\\\"
+                    )
         chunks.append(r"\end{longtable}}")
 
-        # ---- Contrasts by gamma
-        if not ct.empty:
-            chunks.append(r"\subsubsection*{Paired contrasts (CTR points) by $\gamma$}")
-            chunks.append(r"{\footnotesize\begin{longtable}{rlrrrr}")
-            chunks.append(
-                r"\toprule $\gamma$ & contrast & $n$ & mean & 95\% CI lo & 95\% CI hi \\"
-            )
-            chunks.append(r"\midrule\endfirsthead")
-            cont = esc(f"{ds} / {misspec} contrasts")
-            chunks.append(rf"\toprule\multicolumn{{6}}{{l}}{{\emph{{continued: {cont}}}}} \\")
-            chunks.append(
-                r"\toprule $\gamma$ & contrast & $n$ & mean & 95\% CI lo & 95\% CI hi \\"
-            )
-            chunks.append(r"\midrule\endhead\bottomrule\endfoot")
-            for g in sorted(ct.gamma.unique()):
-                sub = ct[ct.gamma == g].copy()
-                sub["_k"] = sub.contrast.map(contrast_sort_key)
-                sub = sub.sort_values("_k")
-                for _, r in sub.iterrows():
+        # ---- Contrasts
+        chunks.append(r"\subsubsection*{Paired contrasts (CTR points) by $\gamma$}")
+        chunks.append(r"{\footnotesize\begin{longtable}{rlrrrrl}")
+        chunks.append(
+            r"\toprule $\gamma$ & contrast & $n$ & mean & 95\% CI lo & 95\% CI hi & status \\"
+        )
+        chunks.append(r"\midrule\endfirsthead")
+        cont = esc(f"{ds} / {misspec} contrasts")
+        chunks.append(rf"\toprule\multicolumn{{7}}{{l}}{{\emph{{continued: {cont}}}}} \\")
+        chunks.append(
+            r"\toprule $\gamma$ & contrast & $n$ & mean & 95\% CI lo & 95\% CI hi & status \\"
+        )
+        chunks.append(r"\midrule\endhead\bottomrule\endfoot")
+        ct_idx = {(float(r.gamma), r.contrast): r for _, r in ct.iterrows()}
+        for g in planned_gammas:
+            for contrast in PRIMARY_DID_CONTRASTS:
+                r = ct_idx.get((float(g), contrast))
+                if r is None:
+                    # only mark missing for grid methods that should produce this contrast
                     chunks.append(
-                        f"{r.gamma:g} & {CONTRAST_LABEL.get(r.contrast, esc(r.contrast))} & {int(r.n)} & "
-                        f"{fmt(r.mean_pt, signed=True)} & {fmt(r.ci_lo, signed=True)} & {fmt(r.ci_hi, signed=True)} \\\\"
+                        f"{g:g} & {CONTRAST_LABEL.get(contrast, esc(contrast))} & 0 & --- & --- & --- & did not run \\\\"
                     )
-            chunks.append(r"\end{longtable}}")
+                else:
+                    st = "partial" if int(r.n) < target_n else "complete"
+                    chunks.append(
+                        f"{g:g} & {CONTRAST_LABEL.get(contrast, esc(contrast))} & {int(r.n)} & "
+                        f"{fmt(r.mean_pt, signed=True)} & {fmt(r.ci_lo, signed=True)} & "
+                        f"{fmt(r.ci_hi, signed=True)} & {st} \\\\"
+                    )
+        # also emit any extra contrasts present (H-OPC etc.) that finished
+        for _, r in ct.sort_values(["gamma", "contrast"]).iterrows():
+            if r.contrast in PRIMARY_DID_CONTRASTS:
+                continue
+            st = "partial" if int(r.n) < target_n else "complete"
+            chunks.append(
+                f"{r.gamma:g} & {CONTRAST_LABEL.get(r.contrast, esc(r.contrast))} & {int(r.n)} & "
+                f"{fmt(r.mean_pt, signed=True)} & {fmt(r.ci_lo, signed=True)} & "
+                f"{fmt(r.ci_hi, signed=True)} & {st} \\\\"
+            )
+        chunks.append(r"\end{longtable}}")
 
         # ---- DiD
-        if not dd.empty:
+        chunks.append(r"\subsubsection*{DiD vs $\gamma{=}0$ (CTR points) with 95\% CI}")
+        chunks.append(
+            r"Definition: $\mathrm{DiD}=\Delta(\gamma_1)-\Delta(\gamma_0)$ for the named contrast, "
+            r"paired over seeds present at both $\gamma$. Rows with status ``did not run'' or "
+            r"``partial pair'' mean the $\gamma{=}0$ / $\gamma_1$ seed intersection was empty or incomplete."
+        )
+        chunks.append(r"{\footnotesize\begin{longtable}{rrlrrrrl}")
+        chunks.append(
+            r"\toprule $\gamma_0$ & $\gamma_1$ & contrast & $n$ & DiD & 95\% CI lo & 95\% CI hi & status \\"
+        )
+        chunks.append(r"\midrule\endfirsthead")
+        cont = esc(f"{ds} / {misspec} DiD")
+        chunks.append(rf"\toprule\multicolumn{{8}}{{l}}{{\emph{{continued: {cont}}}}} \\")
+        chunks.append(
+            r"\toprule $\gamma_0$ & $\gamma_1$ & contrast & $n$ & DiD & 95\% CI lo & 95\% CI hi & status \\"
+        )
+        chunks.append(r"\midrule\endhead\bottomrule\endfoot")
+        dd_idx = {(float(r.g0), float(r.g1), r.contrast): r for _, r in dd.iterrows()}
+        g1s = [g for g in planned_gammas if g != 0.0]
+        for g1 in g1s:
+            for contrast in PRIMARY_DID_CONTRASTS:
+                r = dd_idx.get((0.0, float(g1), contrast))
+                if r is None:
+                    chunks.append(
+                        f"0 & {g1:g} & {CONTRAST_LABEL.get(contrast, esc(contrast))} & 0 & "
+                        f"--- & --- & --- & did not run \\\\"
+                    )
+                else:
+                    st = "partial" if int(r.n) < target_n else "complete"
+                    chunks.append(
+                        f"{r.g0:g} & {r.g1:g} & {CONTRAST_LABEL.get(r.contrast, esc(r.contrast))} & {int(r.n)} & "
+                        f"{fmt(r.DiD_pt, signed=True)} & {fmt(r.ci_lo, signed=True)} & "
+                        f"{fmt(r.ci_hi, signed=True)} & {st} \\\\"
+                    )
+        # extra DiD contrasts if any
+        for _, r in dd.sort_values(["g1", "contrast"]).iterrows():
+            if r.contrast in PRIMARY_DID_CONTRASTS and float(r.g0) == 0.0 and float(r.g1) in g1s:
+                continue
+            st = "partial" if int(r.n) < target_n else "complete"
             chunks.append(
-                r"\subsubsection*{DiD vs $\gamma{=}0$ (CTR points) with 95\% CI}"
+                f"{r.g0:g} & {r.g1:g} & {CONTRAST_LABEL.get(r.contrast, esc(r.contrast))} & {int(r.n)} & "
+                f"{fmt(r.DiD_pt, signed=True)} & {fmt(r.ci_lo, signed=True)} & "
+                f"{fmt(r.ci_hi, signed=True)} & {st} \\\\"
             )
-            chunks.append(
-                r"Definition: $\mathrm{DiD}=\Delta(\gamma_1)-\Delta(\gamma_0)$ for the named contrast, "
-                r"paired over seeds present at both $\gamma$."
-            )
-            chunks.append(r"{\footnotesize\begin{longtable}{rrlrrrr}")
-            chunks.append(
-                r"\toprule $\gamma_0$ & $\gamma_1$ & contrast & $n$ & DiD & 95\% CI lo & 95\% CI hi \\"
-            )
-            chunks.append(r"\midrule\endfirsthead")
-            cont = esc(f"{ds} / {misspec} DiD")
-            chunks.append(rf"\toprule\multicolumn{{7}}{{l}}{{\emph{{continued: {cont}}}}} \\")
-            chunks.append(
-                r"\toprule $\gamma_0$ & $\gamma_1$ & contrast & $n$ & DiD & 95\% CI lo & 95\% CI hi \\"
-            )
-            chunks.append(r"\midrule\endhead\bottomrule\endfoot")
-            dd = dd.copy()
-            dd["_k"] = dd.contrast.map(contrast_sort_key)
-            dd = dd.sort_values(["g1", "_k"])
-            for _, r in dd.iterrows():
-                chunks.append(
-                    f"{r.g0:g} & {r.g1:g} & {CONTRAST_LABEL.get(r.contrast, esc(r.contrast))} & {int(r.n)} & "
-                    f"{fmt(r.DiD_pt, signed=True)} & {fmt(r.ci_lo, signed=True)} & {fmt(r.ci_hi, signed=True)} \\\\"
-                )
-            chunks.append(r"\end{longtable}}")
-
+        chunks.append(r"\end{longtable}}")
         chunks.append(r"\newpage")
     return "\n".join(chunks)
 
-
 def summary_did_table(did: pd.DataFrame) -> str:
-    """Compact highlight: primary DiDs H-NLL / OPC-NLL / A-NLL with n>=10."""
-    dd = did[did.contrast.isin(["H-NLL", "OPC-NLL", "A-NLL", "H25-NLL", "H75-NLL"])].copy()
-    dd = dd[dd.n >= 10]
+    """Compact highlight: primary DiDs with any n>0 (partial included)."""
+    dd = did[did.contrast.isin(PRIMARY_DID_CONTRASTS)].copy()
+    dd = dd[dd.n >= 1]
     if dd.empty:
         return ""
     lines = [
-        r"\section{Compact DiD index (primary contrasts, $n\ge 10$)}",
-        r"{\footnotesize\begin{longtable}{llrrlrrr}",
-        r"\toprule dataset & misspec & $\gamma_0$ & $\gamma_1$ & contrast & $n$ & DiD & 95\% CI \\",
+        r"\section{Compact DiD index (primary contrasts; includes partial $n$)}",
+        r"All estimable DiDs with $n\ge 1$. Smaller $n$ are partial runs --- interpret CIs cautiously.",
+        r"{\footnotesize\begin{longtable}{llrrlrrrl}",
+        r"\toprule dataset & misspec & $\gamma_0$ & $\gamma_1$ & contrast & $n$ & DiD & 95\% CI & status \\",
         r"\midrule\endfirsthead",
-        r"\toprule dataset & misspec & $\gamma_0$ & $\gamma_1$ & contrast & $n$ & DiD & 95\% CI \\",
+        r"\toprule dataset & misspec & $\gamma_0$ & $\gamma_1$ & contrast & $n$ & DiD & 95\% CI & status \\",
         r"\midrule\endhead\bottomrule\endfoot",
     ]
     dd["_k"] = dd.contrast.map(contrast_sort_key)
     dd = dd.sort_values(["dataset", "misspec", "g1", "_k"])
     for _, r in dd.iterrows():
+        st = "partial" if int(r.n) < TARGET_N_GRID else "complete"
+        # non-grid often n=20
+        if int(r.n) in (10, 20) and int(r.n) >= 10:
+            st = "complete" if int(r.n) >= 20 else "partial"
         lines.append(
             f"{esc(r.dataset)} & {esc(r.misspec)} & {r.g0:g} & {r.g1:g} & "
             f"{CONTRAST_LABEL.get(r.contrast, esc(r.contrast))} & {int(r.n)} & "
             f"{fmt(r.DiD_pt, signed=True)} & "
-            f"[{fmt(r.ci_lo, signed=True)}, {fmt(r.ci_hi, signed=True)}] \\\\"
+            f"[{fmt(r.ci_lo, signed=True)}, {fmt(r.ci_hi, signed=True)}] & {st} \\\\"
         )
     lines += [r"\end{longtable}}", r"\newpage"]
     return "\n".join(lines)
 
 
 def main():
-    levels, contrasts, did, when, ratios = load()
+    levels, contrasts, did, when, ratios, inv = load()
+    levels = enrich_levels_from_inventory(levels, inv)
     tex = []
     tex.append(preamble())
     tex.append(math_sections())
+    tex.append(inventory_section(inv))
     tex.append(when_section(when))
     tex.append(ratios_section(ratios))
     tex.append(summary_did_table(did))
-    tex.append(emit_setup_blocks(levels, contrasts, did))
+    tex.append(emit_setup_blocks(levels, contrasts, did, inv))
     tex.append(
         r"""
 \section{Reproducibility}
 Tags live under \texttt{artifacts/full\_study/run\_*}.
-Analysis: \texttt{artifacts/full\_study/misspec\_experiment/analyze\_hybrid\_by\_cell.py}
-$\to$ \texttt{hybrid\_by\_cell/*.csv}. This PDF:
-\texttt{build\_hybrid\_results\_pdf.py}.
+Full-grid queue: \texttt{logs/full\_hybrid\_grid\_queue.txt}.
+Inventory: \texttt{\_inventory\_grid.py} $\to$ \texttt{hybrid\_by\_cell/study\_inventory.json}.
+Analysis: \texttt{analyze\_hybrid\_by\_cell.py} $\to$ \texttt{hybrid\_by\_cell/*.csv}.
+This PDF: \texttt{build\_hybrid\_results\_pdf.py}.
 \end{document}
 """
     )

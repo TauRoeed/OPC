@@ -1,0 +1,5769 @@
+{
+  "target_n_grid": 40,
+  "n_planned_grid": 192,
+  "n_complete": 18,
+  "n_partial": 23,
+  "n_did_not_run": 151,
+  "cells": [
+    {
+      "tag": "nlres_grid_ml_rstar_g0",
+      "dskey": "ml",
+      "dataset": "ml",
+      "misspec": "R*",
+      "kind": "rstar",
+      "gamma": 0.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 38,
+        "nll": 37,
+        "hybrid_seq_f0.25": 37,
+        "hybrid_seq_f0.5": 37,
+        "hybrid_seq_f0.75": 36,
+        "hybrid_seq_adapt": 36
+      },
+      "n_min": 36,
+      "n_max": 38,
+      "status": "partial"
+    },
+    {
+      "tag": "nlres_grid_ml_rstar_g0.25",
+      "dskey": "ml",
+      "dataset": "ml",
+      "misspec": "R*",
+      "kind": "rstar",
+      "gamma": 0.25,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 3,
+        "nll": 3,
+        "hybrid_seq_f0.25": 1,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 3,
+      "status": "partial"
+    },
+    {
+      "tag": "nlres_grid_ml_rstar_g0.5",
+      "dskey": "ml",
+      "dataset": "ml",
+      "misspec": "R*",
+      "kind": "rstar",
+      "gamma": 0.5,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 2,
+        "nll": 2,
+        "hybrid_seq_f0.25": 2,
+        "hybrid_seq_f0.5": 2,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 2,
+      "status": "partial"
+    },
+    {
+      "tag": "nlres_grid_ml_rstar_g0.75",
+      "dskey": "ml",
+      "dataset": "ml",
+      "misspec": "R*",
+      "kind": "rstar",
+      "gamma": 0.75,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 40,
+        "nll": 40,
+        "hybrid_seq_f0.25": 40,
+        "hybrid_seq_f0.5": 40,
+        "hybrid_seq_f0.75": 40,
+        "hybrid_seq_adapt": 40
+      },
+      "n_min": 40,
+      "n_max": 40,
+      "status": "complete"
+    },
+    {
+      "tag": "nlres_grid_ml_rstar_g1",
+      "dskey": "ml",
+      "dataset": "ml",
+      "misspec": "R*",
+      "kind": "rstar",
+      "gamma": 1.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 40,
+        "nll": 40,
+        "hybrid_seq_f0.25": 40,
+        "hybrid_seq_f0.5": 40,
+        "hybrid_seq_f0.75": 40,
+        "hybrid_seq_adapt": 40
+      },
+      "n_min": 40,
+      "n_max": 40,
+      "status": "complete"
+    },
+    {
+      "tag": "nlres_grid_ml_rstar_g2",
+      "dskey": "ml",
+      "dataset": "ml",
+      "misspec": "R*",
+      "kind": "rstar",
+      "gamma": 2.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 40,
+        "nll": 40,
+        "hybrid_seq_f0.25": 40,
+        "hybrid_seq_f0.5": 40,
+        "hybrid_seq_f0.75": 40,
+        "hybrid_seq_adapt": 40
+      },
+      "n_min": 40,
+      "n_max": 40,
+      "status": "complete"
+    },
+    {
+      "tag": "nlres_grid_ml_rstar_g4",
+      "dskey": "ml",
+      "dataset": "ml",
+      "misspec": "R*",
+      "kind": "rstar",
+      "gamma": 4.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 40,
+        "nll": 40,
+        "hybrid_seq_f0.25": 40,
+        "hybrid_seq_f0.5": 40,
+        "hybrid_seq_f0.75": 40,
+        "hybrid_seq_adapt": 40
+      },
+      "n_min": 40,
+      "n_max": 40,
+      "status": "complete"
+    },
+    {
+      "tag": "nlres_grid_ml_rstar_g10",
+      "dskey": "ml",
+      "dataset": "ml",
+      "misspec": "R*",
+      "kind": "rstar",
+      "gamma": 10.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 40,
+        "nll": 40,
+        "hybrid_seq_f0.25": 40,
+        "hybrid_seq_f0.5": 40,
+        "hybrid_seq_f0.75": 40,
+        "hybrid_seq_adapt": 40
+      },
+      "n_min": 40,
+      "n_max": 40,
+      "status": "complete"
+    },
+    {
+      "tag": "nlres_grid_ml_rstar_g100",
+      "dskey": "ml",
+      "dataset": "ml",
+      "misspec": "R*",
+      "kind": "rstar",
+      "gamma": 100.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 40,
+        "nll": 40,
+        "hybrid_seq_f0.25": 40,
+        "hybrid_seq_f0.5": 40,
+        "hybrid_seq_f0.75": 40,
+        "hybrid_seq_adapt": 40
+      },
+      "n_min": 40,
+      "n_max": 40,
+      "status": "complete"
+    },
+    {
+      "tag": "nlres_grid_ml_softand_g0",
+      "dskey": "ml",
+      "dataset": "ml",
+      "misspec": "SoftAND*",
+      "kind": "softand",
+      "gamma": 0.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 40,
+        "nll": 40,
+        "hybrid_seq_f0.25": 40,
+        "hybrid_seq_f0.5": 40,
+        "hybrid_seq_f0.75": 40,
+        "hybrid_seq_adapt": 40
+      },
+      "n_min": 40,
+      "n_max": 40,
+      "status": "complete"
+    },
+    {
+      "tag": "nlres_grid_ml_softand_g0.25",
+      "dskey": "ml",
+      "dataset": "ml",
+      "misspec": "SoftAND*",
+      "kind": "softand",
+      "gamma": 0.25,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 40,
+        "nll": 40,
+        "hybrid_seq_f0.25": 40,
+        "hybrid_seq_f0.5": 40,
+        "hybrid_seq_f0.75": 40,
+        "hybrid_seq_adapt": 40
+      },
+      "n_min": 40,
+      "n_max": 40,
+      "status": "complete"
+    },
+    {
+      "tag": "nlres_grid_ml_softand_g0.5",
+      "dskey": "ml",
+      "dataset": "ml",
+      "misspec": "SoftAND*",
+      "kind": "softand",
+      "gamma": 0.5,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 40,
+        "nll": 40,
+        "hybrid_seq_f0.25": 40,
+        "hybrid_seq_f0.5": 40,
+        "hybrid_seq_f0.75": 40,
+        "hybrid_seq_adapt": 40
+      },
+      "n_min": 40,
+      "n_max": 40,
+      "status": "complete"
+    },
+    {
+      "tag": "nlres_grid_ml_softand_g0.75",
+      "dskey": "ml",
+      "dataset": "ml",
+      "misspec": "SoftAND*",
+      "kind": "softand",
+      "gamma": 0.75,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 40,
+        "nll": 40,
+        "hybrid_seq_f0.25": 40,
+        "hybrid_seq_f0.5": 40,
+        "hybrid_seq_f0.75": 40,
+        "hybrid_seq_adapt": 40
+      },
+      "n_min": 40,
+      "n_max": 40,
+      "status": "complete"
+    },
+    {
+      "tag": "nlres_grid_ml_softand_g1",
+      "dskey": "ml",
+      "dataset": "ml",
+      "misspec": "SoftAND*",
+      "kind": "softand",
+      "gamma": 1.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 40,
+        "nll": 40,
+        "hybrid_seq_f0.25": 40,
+        "hybrid_seq_f0.5": 40,
+        "hybrid_seq_f0.75": 40,
+        "hybrid_seq_adapt": 40
+      },
+      "n_min": 40,
+      "n_max": 40,
+      "status": "complete"
+    },
+    {
+      "tag": "nlres_grid_ml_softand_g2",
+      "dskey": "ml",
+      "dataset": "ml",
+      "misspec": "SoftAND*",
+      "kind": "softand",
+      "gamma": 2.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 40,
+        "nll": 40,
+        "hybrid_seq_f0.25": 40,
+        "hybrid_seq_f0.5": 40,
+        "hybrid_seq_f0.75": 40,
+        "hybrid_seq_adapt": 40
+      },
+      "n_min": 40,
+      "n_max": 40,
+      "status": "complete"
+    },
+    {
+      "tag": "nlres_grid_ml_softand_g4",
+      "dskey": "ml",
+      "dataset": "ml",
+      "misspec": "SoftAND*",
+      "kind": "softand",
+      "gamma": 4.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 40,
+        "nll": 40,
+        "hybrid_seq_f0.25": 40,
+        "hybrid_seq_f0.5": 40,
+        "hybrid_seq_f0.75": 40,
+        "hybrid_seq_adapt": 40
+      },
+      "n_min": 40,
+      "n_max": 40,
+      "status": "complete"
+    },
+    {
+      "tag": "nlres_grid_ml_softand_g10",
+      "dskey": "ml",
+      "dataset": "ml",
+      "misspec": "SoftAND*",
+      "kind": "softand",
+      "gamma": 10.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 40,
+        "nll": 40,
+        "hybrid_seq_f0.25": 40,
+        "hybrid_seq_f0.5": 40,
+        "hybrid_seq_f0.75": 40,
+        "hybrid_seq_adapt": 40
+      },
+      "n_min": 40,
+      "n_max": 40,
+      "status": "complete"
+    },
+    {
+      "tag": "nlres_grid_ml_softand_g100",
+      "dskey": "ml",
+      "dataset": "ml",
+      "misspec": "SoftAND*",
+      "kind": "softand",
+      "gamma": 100.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 40,
+        "nll": 40,
+        "hybrid_seq_f0.25": 40,
+        "hybrid_seq_f0.5": 40,
+        "hybrid_seq_f0.75": 40,
+        "hybrid_seq_adapt": 40
+      },
+      "n_min": 40,
+      "n_max": 40,
+      "status": "complete"
+    },
+    {
+      "tag": "nlres_grid_ml_softthresh_g0",
+      "dskey": "ml",
+      "dataset": "ml",
+      "misspec": "SoftThresh\u03c41.5",
+      "kind": "softthresh",
+      "gamma": 0.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 40,
+        "nll": 40,
+        "hybrid_seq_f0.25": 40,
+        "hybrid_seq_f0.5": 40,
+        "hybrid_seq_f0.75": 40,
+        "hybrid_seq_adapt": 40
+      },
+      "n_min": 40,
+      "n_max": 40,
+      "status": "complete"
+    },
+    {
+      "tag": "nlres_grid_ml_softthresh_g0.25",
+      "dskey": "ml",
+      "dataset": "ml",
+      "misspec": "SoftThresh\u03c41.5",
+      "kind": "softthresh",
+      "gamma": 0.25,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 40,
+        "nll": 40,
+        "hybrid_seq_f0.25": 40,
+        "hybrid_seq_f0.5": 40,
+        "hybrid_seq_f0.75": 40,
+        "hybrid_seq_adapt": 40
+      },
+      "n_min": 40,
+      "n_max": 40,
+      "status": "complete"
+    },
+    {
+      "tag": "nlres_grid_ml_softthresh_g0.5",
+      "dskey": "ml",
+      "dataset": "ml",
+      "misspec": "SoftThresh\u03c41.5",
+      "kind": "softthresh",
+      "gamma": 0.5,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 38,
+        "nll": 37,
+        "hybrid_seq_f0.25": 37,
+        "hybrid_seq_f0.5": 37,
+        "hybrid_seq_f0.75": 36,
+        "hybrid_seq_adapt": 36
+      },
+      "n_min": 36,
+      "n_max": 38,
+      "status": "partial"
+    },
+    {
+      "tag": "nlres_grid_ml_softthresh_g0.75",
+      "dskey": "ml",
+      "dataset": "ml",
+      "misspec": "SoftThresh\u03c41.5",
+      "kind": "softthresh",
+      "gamma": 0.75,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 3,
+        "nll": 3,
+        "hybrid_seq_f0.25": 1,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 3,
+      "status": "partial"
+    },
+    {
+      "tag": "nlres_grid_ml_softthresh_g1",
+      "dskey": "ml",
+      "dataset": "ml",
+      "misspec": "SoftThresh\u03c41.5",
+      "kind": "softthresh",
+      "gamma": 1.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 36,
+        "nll": 35,
+        "hybrid_seq_f0.25": 35,
+        "hybrid_seq_f0.5": 35,
+        "hybrid_seq_f0.75": 34,
+        "hybrid_seq_adapt": 34
+      },
+      "n_min": 34,
+      "n_max": 36,
+      "status": "partial"
+    },
+    {
+      "tag": "nlres_grid_ml_softthresh_g2",
+      "dskey": "ml",
+      "dataset": "ml",
+      "misspec": "SoftThresh\u03c41.5",
+      "kind": "softthresh",
+      "gamma": 2.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 40,
+        "nll": 40,
+        "hybrid_seq_f0.25": 40,
+        "hybrid_seq_f0.5": 40,
+        "hybrid_seq_f0.75": 40,
+        "hybrid_seq_adapt": 40
+      },
+      "n_min": 40,
+      "n_max": 40,
+      "status": "complete"
+    },
+    {
+      "tag": "nlres_grid_ml_softthresh_g4",
+      "dskey": "ml",
+      "dataset": "ml",
+      "misspec": "SoftThresh\u03c41.5",
+      "kind": "softthresh",
+      "gamma": 4.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 2,
+        "nll": 2,
+        "hybrid_seq_f0.25": 2,
+        "hybrid_seq_f0.5": 2,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 2,
+      "status": "partial"
+    },
+    {
+      "tag": "nlres_grid_ml_softthresh_g10",
+      "dskey": "ml",
+      "dataset": "ml",
+      "misspec": "SoftThresh\u03c41.5",
+      "kind": "softthresh",
+      "gamma": 10.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 2,
+        "nll": 2,
+        "hybrid_seq_f0.25": 2,
+        "hybrid_seq_f0.5": 2,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 2,
+      "status": "partial"
+    },
+    {
+      "tag": "nlres_grid_ml_softthresh_g100",
+      "dskey": "ml",
+      "dataset": "ml",
+      "misspec": "SoftThresh\u03c41.5",
+      "kind": "softthresh",
+      "gamma": 100.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 38,
+        "nll": 38,
+        "hybrid_seq_f0.25": 36,
+        "hybrid_seq_f0.5": 35,
+        "hybrid_seq_f0.75": 35,
+        "hybrid_seq_adapt": 35
+      },
+      "n_min": 35,
+      "n_max": 38,
+      "status": "partial"
+    },
+    {
+      "tag": "nlres_grid_anime_rstar_g0",
+      "dskey": "anime",
+      "dataset": "anime",
+      "misspec": "R*",
+      "kind": "rstar",
+      "gamma": 0.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 2,
+        "nll": 1,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 2,
+      "status": "partial"
+    },
+    {
+      "tag": "nlres_grid_anime_rstar_g0.25",
+      "dskey": "anime",
+      "dataset": "anime",
+      "misspec": "R*",
+      "kind": "rstar",
+      "gamma": 0.25,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 12,
+        "nll": 12,
+        "hybrid_seq_f0.25": 12,
+        "hybrid_seq_f0.5": 12,
+        "hybrid_seq_f0.75": 12,
+        "hybrid_seq_adapt": 12
+      },
+      "n_min": 12,
+      "n_max": 12,
+      "status": "partial"
+    },
+    {
+      "tag": "nlres_grid_anime_rstar_g0.5",
+      "dskey": "anime",
+      "dataset": "anime",
+      "misspec": "R*",
+      "kind": "rstar",
+      "gamma": 0.5,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 2,
+        "nll": 1,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 2,
+      "status": "partial"
+    },
+    {
+      "tag": "nlres_grid_anime_rstar_g0.75",
+      "dskey": "anime",
+      "dataset": "anime",
+      "misspec": "R*",
+      "kind": "rstar",
+      "gamma": 0.75,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 12,
+        "nll": 12,
+        "hybrid_seq_f0.25": 12,
+        "hybrid_seq_f0.5": 12,
+        "hybrid_seq_f0.75": 12,
+        "hybrid_seq_adapt": 9
+      },
+      "n_min": 9,
+      "n_max": 12,
+      "status": "partial"
+    },
+    {
+      "tag": "nlres_grid_anime_rstar_g1",
+      "dskey": "anime",
+      "dataset": "anime",
+      "misspec": "R*",
+      "kind": "rstar",
+      "gamma": 1.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 2,
+        "nll": 1,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 2,
+      "status": "partial"
+    },
+    {
+      "tag": "nlres_grid_anime_rstar_g2",
+      "dskey": "anime",
+      "dataset": "anime",
+      "misspec": "R*",
+      "kind": "rstar",
+      "gamma": 2.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 12,
+        "nll": 12,
+        "hybrid_seq_f0.25": 12,
+        "hybrid_seq_f0.5": 12,
+        "hybrid_seq_f0.75": 12,
+        "hybrid_seq_adapt": 9
+      },
+      "n_min": 9,
+      "n_max": 12,
+      "status": "partial"
+    },
+    {
+      "tag": "nlres_grid_anime_rstar_g4",
+      "dskey": "anime",
+      "dataset": "anime",
+      "misspec": "R*",
+      "kind": "rstar",
+      "gamma": 4.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 12,
+        "nll": 12,
+        "hybrid_seq_f0.25": 12,
+        "hybrid_seq_f0.5": 12,
+        "hybrid_seq_f0.75": 12,
+        "hybrid_seq_adapt": 12
+      },
+      "n_min": 12,
+      "n_max": 12,
+      "status": "partial"
+    },
+    {
+      "tag": "nlres_grid_anime_rstar_g10",
+      "dskey": "anime",
+      "dataset": "anime",
+      "misspec": "R*",
+      "kind": "rstar",
+      "gamma": 10.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 12,
+        "nll": 12,
+        "hybrid_seq_f0.25": 12,
+        "hybrid_seq_f0.5": 12,
+        "hybrid_seq_f0.75": 12,
+        "hybrid_seq_adapt": 9
+      },
+      "n_min": 9,
+      "n_max": 12,
+      "status": "partial"
+    },
+    {
+      "tag": "nlres_grid_anime_rstar_g100",
+      "dskey": "anime",
+      "dataset": "anime",
+      "misspec": "R*",
+      "kind": "rstar",
+      "gamma": 100.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 2,
+        "nll": 1,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 2,
+      "status": "partial"
+    },
+    {
+      "tag": "nlres_grid_anime_rstar_g0.6",
+      "dskey": "anime",
+      "dataset": "anime",
+      "misspec": "R*",
+      "kind": "rstar",
+      "gamma": 0.6,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 2,
+        "nll": 1,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 2,
+      "status": "partial"
+    },
+    {
+      "tag": "nlres_grid_anime_softand_g0",
+      "dskey": "anime",
+      "dataset": "anime",
+      "misspec": "SoftAND*",
+      "kind": "softand",
+      "gamma": 0.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 36,
+        "nll": 35,
+        "hybrid_seq_f0.25": 34,
+        "hybrid_seq_f0.5": 34,
+        "hybrid_seq_f0.75": 33,
+        "hybrid_seq_adapt": 33
+      },
+      "n_min": 33,
+      "n_max": 36,
+      "status": "partial"
+    },
+    {
+      "tag": "nlres_grid_anime_softand_g0.25",
+      "dskey": "anime",
+      "dataset": "anime",
+      "misspec": "SoftAND*",
+      "kind": "softand",
+      "gamma": 0.25,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 12,
+        "nll": 12,
+        "hybrid_seq_f0.25": 12,
+        "hybrid_seq_f0.5": 12,
+        "hybrid_seq_f0.75": 12,
+        "hybrid_seq_adapt": 11
+      },
+      "n_min": 11,
+      "n_max": 12,
+      "status": "partial"
+    },
+    {
+      "tag": "nlres_grid_anime_softand_g0.5",
+      "dskey": "anime",
+      "dataset": "anime",
+      "misspec": "SoftAND*",
+      "kind": "softand",
+      "gamma": 0.5,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 2,
+        "nll": 1,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 2,
+      "status": "partial"
+    },
+    {
+      "tag": "nlres_grid_anime_softand_g0.75",
+      "dskey": "anime",
+      "dataset": "anime",
+      "misspec": "SoftAND*",
+      "kind": "softand",
+      "gamma": 0.75,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 6,
+        "nll": 6,
+        "hybrid_seq_f0.25": 6,
+        "hybrid_seq_f0.5": 6,
+        "hybrid_seq_f0.75": 6,
+        "hybrid_seq_adapt": 6
+      },
+      "n_min": 6,
+      "n_max": 6,
+      "status": "partial"
+    },
+    {
+      "tag": "nlres_grid_anime_softand_g1",
+      "dskey": "anime",
+      "dataset": "anime",
+      "misspec": "SoftAND*",
+      "kind": "softand",
+      "gamma": 1.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_anime_softand_g2",
+      "dskey": "anime",
+      "dataset": "anime",
+      "misspec": "SoftAND*",
+      "kind": "softand",
+      "gamma": 2.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_anime_softand_g4",
+      "dskey": "anime",
+      "dataset": "anime",
+      "misspec": "SoftAND*",
+      "kind": "softand",
+      "gamma": 4.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_anime_softand_g10",
+      "dskey": "anime",
+      "dataset": "anime",
+      "misspec": "SoftAND*",
+      "kind": "softand",
+      "gamma": 10.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_anime_softand_g100",
+      "dskey": "anime",
+      "dataset": "anime",
+      "misspec": "SoftAND*",
+      "kind": "softand",
+      "gamma": 100.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_anime_softand_g0.6",
+      "dskey": "anime",
+      "dataset": "anime",
+      "misspec": "SoftAND*",
+      "kind": "softand",
+      "gamma": 0.6,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_anime_softthresh_g0",
+      "dskey": "anime",
+      "dataset": "anime",
+      "misspec": "SoftThresh\u03c41.5",
+      "kind": "softthresh",
+      "gamma": 0.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_anime_softthresh_g0.25",
+      "dskey": "anime",
+      "dataset": "anime",
+      "misspec": "SoftThresh\u03c41.5",
+      "kind": "softthresh",
+      "gamma": 0.25,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_anime_softthresh_g0.5",
+      "dskey": "anime",
+      "dataset": "anime",
+      "misspec": "SoftThresh\u03c41.5",
+      "kind": "softthresh",
+      "gamma": 0.5,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_anime_softthresh_g0.75",
+      "dskey": "anime",
+      "dataset": "anime",
+      "misspec": "SoftThresh\u03c41.5",
+      "kind": "softthresh",
+      "gamma": 0.75,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_anime_softthresh_g1",
+      "dskey": "anime",
+      "dataset": "anime",
+      "misspec": "SoftThresh\u03c41.5",
+      "kind": "softthresh",
+      "gamma": 1.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_anime_softthresh_g2",
+      "dskey": "anime",
+      "dataset": "anime",
+      "misspec": "SoftThresh\u03c41.5",
+      "kind": "softthresh",
+      "gamma": 2.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_anime_softthresh_g4",
+      "dskey": "anime",
+      "dataset": "anime",
+      "misspec": "SoftThresh\u03c41.5",
+      "kind": "softthresh",
+      "gamma": 4.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_anime_softthresh_g10",
+      "dskey": "anime",
+      "dataset": "anime",
+      "misspec": "SoftThresh\u03c41.5",
+      "kind": "softthresh",
+      "gamma": 10.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_anime_softthresh_g100",
+      "dskey": "anime",
+      "dataset": "anime",
+      "misspec": "SoftThresh\u03c41.5",
+      "kind": "softthresh",
+      "gamma": 100.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_anime_softthresh_g0.6",
+      "dskey": "anime",
+      "dataset": "anime",
+      "misspec": "SoftThresh\u03c41.5",
+      "kind": "softthresh",
+      "gamma": 0.6,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_myket_rstar_g0",
+      "dskey": "myket",
+      "dataset": "myket",
+      "misspec": "R*",
+      "kind": "rstar",
+      "gamma": 0.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_myket_rstar_g0.25",
+      "dskey": "myket",
+      "dataset": "myket",
+      "misspec": "R*",
+      "kind": "rstar",
+      "gamma": 0.25,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_myket_rstar_g0.5",
+      "dskey": "myket",
+      "dataset": "myket",
+      "misspec": "R*",
+      "kind": "rstar",
+      "gamma": 0.5,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_myket_rstar_g0.75",
+      "dskey": "myket",
+      "dataset": "myket",
+      "misspec": "R*",
+      "kind": "rstar",
+      "gamma": 0.75,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_myket_rstar_g1",
+      "dskey": "myket",
+      "dataset": "myket",
+      "misspec": "R*",
+      "kind": "rstar",
+      "gamma": 1.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_myket_rstar_g2",
+      "dskey": "myket",
+      "dataset": "myket",
+      "misspec": "R*",
+      "kind": "rstar",
+      "gamma": 2.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_myket_rstar_g4",
+      "dskey": "myket",
+      "dataset": "myket",
+      "misspec": "R*",
+      "kind": "rstar",
+      "gamma": 4.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_myket_rstar_g10",
+      "dskey": "myket",
+      "dataset": "myket",
+      "misspec": "R*",
+      "kind": "rstar",
+      "gamma": 10.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_myket_rstar_g100",
+      "dskey": "myket",
+      "dataset": "myket",
+      "misspec": "R*",
+      "kind": "rstar",
+      "gamma": 100.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_myket_softand_g0",
+      "dskey": "myket",
+      "dataset": "myket",
+      "misspec": "SoftAND*",
+      "kind": "softand",
+      "gamma": 0.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_myket_softand_g0.25",
+      "dskey": "myket",
+      "dataset": "myket",
+      "misspec": "SoftAND*",
+      "kind": "softand",
+      "gamma": 0.25,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_myket_softand_g0.5",
+      "dskey": "myket",
+      "dataset": "myket",
+      "misspec": "SoftAND*",
+      "kind": "softand",
+      "gamma": 0.5,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_myket_softand_g0.75",
+      "dskey": "myket",
+      "dataset": "myket",
+      "misspec": "SoftAND*",
+      "kind": "softand",
+      "gamma": 0.75,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_myket_softand_g1",
+      "dskey": "myket",
+      "dataset": "myket",
+      "misspec": "SoftAND*",
+      "kind": "softand",
+      "gamma": 1.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_myket_softand_g2",
+      "dskey": "myket",
+      "dataset": "myket",
+      "misspec": "SoftAND*",
+      "kind": "softand",
+      "gamma": 2.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_myket_softand_g4",
+      "dskey": "myket",
+      "dataset": "myket",
+      "misspec": "SoftAND*",
+      "kind": "softand",
+      "gamma": 4.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_myket_softand_g10",
+      "dskey": "myket",
+      "dataset": "myket",
+      "misspec": "SoftAND*",
+      "kind": "softand",
+      "gamma": 10.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_myket_softand_g100",
+      "dskey": "myket",
+      "dataset": "myket",
+      "misspec": "SoftAND*",
+      "kind": "softand",
+      "gamma": 100.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_myket_softthresh_g0",
+      "dskey": "myket",
+      "dataset": "myket",
+      "misspec": "SoftThresh\u03c41.5",
+      "kind": "softthresh",
+      "gamma": 0.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_myket_softthresh_g0.25",
+      "dskey": "myket",
+      "dataset": "myket",
+      "misspec": "SoftThresh\u03c41.5",
+      "kind": "softthresh",
+      "gamma": 0.25,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_myket_softthresh_g0.5",
+      "dskey": "myket",
+      "dataset": "myket",
+      "misspec": "SoftThresh\u03c41.5",
+      "kind": "softthresh",
+      "gamma": 0.5,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_myket_softthresh_g0.75",
+      "dskey": "myket",
+      "dataset": "myket",
+      "misspec": "SoftThresh\u03c41.5",
+      "kind": "softthresh",
+      "gamma": 0.75,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_myket_softthresh_g1",
+      "dskey": "myket",
+      "dataset": "myket",
+      "misspec": "SoftThresh\u03c41.5",
+      "kind": "softthresh",
+      "gamma": 1.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_myket_softthresh_g2",
+      "dskey": "myket",
+      "dataset": "myket",
+      "misspec": "SoftThresh\u03c41.5",
+      "kind": "softthresh",
+      "gamma": 2.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_myket_softthresh_g4",
+      "dskey": "myket",
+      "dataset": "myket",
+      "misspec": "SoftThresh\u03c41.5",
+      "kind": "softthresh",
+      "gamma": 4.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_myket_softthresh_g10",
+      "dskey": "myket",
+      "dataset": "myket",
+      "misspec": "SoftThresh\u03c41.5",
+      "kind": "softthresh",
+      "gamma": 10.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_myket_softthresh_g100",
+      "dskey": "myket",
+      "dataset": "myket",
+      "misspec": "SoftThresh\u03c41.5",
+      "kind": "softthresh",
+      "gamma": 100.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairand_full_rstar_g0",
+      "dskey": "kuairand_full",
+      "dataset": "kuairand",
+      "misspec": "R*-full",
+      "kind": "rstar",
+      "gamma": 0.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairand_full_rstar_g0.25",
+      "dskey": "kuairand_full",
+      "dataset": "kuairand",
+      "misspec": "R*-full",
+      "kind": "rstar",
+      "gamma": 0.25,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairand_full_rstar_g0.5",
+      "dskey": "kuairand_full",
+      "dataset": "kuairand",
+      "misspec": "R*-full",
+      "kind": "rstar",
+      "gamma": 0.5,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairand_full_rstar_g0.75",
+      "dskey": "kuairand_full",
+      "dataset": "kuairand",
+      "misspec": "R*-full",
+      "kind": "rstar",
+      "gamma": 0.75,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairand_full_rstar_g1",
+      "dskey": "kuairand_full",
+      "dataset": "kuairand",
+      "misspec": "R*-full",
+      "kind": "rstar",
+      "gamma": 1.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairand_full_rstar_g2",
+      "dskey": "kuairand_full",
+      "dataset": "kuairand",
+      "misspec": "R*-full",
+      "kind": "rstar",
+      "gamma": 2.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairand_full_rstar_g4",
+      "dskey": "kuairand_full",
+      "dataset": "kuairand",
+      "misspec": "R*-full",
+      "kind": "rstar",
+      "gamma": 4.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairand_full_rstar_g10",
+      "dskey": "kuairand_full",
+      "dataset": "kuairand",
+      "misspec": "R*-full",
+      "kind": "rstar",
+      "gamma": 10.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairand_full_rstar_g100",
+      "dskey": "kuairand_full",
+      "dataset": "kuairand",
+      "misspec": "R*-full",
+      "kind": "rstar",
+      "gamma": 100.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairand_full_softand_g0",
+      "dskey": "kuairand_full",
+      "dataset": "kuairand",
+      "misspec": "SoftAND*-full",
+      "kind": "softand",
+      "gamma": 0.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairand_full_softand_g0.25",
+      "dskey": "kuairand_full",
+      "dataset": "kuairand",
+      "misspec": "SoftAND*-full",
+      "kind": "softand",
+      "gamma": 0.25,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairand_full_softand_g0.5",
+      "dskey": "kuairand_full",
+      "dataset": "kuairand",
+      "misspec": "SoftAND*-full",
+      "kind": "softand",
+      "gamma": 0.5,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairand_full_softand_g0.75",
+      "dskey": "kuairand_full",
+      "dataset": "kuairand",
+      "misspec": "SoftAND*-full",
+      "kind": "softand",
+      "gamma": 0.75,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairand_full_softand_g1",
+      "dskey": "kuairand_full",
+      "dataset": "kuairand",
+      "misspec": "SoftAND*-full",
+      "kind": "softand",
+      "gamma": 1.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairand_full_softand_g2",
+      "dskey": "kuairand_full",
+      "dataset": "kuairand",
+      "misspec": "SoftAND*-full",
+      "kind": "softand",
+      "gamma": 2.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairand_full_softand_g4",
+      "dskey": "kuairand_full",
+      "dataset": "kuairand",
+      "misspec": "SoftAND*-full",
+      "kind": "softand",
+      "gamma": 4.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairand_full_softand_g10",
+      "dskey": "kuairand_full",
+      "dataset": "kuairand",
+      "misspec": "SoftAND*-full",
+      "kind": "softand",
+      "gamma": 10.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairand_full_softand_g100",
+      "dskey": "kuairand_full",
+      "dataset": "kuairand",
+      "misspec": "SoftAND*-full",
+      "kind": "softand",
+      "gamma": 100.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairand_full_softthresh_g0",
+      "dskey": "kuairand_full",
+      "dataset": "kuairand",
+      "misspec": "SoftThresh\u03c41.5-full",
+      "kind": "softthresh",
+      "gamma": 0.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairand_full_softthresh_g0.25",
+      "dskey": "kuairand_full",
+      "dataset": "kuairand",
+      "misspec": "SoftThresh\u03c41.5-full",
+      "kind": "softthresh",
+      "gamma": 0.25,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairand_full_softthresh_g0.5",
+      "dskey": "kuairand_full",
+      "dataset": "kuairand",
+      "misspec": "SoftThresh\u03c41.5-full",
+      "kind": "softthresh",
+      "gamma": 0.5,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairand_full_softthresh_g0.75",
+      "dskey": "kuairand_full",
+      "dataset": "kuairand",
+      "misspec": "SoftThresh\u03c41.5-full",
+      "kind": "softthresh",
+      "gamma": 0.75,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairand_full_softthresh_g1",
+      "dskey": "kuairand_full",
+      "dataset": "kuairand",
+      "misspec": "SoftThresh\u03c41.5-full",
+      "kind": "softthresh",
+      "gamma": 1.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairand_full_softthresh_g2",
+      "dskey": "kuairand_full",
+      "dataset": "kuairand",
+      "misspec": "SoftThresh\u03c41.5-full",
+      "kind": "softthresh",
+      "gamma": 2.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairand_full_softthresh_g4",
+      "dskey": "kuairand_full",
+      "dataset": "kuairand",
+      "misspec": "SoftThresh\u03c41.5-full",
+      "kind": "softthresh",
+      "gamma": 4.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairand_full_softthresh_g10",
+      "dskey": "kuairand_full",
+      "dataset": "kuairand",
+      "misspec": "SoftThresh\u03c41.5-full",
+      "kind": "softthresh",
+      "gamma": 10.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairand_full_softthresh_g100",
+      "dskey": "kuairand_full",
+      "dataset": "kuairand",
+      "misspec": "SoftThresh\u03c41.5-full",
+      "kind": "softthresh",
+      "gamma": 100.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairec_full_rstar_g0",
+      "dskey": "kuairec_full",
+      "dataset": "kuairec",
+      "misspec": "R*-full",
+      "kind": "rstar",
+      "gamma": 0.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairec_full_rstar_g0.25",
+      "dskey": "kuairec_full",
+      "dataset": "kuairec",
+      "misspec": "R*-full",
+      "kind": "rstar",
+      "gamma": 0.25,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairec_full_rstar_g0.5",
+      "dskey": "kuairec_full",
+      "dataset": "kuairec",
+      "misspec": "R*-full",
+      "kind": "rstar",
+      "gamma": 0.5,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairec_full_rstar_g0.75",
+      "dskey": "kuairec_full",
+      "dataset": "kuairec",
+      "misspec": "R*-full",
+      "kind": "rstar",
+      "gamma": 0.75,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairec_full_rstar_g1",
+      "dskey": "kuairec_full",
+      "dataset": "kuairec",
+      "misspec": "R*-full",
+      "kind": "rstar",
+      "gamma": 1.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairec_full_rstar_g2",
+      "dskey": "kuairec_full",
+      "dataset": "kuairec",
+      "misspec": "R*-full",
+      "kind": "rstar",
+      "gamma": 2.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairec_full_rstar_g4",
+      "dskey": "kuairec_full",
+      "dataset": "kuairec",
+      "misspec": "R*-full",
+      "kind": "rstar",
+      "gamma": 4.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairec_full_rstar_g10",
+      "dskey": "kuairec_full",
+      "dataset": "kuairec",
+      "misspec": "R*-full",
+      "kind": "rstar",
+      "gamma": 10.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairec_full_rstar_g100",
+      "dskey": "kuairec_full",
+      "dataset": "kuairec",
+      "misspec": "R*-full",
+      "kind": "rstar",
+      "gamma": 100.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairec_full_softand_g0",
+      "dskey": "kuairec_full",
+      "dataset": "kuairec",
+      "misspec": "SoftAND*-full",
+      "kind": "softand",
+      "gamma": 0.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairec_full_softand_g0.25",
+      "dskey": "kuairec_full",
+      "dataset": "kuairec",
+      "misspec": "SoftAND*-full",
+      "kind": "softand",
+      "gamma": 0.25,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairec_full_softand_g0.5",
+      "dskey": "kuairec_full",
+      "dataset": "kuairec",
+      "misspec": "SoftAND*-full",
+      "kind": "softand",
+      "gamma": 0.5,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairec_full_softand_g0.75",
+      "dskey": "kuairec_full",
+      "dataset": "kuairec",
+      "misspec": "SoftAND*-full",
+      "kind": "softand",
+      "gamma": 0.75,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairec_full_softand_g1",
+      "dskey": "kuairec_full",
+      "dataset": "kuairec",
+      "misspec": "SoftAND*-full",
+      "kind": "softand",
+      "gamma": 1.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairec_full_softand_g2",
+      "dskey": "kuairec_full",
+      "dataset": "kuairec",
+      "misspec": "SoftAND*-full",
+      "kind": "softand",
+      "gamma": 2.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairec_full_softand_g4",
+      "dskey": "kuairec_full",
+      "dataset": "kuairec",
+      "misspec": "SoftAND*-full",
+      "kind": "softand",
+      "gamma": 4.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairec_full_softand_g10",
+      "dskey": "kuairec_full",
+      "dataset": "kuairec",
+      "misspec": "SoftAND*-full",
+      "kind": "softand",
+      "gamma": 10.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairec_full_softand_g100",
+      "dskey": "kuairec_full",
+      "dataset": "kuairec",
+      "misspec": "SoftAND*-full",
+      "kind": "softand",
+      "gamma": 100.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairec_full_softthresh_g0",
+      "dskey": "kuairec_full",
+      "dataset": "kuairec",
+      "misspec": "SoftThresh\u03c41.5-full",
+      "kind": "softthresh",
+      "gamma": 0.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairec_full_softthresh_g0.25",
+      "dskey": "kuairec_full",
+      "dataset": "kuairec",
+      "misspec": "SoftThresh\u03c41.5-full",
+      "kind": "softthresh",
+      "gamma": 0.25,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairec_full_softthresh_g0.5",
+      "dskey": "kuairec_full",
+      "dataset": "kuairec",
+      "misspec": "SoftThresh\u03c41.5-full",
+      "kind": "softthresh",
+      "gamma": 0.5,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairec_full_softthresh_g0.75",
+      "dskey": "kuairec_full",
+      "dataset": "kuairec",
+      "misspec": "SoftThresh\u03c41.5-full",
+      "kind": "softthresh",
+      "gamma": 0.75,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairec_full_softthresh_g1",
+      "dskey": "kuairec_full",
+      "dataset": "kuairec",
+      "misspec": "SoftThresh\u03c41.5-full",
+      "kind": "softthresh",
+      "gamma": 1.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairec_full_softthresh_g2",
+      "dskey": "kuairec_full",
+      "dataset": "kuairec",
+      "misspec": "SoftThresh\u03c41.5-full",
+      "kind": "softthresh",
+      "gamma": 2.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairec_full_softthresh_g4",
+      "dskey": "kuairec_full",
+      "dataset": "kuairec",
+      "misspec": "SoftThresh\u03c41.5-full",
+      "kind": "softthresh",
+      "gamma": 4.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairec_full_softthresh_g10",
+      "dskey": "kuairec_full",
+      "dataset": "kuairec",
+      "misspec": "SoftThresh\u03c41.5-full",
+      "kind": "softthresh",
+      "gamma": 10.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairec_full_softthresh_g100",
+      "dskey": "kuairec_full",
+      "dataset": "kuairec",
+      "misspec": "SoftThresh\u03c41.5-full",
+      "kind": "softthresh",
+      "gamma": 100.0,
+      "emb": "BPR/embeddings",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairand_ml_rstar_g0",
+      "dskey": "kuairand_ml",
+      "dataset": "kuairand",
+      "misspec": "R*-mlsize",
+      "kind": "rstar",
+      "gamma": 0.0,
+      "emb": "BPR/embeddings_mlsize",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairand_ml_rstar_g0.25",
+      "dskey": "kuairand_ml",
+      "dataset": "kuairand",
+      "misspec": "R*-mlsize",
+      "kind": "rstar",
+      "gamma": 0.25,
+      "emb": "BPR/embeddings_mlsize",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairand_ml_rstar_g0.5",
+      "dskey": "kuairand_ml",
+      "dataset": "kuairand",
+      "misspec": "R*-mlsize",
+      "kind": "rstar",
+      "gamma": 0.5,
+      "emb": "BPR/embeddings_mlsize",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairand_ml_rstar_g0.75",
+      "dskey": "kuairand_ml",
+      "dataset": "kuairand",
+      "misspec": "R*-mlsize",
+      "kind": "rstar",
+      "gamma": 0.75,
+      "emb": "BPR/embeddings_mlsize",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairand_ml_rstar_g1",
+      "dskey": "kuairand_ml",
+      "dataset": "kuairand",
+      "misspec": "R*-mlsize",
+      "kind": "rstar",
+      "gamma": 1.0,
+      "emb": "BPR/embeddings_mlsize",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairand_ml_rstar_g2",
+      "dskey": "kuairand_ml",
+      "dataset": "kuairand",
+      "misspec": "R*-mlsize",
+      "kind": "rstar",
+      "gamma": 2.0,
+      "emb": "BPR/embeddings_mlsize",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairand_ml_rstar_g4",
+      "dskey": "kuairand_ml",
+      "dataset": "kuairand",
+      "misspec": "R*-mlsize",
+      "kind": "rstar",
+      "gamma": 4.0,
+      "emb": "BPR/embeddings_mlsize",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairand_ml_rstar_g10",
+      "dskey": "kuairand_ml",
+      "dataset": "kuairand",
+      "misspec": "R*-mlsize",
+      "kind": "rstar",
+      "gamma": 10.0,
+      "emb": "BPR/embeddings_mlsize",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairand_ml_rstar_g100",
+      "dskey": "kuairand_ml",
+      "dataset": "kuairand",
+      "misspec": "R*-mlsize",
+      "kind": "rstar",
+      "gamma": 100.0,
+      "emb": "BPR/embeddings_mlsize",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairand_ml_softand_g0",
+      "dskey": "kuairand_ml",
+      "dataset": "kuairand",
+      "misspec": "SoftAND*-mlsize",
+      "kind": "softand",
+      "gamma": 0.0,
+      "emb": "BPR/embeddings_mlsize",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairand_ml_softand_g0.25",
+      "dskey": "kuairand_ml",
+      "dataset": "kuairand",
+      "misspec": "SoftAND*-mlsize",
+      "kind": "softand",
+      "gamma": 0.25,
+      "emb": "BPR/embeddings_mlsize",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairand_ml_softand_g0.5",
+      "dskey": "kuairand_ml",
+      "dataset": "kuairand",
+      "misspec": "SoftAND*-mlsize",
+      "kind": "softand",
+      "gamma": 0.5,
+      "emb": "BPR/embeddings_mlsize",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairand_ml_softand_g0.75",
+      "dskey": "kuairand_ml",
+      "dataset": "kuairand",
+      "misspec": "SoftAND*-mlsize",
+      "kind": "softand",
+      "gamma": 0.75,
+      "emb": "BPR/embeddings_mlsize",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairand_ml_softand_g1",
+      "dskey": "kuairand_ml",
+      "dataset": "kuairand",
+      "misspec": "SoftAND*-mlsize",
+      "kind": "softand",
+      "gamma": 1.0,
+      "emb": "BPR/embeddings_mlsize",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairand_ml_softand_g2",
+      "dskey": "kuairand_ml",
+      "dataset": "kuairand",
+      "misspec": "SoftAND*-mlsize",
+      "kind": "softand",
+      "gamma": 2.0,
+      "emb": "BPR/embeddings_mlsize",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairand_ml_softand_g4",
+      "dskey": "kuairand_ml",
+      "dataset": "kuairand",
+      "misspec": "SoftAND*-mlsize",
+      "kind": "softand",
+      "gamma": 4.0,
+      "emb": "BPR/embeddings_mlsize",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairand_ml_softand_g10",
+      "dskey": "kuairand_ml",
+      "dataset": "kuairand",
+      "misspec": "SoftAND*-mlsize",
+      "kind": "softand",
+      "gamma": 10.0,
+      "emb": "BPR/embeddings_mlsize",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairand_ml_softand_g100",
+      "dskey": "kuairand_ml",
+      "dataset": "kuairand",
+      "misspec": "SoftAND*-mlsize",
+      "kind": "softand",
+      "gamma": 100.0,
+      "emb": "BPR/embeddings_mlsize",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairand_ml_softthresh_g0",
+      "dskey": "kuairand_ml",
+      "dataset": "kuairand",
+      "misspec": "SoftThresh\u03c41.5-mlsize",
+      "kind": "softthresh",
+      "gamma": 0.0,
+      "emb": "BPR/embeddings_mlsize",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairand_ml_softthresh_g0.25",
+      "dskey": "kuairand_ml",
+      "dataset": "kuairand",
+      "misspec": "SoftThresh\u03c41.5-mlsize",
+      "kind": "softthresh",
+      "gamma": 0.25,
+      "emb": "BPR/embeddings_mlsize",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairand_ml_softthresh_g0.5",
+      "dskey": "kuairand_ml",
+      "dataset": "kuairand",
+      "misspec": "SoftThresh\u03c41.5-mlsize",
+      "kind": "softthresh",
+      "gamma": 0.5,
+      "emb": "BPR/embeddings_mlsize",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairand_ml_softthresh_g0.75",
+      "dskey": "kuairand_ml",
+      "dataset": "kuairand",
+      "misspec": "SoftThresh\u03c41.5-mlsize",
+      "kind": "softthresh",
+      "gamma": 0.75,
+      "emb": "BPR/embeddings_mlsize",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairand_ml_softthresh_g1",
+      "dskey": "kuairand_ml",
+      "dataset": "kuairand",
+      "misspec": "SoftThresh\u03c41.5-mlsize",
+      "kind": "softthresh",
+      "gamma": 1.0,
+      "emb": "BPR/embeddings_mlsize",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairand_ml_softthresh_g2",
+      "dskey": "kuairand_ml",
+      "dataset": "kuairand",
+      "misspec": "SoftThresh\u03c41.5-mlsize",
+      "kind": "softthresh",
+      "gamma": 2.0,
+      "emb": "BPR/embeddings_mlsize",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairand_ml_softthresh_g4",
+      "dskey": "kuairand_ml",
+      "dataset": "kuairand",
+      "misspec": "SoftThresh\u03c41.5-mlsize",
+      "kind": "softthresh",
+      "gamma": 4.0,
+      "emb": "BPR/embeddings_mlsize",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairand_ml_softthresh_g10",
+      "dskey": "kuairand_ml",
+      "dataset": "kuairand",
+      "misspec": "SoftThresh\u03c41.5-mlsize",
+      "kind": "softthresh",
+      "gamma": 10.0,
+      "emb": "BPR/embeddings_mlsize",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairand_ml_softthresh_g100",
+      "dskey": "kuairand_ml",
+      "dataset": "kuairand",
+      "misspec": "SoftThresh\u03c41.5-mlsize",
+      "kind": "softthresh",
+      "gamma": 100.0,
+      "emb": "BPR/embeddings_mlsize",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairec_ml_rstar_g0",
+      "dskey": "kuairec_ml",
+      "dataset": "kuairec",
+      "misspec": "R*-mlsize",
+      "kind": "rstar",
+      "gamma": 0.0,
+      "emb": "BPR/embeddings_mlsize",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairec_ml_rstar_g0.25",
+      "dskey": "kuairec_ml",
+      "dataset": "kuairec",
+      "misspec": "R*-mlsize",
+      "kind": "rstar",
+      "gamma": 0.25,
+      "emb": "BPR/embeddings_mlsize",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairec_ml_rstar_g0.5",
+      "dskey": "kuairec_ml",
+      "dataset": "kuairec",
+      "misspec": "R*-mlsize",
+      "kind": "rstar",
+      "gamma": 0.5,
+      "emb": "BPR/embeddings_mlsize",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairec_ml_rstar_g0.75",
+      "dskey": "kuairec_ml",
+      "dataset": "kuairec",
+      "misspec": "R*-mlsize",
+      "kind": "rstar",
+      "gamma": 0.75,
+      "emb": "BPR/embeddings_mlsize",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairec_ml_rstar_g1",
+      "dskey": "kuairec_ml",
+      "dataset": "kuairec",
+      "misspec": "R*-mlsize",
+      "kind": "rstar",
+      "gamma": 1.0,
+      "emb": "BPR/embeddings_mlsize",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairec_ml_rstar_g2",
+      "dskey": "kuairec_ml",
+      "dataset": "kuairec",
+      "misspec": "R*-mlsize",
+      "kind": "rstar",
+      "gamma": 2.0,
+      "emb": "BPR/embeddings_mlsize",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairec_ml_rstar_g4",
+      "dskey": "kuairec_ml",
+      "dataset": "kuairec",
+      "misspec": "R*-mlsize",
+      "kind": "rstar",
+      "gamma": 4.0,
+      "emb": "BPR/embeddings_mlsize",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairec_ml_rstar_g10",
+      "dskey": "kuairec_ml",
+      "dataset": "kuairec",
+      "misspec": "R*-mlsize",
+      "kind": "rstar",
+      "gamma": 10.0,
+      "emb": "BPR/embeddings_mlsize",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairec_ml_rstar_g100",
+      "dskey": "kuairec_ml",
+      "dataset": "kuairec",
+      "misspec": "R*-mlsize",
+      "kind": "rstar",
+      "gamma": 100.0,
+      "emb": "BPR/embeddings_mlsize",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairec_ml_softand_g0",
+      "dskey": "kuairec_ml",
+      "dataset": "kuairec",
+      "misspec": "SoftAND*-mlsize",
+      "kind": "softand",
+      "gamma": 0.0,
+      "emb": "BPR/embeddings_mlsize",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairec_ml_softand_g0.25",
+      "dskey": "kuairec_ml",
+      "dataset": "kuairec",
+      "misspec": "SoftAND*-mlsize",
+      "kind": "softand",
+      "gamma": 0.25,
+      "emb": "BPR/embeddings_mlsize",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairec_ml_softand_g0.5",
+      "dskey": "kuairec_ml",
+      "dataset": "kuairec",
+      "misspec": "SoftAND*-mlsize",
+      "kind": "softand",
+      "gamma": 0.5,
+      "emb": "BPR/embeddings_mlsize",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairec_ml_softand_g0.75",
+      "dskey": "kuairec_ml",
+      "dataset": "kuairec",
+      "misspec": "SoftAND*-mlsize",
+      "kind": "softand",
+      "gamma": 0.75,
+      "emb": "BPR/embeddings_mlsize",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairec_ml_softand_g1",
+      "dskey": "kuairec_ml",
+      "dataset": "kuairec",
+      "misspec": "SoftAND*-mlsize",
+      "kind": "softand",
+      "gamma": 1.0,
+      "emb": "BPR/embeddings_mlsize",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairec_ml_softand_g2",
+      "dskey": "kuairec_ml",
+      "dataset": "kuairec",
+      "misspec": "SoftAND*-mlsize",
+      "kind": "softand",
+      "gamma": 2.0,
+      "emb": "BPR/embeddings_mlsize",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairec_ml_softand_g4",
+      "dskey": "kuairec_ml",
+      "dataset": "kuairec",
+      "misspec": "SoftAND*-mlsize",
+      "kind": "softand",
+      "gamma": 4.0,
+      "emb": "BPR/embeddings_mlsize",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairec_ml_softand_g10",
+      "dskey": "kuairec_ml",
+      "dataset": "kuairec",
+      "misspec": "SoftAND*-mlsize",
+      "kind": "softand",
+      "gamma": 10.0,
+      "emb": "BPR/embeddings_mlsize",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairec_ml_softand_g100",
+      "dskey": "kuairec_ml",
+      "dataset": "kuairec",
+      "misspec": "SoftAND*-mlsize",
+      "kind": "softand",
+      "gamma": 100.0,
+      "emb": "BPR/embeddings_mlsize",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairec_ml_softthresh_g0",
+      "dskey": "kuairec_ml",
+      "dataset": "kuairec",
+      "misspec": "SoftThresh\u03c41.5-mlsize",
+      "kind": "softthresh",
+      "gamma": 0.0,
+      "emb": "BPR/embeddings_mlsize",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairec_ml_softthresh_g0.25",
+      "dskey": "kuairec_ml",
+      "dataset": "kuairec",
+      "misspec": "SoftThresh\u03c41.5-mlsize",
+      "kind": "softthresh",
+      "gamma": 0.25,
+      "emb": "BPR/embeddings_mlsize",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairec_ml_softthresh_g0.5",
+      "dskey": "kuairec_ml",
+      "dataset": "kuairec",
+      "misspec": "SoftThresh\u03c41.5-mlsize",
+      "kind": "softthresh",
+      "gamma": 0.5,
+      "emb": "BPR/embeddings_mlsize",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairec_ml_softthresh_g0.75",
+      "dskey": "kuairec_ml",
+      "dataset": "kuairec",
+      "misspec": "SoftThresh\u03c41.5-mlsize",
+      "kind": "softthresh",
+      "gamma": 0.75,
+      "emb": "BPR/embeddings_mlsize",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairec_ml_softthresh_g1",
+      "dskey": "kuairec_ml",
+      "dataset": "kuairec",
+      "misspec": "SoftThresh\u03c41.5-mlsize",
+      "kind": "softthresh",
+      "gamma": 1.0,
+      "emb": "BPR/embeddings_mlsize",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairec_ml_softthresh_g2",
+      "dskey": "kuairec_ml",
+      "dataset": "kuairec",
+      "misspec": "SoftThresh\u03c41.5-mlsize",
+      "kind": "softthresh",
+      "gamma": 2.0,
+      "emb": "BPR/embeddings_mlsize",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairec_ml_softthresh_g4",
+      "dskey": "kuairec_ml",
+      "dataset": "kuairec",
+      "misspec": "SoftThresh\u03c41.5-mlsize",
+      "kind": "softthresh",
+      "gamma": 4.0,
+      "emb": "BPR/embeddings_mlsize",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairec_ml_softthresh_g10",
+      "dskey": "kuairec_ml",
+      "dataset": "kuairec",
+      "misspec": "SoftThresh\u03c41.5-mlsize",
+      "kind": "softthresh",
+      "gamma": 10.0,
+      "emb": "BPR/embeddings_mlsize",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    },
+    {
+      "tag": "nlres_grid_kuairec_ml_softthresh_g100",
+      "dskey": "kuairec_ml",
+      "dataset": "kuairec",
+      "misspec": "SoftThresh\u03c41.5-mlsize",
+      "kind": "softthresh",
+      "gamma": 100.0,
+      "emb": "BPR/embeddings_mlsize",
+      "source": "full_hybrid_grid",
+      "target_n": 40,
+      "methods": [
+        "opc",
+        "nll",
+        "hybrid_seq_f0.25",
+        "hybrid_seq_f0.5",
+        "hybrid_seq_f0.75",
+        "hybrid_seq_adapt"
+      ],
+      "method_n": {
+        "opc": 0,
+        "nll": 0,
+        "hybrid_seq_f0.25": 0,
+        "hybrid_seq_f0.5": 0,
+        "hybrid_seq_f0.75": 0,
+        "hybrid_seq_adapt": 0
+      },
+      "n_min": 0,
+      "n_max": 0,
+      "status": "did_not_run"
+    }
+  ]
+}
