@@ -1,0 +1,567 @@
+dataset,misspec,gamma,method,n,mean_ctr_pct,ci_lo,ci_hi,tags,note
+ml,R*,0.0,opc,40,17.347368629374877,17.062495467047974,17.63224179170178,nlres_h1_rstar_f05_g0|nlres_h1_rstar_f05_g0.5,hybrid n=20 preferred
+ml,R*,0.0,nll,40,18.538140714341495,18.158794524929256,18.917486903753733,nlres_h1_rstar_f05_g0|nlres_h1_rstar_f05_g0.5,hybrid n=20 preferred
+ml,R*,0.0,nll_dr,20,15.540996097769957,13.384632516419599,17.697359679120318,nlres_h1_rstar_f05_g0|nlres_h1_rstar_f05_g0.5,hybrid n=20 preferred
+ml,R*,0.0,hybrid_seq_f0.5,40,18.367117916671084,18.080425418563262,18.653810414778906,nlres_h1_rstar_f05_g0|nlres_h1_rstar_f05_g0.5,hybrid n=20 preferred
+ml,R*,0.5,opc,40,19.049518509173076,18.583127799314674,19.515909219031478,nlres_h1_rstar_f05_g0|nlres_h1_rstar_f05_g0.5,hybrid n=20 preferred
+ml,R*,0.5,nll,40,19.11662526197283,18.49076262325456,19.742487900691096,nlres_h1_rstar_f05_g0|nlres_h1_rstar_f05_g0.5,hybrid n=20 preferred
+ml,R*,0.5,nll_dr,20,16.200289139677217,13.921545636492802,18.479032642861632,nlres_h1_rstar_f05_g0|nlres_h1_rstar_f05_g0.5,hybrid n=20 preferred
+ml,R*,0.5,hybrid_seq_f0.5,40,20.057358849046835,19.433426928091166,20.681290770002505,nlres_h1_rstar_f05_g0|nlres_h1_rstar_f05_g0.5,hybrid n=20 preferred
+ml,R*,0.0,opc,10,16.989159776930823,16.546411867215813,17.431907686645832,nlres_h1_rstar_g0|nlres_h1_rstar_g0.5,hybrid all-f n=10
+ml,R*,0.0,nll,10,18.05721949406877,17.115701372528402,18.99873761560914,nlres_h1_rstar_g0|nlres_h1_rstar_g0.5,hybrid all-f n=10
+ml,R*,0.0,nll_dr,10,14.096712253458275,10.470507428158495,17.722917078758055,nlres_h1_rstar_g0|nlres_h1_rstar_g0.5,hybrid all-f n=10
+ml,R*,0.0,hybrid_seq_f0.25,10,17.381509782612547,16.509983205615743,18.25303635960935,nlres_h1_rstar_g0|nlres_h1_rstar_g0.5,hybrid all-f n=10
+ml,R*,0.0,hybrid_seq_f0.5,10,17.910714894755735,17.22265268655847,18.598777102953,nlres_h1_rstar_g0|nlres_h1_rstar_g0.5,hybrid all-f n=10
+ml,R*,0.0,hybrid_seq_f0.75,10,17.947023054351497,17.133416458749352,18.760629649953643,nlres_h1_rstar_g0|nlres_h1_rstar_g0.5,hybrid all-f n=10
+ml,R*,0.5,opc,10,18.42176698755629,17.702370811928027,19.14116316318455,nlres_h1_rstar_g0|nlres_h1_rstar_g0.5,hybrid all-f n=10
+ml,R*,0.5,nll,10,17.962537260236676,17.127941144916825,18.797133375556527,nlres_h1_rstar_g0|nlres_h1_rstar_g0.5,hybrid all-f n=10
+ml,R*,0.5,nll_dr,10,14.572272996999493,11.09789902389306,18.046646970105925,nlres_h1_rstar_g0|nlres_h1_rstar_g0.5,hybrid all-f n=10
+ml,R*,0.5,hybrid_seq_f0.25,10,19.103538539089563,17.811245757160496,20.39583132101863,nlres_h1_rstar_g0|nlres_h1_rstar_g0.5,hybrid all-f n=10
+ml,R*,0.5,hybrid_seq_f0.5,10,19.503975648905264,18.657910221128866,20.350041076681663,nlres_h1_rstar_g0|nlres_h1_rstar_g0.5,hybrid all-f n=10
+ml,R*,0.5,hybrid_seq_f0.75,10,19.558494795812507,18.76019520916769,20.356794382457323,nlres_h1_rstar_g0|nlres_h1_rstar_g0.5,hybrid all-f n=10
+ml,SoftAND*,0.0,opc,10,17.342864324531778,16.665191283642592,18.020537365420964,nlres_h1_softand_g0|nlres_h1_softand_g0.5,mid γ
+ml,SoftAND*,0.0,nll,10,18.487770144225475,17.795926079679155,19.179614208771795,nlres_h1_softand_g0|nlres_h1_softand_g0.5,mid γ
+ml,SoftAND*,0.0,nll_dr,10,16.985279942081643,14.262664408575294,19.707895475587993,nlres_h1_softand_g0|nlres_h1_softand_g0.5,mid γ
+ml,SoftAND*,0.0,hybrid_seq_f0.25,10,18.128846156529992,17.593220096387192,18.66447221667279,nlres_h1_softand_g0|nlres_h1_softand_g0.5,mid γ
+ml,SoftAND*,0.0,hybrid_seq_f0.5,10,18.22595939794298,17.873019140249315,18.578899655636643,nlres_h1_softand_g0|nlres_h1_softand_g0.5,mid γ
+ml,SoftAND*,0.0,hybrid_seq_f0.75,10,18.220079637335903,17.732648607459325,18.707510667212482,nlres_h1_softand_g0|nlres_h1_softand_g0.5,mid γ
+ml,SoftAND*,0.5,opc,10,17.67336977568658,16.882732856539565,18.464006694833596,nlres_h1_softand_g0|nlres_h1_softand_g0.5,mid γ
+ml,SoftAND*,0.5,nll,10,18.728494653499336,18.053362366933303,19.40362694006537,nlres_h1_softand_g0|nlres_h1_softand_g0.5,mid γ
+ml,SoftAND*,0.5,nll_dr,10,17.127641175303445,14.279467471303061,19.97581487930383,nlres_h1_softand_g0|nlres_h1_softand_g0.5,mid γ
+ml,SoftAND*,0.5,hybrid_seq_f0.25,10,18.824277539168552,17.66005913995713,19.988495938379973,nlres_h1_softand_g0|nlres_h1_softand_g0.5,mid γ
+ml,SoftAND*,0.5,hybrid_seq_f0.5,10,18.97046809259659,17.927090135005262,20.01384605018792,nlres_h1_softand_g0|nlres_h1_softand_g0.5,mid γ
+ml,SoftAND*,0.5,hybrid_seq_f0.75,10,18.949786504737084,18.117936128002984,19.781636881471183,nlres_h1_softand_g0|nlres_h1_softand_g0.5,mid γ
+ml,SoftAND*,0.0,opc,10,17.342864324531778,16.665191283642592,18.020537365420964,nlres_h1_softand_g0|nlres_h1_softand_g100,extreme γ
+ml,SoftAND*,0.0,nll,10,18.487770144225475,17.795926079679155,19.179614208771795,nlres_h1_softand_g0|nlres_h1_softand_g100,extreme γ
+ml,SoftAND*,0.0,nll_dr,10,16.985279942081643,14.262664408575294,19.707895475587993,nlres_h1_softand_g0|nlres_h1_softand_g100,extreme γ
+ml,SoftAND*,0.0,hybrid_seq_f0.25,10,18.128846156529992,17.593220096387192,18.66447221667279,nlres_h1_softand_g0|nlres_h1_softand_g100,extreme γ
+ml,SoftAND*,0.0,hybrid_seq_f0.5,10,18.22595939794298,17.873019140249315,18.578899655636643,nlres_h1_softand_g0|nlres_h1_softand_g100,extreme γ
+ml,SoftAND*,0.0,hybrid_seq_f0.75,10,18.220079637335903,17.732648607459325,18.707510667212482,nlres_h1_softand_g0|nlres_h1_softand_g100,extreme γ
+ml,SoftAND*,100.0,opc,10,20.62778525133055,19.621441430505616,21.634129072155485,nlres_h1_softand_g0|nlres_h1_softand_g100,extreme γ
+ml,SoftAND*,100.0,nll,10,18.00886622439098,16.59897349763994,19.418758951142024,nlres_h1_softand_g0|nlres_h1_softand_g100,extreme γ
+ml,SoftAND*,100.0,nll_dr,10,18.00886622439098,16.59897349763994,19.418758951142024,nlres_h1_softand_g0|nlres_h1_softand_g100,extreme γ
+ml,SoftAND*,100.0,hybrid_seq_f0.25,10,21.744529448946846,20.06907862177686,23.41998027611683,nlres_h1_softand_g0|nlres_h1_softand_g100,extreme γ
+ml,SoftAND*,100.0,hybrid_seq_f0.5,10,21.792916890328605,19.784852333145363,23.800981447511848,nlres_h1_softand_g0|nlres_h1_softand_g100,extreme γ
+ml,SoftAND*,100.0,hybrid_seq_f0.75,10,21.578317042497098,19.649093852005052,23.507540232989143,nlres_h1_softand_g0|nlres_h1_softand_g100,extreme γ
+ml,SoftThreshτ1.5,0.0,opc,40,17.317119878511193,17.032453577500124,17.60178617952226,nlres_h1_st15_g0|nlres_h1_st15_g100,extreme γ
+ml,SoftThreshτ1.5,0.0,nll,40,18.538339035169656,18.15910183197084,18.917576238368472,nlres_h1_st15_g0|nlres_h1_st15_g100,extreme γ
+ml,SoftThreshτ1.5,0.0,nll_dr,10,16.985279942081643,14.262664408575294,19.707895475587993,nlres_h1_st15_g0|nlres_h1_st15_g100,extreme γ
+ml,SoftThreshτ1.5,0.0,hybrid_seq_f0.5,40,18.35575303560244,18.068428948633514,18.643077122571366,nlres_h1_st15_g0|nlres_h1_st15_g100,extreme γ
+ml,SoftThreshτ1.5,100.0,opc,40,25.35870205658776,24.1153055959338,26.602098517241718,nlres_h1_st15_g0|nlres_h1_st15_g100,extreme γ
+ml,SoftThreshτ1.5,100.0,nll,40,20.630617675011212,19.51456232138808,21.746673028634344,nlres_h1_st15_g0|nlres_h1_st15_g100,extreme γ
+ml,SoftThreshτ1.5,100.0,nll_dr,10,19.492413358184276,16.602077066127286,22.382749650241266,nlres_h1_st15_g0|nlres_h1_st15_g100,extreme γ
+ml,SoftThreshτ1.5,100.0,hybrid_seq_f0.5,40,27.534527190383322,26.015025382578592,29.054028998188052,nlres_h1_st15_g0|nlres_h1_st15_g100,extreme γ
+ml,R*-adapt,0.0,opc,20,17.166012050731304,16.791756916320868,17.54026718514174,nlres_h1_adapt_rstar_g0|nlres_h1_adapt_rstar_g0.5,adapt confirm
+ml,R*-adapt,0.0,nll,20,18.272494819147123,17.736341137164477,18.80864850112977,nlres_h1_adapt_rstar_g0|nlres_h1_adapt_rstar_g0.5,adapt confirm
+ml,R*-adapt,0.0,hybrid_seq_f0.5,20,18.068337146349357,17.712005288439695,18.42466900425902,nlres_h1_adapt_rstar_g0|nlres_h1_adapt_rstar_g0.5,adapt confirm
+ml,R*-adapt,0.0,hybrid_seq_adapt,20,18.053619856473752,17.565431579787685,18.54180813315982,nlres_h1_adapt_rstar_g0|nlres_h1_adapt_rstar_g0.5,adapt confirm
+ml,R*-adapt,0.5,opc,20,18.883024728861592,18.321151978949818,19.444897478773367,nlres_h1_adapt_rstar_g0|nlres_h1_adapt_rstar_g0.5,adapt confirm
+ml,R*-adapt,0.5,nll,20,18.634978524117876,17.861303091860513,19.40865395637524,nlres_h1_adapt_rstar_g0|nlres_h1_adapt_rstar_g0.5,adapt confirm
+ml,R*-adapt,0.5,hybrid_seq_f0.5,20,19.622836656788202,18.976338114279027,20.269335199297377,nlres_h1_adapt_rstar_g0|nlres_h1_adapt_rstar_g0.5,adapt confirm
+ml,R*-adapt,0.5,hybrid_seq_adapt,20,19.8589701250172,19.184838346797772,20.53310190323663,nlres_h1_adapt_rstar_g0|nlres_h1_adapt_rstar_g0.5,adapt confirm
+ml,SoftAND*-adapt,0.0,opc,20,17.166012050731304,16.791756916320868,17.54026718514174,nlres_h1_adapt_softand_g0|nlres_h1_adapt_softand_g100,adapt confirm
+ml,SoftAND*-adapt,0.0,nll,20,18.272494819147123,17.736341137164477,18.80864850112977,nlres_h1_adapt_softand_g0|nlres_h1_adapt_softand_g100,adapt confirm
+ml,SoftAND*-adapt,0.0,hybrid_seq_f0.5,20,18.068337146349357,17.712005288439695,18.42466900425902,nlres_h1_adapt_softand_g0|nlres_h1_adapt_softand_g100,adapt confirm
+ml,SoftAND*-adapt,0.0,hybrid_seq_adapt,20,18.053619856473752,17.565431579787685,18.54180813315982,nlres_h1_adapt_softand_g0|nlres_h1_adapt_softand_g100,adapt confirm
+ml,SoftAND*-adapt,100.0,opc,20,21.092274086175287,20.206534367392774,21.9780138049578,nlres_h1_adapt_softand_g0|nlres_h1_adapt_softand_g100,adapt confirm
+ml,SoftAND*-adapt,100.0,nll,20,18.489863281963057,17.64301209825443,19.336714465671683,nlres_h1_adapt_softand_g0|nlres_h1_adapt_softand_g100,adapt confirm
+ml,SoftAND*-adapt,100.0,hybrid_seq_f0.5,20,22.08381201274023,20.854242154815715,23.31338187066474,nlres_h1_adapt_softand_g0|nlres_h1_adapt_softand_g100,adapt confirm
+ml,SoftAND*-adapt,100.0,hybrid_seq_adapt,20,21.909799082323126,20.57609137396078,23.243506790685473,nlres_h1_adapt_softand_g0|nlres_h1_adapt_softand_g100,adapt confirm
+ml,SoftThresh-adapt,0.0,opc,20,17.166012050731304,16.791756916320868,17.54026718514174,nlres_h1_adapt_st15_g0|nlres_h1_adapt_st15_g100,adapt confirm
+ml,SoftThresh-adapt,0.0,nll,20,18.272494819147123,17.736341137164477,18.80864850112977,nlres_h1_adapt_st15_g0|nlres_h1_adapt_st15_g100,adapt confirm
+ml,SoftThresh-adapt,0.0,hybrid_seq_f0.5,20,18.068337146349357,17.712005288439695,18.42466900425902,nlres_h1_adapt_st15_g0|nlres_h1_adapt_st15_g100,adapt confirm
+ml,SoftThresh-adapt,0.0,hybrid_seq_adapt,20,18.053619856473752,17.565431579787685,18.54180813315982,nlres_h1_adapt_st15_g0|nlres_h1_adapt_st15_g100,adapt confirm
+ml,SoftThresh-adapt,100.0,opc,20,25.455822024392408,23.67746685412532,27.234177194659495,nlres_h1_adapt_st15_g0|nlres_h1_adapt_st15_g100,adapt confirm
+ml,SoftThresh-adapt,100.0,nll,20,20.362190094029494,18.718592307760126,22.00578788029886,nlres_h1_adapt_st15_g0|nlres_h1_adapt_st15_g100,adapt confirm
+ml,SoftThresh-adapt,100.0,hybrid_seq_f0.5,20,26.87138284813268,24.486642416555362,29.256123279709996,nlres_h1_adapt_st15_g0|nlres_h1_adapt_st15_g100,adapt confirm
+ml,SoftThresh-adapt,100.0,hybrid_seq_adapt,20,26.529719789358047,24.50732329631301,28.552116282403084,nlres_h1_adapt_st15_g0|nlres_h1_adapt_st15_g100,adapt confirm
+anime,R*,0.0,opc,20,15.925755624295338,15.51398780809136,16.337523440499318,nlres_p1_anime_rstar_g0|nlres_p1_anime_rstar_g0.6,γ*=0.6
+anime,R*,0.0,nll,20,16.486327067699907,15.828771388236257,17.143882747163556,nlres_p1_anime_rstar_g0|nlres_p1_anime_rstar_g0.6,γ*=0.6
+anime,R*,0.0,nll_dr,20,12.132904583165413,10.535226221560764,13.730582944770061,nlres_p1_anime_rstar_g0|nlres_p1_anime_rstar_g0.6,γ*=0.6
+anime,R*,0.0,hybrid_seq_f0.5,20,16.70643970721705,15.928854999040945,17.484024415393158,nlres_p1_anime_rstar_g0|nlres_p1_anime_rstar_g0.6,γ*=0.6
+anime,R*,0.6,opc,20,16.18733661716943,15.613497898665281,16.761175335673578,nlres_p1_anime_rstar_g0|nlres_p1_anime_rstar_g0.6,γ*=0.6
+anime,R*,0.6,nll,20,16.64588572145893,16.01970060319842,17.272070839719444,nlres_p1_anime_rstar_g0|nlres_p1_anime_rstar_g0.6,γ*=0.6
+anime,R*,0.6,nll_dr,20,12.388472015056857,10.638110858841083,14.138833171272632,nlres_p1_anime_rstar_g0|nlres_p1_anime_rstar_g0.6,γ*=0.6
+anime,R*,0.6,hybrid_seq_f0.5,20,17.366050634402768,16.60152692017819,18.130574348627345,nlres_p1_anime_rstar_g0|nlres_p1_anime_rstar_g0.6,γ*=0.6
+myket,R*,0.0,opc,20,19.902987575818077,19.23058212114057,20.575393030495583,nlres_p1_myket_rstar_g0|nlres_p1_myket_rstar_g0.5,
+myket,R*,0.0,nll,20,21.310330662122233,20.706003685768632,21.914657638475834,nlres_p1_myket_rstar_g0|nlres_p1_myket_rstar_g0.5,
+myket,R*,0.0,nll_dr,20,18.631041733134335,15.915478997368366,21.346604468900306,nlres_p1_myket_rstar_g0|nlres_p1_myket_rstar_g0.5,
+myket,R*,0.0,hybrid_seq_f0.5,20,21.394206812554444,20.810524473412364,21.977889151696523,nlres_p1_myket_rstar_g0|nlres_p1_myket_rstar_g0.5,
+myket,R*,0.5,opc,20,19.744359612993712,18.71632830456947,20.772390921417955,nlres_p1_myket_rstar_g0|nlres_p1_myket_rstar_g0.5,
+myket,R*,0.5,nll,20,20.597515079877514,19.644667355219685,21.550362804535343,nlres_p1_myket_rstar_g0|nlres_p1_myket_rstar_g0.5,
+myket,R*,0.5,nll_dr,20,19.477992089598978,17.412570785351203,21.543413393846752,nlres_p1_myket_rstar_g0|nlres_p1_myket_rstar_g0.5,
+myket,R*,0.5,hybrid_seq_f0.5,20,21.36932309242418,20.330232343179443,22.40841384166892,nlres_p1_myket_rstar_g0|nlres_p1_myket_rstar_g0.5,
+kuairand,R*-mlsize,0.0,opc,20,20.000739016441134,19.51527017467539,20.48620785820688,nlres_p1_kuairand_rstar_g0|nlres_p1_kuairand_rstar_g0.5,Phase-0a abort
+kuairand,R*-mlsize,0.0,nll,20,21.567530003314207,21.15421858495349,21.980841421674924,nlres_p1_kuairand_rstar_g0|nlres_p1_kuairand_rstar_g0.5,Phase-0a abort
+kuairand,R*-mlsize,0.0,nll_dr,20,21.576219823274712,21.17349373634012,21.978945910209305,nlres_p1_kuairand_rstar_g0|nlres_p1_kuairand_rstar_g0.5,Phase-0a abort
+kuairand,R*-mlsize,0.0,hybrid_seq_f0.5,20,20.78943053316761,20.344186439627613,21.23467462670761,nlres_p1_kuairand_rstar_g0|nlres_p1_kuairand_rstar_g0.5,Phase-0a abort
+kuairand,R*-mlsize,0.5,opc,20,20.94863660076489,20.327311364463004,21.569961837066774,nlres_p1_kuairand_rstar_g0|nlres_p1_kuairand_rstar_g0.5,Phase-0a abort
+kuairand,R*-mlsize,0.5,nll,20,21.33548954639817,20.687375600473857,21.98360349232248,nlres_p1_kuairand_rstar_g0|nlres_p1_kuairand_rstar_g0.5,Phase-0a abort
+kuairand,R*-mlsize,0.5,nll_dr,20,21.412667071697133,20.778672330353942,22.046661813040323,nlres_p1_kuairand_rstar_g0|nlres_p1_kuairand_rstar_g0.5,Phase-0a abort
+kuairand,R*-mlsize,0.5,hybrid_seq_f0.5,20,21.864510124960944,21.21428902512392,22.514731224797966,nlres_p1_kuairand_rstar_g0|nlres_p1_kuairand_rstar_g0.5,Phase-0a abort
+kuairec,R*-mlsize,0.0,opc,20,22.018806816270022,21.404165985010938,22.633447647529106,nlres_p1_kuairec_rstar_g0|nlres_p1_kuairec_rstar_g0.5,Phase-0a abort
+kuairec,R*-mlsize,0.0,nll,20,23.006320210321277,22.253543024147138,23.759097396495417,nlres_p1_kuairec_rstar_g0|nlres_p1_kuairec_rstar_g0.5,Phase-0a abort
+kuairec,R*-mlsize,0.0,nll_dr,20,22.998760737002687,22.246975731285943,23.75054574271943,nlres_p1_kuairec_rstar_g0|nlres_p1_kuairec_rstar_g0.5,Phase-0a abort
+kuairec,R*-mlsize,0.0,hybrid_seq_f0.5,20,22.872852282438952,22.2200746846763,23.525629880201603,nlres_p1_kuairec_rstar_g0|nlres_p1_kuairec_rstar_g0.5,Phase-0a abort
+kuairec,R*-mlsize,0.5,opc,20,22.241644470141917,21.405142686481504,23.07814625380233,nlres_p1_kuairec_rstar_g0|nlres_p1_kuairec_rstar_g0.5,Phase-0a abort
+kuairec,R*-mlsize,0.5,nll,20,22.288430226703834,21.33754066811191,23.23931978529576,nlres_p1_kuairec_rstar_g0|nlres_p1_kuairec_rstar_g0.5,Phase-0a abort
+kuairec,R*-mlsize,0.5,nll_dr,20,22.27014571395373,21.31030121291599,23.22999021499147,nlres_p1_kuairec_rstar_g0|nlres_p1_kuairec_rstar_g0.5,Phase-0a abort
+kuairec,R*-mlsize,0.5,hybrid_seq_f0.5,20,22.871481260257365,21.859207697335133,23.883754823179597,nlres_p1_kuairec_rstar_g0|nlres_p1_kuairec_rstar_g0.5,Phase-0a abort
+kuairand,R*-full,0.0,opc,20,20.775131250556164,20.359641909034405,21.190620592077924,nlres_p1_kuairand_full_rstar_g0|nlres_p1_kuairand_full_rstar_g0.5,full catalog
+kuairand,R*-full,0.0,nll,20,22.15037280165764,21.77815755419516,22.522588049120117,nlres_p1_kuairand_full_rstar_g0|nlres_p1_kuairand_full_rstar_g0.5,full catalog
+kuairand,R*-full,0.0,nll_dr,20,22.153209142633838,21.780630917684697,22.52578736758298,nlres_p1_kuairand_full_rstar_g0|nlres_p1_kuairand_full_rstar_g0.5,full catalog
+kuairand,R*-full,0.0,hybrid_seq_f0.5,20,21.56951915536178,21.29368983463481,21.845348476088752,nlres_p1_kuairand_full_rstar_g0|nlres_p1_kuairand_full_rstar_g0.5,full catalog
+kuairand,R*-full,0.5,opc,20,20.6240396526697,19.89546057840426,21.35261872693514,nlres_p1_kuairand_full_rstar_g0|nlres_p1_kuairand_full_rstar_g0.5,full catalog
+kuairand,R*-full,0.5,nll,20,21.831662229170927,21.041296890390523,22.62202756795133,nlres_p1_kuairand_full_rstar_g0|nlres_p1_kuairand_full_rstar_g0.5,full catalog
+kuairand,R*-full,0.5,nll_dr,20,21.81745139209487,21.025278409912676,22.609624374277065,nlres_p1_kuairand_full_rstar_g0|nlres_p1_kuairand_full_rstar_g0.5,full catalog
+kuairand,R*-full,0.5,hybrid_seq_f0.5,20,21.863664708128976,21.063535040446506,22.663794375811445,nlres_p1_kuairand_full_rstar_g0|nlres_p1_kuairand_full_rstar_g0.5,full catalog
+kuairec,R*-full,0.0,opc,20,20.536938636132124,19.73802079207231,21.33585648019194,nlres_p1_kuairec_full_rstar_g0|nlres_p1_kuairec_full_rstar_g0.5,full catalog amp0.75
+kuairec,R*-full,0.0,nll,20,22.272062792249905,21.546167587747505,22.997957996752305,nlres_p1_kuairec_full_rstar_g0|nlres_p1_kuairec_full_rstar_g0.5,full catalog amp0.75
+kuairec,R*-full,0.0,nll_dr,20,22.236335696574503,21.48434461718582,22.988326775963188,nlres_p1_kuairec_full_rstar_g0|nlres_p1_kuairec_full_rstar_g0.5,full catalog amp0.75
+kuairec,R*-full,0.0,hybrid_seq_f0.5,20,21.588541503045416,20.67495440303509,22.50212860305574,nlres_p1_kuairec_full_rstar_g0|nlres_p1_kuairec_full_rstar_g0.5,full catalog amp0.75
+kuairec,R*-full,0.5,opc,20,21.807350298383447,20.96279360493245,22.651906991834444,nlres_p1_kuairec_full_rstar_g0|nlres_p1_kuairec_full_rstar_g0.5,full catalog amp0.75
+kuairec,R*-full,0.5,nll,20,21.982546830816318,20.89605751745475,23.069036144177886,nlres_p1_kuairec_full_rstar_g0|nlres_p1_kuairec_full_rstar_g0.5,full catalog amp0.75
+kuairec,R*-full,0.5,nll_dr,20,21.922120168807133,20.826829112432147,23.01741122518212,nlres_p1_kuairec_full_rstar_g0|nlres_p1_kuairec_full_rstar_g0.5,full catalog amp0.75
+kuairec,R*-full,0.5,hybrid_seq_f0.5,20,22.597990901948343,21.529854713738278,23.666127090158408,nlres_p1_kuairec_full_rstar_g0|nlres_p1_kuairec_full_rstar_g0.5,full catalog amp0.75
+ml,SoftAND*,0.0,opc,10,17.342864324531778,16.665191283642592,18.020537365420964,nlres_h1_softand_g0|nlres_h1_softand_g0.25,γ-grid 0.25
+ml,SoftAND*,0.0,nll,10,18.487770144225475,17.795926079679155,19.179614208771795,nlres_h1_softand_g0|nlres_h1_softand_g0.25,γ-grid 0.25
+ml,SoftAND*,0.0,nll_dr,10,16.985279942081643,14.262664408575294,19.707895475587993,nlres_h1_softand_g0|nlres_h1_softand_g0.25,γ-grid 0.25
+ml,SoftAND*,0.0,hybrid_seq_f0.25,10,18.128846156529992,17.593220096387192,18.66447221667279,nlres_h1_softand_g0|nlres_h1_softand_g0.25,γ-grid 0.25
+ml,SoftAND*,0.0,hybrid_seq_f0.5,10,18.22595939794298,17.873019140249315,18.578899655636643,nlres_h1_softand_g0|nlres_h1_softand_g0.25,γ-grid 0.25
+ml,SoftAND*,0.0,hybrid_seq_f0.75,10,18.220079637335903,17.732648607459325,18.707510667212482,nlres_h1_softand_g0|nlres_h1_softand_g0.25,γ-grid 0.25
+ml,SoftAND*,0.25,opc,40,17.544881702095854,17.223538672963077,17.86622473122863,nlres_h1_softand_g0|nlres_h1_softand_g0.25,γ-grid 0.25
+ml,SoftAND*,0.25,nll,40,18.709747818377885,18.327141549628152,19.092354087127617,nlres_h1_softand_g0|nlres_h1_softand_g0.25,γ-grid 0.25
+ml,SoftAND*,0.25,hybrid_seq_f0.5,40,18.62070177425803,18.256417087596443,18.984986460919618,nlres_h1_softand_g0|nlres_h1_softand_g0.25,γ-grid 0.25
+ml,SoftAND*,0.0,opc,10,17.342864324531778,16.665191283642592,18.020537365420964,nlres_h1_softand_g0|nlres_h1_softand_g0.5,γ-grid 0.5
+ml,SoftAND*,0.0,nll,10,18.487770144225475,17.795926079679155,19.179614208771795,nlres_h1_softand_g0|nlres_h1_softand_g0.5,γ-grid 0.5
+ml,SoftAND*,0.0,nll_dr,10,16.985279942081643,14.262664408575294,19.707895475587993,nlres_h1_softand_g0|nlres_h1_softand_g0.5,γ-grid 0.5
+ml,SoftAND*,0.0,hybrid_seq_f0.25,10,18.128846156529992,17.593220096387192,18.66447221667279,nlres_h1_softand_g0|nlres_h1_softand_g0.5,γ-grid 0.5
+ml,SoftAND*,0.0,hybrid_seq_f0.5,10,18.22595939794298,17.873019140249315,18.578899655636643,nlres_h1_softand_g0|nlres_h1_softand_g0.5,γ-grid 0.5
+ml,SoftAND*,0.0,hybrid_seq_f0.75,10,18.220079637335903,17.732648607459325,18.707510667212482,nlres_h1_softand_g0|nlres_h1_softand_g0.5,γ-grid 0.5
+ml,SoftAND*,0.5,opc,10,17.67336977568658,16.882732856539565,18.464006694833596,nlres_h1_softand_g0|nlres_h1_softand_g0.5,γ-grid 0.5
+ml,SoftAND*,0.5,nll,10,18.728494653499336,18.053362366933303,19.40362694006537,nlres_h1_softand_g0|nlres_h1_softand_g0.5,γ-grid 0.5
+ml,SoftAND*,0.5,nll_dr,10,17.127641175303445,14.279467471303061,19.97581487930383,nlres_h1_softand_g0|nlres_h1_softand_g0.5,γ-grid 0.5
+ml,SoftAND*,0.5,hybrid_seq_f0.25,10,18.824277539168552,17.66005913995713,19.988495938379973,nlres_h1_softand_g0|nlres_h1_softand_g0.5,γ-grid 0.5
+ml,SoftAND*,0.5,hybrid_seq_f0.5,10,18.97046809259659,17.927090135005262,20.01384605018792,nlres_h1_softand_g0|nlres_h1_softand_g0.5,γ-grid 0.5
+ml,SoftAND*,0.5,hybrid_seq_f0.75,10,18.949786504737084,18.117936128002984,19.781636881471183,nlres_h1_softand_g0|nlres_h1_softand_g0.5,γ-grid 0.5
+ml,SoftAND*,0.0,opc,10,17.342864324531778,16.665191283642592,18.020537365420964,nlres_h1_softand_g0|nlres_h1_softand_g0.75,γ-grid 0.75
+ml,SoftAND*,0.0,nll,10,18.487770144225475,17.795926079679155,19.179614208771795,nlres_h1_softand_g0|nlres_h1_softand_g0.75,γ-grid 0.75
+ml,SoftAND*,0.0,nll_dr,10,16.985279942081643,14.262664408575294,19.707895475587993,nlres_h1_softand_g0|nlres_h1_softand_g0.75,γ-grid 0.75
+ml,SoftAND*,0.0,hybrid_seq_f0.25,10,18.128846156529992,17.593220096387192,18.66447221667279,nlres_h1_softand_g0|nlres_h1_softand_g0.75,γ-grid 0.75
+ml,SoftAND*,0.0,hybrid_seq_f0.5,10,18.22595939794298,17.873019140249315,18.578899655636643,nlres_h1_softand_g0|nlres_h1_softand_g0.75,γ-grid 0.75
+ml,SoftAND*,0.0,hybrid_seq_f0.75,10,18.220079637335903,17.732648607459325,18.707510667212482,nlres_h1_softand_g0|nlres_h1_softand_g0.75,γ-grid 0.75
+ml,SoftAND*,0.75,opc,40,17.65258820312307,17.316352870166632,17.988823536079508,nlres_h1_softand_g0|nlres_h1_softand_g0.75,γ-grid 0.75
+ml,SoftAND*,0.75,nll,40,18.506634008803665,18.081708492051558,18.931559525555773,nlres_h1_softand_g0|nlres_h1_softand_g0.75,γ-grid 0.75
+ml,SoftAND*,0.75,hybrid_seq_f0.5,40,18.93902704280077,18.51778416057303,19.36026992502851,nlres_h1_softand_g0|nlres_h1_softand_g0.75,γ-grid 0.75
+ml,SoftAND*,0.0,opc,10,17.342864324531778,16.665191283642592,18.020537365420964,nlres_h1_softand_g0|nlres_h1_softand_g1,γ-grid 1
+ml,SoftAND*,0.0,nll,10,18.487770144225475,17.795926079679155,19.179614208771795,nlres_h1_softand_g0|nlres_h1_softand_g1,γ-grid 1
+ml,SoftAND*,0.0,nll_dr,10,16.985279942081643,14.262664408575294,19.707895475587993,nlres_h1_softand_g0|nlres_h1_softand_g1,γ-grid 1
+ml,SoftAND*,0.0,hybrid_seq_f0.25,10,18.128846156529992,17.593220096387192,18.66447221667279,nlres_h1_softand_g0|nlres_h1_softand_g1,γ-grid 1
+ml,SoftAND*,0.0,hybrid_seq_f0.5,10,18.22595939794298,17.873019140249315,18.578899655636643,nlres_h1_softand_g0|nlres_h1_softand_g1,γ-grid 1
+ml,SoftAND*,0.0,hybrid_seq_f0.75,10,18.220079637335903,17.732648607459325,18.707510667212482,nlres_h1_softand_g0|nlres_h1_softand_g1,γ-grid 1
+ml,SoftAND*,1.0,opc,40,17.646327734701778,17.29474424049587,17.997911228907686,nlres_h1_softand_g0|nlres_h1_softand_g1,γ-grid 1
+ml,SoftAND*,1.0,nll,40,18.432191613325177,17.996508200731686,18.867875025918668,nlres_h1_softand_g0|nlres_h1_softand_g1,γ-grid 1
+ml,SoftAND*,1.0,hybrid_seq_f0.5,40,19.091794289427817,18.636668046637233,19.5469205322184,nlres_h1_softand_g0|nlres_h1_softand_g1,γ-grid 1
+ml,SoftAND*,0.0,opc,10,17.342864324531778,16.665191283642592,18.020537365420964,nlres_h1_softand_g0|nlres_h1_softand_g10,γ-grid 10
+ml,SoftAND*,0.0,nll,10,18.487770144225475,17.795926079679155,19.179614208771795,nlres_h1_softand_g0|nlres_h1_softand_g10,γ-grid 10
+ml,SoftAND*,0.0,nll_dr,10,16.985279942081643,14.262664408575294,19.707895475587993,nlres_h1_softand_g0|nlres_h1_softand_g10,γ-grid 10
+ml,SoftAND*,0.0,hybrid_seq_f0.25,10,18.128846156529992,17.593220096387192,18.66447221667279,nlres_h1_softand_g0|nlres_h1_softand_g10,γ-grid 10
+ml,SoftAND*,0.0,hybrid_seq_f0.5,10,18.22595939794298,17.873019140249315,18.578899655636643,nlres_h1_softand_g0|nlres_h1_softand_g10,γ-grid 10
+ml,SoftAND*,0.0,hybrid_seq_f0.75,10,18.220079637335903,17.732648607459325,18.707510667212482,nlres_h1_softand_g0|nlres_h1_softand_g10,γ-grid 10
+ml,SoftAND*,10.0,opc,40,20.62269244861119,20.034058989011662,21.211325908210718,nlres_h1_softand_g0|nlres_h1_softand_g10,γ-grid 10
+ml,SoftAND*,10.0,nll,40,18.683334425611474,17.964537640899298,19.40213121032365,nlres_h1_softand_g0|nlres_h1_softand_g10,γ-grid 10
+ml,SoftAND*,10.0,hybrid_seq_f0.5,40,22.01559343937129,21.14722089422969,22.88396598451289,nlres_h1_softand_g0|nlres_h1_softand_g10,γ-grid 10
+ml,SoftAND*,0.0,opc,10,17.342864324531778,16.665191283642592,18.020537365420964,nlres_h1_softand_g0|nlres_h1_softand_g100,γ-grid 100
+ml,SoftAND*,0.0,nll,10,18.487770144225475,17.795926079679155,19.179614208771795,nlres_h1_softand_g0|nlres_h1_softand_g100,γ-grid 100
+ml,SoftAND*,0.0,nll_dr,10,16.985279942081643,14.262664408575294,19.707895475587993,nlres_h1_softand_g0|nlres_h1_softand_g100,γ-grid 100
+ml,SoftAND*,0.0,hybrid_seq_f0.25,10,18.128846156529992,17.593220096387192,18.66447221667279,nlres_h1_softand_g0|nlres_h1_softand_g100,γ-grid 100
+ml,SoftAND*,0.0,hybrid_seq_f0.5,10,18.22595939794298,17.873019140249315,18.578899655636643,nlres_h1_softand_g0|nlres_h1_softand_g100,γ-grid 100
+ml,SoftAND*,0.0,hybrid_seq_f0.75,10,18.220079637335903,17.732648607459325,18.707510667212482,nlres_h1_softand_g0|nlres_h1_softand_g100,γ-grid 100
+ml,SoftAND*,100.0,opc,10,20.62778525133055,19.621441430505616,21.634129072155485,nlres_h1_softand_g0|nlres_h1_softand_g100,γ-grid 100
+ml,SoftAND*,100.0,nll,10,18.00886622439098,16.59897349763994,19.418758951142024,nlres_h1_softand_g0|nlres_h1_softand_g100,γ-grid 100
+ml,SoftAND*,100.0,nll_dr,10,18.00886622439098,16.59897349763994,19.418758951142024,nlres_h1_softand_g0|nlres_h1_softand_g100,γ-grid 100
+ml,SoftAND*,100.0,hybrid_seq_f0.25,10,21.744529448946846,20.06907862177686,23.41998027611683,nlres_h1_softand_g0|nlres_h1_softand_g100,γ-grid 100
+ml,SoftAND*,100.0,hybrid_seq_f0.5,10,21.792916890328605,19.784852333145363,23.800981447511848,nlres_h1_softand_g0|nlres_h1_softand_g100,γ-grid 100
+ml,SoftAND*,100.0,hybrid_seq_f0.75,10,21.578317042497098,19.649093852005052,23.507540232989143,nlres_h1_softand_g0|nlres_h1_softand_g100,γ-grid 100
+ml,SoftAND*,0.0,opc,10,17.342864324531778,16.665191283642592,18.020537365420964,nlres_h1_softand_g0|nlres_h1_softand_g2,γ-grid 2
+ml,SoftAND*,0.0,nll,10,18.487770144225475,17.795926079679155,19.179614208771795,nlres_h1_softand_g0|nlres_h1_softand_g2,γ-grid 2
+ml,SoftAND*,0.0,nll_dr,10,16.985279942081643,14.262664408575294,19.707895475587993,nlres_h1_softand_g0|nlres_h1_softand_g2,γ-grid 2
+ml,SoftAND*,0.0,hybrid_seq_f0.25,10,18.128846156529992,17.593220096387192,18.66447221667279,nlres_h1_softand_g0|nlres_h1_softand_g2,γ-grid 2
+ml,SoftAND*,0.0,hybrid_seq_f0.5,10,18.22595939794298,17.873019140249315,18.578899655636643,nlres_h1_softand_g0|nlres_h1_softand_g2,γ-grid 2
+ml,SoftAND*,0.0,hybrid_seq_f0.75,10,18.220079637335903,17.732648607459325,18.707510667212482,nlres_h1_softand_g0|nlres_h1_softand_g2,γ-grid 2
+ml,SoftAND*,2.0,opc,40,18.235281964388513,17.7637646034278,18.706799325349227,nlres_h1_softand_g0|nlres_h1_softand_g2,γ-grid 2
+ml,SoftAND*,2.0,nll,40,18.425983715613295,17.919070421125614,18.932897010100977,nlres_h1_softand_g0|nlres_h1_softand_g2,γ-grid 2
+ml,SoftAND*,2.0,hybrid_seq_f0.5,40,19.873753467374097,19.28132967704036,20.466177257707834,nlres_h1_softand_g0|nlres_h1_softand_g2,γ-grid 2
+ml,SoftAND*,0.0,opc,10,17.342864324531778,16.665191283642592,18.020537365420964,nlres_h1_softand_g0|nlres_h1_softand_g4,γ-grid 4
+ml,SoftAND*,0.0,nll,10,18.487770144225475,17.795926079679155,19.179614208771795,nlres_h1_softand_g0|nlres_h1_softand_g4,γ-grid 4
+ml,SoftAND*,0.0,nll_dr,10,16.985279942081643,14.262664408575294,19.707895475587993,nlres_h1_softand_g0|nlres_h1_softand_g4,γ-grid 4
+ml,SoftAND*,0.0,hybrid_seq_f0.25,10,18.128846156529992,17.593220096387192,18.66447221667279,nlres_h1_softand_g0|nlres_h1_softand_g4,γ-grid 4
+ml,SoftAND*,0.0,hybrid_seq_f0.5,10,18.22595939794298,17.873019140249315,18.578899655636643,nlres_h1_softand_g0|nlres_h1_softand_g4,γ-grid 4
+ml,SoftAND*,0.0,hybrid_seq_f0.75,10,18.220079637335903,17.732648607459325,18.707510667212482,nlres_h1_softand_g0|nlres_h1_softand_g4,γ-grid 4
+ml,SoftAND*,4.0,opc,40,19.315641852652156,18.814849847579417,19.816433857724896,nlres_h1_softand_g0|nlres_h1_softand_g4,γ-grid 4
+ml,SoftAND*,4.0,nll,40,18.660252477867715,18.026468423344493,19.294036532390937,nlres_h1_softand_g0|nlres_h1_softand_g4,γ-grid 4
+ml,SoftAND*,4.0,hybrid_seq_f0.5,40,21.01561537443094,20.261398233510647,21.769832515351233,nlres_h1_softand_g0|nlres_h1_softand_g4,γ-grid 4
+ml,SoftAND*,0.0,opc,40,17.347368629374877,17.062495467047974,17.63224179170178,nlres_h1b_softand_g0|nlres_h1b_softand_g0.5,γ-grid 0.5
+ml,SoftAND*,0.0,nll,40,18.538140714341495,18.158794524929256,18.917486903753733,nlres_h1b_softand_g0|nlres_h1b_softand_g0.5,γ-grid 0.5
+ml,SoftAND*,0.0,hybrid_seq_f0.5,40,18.367117916671084,18.080425418563262,18.653810414778906,nlres_h1b_softand_g0|nlres_h1b_softand_g0.5,γ-grid 0.5
+ml,SoftAND*,0.5,opc,40,17.58193046831249,17.280526884709428,17.88333405191555,nlres_h1b_softand_g0|nlres_h1b_softand_g0.5,γ-grid 0.5
+ml,SoftAND*,0.5,nll,40,18.644756450118464,18.24331398848812,19.04619891174881,nlres_h1b_softand_g0|nlres_h1b_softand_g0.5,γ-grid 0.5
+ml,SoftAND*,0.5,hybrid_seq_f0.5,40,18.8278403056404,18.413174659569904,19.242505951710896,nlres_h1b_softand_g0|nlres_h1b_softand_g0.5,γ-grid 0.5
+ml,SoftAND*,0.0,opc,40,17.347368629374877,17.062495467047974,17.63224179170178,nlres_h1b_softand_g0|nlres_h1b_softand_g100,γ-grid 100
+ml,SoftAND*,0.0,nll,40,18.538140714341495,18.158794524929256,18.917486903753733,nlres_h1b_softand_g0|nlres_h1b_softand_g100,γ-grid 100
+ml,SoftAND*,0.0,hybrid_seq_f0.5,40,18.367117916671084,18.080425418563262,18.653810414778906,nlres_h1b_softand_g0|nlres_h1b_softand_g100,γ-grid 100
+ml,SoftAND*,100.0,opc,40,20.838427590781762,20.265758628722438,21.411096552841087,nlres_h1b_softand_g0|nlres_h1b_softand_g100,γ-grid 100
+ml,SoftAND*,100.0,nll,40,18.109900880660554,17.42251066386614,18.797291097454966,nlres_h1b_softand_g0|nlres_h1b_softand_g100,γ-grid 100
+ml,SoftAND*,100.0,hybrid_seq_f0.5,40,21.314591947046797,20.491074331794575,22.138109562299018,nlres_h1b_softand_g0|nlres_h1b_softand_g100,γ-grid 100
+ml,SoftThreshτ1.5,0.0,opc,40,17.317119878511193,17.032453577500124,17.60178617952226,nlres_h1_st15_g0|nlres_h1_st15_g0.25,γ-grid 0.25
+ml,SoftThreshτ1.5,0.0,nll,40,18.538339035169656,18.15910183197084,18.917576238368472,nlres_h1_st15_g0|nlres_h1_st15_g0.25,γ-grid 0.25
+ml,SoftThreshτ1.5,0.0,nll_dr,10,16.985279942081643,14.262664408575294,19.707895475587993,nlres_h1_st15_g0|nlres_h1_st15_g0.25,γ-grid 0.25
+ml,SoftThreshτ1.5,0.0,hybrid_seq_f0.5,40,18.35575303560244,18.068428948633514,18.643077122571366,nlres_h1_st15_g0|nlres_h1_st15_g0.25,γ-grid 0.25
+ml,SoftThreshτ1.5,0.25,opc,40,18.692528288619457,18.123755081272034,19.26130149596688,nlres_h1_st15_g0|nlres_h1_st15_g0.25,γ-grid 0.25
+ml,SoftThreshτ1.5,0.25,nll,40,19.95235464770078,19.294097649601337,20.610611645800223,nlres_h1_st15_g0|nlres_h1_st15_g0.25,γ-grid 0.25
+ml,SoftThreshτ1.5,0.25,hybrid_seq_f0.5,40,19.851357876371782,19.201408720684515,20.50130703205905,nlres_h1_st15_g0|nlres_h1_st15_g0.25,γ-grid 0.25
+ml,SoftThreshτ1.5,0.0,opc,40,17.317119878511193,17.032453577500124,17.60178617952226,nlres_h1_st15_g0|nlres_h1_st15_g0.5,γ-grid 0.5
+ml,SoftThreshτ1.5,0.0,nll,40,18.538339035169656,18.15910183197084,18.917576238368472,nlres_h1_st15_g0|nlres_h1_st15_g0.5,γ-grid 0.5
+ml,SoftThreshτ1.5,0.0,nll_dr,10,16.985279942081643,14.262664408575294,19.707895475587993,nlres_h1_st15_g0|nlres_h1_st15_g0.5,γ-grid 0.5
+ml,SoftThreshτ1.5,0.0,hybrid_seq_f0.5,40,18.35575303560244,18.068428948633514,18.643077122571366,nlres_h1_st15_g0|nlres_h1_st15_g0.5,γ-grid 0.5
+ml,SoftThreshτ1.5,0.5,opc,40,19.933159639926068,19.070610535503043,20.795708744349092,nlres_h1_st15_g0|nlres_h1_st15_g0.5,γ-grid 0.5
+ml,SoftThreshτ1.5,0.5,nll,40,21.170985292890403,20.310684816628964,22.031285769151843,nlres_h1_st15_g0|nlres_h1_st15_g0.5,γ-grid 0.5
+ml,SoftThreshτ1.5,0.5,hybrid_seq_f0.5,40,21.650523339171077,20.66062633948966,22.640420338852493,nlres_h1_st15_g0|nlres_h1_st15_g0.5,γ-grid 0.5
+ml,SoftThreshτ1.5,0.0,opc,40,17.317119878511193,17.032453577500124,17.60178617952226,nlres_h1_st15_g0|nlres_h1_st15_g0.75,γ-grid 0.75
+ml,SoftThreshτ1.5,0.0,nll,40,18.538339035169656,18.15910183197084,18.917576238368472,nlres_h1_st15_g0|nlres_h1_st15_g0.75,γ-grid 0.75
+ml,SoftThreshτ1.5,0.0,nll_dr,10,16.985279942081643,14.262664408575294,19.707895475587993,nlres_h1_st15_g0|nlres_h1_st15_g0.75,γ-grid 0.75
+ml,SoftThreshτ1.5,0.0,hybrid_seq_f0.5,40,18.35575303560244,18.068428948633514,18.643077122571366,nlres_h1_st15_g0|nlres_h1_st15_g0.75,γ-grid 0.75
+ml,SoftThreshτ1.5,0.75,opc,40,20.806812037602626,19.741876921693702,21.87174715351155,nlres_h1_st15_g0|nlres_h1_st15_g0.75,γ-grid 0.75
+ml,SoftThreshτ1.5,0.75,nll,40,21.90226762530949,20.904716745984427,22.899818504634556,nlres_h1_st15_g0|nlres_h1_st15_g0.75,γ-grid 0.75
+ml,SoftThreshτ1.5,0.75,hybrid_seq_f0.5,40,23.015780363304128,21.8545731616569,24.176987564951354,nlres_h1_st15_g0|nlres_h1_st15_g0.75,γ-grid 0.75
+ml,SoftThreshτ1.5,0.0,opc,40,17.317119878511193,17.032453577500124,17.60178617952226,nlres_h1_st15_g0|nlres_h1_st15_g1,γ-grid 1
+ml,SoftThreshτ1.5,0.0,nll,40,18.538339035169656,18.15910183197084,18.917576238368472,nlres_h1_st15_g0|nlres_h1_st15_g1,γ-grid 1
+ml,SoftThreshτ1.5,0.0,nll_dr,10,16.985279942081643,14.262664408575294,19.707895475587993,nlres_h1_st15_g0|nlres_h1_st15_g1,γ-grid 1
+ml,SoftThreshτ1.5,0.0,hybrid_seq_f0.5,40,18.35575303560244,18.068428948633514,18.643077122571366,nlres_h1_st15_g0|nlres_h1_st15_g1,γ-grid 1
+ml,SoftThreshτ1.5,1.0,opc,40,21.40952705089161,20.286146933098482,22.53290716868474,nlres_h1_st15_g0|nlres_h1_st15_g1,γ-grid 1
+ml,SoftThreshτ1.5,1.0,nll,40,22.302625574939704,21.26172770871753,23.343523441161878,nlres_h1_st15_g0|nlres_h1_st15_g1,γ-grid 1
+ml,SoftThreshτ1.5,1.0,hybrid_seq_f0.5,40,23.873022842882015,22.577427193519267,25.168618492244764,nlres_h1_st15_g0|nlres_h1_st15_g1,γ-grid 1
+ml,SoftThreshτ1.5,0.0,opc,40,17.317119878511193,17.032453577500124,17.60178617952226,nlres_h1_st15_g0|nlres_h1_st15_g10,γ-grid 10
+ml,SoftThreshτ1.5,0.0,nll,40,18.538339035169656,18.15910183197084,18.917576238368472,nlres_h1_st15_g0|nlres_h1_st15_g10,γ-grid 10
+ml,SoftThreshτ1.5,0.0,nll_dr,10,16.985279942081643,14.262664408575294,19.707895475587993,nlres_h1_st15_g0|nlres_h1_st15_g10,γ-grid 10
+ml,SoftThreshτ1.5,0.0,hybrid_seq_f0.5,40,18.35575303560244,18.068428948633514,18.643077122571366,nlres_h1_st15_g0|nlres_h1_st15_g10,γ-grid 10
+ml,SoftThreshτ1.5,10.0,opc,40,25.742794971195583,24.459498728532648,27.026091213858518,nlres_h1_st15_g0|nlres_h1_st15_g10,γ-grid 10
+ml,SoftThreshτ1.5,10.0,nll,40,21.21211278608255,20.02869892721998,22.395526644945118,nlres_h1_st15_g0|nlres_h1_st15_g10,γ-grid 10
+ml,SoftThreshτ1.5,10.0,hybrid_seq_f0.5,40,27.911562987163204,26.444670466146807,29.378455508179602,nlres_h1_st15_g0|nlres_h1_st15_g10,γ-grid 10
+ml,SoftThreshτ1.5,0.0,opc,40,17.317119878511193,17.032453577500124,17.60178617952226,nlres_h1_st15_g0|nlres_h1_st15_g100,γ-grid 100
+ml,SoftThreshτ1.5,0.0,nll,40,18.538339035169656,18.15910183197084,18.917576238368472,nlres_h1_st15_g0|nlres_h1_st15_g100,γ-grid 100
+ml,SoftThreshτ1.5,0.0,nll_dr,10,16.985279942081643,14.262664408575294,19.707895475587993,nlres_h1_st15_g0|nlres_h1_st15_g100,γ-grid 100
+ml,SoftThreshτ1.5,0.0,hybrid_seq_f0.5,40,18.35575303560244,18.068428948633514,18.643077122571366,nlres_h1_st15_g0|nlres_h1_st15_g100,γ-grid 100
+ml,SoftThreshτ1.5,100.0,opc,40,25.35870205658776,24.1153055959338,26.602098517241718,nlres_h1_st15_g0|nlres_h1_st15_g100,γ-grid 100
+ml,SoftThreshτ1.5,100.0,nll,40,20.630617675011212,19.51456232138808,21.746673028634344,nlres_h1_st15_g0|nlres_h1_st15_g100,γ-grid 100
+ml,SoftThreshτ1.5,100.0,nll_dr,10,19.492413358184276,16.602077066127286,22.382749650241266,nlres_h1_st15_g0|nlres_h1_st15_g100,γ-grid 100
+ml,SoftThreshτ1.5,100.0,hybrid_seq_f0.5,40,27.534527190383322,26.015025382578592,29.054028998188052,nlres_h1_st15_g0|nlres_h1_st15_g100,γ-grid 100
+ml,SoftThreshτ1.5,0.0,opc,40,17.317119878511193,17.032453577500124,17.60178617952226,nlres_h1_st15_g0|nlres_h1_st15_g2,γ-grid 2
+ml,SoftThreshτ1.5,0.0,nll,40,18.538339035169656,18.15910183197084,18.917576238368472,nlres_h1_st15_g0|nlres_h1_st15_g2,γ-grid 2
+ml,SoftThreshτ1.5,0.0,nll_dr,10,16.985279942081643,14.262664408575294,19.707895475587993,nlres_h1_st15_g0|nlres_h1_st15_g2,γ-grid 2
+ml,SoftThreshτ1.5,0.0,hybrid_seq_f0.5,40,18.35575303560244,18.068428948633514,18.643077122571366,nlres_h1_st15_g0|nlres_h1_st15_g2,γ-grid 2
+ml,SoftThreshτ1.5,2.0,opc,40,23.483137161950303,22.157465442161442,24.808808881739164,nlres_h1_st15_g0|nlres_h1_st15_g2,γ-grid 2
+ml,SoftThreshτ1.5,2.0,nll,40,22.717297735735777,21.55651093303371,23.878084538437843,nlres_h1_st15_g0|nlres_h1_st15_g2,γ-grid 2
+ml,SoftThreshτ1.5,2.0,hybrid_seq_f0.5,40,26.038072862616605,24.563589695448673,27.512556029784538,nlres_h1_st15_g0|nlres_h1_st15_g2,γ-grid 2
+ml,SoftThreshτ1.5,0.0,opc,40,17.317119878511193,17.032453577500124,17.60178617952226,nlres_h1_st15_g0|nlres_h1_st15_g4,γ-grid 4
+ml,SoftThreshτ1.5,0.0,nll,40,18.538339035169656,18.15910183197084,18.917576238368472,nlres_h1_st15_g0|nlres_h1_st15_g4,γ-grid 4
+ml,SoftThreshτ1.5,0.0,nll_dr,10,16.985279942081643,14.262664408575294,19.707895475587993,nlres_h1_st15_g0|nlres_h1_st15_g4,γ-grid 4
+ml,SoftThreshτ1.5,0.0,hybrid_seq_f0.5,40,18.35575303560244,18.068428948633514,18.643077122571366,nlres_h1_st15_g0|nlres_h1_st15_g4,γ-grid 4
+ml,SoftThreshτ1.5,4.0,opc,40,25.101933031650297,23.77321362573914,26.430652437561456,nlres_h1_st15_g0|nlres_h1_st15_g4,γ-grid 4
+ml,SoftThreshτ1.5,4.0,nll,40,22.014636690229374,20.76601761114551,23.263255769313236,nlres_h1_st15_g0|nlres_h1_st15_g4,γ-grid 4
+ml,SoftThreshτ1.5,4.0,hybrid_seq_f0.5,40,27.341877509739255,25.911939867746792,28.77181515173172,nlres_h1_st15_g0|nlres_h1_st15_g4,γ-grid 4
+ml,R*,0.0,opc,40,17.347368629374877,17.062495467047974,17.63224179170178,nlres_h1_rstar_f05_g0|nlres_h1_rstar_f05_g0.25,γ-grid 0.25
+ml,R*,0.0,nll,40,18.538140714341495,18.158794524929256,18.917486903753733,nlres_h1_rstar_f05_g0|nlres_h1_rstar_f05_g0.25,γ-grid 0.25
+ml,R*,0.0,nll_dr,20,15.540996097769957,13.384632516419599,17.697359679120318,nlres_h1_rstar_f05_g0|nlres_h1_rstar_f05_g0.25,γ-grid 0.25
+ml,R*,0.0,hybrid_seq_f0.5,40,18.367117916671084,18.080425418563262,18.653810414778906,nlres_h1_rstar_f05_g0|nlres_h1_rstar_f05_g0.25,γ-grid 0.25
+ml,R*,0.25,opc,40,18.006584108958428,17.590436721598387,18.42273149631847,nlres_h1_rstar_f05_g0|nlres_h1_rstar_f05_g0.25,γ-grid 0.25
+ml,R*,0.25,nll,40,18.93548085564034,18.40870927366996,19.46225243761072,nlres_h1_rstar_f05_g0|nlres_h1_rstar_f05_g0.25,γ-grid 0.25
+ml,R*,0.25,hybrid_seq_f0.5,40,19.12692878343133,18.64241634961606,19.611441217246604,nlres_h1_rstar_f05_g0|nlres_h1_rstar_f05_g0.25,γ-grid 0.25
+ml,R*,0.0,opc,40,17.347368629374877,17.062495467047974,17.63224179170178,nlres_h1_rstar_f05_g0|nlres_h1_rstar_f05_g0.5,γ-grid 0.5
+ml,R*,0.0,nll,40,18.538140714341495,18.158794524929256,18.917486903753733,nlres_h1_rstar_f05_g0|nlres_h1_rstar_f05_g0.5,γ-grid 0.5
+ml,R*,0.0,nll_dr,20,15.540996097769957,13.384632516419599,17.697359679120318,nlres_h1_rstar_f05_g0|nlres_h1_rstar_f05_g0.5,γ-grid 0.5
+ml,R*,0.0,hybrid_seq_f0.5,40,18.367117916671084,18.080425418563262,18.653810414778906,nlres_h1_rstar_f05_g0|nlres_h1_rstar_f05_g0.5,γ-grid 0.5
+ml,R*,0.5,opc,40,19.049518509173076,18.583127799314674,19.515909219031478,nlres_h1_rstar_f05_g0|nlres_h1_rstar_f05_g0.5,γ-grid 0.5
+ml,R*,0.5,nll,40,19.11662526197283,18.49076262325456,19.742487900691096,nlres_h1_rstar_f05_g0|nlres_h1_rstar_f05_g0.5,γ-grid 0.5
+ml,R*,0.5,nll_dr,20,16.200289139677217,13.921545636492802,18.479032642861632,nlres_h1_rstar_f05_g0|nlres_h1_rstar_f05_g0.5,γ-grid 0.5
+ml,R*,0.5,hybrid_seq_f0.5,40,20.057358849046835,19.433426928091166,20.681290770002505,nlres_h1_rstar_f05_g0|nlres_h1_rstar_f05_g0.5,γ-grid 0.5
+ml,R*,0.0,opc,40,17.347368629374877,17.062495467047974,17.63224179170178,nlres_h1_rstar_f05_g0|nlres_h1_rstar_f05_g0.75,γ-grid 0.75
+ml,R*,0.0,nll,40,18.538140714341495,18.158794524929256,18.917486903753733,nlres_h1_rstar_f05_g0|nlres_h1_rstar_f05_g0.75,γ-grid 0.75
+ml,R*,0.0,nll_dr,20,15.540996097769957,13.384632516419599,17.697359679120318,nlres_h1_rstar_f05_g0|nlres_h1_rstar_f05_g0.75,γ-grid 0.75
+ml,R*,0.0,hybrid_seq_f0.5,40,18.367117916671084,18.080425418563262,18.653810414778906,nlres_h1_rstar_f05_g0|nlres_h1_rstar_f05_g0.75,γ-grid 0.75
+ml,R*,0.75,opc,40,19.725201562389582,19.190896738290082,20.259506386489083,nlres_h1_rstar_f05_g0|nlres_h1_rstar_f05_g0.75,γ-grid 0.75
+ml,R*,0.75,nll,40,18.909942164586674,18.214386191593874,19.605498137579474,nlres_h1_rstar_f05_g0|nlres_h1_rstar_f05_g0.75,γ-grid 0.75
+ml,R*,0.75,hybrid_seq_f0.5,40,20.470760288407497,19.762645379131836,21.17887519768316,nlres_h1_rstar_f05_g0|nlres_h1_rstar_f05_g0.75,γ-grid 0.75
+ml,R*,0.0,opc,40,17.347368629374877,17.062495467047974,17.63224179170178,nlres_h1_rstar_f05_g0|nlres_h1_rstar_f05_g1,γ-grid 1
+ml,R*,0.0,nll,40,18.538140714341495,18.158794524929256,18.917486903753733,nlres_h1_rstar_f05_g0|nlres_h1_rstar_f05_g1,γ-grid 1
+ml,R*,0.0,nll_dr,20,15.540996097769957,13.384632516419599,17.697359679120318,nlres_h1_rstar_f05_g0|nlres_h1_rstar_f05_g1,γ-grid 1
+ml,R*,0.0,hybrid_seq_f0.5,40,18.367117916671084,18.080425418563262,18.653810414778906,nlres_h1_rstar_f05_g0|nlres_h1_rstar_f05_g1,γ-grid 1
+ml,R*,1.0,opc,40,20.104955279385287,19.538381553867563,20.67152900490301,nlres_h1_rstar_f05_g0|nlres_h1_rstar_f05_g1,γ-grid 1
+ml,R*,1.0,nll,40,18.637536507942677,17.894365871538138,19.380707144347216,nlres_h1_rstar_f05_g0|nlres_h1_rstar_f05_g1,γ-grid 1
+ml,R*,1.0,hybrid_seq_f0.5,40,20.744389725396193,19.995681281822083,21.493098168970302,nlres_h1_rstar_f05_g0|nlres_h1_rstar_f05_g1,γ-grid 1
+ml,R*,0.0,opc,40,17.347368629374877,17.062495467047974,17.63224179170178,nlres_h1_rstar_f05_g0|nlres_h1_rstar_f05_g2,γ-grid 2
+ml,R*,0.0,nll,40,18.538140714341495,18.158794524929256,18.917486903753733,nlres_h1_rstar_f05_g0|nlres_h1_rstar_f05_g2,γ-grid 2
+ml,R*,0.0,nll_dr,20,15.540996097769957,13.384632516419599,17.697359679120318,nlres_h1_rstar_f05_g0|nlres_h1_rstar_f05_g2,γ-grid 2
+ml,R*,0.0,hybrid_seq_f0.5,40,18.367117916671084,18.080425418563262,18.653810414778906,nlres_h1_rstar_f05_g0|nlres_h1_rstar_f05_g2,γ-grid 2
+ml,R*,2.0,opc,40,20.340806641386294,19.747346074880404,20.934267207892184,nlres_h1_rstar_f05_g0|nlres_h1_rstar_f05_g2,γ-grid 2
+ml,R*,2.0,nll,40,17.07632450161435,16.372765006879913,17.77988399634879,nlres_h1_rstar_f05_g0|nlres_h1_rstar_f05_g2,γ-grid 2
+ml,R*,2.0,hybrid_seq_f0.5,40,20.533979082781695,19.67612545638086,21.39183270918253,nlres_h1_rstar_f05_g0|nlres_h1_rstar_f05_g2,γ-grid 2
+ml,R*,0.0,opc,40,17.347368629374877,17.062495467047974,17.63224179170178,nlres_h1_rstar_f05_g0|nlres_h1_rstar_f05_g4,γ-grid 4
+ml,R*,0.0,nll,40,18.538140714341495,18.158794524929256,18.917486903753733,nlres_h1_rstar_f05_g0|nlres_h1_rstar_f05_g4,γ-grid 4
+ml,R*,0.0,nll_dr,20,15.540996097769957,13.384632516419599,17.697359679120318,nlres_h1_rstar_f05_g0|nlres_h1_rstar_f05_g4,γ-grid 4
+ml,R*,0.0,hybrid_seq_f0.5,40,18.367117916671084,18.080425418563262,18.653810414778906,nlres_h1_rstar_f05_g0|nlres_h1_rstar_f05_g4,γ-grid 4
+ml,R*,4.0,opc,40,20.021455634488095,19.42476146595157,20.61814980302462,nlres_h1_rstar_f05_g0|nlres_h1_rstar_f05_g4,γ-grid 4
+ml,R*,4.0,nll,40,15.653954092114237,15.018237755919072,16.289670428309403,nlres_h1_rstar_f05_g0|nlres_h1_rstar_f05_g4,γ-grid 4
+ml,R*,4.0,hybrid_seq_f0.5,40,19.70210589312507,18.78828118177019,20.615930604479946,nlres_h1_rstar_f05_g0|nlres_h1_rstar_f05_g4,γ-grid 4
+anime,SoftAND*,0.0,opc,33,15.920156942650483,15.562897598170423,16.277416287130542,nlres_grid_anime_softand_g0|nlres_grid_anime_softand_g0.25,full-grid
+anime,SoftAND*,0.0,nll,33,16.306917134278933,15.701428370015668,16.912405898542197,nlres_grid_anime_softand_g0|nlres_grid_anime_softand_g0.25,full-grid
+anime,SoftAND*,0.0,hybrid_seq_f0.25,33,16.18289457089368,15.549564034824693,16.816225106962666,nlres_grid_anime_softand_g0|nlres_grid_anime_softand_g0.25,full-grid
+anime,SoftAND*,0.0,hybrid_seq_f0.5,33,16.43941724021409,15.77150163147878,17.1073328489494,nlres_grid_anime_softand_g0|nlres_grid_anime_softand_g0.25,full-grid
+anime,SoftAND*,0.0,hybrid_seq_f0.75,33,16.25761850344745,15.37731866133803,17.13791834555687,nlres_grid_anime_softand_g0|nlres_grid_anime_softand_g0.25,full-grid
+anime,SoftAND*,0.0,hybrid_seq_adapt,33,16.327656557660777,15.440123316580726,17.21518979874083,nlres_grid_anime_softand_g0|nlres_grid_anime_softand_g0.25,full-grid
+anime,SoftAND*,0.25,opc,9,16.233958001655097,15.053797171147579,17.414118832162615,nlres_grid_anime_softand_g0|nlres_grid_anime_softand_g0.25,full-grid
+anime,SoftAND*,0.25,nll,9,16.83613214019225,15.91256886423052,17.759695416153985,nlres_grid_anime_softand_g0|nlres_grid_anime_softand_g0.25,full-grid
+anime,SoftAND*,0.25,hybrid_seq_f0.25,9,16.63205839992952,15.045753142594275,18.218363657264764,nlres_grid_anime_softand_g0|nlres_grid_anime_softand_g0.25,full-grid
+anime,SoftAND*,0.25,hybrid_seq_f0.5,9,17.189896528023596,15.509893380825023,18.869899675222168,nlres_grid_anime_softand_g0|nlres_grid_anime_softand_g0.25,full-grid
+anime,SoftAND*,0.25,hybrid_seq_f0.75,9,17.091668960233378,14.837643188696262,19.345694731770493,nlres_grid_anime_softand_g0|nlres_grid_anime_softand_g0.25,full-grid
+anime,SoftAND*,0.25,hybrid_seq_adapt,9,17.056861759873573,14.823303236306915,19.290420283440234,nlres_grid_anime_softand_g0|nlres_grid_anime_softand_g0.25,full-grid
+anime,SoftAND*,0.0,opc,33,15.920156942650483,15.562897598170423,16.277416287130542,nlres_grid_anime_softand_g0|nlres_grid_anime_softand_g0.75,full-grid
+anime,SoftAND*,0.0,nll,33,16.306917134278933,15.701428370015668,16.912405898542197,nlres_grid_anime_softand_g0|nlres_grid_anime_softand_g0.75,full-grid
+anime,SoftAND*,0.0,hybrid_seq_f0.25,33,16.18289457089368,15.549564034824693,16.816225106962666,nlres_grid_anime_softand_g0|nlres_grid_anime_softand_g0.75,full-grid
+anime,SoftAND*,0.0,hybrid_seq_f0.5,33,16.43941724021409,15.77150163147878,17.1073328489494,nlres_grid_anime_softand_g0|nlres_grid_anime_softand_g0.75,full-grid
+anime,SoftAND*,0.0,hybrid_seq_f0.75,33,16.25761850344745,15.37731866133803,17.13791834555687,nlres_grid_anime_softand_g0|nlres_grid_anime_softand_g0.75,full-grid
+anime,SoftAND*,0.0,hybrid_seq_adapt,33,16.327656557660777,15.440123316580726,17.21518979874083,nlres_grid_anime_softand_g0|nlres_grid_anime_softand_g0.75,full-grid
+anime,SoftAND*,0.75,opc,5,16.727629676046597,14.39043329595035,19.06482605614284,nlres_grid_anime_softand_g0|nlres_grid_anime_softand_g0.75,full-grid
+anime,SoftAND*,0.75,nll,5,17.83639588365201,14.941115307657967,20.731676459646053,nlres_grid_anime_softand_g0|nlres_grid_anime_softand_g0.75,full-grid
+anime,SoftAND*,0.75,hybrid_seq_f0.25,5,17.41073303496851,14.54349138972123,20.277974680215785,nlres_grid_anime_softand_g0|nlres_grid_anime_softand_g0.75,full-grid
+anime,SoftAND*,0.75,hybrid_seq_f0.5,5,18.751349399410948,16.509943694408484,20.992755104413412,nlres_grid_anime_softand_g0|nlres_grid_anime_softand_g0.75,full-grid
+anime,SoftAND*,0.75,hybrid_seq_f0.75,5,18.766424280487414,16.09229495154727,21.440553609427557,nlres_grid_anime_softand_g0|nlres_grid_anime_softand_g0.75,full-grid
+anime,SoftAND*,0.75,hybrid_seq_adapt,5,17.58550758349947,12.24664345026285,22.92437171673609,nlres_grid_anime_softand_g0|nlres_grid_anime_softand_g0.75,full-grid
+ml,R*,0.0,opc,36,17.304557418562553,16.996104081964045,17.61301075516106,nlres_grid_ml_rstar_g0|nlres_grid_ml_rstar_g0.75,full-grid
+ml,R*,0.0,nll,36,18.555002058650572,18.152616001720045,18.9573881155811,nlres_grid_ml_rstar_g0|nlres_grid_ml_rstar_g0.75,full-grid
+ml,R*,0.0,hybrid_seq_f0.25,36,18.029533555394885,17.631984141593893,18.427082969195876,nlres_grid_ml_rstar_g0|nlres_grid_ml_rstar_g0.75,full-grid
+ml,R*,0.0,hybrid_seq_f0.5,36,18.376682129696515,18.096485636802228,18.656878622590803,nlres_grid_ml_rstar_g0|nlres_grid_ml_rstar_g0.75,full-grid
+ml,R*,0.0,hybrid_seq_f0.75,36,18.422776190870962,18.080561541889594,18.76499083985233,nlres_grid_ml_rstar_g0|nlres_grid_ml_rstar_g0.75,full-grid
+ml,R*,0.0,hybrid_seq_adapt,36,18.41449255326915,18.04740438297088,18.78158072356742,nlres_grid_ml_rstar_g0|nlres_grid_ml_rstar_g0.75,full-grid
+ml,R*,0.75,opc,40,19.647806725968923,19.135172311578835,20.160441140359012,nlres_grid_ml_rstar_g0|nlres_grid_ml_rstar_g0.75,full-grid
+ml,R*,0.75,nll,40,18.9103633964275,18.214310774923824,19.606416017931174,nlres_grid_ml_rstar_g0|nlres_grid_ml_rstar_g0.75,full-grid
+ml,R*,0.75,hybrid_seq_f0.25,40,20.150283705773546,19.46111706876121,20.83945034278588,nlres_grid_ml_rstar_g0|nlres_grid_ml_rstar_g0.75,full-grid
+ml,R*,0.75,hybrid_seq_f0.5,40,20.470204567363282,19.776193612579224,21.16421552214734,nlres_grid_ml_rstar_g0|nlres_grid_ml_rstar_g0.75,full-grid
+ml,R*,0.75,hybrid_seq_f0.75,40,20.452412572477506,19.76391255829694,21.14091258665807,nlres_grid_ml_rstar_g0|nlres_grid_ml_rstar_g0.75,full-grid
+ml,R*,0.75,hybrid_seq_adapt,40,20.527708114446632,19.824449294210915,21.23096693468235,nlres_grid_ml_rstar_g0|nlres_grid_ml_rstar_g0.75,full-grid
+ml,R*,0.0,opc,36,17.304557418562553,16.996104081964045,17.61301075516106,nlres_grid_ml_rstar_g0|nlres_grid_ml_rstar_g1,full-grid
+ml,R*,0.0,nll,36,18.555002058650572,18.152616001720045,18.9573881155811,nlres_grid_ml_rstar_g0|nlres_grid_ml_rstar_g1,full-grid
+ml,R*,0.0,hybrid_seq_f0.25,36,18.029533555394885,17.631984141593893,18.427082969195876,nlres_grid_ml_rstar_g0|nlres_grid_ml_rstar_g1,full-grid
+ml,R*,0.0,hybrid_seq_f0.5,36,18.376682129696515,18.096485636802228,18.656878622590803,nlres_grid_ml_rstar_g0|nlres_grid_ml_rstar_g1,full-grid
+ml,R*,0.0,hybrid_seq_f0.75,36,18.422776190870962,18.080561541889594,18.76499083985233,nlres_grid_ml_rstar_g0|nlres_grid_ml_rstar_g1,full-grid
+ml,R*,0.0,hybrid_seq_adapt,36,18.41449255326915,18.04740438297088,18.78158072356742,nlres_grid_ml_rstar_g0|nlres_grid_ml_rstar_g1,full-grid
+ml,R*,1.0,opc,40,20.038631994457084,19.461653277594976,20.615610711319192,nlres_grid_ml_rstar_g0|nlres_grid_ml_rstar_g1,full-grid
+ml,R*,1.0,nll,40,18.635588411101903,17.893012250036655,19.37816457216715,nlres_grid_ml_rstar_g0|nlres_grid_ml_rstar_g1,full-grid
+ml,R*,1.0,hybrid_seq_f0.25,40,20.53850157105576,19.776168253693317,21.300834888418205,nlres_grid_ml_rstar_g0|nlres_grid_ml_rstar_g1,full-grid
+ml,R*,1.0,hybrid_seq_f0.5,40,20.706338584997187,19.998071752475077,21.414605417519297,nlres_grid_ml_rstar_g0|nlres_grid_ml_rstar_g1,full-grid
+ml,R*,1.0,hybrid_seq_f0.75,40,20.71306128778311,19.942356508504997,21.48376606706122,nlres_grid_ml_rstar_g0|nlres_grid_ml_rstar_g1,full-grid
+ml,R*,1.0,hybrid_seq_adapt,40,20.79610756177447,20.020180893161605,21.572034230387334,nlres_grid_ml_rstar_g0|nlres_grid_ml_rstar_g1,full-grid
+ml,R*,0.0,opc,36,17.304557418562553,16.996104081964045,17.61301075516106,nlres_grid_ml_rstar_g0|nlres_grid_ml_rstar_g10,full-grid
+ml,R*,0.0,nll,36,18.555002058650572,18.152616001720045,18.9573881155811,nlres_grid_ml_rstar_g0|nlres_grid_ml_rstar_g10,full-grid
+ml,R*,0.0,hybrid_seq_f0.25,36,18.029533555394885,17.631984141593893,18.427082969195876,nlres_grid_ml_rstar_g0|nlres_grid_ml_rstar_g10,full-grid
+ml,R*,0.0,hybrid_seq_f0.5,36,18.376682129696515,18.096485636802228,18.656878622590803,nlres_grid_ml_rstar_g0|nlres_grid_ml_rstar_g10,full-grid
+ml,R*,0.0,hybrid_seq_f0.75,36,18.422776190870962,18.080561541889594,18.76499083985233,nlres_grid_ml_rstar_g0|nlres_grid_ml_rstar_g10,full-grid
+ml,R*,0.0,hybrid_seq_adapt,36,18.41449255326915,18.04740438297088,18.78158072356742,nlres_grid_ml_rstar_g0|nlres_grid_ml_rstar_g10,full-grid
+ml,R*,10.0,opc,40,19.590718530357783,18.956891322371966,20.2245457383436,nlres_grid_ml_rstar_g0|nlres_grid_ml_rstar_g10,full-grid
+ml,R*,10.0,nll,40,14.698924373370186,14.064119660961873,15.333729085778499,nlres_grid_ml_rstar_g0|nlres_grid_ml_rstar_g10,full-grid
+ml,R*,10.0,hybrid_seq_f0.25,40,18.85950116869239,17.951233683112275,19.767768654272505,nlres_grid_ml_rstar_g0|nlres_grid_ml_rstar_g10,full-grid
+ml,R*,10.0,hybrid_seq_f0.5,40,19.267063636944293,18.299101526728528,20.23502574716006,nlres_grid_ml_rstar_g0|nlres_grid_ml_rstar_g10,full-grid
+ml,R*,10.0,hybrid_seq_f0.75,40,18.973472175423247,18.04347303720821,19.903471313638285,nlres_grid_ml_rstar_g0|nlres_grid_ml_rstar_g10,full-grid
+ml,R*,10.0,hybrid_seq_adapt,40,18.88655601657946,17.982591208640528,19.79052082451839,nlres_grid_ml_rstar_g0|nlres_grid_ml_rstar_g10,full-grid
+ml,R*,0.0,opc,36,17.304557418562553,16.996104081964045,17.61301075516106,nlres_grid_ml_rstar_g0|nlres_grid_ml_rstar_g100,full-grid
+ml,R*,0.0,nll,36,18.555002058650572,18.152616001720045,18.9573881155811,nlres_grid_ml_rstar_g0|nlres_grid_ml_rstar_g100,full-grid
+ml,R*,0.0,hybrid_seq_f0.25,36,18.029533555394885,17.631984141593893,18.427082969195876,nlres_grid_ml_rstar_g0|nlres_grid_ml_rstar_g100,full-grid
+ml,R*,0.0,hybrid_seq_f0.5,36,18.376682129696515,18.096485636802228,18.656878622590803,nlres_grid_ml_rstar_g0|nlres_grid_ml_rstar_g100,full-grid
+ml,R*,0.0,hybrid_seq_f0.75,36,18.422776190870962,18.080561541889594,18.76499083985233,nlres_grid_ml_rstar_g0|nlres_grid_ml_rstar_g100,full-grid
+ml,R*,0.0,hybrid_seq_adapt,36,18.41449255326915,18.04740438297088,18.78158072356742,nlres_grid_ml_rstar_g0|nlres_grid_ml_rstar_g100,full-grid
+ml,R*,100.0,opc,40,19.39067231857451,18.753261975392125,20.028082661756894,nlres_grid_ml_rstar_g0|nlres_grid_ml_rstar_g100,full-grid
+ml,R*,100.0,nll,40,14.127423824687792,13.477929963182197,14.776917686193388,nlres_grid_ml_rstar_g0|nlres_grid_ml_rstar_g100,full-grid
+ml,R*,100.0,hybrid_seq_f0.25,40,18.403527604479468,17.51109589306786,19.295959315891075,nlres_grid_ml_rstar_g0|nlres_grid_ml_rstar_g100,full-grid
+ml,R*,100.0,hybrid_seq_f0.5,40,18.680668078656925,17.855065194087693,19.506270963226157,nlres_grid_ml_rstar_g0|nlres_grid_ml_rstar_g100,full-grid
+ml,R*,100.0,hybrid_seq_f0.75,40,18.420776669803338,17.531840923540102,19.309712416066574,nlres_grid_ml_rstar_g0|nlres_grid_ml_rstar_g100,full-grid
+ml,R*,100.0,hybrid_seq_adapt,40,18.325873911903688,17.384818297003683,19.266929526803693,nlres_grid_ml_rstar_g0|nlres_grid_ml_rstar_g100,full-grid
+ml,R*,0.0,opc,36,17.304557418562553,16.996104081964045,17.61301075516106,nlres_grid_ml_rstar_g0|nlres_grid_ml_rstar_g2,full-grid
+ml,R*,0.0,nll,36,18.555002058650572,18.152616001720045,18.9573881155811,nlres_grid_ml_rstar_g0|nlres_grid_ml_rstar_g2,full-grid
+ml,R*,0.0,hybrid_seq_f0.25,36,18.029533555394885,17.631984141593893,18.427082969195876,nlres_grid_ml_rstar_g0|nlres_grid_ml_rstar_g2,full-grid
+ml,R*,0.0,hybrid_seq_f0.5,36,18.376682129696515,18.096485636802228,18.656878622590803,nlres_grid_ml_rstar_g0|nlres_grid_ml_rstar_g2,full-grid
+ml,R*,0.0,hybrid_seq_f0.75,36,18.422776190870962,18.080561541889594,18.76499083985233,nlres_grid_ml_rstar_g0|nlres_grid_ml_rstar_g2,full-grid
+ml,R*,0.0,hybrid_seq_adapt,36,18.41449255326915,18.04740438297088,18.78158072356742,nlres_grid_ml_rstar_g0|nlres_grid_ml_rstar_g2,full-grid
+ml,R*,2.0,opc,40,20.353486895447773,19.7422747398479,20.964699051047646,nlres_grid_ml_rstar_g0|nlres_grid_ml_rstar_g2,full-grid
+ml,R*,2.0,nll,40,17.07647983728625,16.371039318995166,17.781920355577334,nlres_grid_ml_rstar_g0|nlres_grid_ml_rstar_g2,full-grid
+ml,R*,2.0,hybrid_seq_f0.25,40,19.973550680651737,19.10489142448539,20.842209936818083,nlres_grid_ml_rstar_g0|nlres_grid_ml_rstar_g2,full-grid
+ml,R*,2.0,hybrid_seq_f0.5,40,20.48052045474048,19.60542808245919,21.355612827021766,nlres_grid_ml_rstar_g0|nlres_grid_ml_rstar_g2,full-grid
+ml,R*,2.0,hybrid_seq_f0.75,40,20.246145944388125,19.357926694004103,21.134365194772148,nlres_grid_ml_rstar_g0|nlres_grid_ml_rstar_g2,full-grid
+ml,R*,2.0,hybrid_seq_adapt,40,20.195344294330017,19.346324126891325,21.04436446176871,nlres_grid_ml_rstar_g0|nlres_grid_ml_rstar_g2,full-grid
+ml,R*,0.0,opc,36,17.304557418562553,16.996104081964045,17.61301075516106,nlres_grid_ml_rstar_g0|nlres_grid_ml_rstar_g4,full-grid
+ml,R*,0.0,nll,36,18.555002058650572,18.152616001720045,18.9573881155811,nlres_grid_ml_rstar_g0|nlres_grid_ml_rstar_g4,full-grid
+ml,R*,0.0,hybrid_seq_f0.25,36,18.029533555394885,17.631984141593893,18.427082969195876,nlres_grid_ml_rstar_g0|nlres_grid_ml_rstar_g4,full-grid
+ml,R*,0.0,hybrid_seq_f0.5,36,18.376682129696515,18.096485636802228,18.656878622590803,nlres_grid_ml_rstar_g0|nlres_grid_ml_rstar_g4,full-grid
+ml,R*,0.0,hybrid_seq_f0.75,36,18.422776190870962,18.080561541889594,18.76499083985233,nlres_grid_ml_rstar_g0|nlres_grid_ml_rstar_g4,full-grid
+ml,R*,0.0,hybrid_seq_adapt,36,18.41449255326915,18.04740438297088,18.78158072356742,nlres_grid_ml_rstar_g0|nlres_grid_ml_rstar_g4,full-grid
+ml,R*,4.0,opc,40,20.02012772771642,19.437421499817265,20.602833955615576,nlres_grid_ml_rstar_g0|nlres_grid_ml_rstar_g4,full-grid
+ml,R*,4.0,nll,40,15.650392571942565,15.014356771813521,16.286428372071608,nlres_grid_ml_rstar_g0|nlres_grid_ml_rstar_g4,full-grid
+ml,R*,4.0,hybrid_seq_f0.25,40,19.43783343626154,18.529840037379337,20.34582683514374,nlres_grid_ml_rstar_g0|nlres_grid_ml_rstar_g4,full-grid
+ml,R*,4.0,hybrid_seq_f0.5,40,19.637970187933938,18.776916111264395,20.49902426460348,nlres_grid_ml_rstar_g0|nlres_grid_ml_rstar_g4,full-grid
+ml,R*,4.0,hybrid_seq_f0.75,40,19.64635858685081,18.778662452828023,20.514054720873595,nlres_grid_ml_rstar_g0|nlres_grid_ml_rstar_g4,full-grid
+ml,R*,4.0,hybrid_seq_adapt,40,19.576368192930982,18.648110926614894,20.50462545924707,nlres_grid_ml_rstar_g0|nlres_grid_ml_rstar_g4,full-grid
+ml,SoftAND*,0.0,opc,40,17.317119878511193,17.032453577500124,17.60178617952226,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g0.25,full-grid
+ml,SoftAND*,0.0,nll,40,18.538339035169656,18.15910183197084,18.917576238368472,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g0.25,full-grid
+ml,SoftAND*,0.0,hybrid_seq_f0.25,40,18.001216148259267,17.627869199402724,18.37456309711581,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g0.25,full-grid
+ml,SoftAND*,0.0,hybrid_seq_f0.5,40,18.35575303560244,18.068428948633514,18.643077122571366,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g0.25,full-grid
+ml,SoftAND*,0.0,hybrid_seq_f0.75,40,18.418192174483917,18.0789438559871,18.757440492980734,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g0.25,full-grid
+ml,SoftAND*,0.0,hybrid_seq_adapt,40,18.397155397038727,18.038932601174963,18.75537819290249,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g0.25,full-grid
+ml,SoftAND*,0.25,opc,40,17.49039561818745,17.17271054431855,17.808080692056347,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g0.25,full-grid
+ml,SoftAND*,0.25,nll,40,18.70993483159383,18.327174243684933,19.09269541950273,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g0.25,full-grid
+ml,SoftAND*,0.25,hybrid_seq_f0.25,40,18.431956504340725,18.041643618866154,18.822269389815297,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g0.25,full-grid
+ml,SoftAND*,0.25,hybrid_seq_f0.5,40,18.614179077602387,18.25308640593776,18.975271749267012,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g0.25,full-grid
+ml,SoftAND*,0.25,hybrid_seq_f0.75,40,18.77814175619492,18.417718824706903,19.138564687682937,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g0.25,full-grid
+ml,SoftAND*,0.25,hybrid_seq_adapt,40,18.791851336394394,18.438204848717497,19.145497824071292,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g0.25,full-grid
+ml,SoftAND*,0.0,opc,40,17.317119878511193,17.032453577500124,17.60178617952226,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g0.5,full-grid
+ml,SoftAND*,0.0,nll,40,18.538339035169656,18.15910183197084,18.917576238368472,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g0.5,full-grid
+ml,SoftAND*,0.0,hybrid_seq_f0.25,40,18.001216148259267,17.627869199402724,18.37456309711581,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g0.5,full-grid
+ml,SoftAND*,0.0,hybrid_seq_f0.5,40,18.35575303560244,18.068428948633514,18.643077122571366,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g0.5,full-grid
+ml,SoftAND*,0.0,hybrid_seq_f0.75,40,18.418192174483917,18.0789438559871,18.757440492980734,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g0.5,full-grid
+ml,SoftAND*,0.0,hybrid_seq_adapt,40,18.397155397038727,18.038932601174963,18.75537819290249,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g0.5,full-grid
+ml,SoftAND*,0.5,opc,40,17.538718356486587,17.238673499382116,17.838763213591058,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g0.5,full-grid
+ml,SoftAND*,0.5,nll,40,18.636839171338462,18.23490303539521,19.038775307281714,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g0.5,full-grid
+ml,SoftAND*,0.5,hybrid_seq_f0.25,40,18.489943326201466,18.038819313154786,18.941067339248146,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g0.5,full-grid
+ml,SoftAND*,0.5,hybrid_seq_f0.5,40,18.82573578967125,18.411504518203497,19.239967061139,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g0.5,full-grid
+ml,SoftAND*,0.5,hybrid_seq_f0.75,40,18.933772391652845,18.52158726031457,19.34595752299112,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g0.5,full-grid
+ml,SoftAND*,0.5,hybrid_seq_adapt,40,18.87465544918489,18.461585137439116,19.287725760930662,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g0.5,full-grid
+ml,SoftAND*,0.0,opc,40,17.317119878511193,17.032453577500124,17.60178617952226,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g0.75,full-grid
+ml,SoftAND*,0.0,nll,40,18.538339035169656,18.15910183197084,18.917576238368472,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g0.75,full-grid
+ml,SoftAND*,0.0,hybrid_seq_f0.25,40,18.001216148259267,17.627869199402724,18.37456309711581,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g0.75,full-grid
+ml,SoftAND*,0.0,hybrid_seq_f0.5,40,18.35575303560244,18.068428948633514,18.643077122571366,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g0.75,full-grid
+ml,SoftAND*,0.0,hybrid_seq_f0.75,40,18.418192174483917,18.0789438559871,18.757440492980734,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g0.75,full-grid
+ml,SoftAND*,0.0,hybrid_seq_adapt,40,18.397155397038727,18.038932601174963,18.75537819290249,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g0.75,full-grid
+ml,SoftAND*,0.75,opc,40,17.63819943757585,17.303377931030855,17.973020944120844,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g0.75,full-grid
+ml,SoftAND*,0.75,nll,40,18.506636357733402,18.08197739551596,18.931295319950845,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g0.75,full-grid
+ml,SoftAND*,0.75,hybrid_seq_f0.25,40,18.68412361457092,18.23358686994905,19.134660359192793,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g0.75,full-grid
+ml,SoftAND*,0.75,hybrid_seq_f0.5,40,18.869811800152227,18.45604839037898,19.283575209925473,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g0.75,full-grid
+ml,SoftAND*,0.75,hybrid_seq_f0.75,40,19.0910232402097,18.603739394157838,19.578307086261564,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g0.75,full-grid
+ml,SoftAND*,0.75,hybrid_seq_adapt,40,19.122870717946363,18.622190878372237,19.62355055752049,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g0.75,full-grid
+ml,SoftAND*,0.0,opc,40,17.317119878511193,17.032453577500124,17.60178617952226,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g1,full-grid
+ml,SoftAND*,0.0,nll,40,18.538339035169656,18.15910183197084,18.917576238368472,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g1,full-grid
+ml,SoftAND*,0.0,hybrid_seq_f0.25,40,18.001216148259267,17.627869199402724,18.37456309711581,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g1,full-grid
+ml,SoftAND*,0.0,hybrid_seq_f0.5,40,18.35575303560244,18.068428948633514,18.643077122571366,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g1,full-grid
+ml,SoftAND*,0.0,hybrid_seq_f0.75,40,18.418192174483917,18.0789438559871,18.757440492980734,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g1,full-grid
+ml,SoftAND*,0.0,hybrid_seq_adapt,40,18.397155397038727,18.038932601174963,18.75537819290249,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g1,full-grid
+ml,SoftAND*,1.0,opc,40,17.681419497643656,17.322113528953622,18.04072546633369,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g1,full-grid
+ml,SoftAND*,1.0,nll,40,18.432245595554512,17.99641046234897,18.868080728760056,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g1,full-grid
+ml,SoftAND*,1.0,hybrid_seq_f0.25,40,18.625203070229265,18.160071602247683,19.090334538210847,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g1,full-grid
+ml,SoftAND*,1.0,hybrid_seq_f0.5,40,19.073721662072245,18.618306717697422,19.529136606447068,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g1,full-grid
+ml,SoftAND*,1.0,hybrid_seq_f0.75,40,19.13306238776419,18.624491493939786,19.641633281588597,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g1,full-grid
+ml,SoftAND*,1.0,hybrid_seq_adapt,40,19.09951457154944,18.573493751556388,19.625535391542495,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g1,full-grid
+ml,SoftAND*,0.0,opc,40,17.317119878511193,17.032453577500124,17.60178617952226,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g10,full-grid
+ml,SoftAND*,0.0,nll,40,18.538339035169656,18.15910183197084,18.917576238368472,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g10,full-grid
+ml,SoftAND*,0.0,hybrid_seq_f0.25,40,18.001216148259267,17.627869199402724,18.37456309711581,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g10,full-grid
+ml,SoftAND*,0.0,hybrid_seq_f0.5,40,18.35575303560244,18.068428948633514,18.643077122571366,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g10,full-grid
+ml,SoftAND*,0.0,hybrid_seq_f0.75,40,18.418192174483917,18.0789438559871,18.757440492980734,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g10,full-grid
+ml,SoftAND*,0.0,hybrid_seq_adapt,40,18.397155397038727,18.038932601174963,18.75537819290249,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g10,full-grid
+ml,SoftAND*,10.0,opc,40,20.62269244861119,20.034058989011662,21.211325908210718,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g10,full-grid
+ml,SoftAND*,10.0,nll,40,18.683334425611474,17.964537640899298,19.40213121032365,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g10,full-grid
+ml,SoftAND*,10.0,hybrid_seq_f0.25,40,21.554262077340148,20.66601330113728,22.442510853543016,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g10,full-grid
+ml,SoftAND*,10.0,hybrid_seq_f0.5,40,22.01559343937129,21.14722089422969,22.88396598451289,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g10,full-grid
+ml,SoftAND*,10.0,hybrid_seq_f0.75,40,21.989724123408205,21.08668548858696,22.892762758229452,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g10,full-grid
+ml,SoftAND*,10.0,hybrid_seq_adapt,40,21.926599923263648,21.020840285668616,22.83235956085868,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g10,full-grid
+ml,SoftAND*,0.0,opc,40,17.317119878511193,17.032453577500124,17.60178617952226,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g100,full-grid
+ml,SoftAND*,0.0,nll,40,18.538339035169656,18.15910183197084,18.917576238368472,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g100,full-grid
+ml,SoftAND*,0.0,hybrid_seq_f0.25,40,18.001216148259267,17.627869199402724,18.37456309711581,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g100,full-grid
+ml,SoftAND*,0.0,hybrid_seq_f0.5,40,18.35575303560244,18.068428948633514,18.643077122571366,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g100,full-grid
+ml,SoftAND*,0.0,hybrid_seq_f0.75,40,18.418192174483917,18.0789438559871,18.757440492980734,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g100,full-grid
+ml,SoftAND*,0.0,hybrid_seq_adapt,40,18.397155397038727,18.038932601174963,18.75537819290249,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g100,full-grid
+ml,SoftAND*,100.0,opc,40,20.851423978464194,20.268116069015015,21.434731887913372,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g100,full-grid
+ml,SoftAND*,100.0,nll,40,18.112986820624837,17.426401564088255,18.799572077161418,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g100,full-grid
+ml,SoftAND*,100.0,hybrid_seq_f0.25,40,21.06753401908399,20.146251974513035,21.988816063654944,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g100,full-grid
+ml,SoftAND*,100.0,hybrid_seq_f0.5,40,21.402758389558112,20.537731469848225,22.267785309268,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g100,full-grid
+ml,SoftAND*,100.0,hybrid_seq_f0.75,40,21.446127348536823,20.549402122540315,22.34285257453333,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g100,full-grid
+ml,SoftAND*,100.0,hybrid_seq_adapt,40,21.37496105583997,20.483016669371306,22.266905442308637,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g100,full-grid
+ml,SoftAND*,0.0,opc,40,17.317119878511193,17.032453577500124,17.60178617952226,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g2,full-grid
+ml,SoftAND*,0.0,nll,40,18.538339035169656,18.15910183197084,18.917576238368472,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g2,full-grid
+ml,SoftAND*,0.0,hybrid_seq_f0.25,40,18.001216148259267,17.627869199402724,18.37456309711581,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g2,full-grid
+ml,SoftAND*,0.0,hybrid_seq_f0.5,40,18.35575303560244,18.068428948633514,18.643077122571366,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g2,full-grid
+ml,SoftAND*,0.0,hybrid_seq_f0.75,40,18.418192174483917,18.0789438559871,18.757440492980734,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g2,full-grid
+ml,SoftAND*,0.0,hybrid_seq_adapt,40,18.397155397038727,18.038932601174963,18.75537819290249,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g2,full-grid
+ml,SoftAND*,2.0,opc,40,18.25489320698161,17.790958515139486,18.718827898823733,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g2,full-grid
+ml,SoftAND*,2.0,nll,40,18.42430734612696,17.918083221448168,18.93053147080575,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g2,full-grid
+ml,SoftAND*,2.0,hybrid_seq_f0.25,40,19.360697563931513,18.6960942554802,20.025300872382825,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g2,full-grid
+ml,SoftAND*,2.0,hybrid_seq_f0.5,40,19.9529743631853,19.335321711232055,20.570627015138548,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g2,full-grid
+ml,SoftAND*,2.0,hybrid_seq_f0.75,40,19.8290761496987,19.263369011204496,20.394783288192905,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g2,full-grid
+ml,SoftAND*,2.0,hybrid_seq_adapt,40,19.81311133648364,19.218687607471644,20.407535065495637,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g2,full-grid
+ml,SoftAND*,0.0,opc,40,17.317119878511193,17.032453577500124,17.60178617952226,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g4,full-grid
+ml,SoftAND*,0.0,nll,40,18.538339035169656,18.15910183197084,18.917576238368472,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g4,full-grid
+ml,SoftAND*,0.0,hybrid_seq_f0.25,40,18.001216148259267,17.627869199402724,18.37456309711581,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g4,full-grid
+ml,SoftAND*,0.0,hybrid_seq_f0.5,40,18.35575303560244,18.068428948633514,18.643077122571366,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g4,full-grid
+ml,SoftAND*,0.0,hybrid_seq_f0.75,40,18.418192174483917,18.0789438559871,18.757440492980734,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g4,full-grid
+ml,SoftAND*,0.0,hybrid_seq_adapt,40,18.397155397038727,18.038932601174963,18.75537819290249,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g4,full-grid
+ml,SoftAND*,4.0,opc,40,19.315641852652156,18.814849847579417,19.816433857724896,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g4,full-grid
+ml,SoftAND*,4.0,nll,40,18.660252477867715,18.026468423344493,19.294036532390937,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g4,full-grid
+ml,SoftAND*,4.0,hybrid_seq_f0.25,40,20.551736592838388,19.757100901274864,21.346372284401912,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g4,full-grid
+ml,SoftAND*,4.0,hybrid_seq_f0.5,40,21.01561537443094,20.261398233510647,21.769832515351233,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g4,full-grid
+ml,SoftAND*,4.0,hybrid_seq_f0.75,40,20.96570388811906,20.263082162110987,21.66832561412713,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g4,full-grid
+ml,SoftAND*,4.0,hybrid_seq_adapt,40,20.93732828344169,20.237221505815015,21.637435061068366,nlres_grid_ml_softand_g0|nlres_grid_ml_softand_g4,full-grid
+ml,SoftThreshτ1.5,0.0,opc,40,17.317119878511193,17.032453577500124,17.60178617952226,nlres_grid_ml_softthresh_g0|nlres_grid_ml_softthresh_g0.25,full-grid
+ml,SoftThreshτ1.5,0.0,nll,40,18.538339035169656,18.15910183197084,18.917576238368472,nlres_grid_ml_softthresh_g0|nlres_grid_ml_softthresh_g0.25,full-grid
+ml,SoftThreshτ1.5,0.0,hybrid_seq_f0.25,40,18.001216148259267,17.627869199402724,18.37456309711581,nlres_grid_ml_softthresh_g0|nlres_grid_ml_softthresh_g0.25,full-grid
+ml,SoftThreshτ1.5,0.0,hybrid_seq_f0.5,40,18.35575303560244,18.068428948633514,18.643077122571366,nlres_grid_ml_softthresh_g0|nlres_grid_ml_softthresh_g0.25,full-grid
+ml,SoftThreshτ1.5,0.0,hybrid_seq_f0.75,40,18.418192174483917,18.0789438559871,18.757440492980734,nlres_grid_ml_softthresh_g0|nlres_grid_ml_softthresh_g0.25,full-grid
+ml,SoftThreshτ1.5,0.0,hybrid_seq_adapt,40,18.397155397038727,18.038932601174963,18.75537819290249,nlres_grid_ml_softthresh_g0|nlres_grid_ml_softthresh_g0.25,full-grid
+ml,SoftThreshτ1.5,0.25,opc,40,18.692528288619457,18.123755081272034,19.26130149596688,nlres_grid_ml_softthresh_g0|nlres_grid_ml_softthresh_g0.25,full-grid
+ml,SoftThreshτ1.5,0.25,nll,40,19.95235464770078,19.294097649601337,20.610611645800223,nlres_grid_ml_softthresh_g0|nlres_grid_ml_softthresh_g0.25,full-grid
+ml,SoftThreshτ1.5,0.25,hybrid_seq_f0.25,40,19.694179524634045,18.954572602627188,20.4337864466409,nlres_grid_ml_softthresh_g0|nlres_grid_ml_softthresh_g0.25,full-grid
+ml,SoftThreshτ1.5,0.25,hybrid_seq_f0.5,40,19.851357876371782,19.201408720684515,20.50130703205905,nlres_grid_ml_softthresh_g0|nlres_grid_ml_softthresh_g0.25,full-grid
+ml,SoftThreshτ1.5,0.25,hybrid_seq_f0.75,40,20.072826838252592,19.439243773090833,20.70640990341435,nlres_grid_ml_softthresh_g0|nlres_grid_ml_softthresh_g0.25,full-grid
+ml,SoftThreshτ1.5,0.25,hybrid_seq_adapt,40,20.137757750596947,19.476302793336345,20.79921270785755,nlres_grid_ml_softthresh_g0|nlres_grid_ml_softthresh_g0.25,full-grid
+ml,SoftThreshτ1.5,0.0,opc,40,17.317119878511193,17.032453577500124,17.60178617952226,nlres_grid_ml_softthresh_g0|nlres_grid_ml_softthresh_g0.5,full-grid
+ml,SoftThreshτ1.5,0.0,nll,40,18.538339035169656,18.15910183197084,18.917576238368472,nlres_grid_ml_softthresh_g0|nlres_grid_ml_softthresh_g0.5,full-grid
+ml,SoftThreshτ1.5,0.0,hybrid_seq_f0.25,40,18.001216148259267,17.627869199402724,18.37456309711581,nlres_grid_ml_softthresh_g0|nlres_grid_ml_softthresh_g0.5,full-grid
+ml,SoftThreshτ1.5,0.0,hybrid_seq_f0.5,40,18.35575303560244,18.068428948633514,18.643077122571366,nlres_grid_ml_softthresh_g0|nlres_grid_ml_softthresh_g0.5,full-grid
+ml,SoftThreshτ1.5,0.0,hybrid_seq_f0.75,40,18.418192174483917,18.0789438559871,18.757440492980734,nlres_grid_ml_softthresh_g0|nlres_grid_ml_softthresh_g0.5,full-grid
+ml,SoftThreshτ1.5,0.0,hybrid_seq_adapt,40,18.397155397038727,18.038932601174963,18.75537819290249,nlres_grid_ml_softthresh_g0|nlres_grid_ml_softthresh_g0.5,full-grid
+ml,SoftThreshτ1.5,0.5,opc,36,19.90515408734195,19.03266882811885,20.777639346565046,nlres_grid_ml_softthresh_g0|nlres_grid_ml_softthresh_g0.5,full-grid
+ml,SoftThreshτ1.5,0.5,nll,36,21.196579471788315,20.354021577952956,22.039137365623674,nlres_grid_ml_softthresh_g0|nlres_grid_ml_softthresh_g0.5,full-grid
+ml,SoftThreshτ1.5,0.5,hybrid_seq_f0.25,36,21.49555544051493,20.50435601917919,22.48675486185067,nlres_grid_ml_softthresh_g0|nlres_grid_ml_softthresh_g0.5,full-grid
+ml,SoftThreshτ1.5,0.5,hybrid_seq_f0.5,36,21.650693650822397,20.733842665352938,22.567544636291856,nlres_grid_ml_softthresh_g0|nlres_grid_ml_softthresh_g0.5,full-grid
+ml,SoftThreshτ1.5,0.5,hybrid_seq_f0.75,36,21.92693167373593,20.973049946852342,22.880813400619516,nlres_grid_ml_softthresh_g0|nlres_grid_ml_softthresh_g0.5,full-grid
+ml,SoftThreshτ1.5,0.5,hybrid_seq_adapt,36,21.9286892996459,21.00400315405683,22.85337544523497,nlres_grid_ml_softthresh_g0|nlres_grid_ml_softthresh_g0.5,full-grid
+ml,SoftThreshτ1.5,0.0,opc,40,17.317119878511193,17.032453577500124,17.60178617952226,nlres_grid_ml_softthresh_g0|nlres_grid_ml_softthresh_g1,full-grid
+ml,SoftThreshτ1.5,0.0,nll,40,18.538339035169656,18.15910183197084,18.917576238368472,nlres_grid_ml_softthresh_g0|nlres_grid_ml_softthresh_g1,full-grid
+ml,SoftThreshτ1.5,0.0,hybrid_seq_f0.25,40,18.001216148259267,17.627869199402724,18.37456309711581,nlres_grid_ml_softthresh_g0|nlres_grid_ml_softthresh_g1,full-grid
+ml,SoftThreshτ1.5,0.0,hybrid_seq_f0.5,40,18.35575303560244,18.068428948633514,18.643077122571366,nlres_grid_ml_softthresh_g0|nlres_grid_ml_softthresh_g1,full-grid
+ml,SoftThreshτ1.5,0.0,hybrid_seq_f0.75,40,18.418192174483917,18.0789438559871,18.757440492980734,nlres_grid_ml_softthresh_g0|nlres_grid_ml_softthresh_g1,full-grid
+ml,SoftThreshτ1.5,0.0,hybrid_seq_adapt,40,18.397155397038727,18.038932601174963,18.75537819290249,nlres_grid_ml_softthresh_g0|nlres_grid_ml_softthresh_g1,full-grid
+ml,SoftThreshτ1.5,1.0,opc,34,21.18401200211688,20.093550728337686,22.274473275896074,nlres_grid_ml_softthresh_g0|nlres_grid_ml_softthresh_g1,full-grid
+ml,SoftThreshτ1.5,1.0,nll,34,22.124255046048933,21.129565638846746,23.11894445325112,nlres_grid_ml_softthresh_g0|nlres_grid_ml_softthresh_g1,full-grid
+ml,SoftThreshτ1.5,1.0,hybrid_seq_f0.25,34,22.948567263392764,21.756640703180786,24.140493823604743,nlres_grid_ml_softthresh_g0|nlres_grid_ml_softthresh_g1,full-grid
+ml,SoftThreshτ1.5,1.0,hybrid_seq_f0.5,34,23.673133926065603,22.476650350308475,24.86961750182273,nlres_grid_ml_softthresh_g0|nlres_grid_ml_softthresh_g1,full-grid
+ml,SoftThreshτ1.5,1.0,hybrid_seq_f0.75,34,23.758759334567998,22.620616388680297,24.8969022804557,nlres_grid_ml_softthresh_g0|nlres_grid_ml_softthresh_g1,full-grid
+ml,SoftThreshτ1.5,1.0,hybrid_seq_adapt,34,23.71912917994153,22.571866271674928,24.86639208820813,nlres_grid_ml_softthresh_g0|nlres_grid_ml_softthresh_g1,full-grid
+ml,SoftThreshτ1.5,0.0,opc,40,17.317119878511193,17.032453577500124,17.60178617952226,nlres_grid_ml_softthresh_g0|nlres_grid_ml_softthresh_g100,full-grid
+ml,SoftThreshτ1.5,0.0,nll,40,18.538339035169656,18.15910183197084,18.917576238368472,nlres_grid_ml_softthresh_g0|nlres_grid_ml_softthresh_g100,full-grid
+ml,SoftThreshτ1.5,0.0,hybrid_seq_f0.25,40,18.001216148259267,17.627869199402724,18.37456309711581,nlres_grid_ml_softthresh_g0|nlres_grid_ml_softthresh_g100,full-grid
+ml,SoftThreshτ1.5,0.0,hybrid_seq_f0.5,40,18.35575303560244,18.068428948633514,18.643077122571366,nlres_grid_ml_softthresh_g0|nlres_grid_ml_softthresh_g100,full-grid
+ml,SoftThreshτ1.5,0.0,hybrid_seq_f0.75,40,18.418192174483917,18.0789438559871,18.757440492980734,nlres_grid_ml_softthresh_g0|nlres_grid_ml_softthresh_g100,full-grid
+ml,SoftThreshτ1.5,0.0,hybrid_seq_adapt,40,18.397155397038727,18.038932601174963,18.75537819290249,nlres_grid_ml_softthresh_g0|nlres_grid_ml_softthresh_g100,full-grid
+ml,SoftThreshτ1.5,100.0,opc,34,25.37146426802004,24.11073406938447,26.632194466655612,nlres_grid_ml_softthresh_g0|nlres_grid_ml_softthresh_g100,full-grid
+ml,SoftThreshτ1.5,100.0,nll,34,20.684204049250624,19.454345601328704,21.914062497172544,nlres_grid_ml_softthresh_g0|nlres_grid_ml_softthresh_g100,full-grid
+ml,SoftThreshτ1.5,100.0,hybrid_seq_f0.25,34,26.772211193921805,25.088214582748865,28.456207805094746,nlres_grid_ml_softthresh_g0|nlres_grid_ml_softthresh_g100,full-grid
+ml,SoftThreshτ1.5,100.0,hybrid_seq_f0.5,34,27.319136564826227,25.72470149019513,28.913571639457324,nlres_grid_ml_softthresh_g0|nlres_grid_ml_softthresh_g100,full-grid
+ml,SoftThreshτ1.5,100.0,hybrid_seq_f0.75,34,26.81834673753745,25.515186253879644,28.121507221195255,nlres_grid_ml_softthresh_g0|nlres_grid_ml_softthresh_g100,full-grid
+ml,SoftThreshτ1.5,100.0,hybrid_seq_adapt,34,26.728159484720656,25.401419552562935,28.054899416878378,nlres_grid_ml_softthresh_g0|nlres_grid_ml_softthresh_g100,full-grid
+ml,SoftThreshτ1.5,0.0,opc,40,17.317119878511193,17.032453577500124,17.60178617952226,nlres_grid_ml_softthresh_g0|nlres_grid_ml_softthresh_g2,full-grid
+ml,SoftThreshτ1.5,0.0,nll,40,18.538339035169656,18.15910183197084,18.917576238368472,nlres_grid_ml_softthresh_g0|nlres_grid_ml_softthresh_g2,full-grid
+ml,SoftThreshτ1.5,0.0,hybrid_seq_f0.25,40,18.001216148259267,17.627869199402724,18.37456309711581,nlres_grid_ml_softthresh_g0|nlres_grid_ml_softthresh_g2,full-grid
+ml,SoftThreshτ1.5,0.0,hybrid_seq_f0.5,40,18.35575303560244,18.068428948633514,18.643077122571366,nlres_grid_ml_softthresh_g0|nlres_grid_ml_softthresh_g2,full-grid
+ml,SoftThreshτ1.5,0.0,hybrid_seq_f0.75,40,18.418192174483917,18.0789438559871,18.757440492980734,nlres_grid_ml_softthresh_g0|nlres_grid_ml_softthresh_g2,full-grid
+ml,SoftThreshτ1.5,0.0,hybrid_seq_adapt,40,18.397155397038727,18.038932601174963,18.75537819290249,nlres_grid_ml_softthresh_g0|nlres_grid_ml_softthresh_g2,full-grid
+ml,SoftThreshτ1.5,2.0,opc,40,23.483137161950303,22.157465442161442,24.808808881739164,nlres_grid_ml_softthresh_g0|nlres_grid_ml_softthresh_g2,full-grid
+ml,SoftThreshτ1.5,2.0,nll,40,22.717297735735777,21.55651093303371,23.878084538437843,nlres_grid_ml_softthresh_g0|nlres_grid_ml_softthresh_g2,full-grid
+ml,SoftThreshτ1.5,2.0,hybrid_seq_f0.25,40,25.418491688293255,23.886424600612166,26.950558775974343,nlres_grid_ml_softthresh_g0|nlres_grid_ml_softthresh_g2,full-grid
+ml,SoftThreshτ1.5,2.0,hybrid_seq_f0.5,40,26.038072862616605,24.563589695448673,27.512556029784538,nlres_grid_ml_softthresh_g0|nlres_grid_ml_softthresh_g2,full-grid
+ml,SoftThreshτ1.5,2.0,hybrid_seq_f0.75,40,25.63997226588677,24.234158722976257,27.04578580879728,nlres_grid_ml_softthresh_g0|nlres_grid_ml_softthresh_g2,full-grid
+ml,SoftThreshτ1.5,2.0,hybrid_seq_adapt,40,25.684785852990853,24.249372642255878,27.120199063725828,nlres_grid_ml_softthresh_g0|nlres_grid_ml_softthresh_g2,full-grid

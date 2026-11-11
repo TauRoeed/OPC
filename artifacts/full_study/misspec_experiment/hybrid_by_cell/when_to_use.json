@@ -1,0 +1,946 @@
+{
+  "regimes": {
+    "extreme": {
+      "n_cells": 5,
+      "mean_H_minus_NLL_pt": 4.974731946002605,
+      "cells_CI_LB_gt0": 5,
+      "cells_CI_UB_lt0": 0,
+      "cells_near_NLL_abs_le_0p5": 0,
+      "cells": [
+        {
+          "dataset": "ml",
+          "misspec": "SoftAND*-adapt",
+          "gamma": 100.0,
+          "n": 20,
+          "mean_pt": 3.594,
+          "ci_lo": 2.216,
+          "ci_hi": 4.972,
+          "signs": 18
+        },
+        {
+          "dataset": "ml",
+          "misspec": "SoftThresh-adapt",
+          "gamma": 100.0,
+          "n": 20,
+          "mean_pt": 6.509,
+          "ci_lo": 4.948,
+          "ci_hi": 8.071,
+          "signs": 20
+        },
+        {
+          "dataset": "ml",
+          "misspec": "R*",
+          "gamma": 100.0,
+          "n": 36,
+          "mean_pt": 4.577,
+          "ci_lo": 3.892,
+          "ci_hi": 5.261,
+          "signs": 36
+        },
+        {
+          "dataset": "ml",
+          "misspec": "SoftThresh\u03c41.5",
+          "gamma": 100.0,
+          "n": 40,
+          "mean_pt": 6.904,
+          "ci_lo": 5.854,
+          "ci_hi": 7.953,
+          "signs": 40
+        },
+        {
+          "dataset": "ml",
+          "misspec": "SoftAND*",
+          "gamma": 100.0,
+          "n": 40,
+          "mean_pt": 3.29,
+          "ci_lo": 2.413,
+          "ci_hi": 4.167,
+          "signs": 36
+        }
+      ]
+    },
+    "mid": {
+      "n_cells": 30,
+      "mean_H_minus_NLL_pt": 1.6399111638897776,
+      "cells_CI_LB_gt0": 23,
+      "cells_CI_UB_lt0": 0,
+      "cells_near_NLL_abs_le_0p5": 8,
+      "cells": [
+        {
+          "dataset": "anime",
+          "misspec": "SoftAND*",
+          "gamma": 0.75,
+          "n": 5,
+          "mean_pt": 0.915,
+          "ci_lo": -0.779,
+          "ci_hi": 2.609,
+          "signs": 4
+        },
+        {
+          "dataset": "anime",
+          "misspec": "SoftAND*",
+          "gamma": 0.25,
+          "n": 9,
+          "mean_pt": 0.354,
+          "ci_lo": -1.038,
+          "ci_hi": 1.746,
+          "signs": 4
+        },
+        {
+          "dataset": "kuairec",
+          "misspec": "R*-mlsize",
+          "gamma": 0.5,
+          "n": 20,
+          "mean_pt": 0.583,
+          "ci_lo": 0.121,
+          "ci_hi": 1.045,
+          "signs": 15
+        },
+        {
+          "dataset": "kuairand",
+          "misspec": "R*-mlsize",
+          "gamma": 0.5,
+          "n": 20,
+          "mean_pt": 0.529,
+          "ci_lo": 0.14,
+          "ci_hi": 0.918,
+          "signs": 13
+        },
+        {
+          "dataset": "myket",
+          "misspec": "R*",
+          "gamma": 0.5,
+          "n": 20,
+          "mean_pt": 0.772,
+          "ci_lo": 0.295,
+          "ci_hi": 1.249,
+          "signs": 17
+        },
+        {
+          "dataset": "anime",
+          "misspec": "R*",
+          "gamma": 0.6,
+          "n": 20,
+          "mean_pt": 0.72,
+          "ci_lo": 0.393,
+          "ci_hi": 1.048,
+          "signs": 17
+        },
+        {
+          "dataset": "kuairand",
+          "misspec": "R*-full",
+          "gamma": 0.5,
+          "n": 20,
+          "mean_pt": 0.032,
+          "ci_lo": -0.405,
+          "ci_hi": 0.469,
+          "signs": 11
+        },
+        {
+          "dataset": "kuairec",
+          "misspec": "R*-full",
+          "gamma": 0.5,
+          "n": 20,
+          "mean_pt": 0.615,
+          "ci_lo": 0.086,
+          "ci_hi": 1.145,
+          "signs": 14
+        },
+        {
+          "dataset": "ml",
+          "misspec": "R*-adapt",
+          "gamma": 0.5,
+          "n": 20,
+          "mean_pt": 0.988,
+          "ci_lo": 0.327,
+          "ci_hi": 1.649,
+          "signs": 14
+        },
+        {
+          "dataset": "ml",
+          "misspec": "R*",
+          "gamma": 10.0,
+          "n": 36,
+          "mean_pt": 4.66,
+          "ci_lo": 3.857,
+          "ci_hi": 5.462,
+          "signs": 34
+        },
+        {
+          "dataset": "ml",
+          "misspec": "SoftThresh\u03c41.5",
+          "gamma": 4.0,
+          "n": 40,
+          "mean_pt": 5.327,
+          "ci_lo": 4.705,
+          "ci_hi": 5.95,
+          "signs": 40
+        },
+        {
+          "dataset": "ml",
+          "misspec": "SoftThresh\u03c41.5",
+          "gamma": 10.0,
+          "n": 40,
+          "mean_pt": 6.699,
+          "ci_lo": 5.782,
+          "ci_hi": 7.617,
+          "signs": 40
+        },
+        {
+          "dataset": "ml",
+          "misspec": "SoftThresh\u03c41.5",
+          "gamma": 1.0,
+          "n": 40,
+          "mean_pt": 1.57,
+          "ci_lo": 1.102,
+          "ci_hi": 2.039,
+          "signs": 34
+        },
+        {
+          "dataset": "ml",
+          "misspec": "SoftThresh\u03c41.5",
+          "gamma": 0.75,
+          "n": 40,
+          "mean_pt": 1.114,
+          "ci_lo": 0.738,
+          "ci_hi": 1.489,
+          "signs": 34
+        },
+        {
+          "dataset": "ml",
+          "misspec": "SoftThresh\u03c41.5",
+          "gamma": 0.5,
+          "n": 40,
+          "mean_pt": 0.48,
+          "ci_lo": 0.138,
+          "ci_hi": 0.822,
+          "signs": 24
+        },
+        {
+          "dataset": "ml",
+          "misspec": "R*",
+          "gamma": 2.0,
+          "n": 40,
+          "mean_pt": 3.458,
+          "ci_lo": 2.872,
+          "ci_hi": 4.043,
+          "signs": 39
+        },
+        {
+          "dataset": "ml",
+          "misspec": "R*",
+          "gamma": 0.5,
+          "n": 40,
+          "mean_pt": 0.941,
+          "ci_lo": 0.532,
+          "ci_hi": 1.349,
+          "signs": 31
+        },
+        {
+          "dataset": "ml",
+          "misspec": "R*",
+          "gamma": 4.0,
+          "n": 40,
+          "mean_pt": 4.048,
+          "ci_lo": 3.382,
+          "ci_hi": 4.714,
+          "signs": 38
+        },
+        {
+          "dataset": "ml",
+          "misspec": "R*",
+          "gamma": 0.75,
+          "n": 40,
+          "mean_pt": 1.561,
+          "ci_lo": 1.066,
+          "ci_hi": 2.055,
+          "signs": 34
+        },
+        {
+          "dataset": "ml",
+          "misspec": "R*",
+          "gamma": 1.0,
+          "n": 40,
+          "mean_pt": 2.107,
+          "ci_lo": 1.619,
+          "ci_hi": 2.594,
+          "signs": 37
+        },
+        {
+          "dataset": "ml",
+          "misspec": "SoftAND*",
+          "gamma": 0.5,
+          "n": 40,
+          "mean_pt": 0.189,
+          "ci_lo": -0.024,
+          "ci_hi": 0.401,
+          "signs": 22
+        },
+        {
+          "dataset": "ml",
+          "misspec": "SoftAND*",
+          "gamma": 0.25,
+          "n": 40,
+          "mean_pt": -0.096,
+          "ci_lo": -0.347,
+          "ci_hi": 0.156,
+          "signs": 15
+        },
+        {
+          "dataset": "ml",
+          "misspec": "R*",
+          "gamma": 0.25,
+          "n": 40,
+          "mean_pt": 0.191,
+          "ci_lo": -0.114,
+          "ci_hi": 0.497,
+          "signs": 23
+        },
+        {
+          "dataset": "ml",
+          "misspec": "SoftAND*",
+          "gamma": 0.75,
+          "n": 40,
+          "mean_pt": 0.363,
+          "ci_lo": 0.078,
+          "ci_hi": 0.649,
+          "signs": 28
+        },
+        {
+          "dataset": "ml",
+          "misspec": "SoftAND*",
+          "gamma": 2.0,
+          "n": 40,
+          "mean_pt": 1.529,
+          "ci_lo": 1.16,
+          "ci_hi": 1.897,
+          "signs": 37
+        },
+        {
+          "dataset": "ml",
+          "misspec": "SoftAND*",
+          "gamma": 10.0,
+          "n": 40,
+          "mean_pt": 3.332,
+          "ci_lo": 2.568,
+          "ci_hi": 4.096,
+          "signs": 37
+        },
+        {
+          "dataset": "ml",
+          "misspec": "SoftAND*",
+          "gamma": 1.0,
+          "n": 40,
+          "mean_pt": 0.641,
+          "ci_lo": 0.359,
+          "ci_hi": 0.924,
+          "signs": 29
+        },
+        {
+          "dataset": "ml",
+          "misspec": "SoftThresh\u03c41.5",
+          "gamma": 0.25,
+          "n": 40,
+          "mean_pt": -0.101,
+          "ci_lo": -0.406,
+          "ci_hi": 0.204,
+          "signs": 16
+        },
+        {
+          "dataset": "ml",
+          "misspec": "SoftAND*",
+          "gamma": 4.0,
+          "n": 40,
+          "mean_pt": 2.355,
+          "ci_lo": 1.868,
+          "ci_hi": 2.843,
+          "signs": 40
+        },
+        {
+          "dataset": "ml",
+          "misspec": "SoftThresh\u03c41.5",
+          "gamma": 2.0,
+          "n": 40,
+          "mean_pt": 3.321,
+          "ci_lo": 2.745,
+          "ci_hi": 3.897,
+          "signs": 39
+        }
+      ]
+    },
+    "well_spec": {
+      "n_cells": 13,
+      "mean_H_minus_NLL_pt": -0.22611421208562027,
+      "cells_CI_LB_gt0": 0,
+      "cells_CI_UB_lt0": 3,
+      "cells_near_NLL_abs_le_0p5": 10,
+      "cells": [
+        {
+          "dataset": "anime",
+          "misspec": "SoftAND*",
+          "gamma": 0.0,
+          "n": 9,
+          "mean_pt": 0.081,
+          "ci_lo": -1.12,
+          "ci_hi": 1.282,
+          "signs": 2
+        },
+        {
+          "dataset": "ml",
+          "misspec": "SoftAND*-adapt",
+          "gamma": 0.0,
+          "n": 20,
+          "mean_pt": -0.204,
+          "ci_lo": -0.507,
+          "ci_hi": 0.098,
+          "signs": 7
+        },
+        {
+          "dataset": "kuairec",
+          "misspec": "R*-mlsize",
+          "gamma": 0.0,
+          "n": 20,
+          "mean_pt": -0.133,
+          "ci_lo": -0.799,
+          "ci_hi": 0.532,
+          "signs": 10
+        },
+        {
+          "dataset": "kuairand",
+          "misspec": "R*-mlsize",
+          "gamma": 0.0,
+          "n": 20,
+          "mean_pt": -0.778,
+          "ci_lo": -1.038,
+          "ci_hi": -0.518,
+          "signs": 2
+        },
+        {
+          "dataset": "myket",
+          "misspec": "R*",
+          "gamma": 0.0,
+          "n": 20,
+          "mean_pt": 0.084,
+          "ci_lo": -0.284,
+          "ci_hi": 0.452,
+          "signs": 12
+        },
+        {
+          "dataset": "anime",
+          "misspec": "R*",
+          "gamma": 0.0,
+          "n": 20,
+          "mean_pt": 0.22,
+          "ci_lo": -0.105,
+          "ci_hi": 0.546,
+          "signs": 13
+        },
+        {
+          "dataset": "kuairand",
+          "misspec": "R*-full",
+          "gamma": 0.0,
+          "n": 20,
+          "mean_pt": -0.581,
+          "ci_lo": -0.865,
+          "ci_hi": -0.297,
+          "signs": 3
+        },
+        {
+          "dataset": "kuairec",
+          "misspec": "R*-full",
+          "gamma": 0.0,
+          "n": 20,
+          "mean_pt": -0.684,
+          "ci_lo": -1.244,
+          "ci_hi": -0.123,
+          "signs": 5
+        },
+        {
+          "dataset": "ml",
+          "misspec": "SoftThresh-adapt",
+          "gamma": 0.0,
+          "n": 20,
+          "mean_pt": -0.204,
+          "ci_lo": -0.507,
+          "ci_hi": 0.098,
+          "signs": 7
+        },
+        {
+          "dataset": "ml",
+          "misspec": "R*-adapt",
+          "gamma": 0.0,
+          "n": 20,
+          "mean_pt": -0.204,
+          "ci_lo": -0.507,
+          "ci_hi": 0.098,
+          "signs": 7
+        },
+        {
+          "dataset": "ml",
+          "misspec": "R*",
+          "gamma": 0.0,
+          "n": 40,
+          "mean_pt": -0.171,
+          "ci_lo": -0.404,
+          "ci_hi": 0.062,
+          "signs": 15
+        },
+        {
+          "dataset": "ml",
+          "misspec": "SoftAND*",
+          "gamma": 0.0,
+          "n": 40,
+          "mean_pt": -0.183,
+          "ci_lo": -0.403,
+          "ci_hi": 0.038,
+          "signs": 15
+        },
+        {
+          "dataset": "ml",
+          "misspec": "SoftThresh\u03c41.5",
+          "gamma": 0.0,
+          "n": 40,
+          "mean_pt": -0.183,
+          "ci_lo": -0.403,
+          "ci_hi": 0.038,
+          "signs": 15
+        }
+      ]
+    }
+  },
+  "decision_rule": {
+    "name": "hybrid_unless_OPC_NLL_le_-1.0",
+    "rationale": "Cell-level regret = forgone |H\u2212NLL| when the policy picks the worse of {hybrid, NLL} by the sign of mean H\u2212NLL. Across locked cells, always-hybrid usually dominates OPC\u2212NLL threshold rules because mid-\u03b3 SoftAND/multi-ds can have OPC still trailing NLL while hybrid already helps.",
+    "sum_regret_pt": 2.9462474756396153,
+    "agreement_with_sign_H_NLL": 41,
+    "clear_wins_caught": 26,
+    "sum_regret_pt_always_NLL": 74.65287256364114,
+    "sum_regret_pt_always_hybrid": 3.521362674047844,
+    "sum_regret_pt_rule": 2.9462474756396153,
+    "sensitivity_clear_hybrid_wins_caught": 26,
+    "n_clear_hybrid_wins": 28
+  },
+  "cells": [],
+  "did_H_NLL": [
+    {
+      "dataset": "anime",
+      "misspec": "SoftAND*",
+      "g0": 0.0,
+      "g1": 0.75,
+      "n": 5,
+      "DiD_pt": 1.47,
+      "ci_lo": -0.327,
+      "ci_hi": 3.268,
+      "signs": 4
+    },
+    {
+      "dataset": "anime",
+      "misspec": "SoftAND*",
+      "g0": 0.0,
+      "g1": 0.25,
+      "n": 9,
+      "DiD_pt": 0.273,
+      "ci_lo": -0.132,
+      "ci_hi": 0.677,
+      "signs": 7
+    },
+    {
+      "dataset": "ml",
+      "misspec": "SoftAND*-adapt",
+      "g0": 0.0,
+      "g1": 100.0,
+      "n": 20,
+      "DiD_pt": 3.798,
+      "ci_lo": 2.335,
+      "ci_hi": 5.262,
+      "signs": 18
+    },
+    {
+      "dataset": "kuairec",
+      "misspec": "R*-mlsize",
+      "g0": 0.0,
+      "g1": 0.5,
+      "n": 20,
+      "DiD_pt": 0.717,
+      "ci_lo": -0.064,
+      "ci_hi": 1.497,
+      "signs": 14
+    },
+    {
+      "dataset": "kuairand",
+      "misspec": "R*-mlsize",
+      "g0": 0.0,
+      "g1": 0.5,
+      "n": 20,
+      "DiD_pt": 1.307,
+      "ci_lo": 0.92,
+      "ci_hi": 1.694,
+      "signs": 20
+    },
+    {
+      "dataset": "myket",
+      "misspec": "R*",
+      "g0": 0.0,
+      "g1": 0.5,
+      "n": 20,
+      "DiD_pt": 0.688,
+      "ci_lo": 0.161,
+      "ci_hi": 1.215,
+      "signs": 14
+    },
+    {
+      "dataset": "anime",
+      "misspec": "R*",
+      "g0": 0.0,
+      "g1": 0.6,
+      "n": 20,
+      "DiD_pt": 0.5,
+      "ci_lo": 0.079,
+      "ci_hi": 0.921,
+      "signs": 16
+    },
+    {
+      "dataset": "kuairand",
+      "misspec": "R*-full",
+      "g0": 0.0,
+      "g1": 0.5,
+      "n": 20,
+      "DiD_pt": 0.613,
+      "ci_lo": 0.117,
+      "ci_hi": 1.109,
+      "signs": 16
+    },
+    {
+      "dataset": "kuairec",
+      "misspec": "R*-full",
+      "g0": 0.0,
+      "g1": 0.5,
+      "n": 20,
+      "DiD_pt": 1.299,
+      "ci_lo": 0.72,
+      "ci_hi": 1.878,
+      "signs": 18
+    },
+    {
+      "dataset": "ml",
+      "misspec": "SoftThresh-adapt",
+      "g0": 0.0,
+      "g1": 100.0,
+      "n": 20,
+      "DiD_pt": 6.713,
+      "ci_lo": 5.217,
+      "ci_hi": 8.209,
+      "signs": 20
+    },
+    {
+      "dataset": "ml",
+      "misspec": "R*-adapt",
+      "g0": 0.0,
+      "g1": 0.5,
+      "n": 20,
+      "DiD_pt": 1.192,
+      "ci_lo": 0.591,
+      "ci_hi": 1.793,
+      "signs": 17
+    },
+    {
+      "dataset": "ml",
+      "misspec": "R*",
+      "g0": 0.0,
+      "g1": 10.0,
+      "n": 36,
+      "DiD_pt": 4.838,
+      "ci_lo": 3.933,
+      "ci_hi": 5.743,
+      "signs": 34
+    },
+    {
+      "dataset": "ml",
+      "misspec": "R*",
+      "g0": 0.0,
+      "g1": 100.0,
+      "n": 36,
+      "DiD_pt": 4.755,
+      "ci_lo": 3.955,
+      "ci_hi": 5.556,
+      "signs": 34
+    },
+    {
+      "dataset": "ml",
+      "misspec": "SoftThresh\u03c41.5",
+      "g0": 0.0,
+      "g1": 4.0,
+      "n": 40,
+      "DiD_pt": 5.51,
+      "ci_lo": 4.824,
+      "ci_hi": 6.196,
+      "signs": 40
+    },
+    {
+      "dataset": "ml",
+      "misspec": "SoftThresh\u03c41.5",
+      "g0": 0.0,
+      "g1": 10.0,
+      "n": 40,
+      "DiD_pt": 6.882,
+      "ci_lo": 5.973,
+      "ci_hi": 7.792,
+      "signs": 40
+    },
+    {
+      "dataset": "ml",
+      "misspec": "SoftThresh\u03c41.5",
+      "g0": 0.0,
+      "g1": 1.0,
+      "n": 40,
+      "DiD_pt": 1.753,
+      "ci_lo": 1.209,
+      "ci_hi": 2.297,
+      "signs": 36
+    },
+    {
+      "dataset": "ml",
+      "misspec": "SoftThresh\u03c41.5",
+      "g0": 0.0,
+      "g1": 0.75,
+      "n": 40,
+      "DiD_pt": 1.296,
+      "ci_lo": 0.867,
+      "ci_hi": 1.725,
+      "signs": 34
+    },
+    {
+      "dataset": "ml",
+      "misspec": "SoftThresh\u03c41.5",
+      "g0": 0.0,
+      "g1": 0.5,
+      "n": 40,
+      "DiD_pt": 0.662,
+      "ci_lo": 0.253,
+      "ci_hi": 1.071,
+      "signs": 29
+    },
+    {
+      "dataset": "ml",
+      "misspec": "SoftThresh\u03c41.5",
+      "g0": 0.0,
+      "g1": 100.0,
+      "n": 40,
+      "DiD_pt": 7.086,
+      "ci_lo": 6.055,
+      "ci_hi": 8.117,
+      "signs": 40
+    },
+    {
+      "dataset": "ml",
+      "misspec": "R*",
+      "g0": 0.0,
+      "g1": 2.0,
+      "n": 40,
+      "DiD_pt": 3.629,
+      "ci_lo": 2.949,
+      "ci_hi": 4.308,
+      "signs": 38
+    },
+    {
+      "dataset": "ml",
+      "misspec": "R*",
+      "g0": 0.0,
+      "g1": 0.5,
+      "n": 40,
+      "DiD_pt": 1.112,
+      "ci_lo": 0.722,
+      "ci_hi": 1.502,
+      "signs": 32
+    },
+    {
+      "dataset": "ml",
+      "misspec": "R*",
+      "g0": 0.0,
+      "g1": 4.0,
+      "n": 40,
+      "DiD_pt": 4.219,
+      "ci_lo": 3.462,
+      "ci_hi": 4.977,
+      "signs": 37
+    },
+    {
+      "dataset": "ml",
+      "misspec": "R*",
+      "g0": 0.0,
+      "g1": 0.75,
+      "n": 40,
+      "DiD_pt": 1.732,
+      "ci_lo": 1.227,
+      "ci_hi": 2.237,
+      "signs": 32
+    },
+    {
+      "dataset": "ml",
+      "misspec": "R*",
+      "g0": 0.0,
+      "g1": 1.0,
+      "n": 40,
+      "DiD_pt": 2.278,
+      "ci_lo": 1.781,
+      "ci_hi": 2.775,
+      "signs": 36
+    },
+    {
+      "dataset": "ml",
+      "misspec": "SoftAND*",
+      "g0": 0.0,
+      "g1": 0.5,
+      "n": 40,
+      "DiD_pt": 0.371,
+      "ci_lo": 0.15,
+      "ci_hi": 0.593,
+      "signs": 29
+    },
+    {
+      "dataset": "ml",
+      "misspec": "SoftAND*",
+      "g0": 0.0,
+      "g1": 0.25,
+      "n": 40,
+      "DiD_pt": 0.087,
+      "ci_lo": -0.105,
+      "ci_hi": 0.279,
+      "signs": 19
+    },
+    {
+      "dataset": "ml",
+      "misspec": "R*",
+      "g0": 0.0,
+      "g1": 0.25,
+      "n": 40,
+      "DiD_pt": 0.362,
+      "ci_lo": 0.12,
+      "ci_hi": 0.605,
+      "signs": 24
+    },
+    {
+      "dataset": "ml",
+      "misspec": "SoftAND*",
+      "g0": 0.0,
+      "g1": 0.75,
+      "n": 40,
+      "DiD_pt": 0.546,
+      "ci_lo": 0.229,
+      "ci_hi": 0.863,
+      "signs": 28
+    },
+    {
+      "dataset": "ml",
+      "misspec": "SoftAND*",
+      "g0": 0.0,
+      "g1": 100.0,
+      "n": 40,
+      "DiD_pt": 3.472,
+      "ci_lo": 2.567,
+      "ci_hi": 4.377,
+      "signs": 36
+    },
+    {
+      "dataset": "ml",
+      "misspec": "SoftAND*",
+      "g0": 0.0,
+      "g1": 2.0,
+      "n": 40,
+      "DiD_pt": 1.711,
+      "ci_lo": 1.238,
+      "ci_hi": 2.185,
+      "signs": 34
+    },
+    {
+      "dataset": "ml",
+      "misspec": "SoftAND*",
+      "g0": 0.0,
+      "g1": 10.0,
+      "n": 40,
+      "DiD_pt": 3.515,
+      "ci_lo": 2.709,
+      "ci_hi": 4.32,
+      "signs": 35
+    },
+    {
+      "dataset": "ml",
+      "misspec": "SoftAND*",
+      "g0": 0.0,
+      "g1": 1.0,
+      "n": 40,
+      "DiD_pt": 0.824,
+      "ci_lo": 0.517,
+      "ci_hi": 1.131,
+      "signs": 30
+    },
+    {
+      "dataset": "ml",
+      "misspec": "SoftThresh\u03c41.5",
+      "g0": 0.0,
+      "g1": 0.25,
+      "n": 40,
+      "DiD_pt": 0.082,
+      "ci_lo": -0.196,
+      "ci_hi": 0.359,
+      "signs": 24
+    },
+    {
+      "dataset": "ml",
+      "misspec": "SoftAND*",
+      "g0": 0.0,
+      "g1": 4.0,
+      "n": 40,
+      "DiD_pt": 2.538,
+      "ci_lo": 1.942,
+      "ci_hi": 3.134,
+      "signs": 36
+    },
+    {
+      "dataset": "ml",
+      "misspec": "SoftThresh\u03c41.5",
+      "g0": 0.0,
+      "g1": 2.0,
+      "n": 40,
+      "DiD_pt": 3.503,
+      "ci_lo": 2.859,
+      "ci_hi": 4.148,
+      "signs": 38
+    }
+  ],
+  "decision_rules": {
+    "n_cells": 48,
+    "n_clear_hybrid_wins_CI_LB_gt0": 28,
+    "sum_regret_pt_always_NLL": 74.65287256364114,
+    "sum_regret_pt_always_hybrid": 3.521362674047844,
+    "rules": {
+      "always_NLL": {
+        "sum_regret_pt": 74.65287256364114,
+        "agreement_with_sign_H_NLL": 12,
+        "clear_wins_caught": 0
+      },
+      "always_hybrid": {
+        "sum_regret_pt": 3.521362674047844,
+        "agreement_with_sign_H_NLL": 36,
+        "clear_wins_caught": 28
+      },
+      "hybrid_if_OPC_NLL_ge_0.5": {
+        "sum_regret_pt": 12.911037226982137,
+        "agreement_with_sign_H_NLL": 27,
+        "clear_wins_caught": 15
+      },
+      "hybrid_if_OPC_NLL_ge_0": {
+        "sum_regret_pt": 11.923179094311804,
+        "agreement_with_sign_H_NLL": 28,
+        "clear_wins_caught": 16
+      },
+      "hybrid_unless_OPC_NLL_le_-1.0": {
+        "sum_regret_pt": 2.9462474756396153,
+        "agreement_with_sign_H_NLL": 41,
+        "clear_wins_caught": 26
+      }
+    },
+    "best_rule_by_regret": "hybrid_unless_OPC_NLL_le_-1.0"
+  },
+  "recommendation": "Prefer hybrid_seq_f0.5 as the default vs pure likelihood when residual misspecification strength is unknown. Across dataset\u00d7misspec cells, summed regret of always-NLL is much larger than always-hybrid: well-spec (\u03b3=0) costs are typically \u22640.5\u20130.8pt, while mid/extreme \u03c6 misspec yields +0.5 to +6pt H\u2212NLL with CI LB>0 on most R* and extreme SoftAND/SoftThresh cells. Use pure NLL only when you have a strong prior of bilinear well-specification and need to squeeze the last \u03b3=0 points (e.g. kuairand full-catalog \u03b3=0). OPC\u2212NLL\u22650.5 is a conservative 'misspec is loud' flag but is not a good gate for switching away from hybrid\u2014it misses many mid-\u03b3 hybrid wins where OPC still trails NLL."
+}
