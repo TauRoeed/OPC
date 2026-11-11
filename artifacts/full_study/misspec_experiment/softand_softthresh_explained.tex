@@ -1,0 +1,301 @@
+% SoftAND* and SoftThresh residual families — standalone note.
+% Compile: pdflatex softand_softthresh_explained.tex
+\documentclass[11pt,a4paper]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{lmodern}
+\usepackage{amsmath,amssymb,bm}
+\usepackage{booktabs}
+\usepackage{microtype}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{fancyhdr}
+\hypersetup{colorlinks=true,linkcolor=blue!50!black,urlcolor=blue!50!black}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small SoftAND$^*$ \& SoftThresh}
+\fancyhead[R]{\small OPC / \today}
+\fancyfoot[C]{\thepage}
+
+\title{\textbf{SoftAND$^*$ and SoftThresh}\\
+\large Residual misspecification families for the hybrid / DR study\\
+\normalsize A self-contained explanation (math + intuition + locked specs)}
+\author{OPC project}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+\noindent
+This note explains the two \emph{latent residual} families used alongside $R^\star$
+in the confirmatory misspecification grid: \textbf{SoftAND$^*$} and
+\textbf{SoftThresh} (locked $\tau{=}1.5$).
+It is written for a reader who has not followed the implementation chat:
+what problem they solve, how they are built from embeddings, how they differ
+from each other and from $R^\star$, which hyperparameters are locked in the
+runs, and how the dial $\gamma$ shows up in realized logit variance /
+reward ratios.
+\end{abstract}
+
+\tableofcontents
+\newpage
+
+\section{Where these families sit in the experiment}
+
+\subsection{Truth logit with a residual dial}
+Users $x$ and items $a$ have fixed BPR (or mlsize) embeddings.
+The environment click probability is $q=\sigma(\ell_\gamma)$ with
+\begin{equation}
+\label{eq:world}
+\ell_\gamma(x,a)
+=
+\underbrace{b + u_x^\top v_a}_{\text{``GT'' bilinear / affine-bilinear}}
++
+\gamma\cdot\alpha\cdot\phi(x,a),
+\end{equation}
+where $\phi$ is standardized to unit SD over $(x,a)$ pairs
+($\mathrm{sd}(\phi)=1$), $\alpha$ is a fixed scale from the protocol,
+and $\gamma\ge 0$ is the \textbf{misspecification dial}.
+
+\begin{itemize}[leftmargin=1.2em]
+\item $\gamma=0$: well-specified bilinear world (residual off).
+\item Mid $\gamma$ (e.g.\ $0.5$--$2$): residual competes with the GT channel.
+\item Extreme $\gamma$ (e.g.\ $10$--$100$): residual dominates ranking.
+\end{itemize}
+
+A global offset $b'(\gamma)$ is recalibrated so a logger reference CTR stays
+near $5\%$ as $\gamma$ changes (same protocol as $R^\star$).
+
+\subsection{Why SoftAND$^*$ / SoftThresh exist}
+$R^\star$ (even $\tanh$ warp of a second facet product) is one inductive bias:
+a \emph{separable} second interaction channel that is approximately orthogonal
+to linear scores because of evenness.
+SoftAND$^*$ and SoftThresh ask whether the hybrid / DR story still holds under
+\textbf{different residual geometries}:
+\begin{itemize}[leftmargin=1.2em]
+\item SoftAND$^*$: \emph{per-facet} ``both sides must fire'' concordance, then
+  strip anything bilinear can already represent.
+\item SoftThresh: a \emph{scalar} soft threshold on a second-index score ---
+  sparse ``high second-index'' bonuses that are \emph{not} finite-rank separable.
+\end{itemize}
+
+Learners (NLL, OPC/DR, hybrid\_seq) never see $\phi$ as a feature; they only
+see logged clicks from $q(\ell_\gamma)$. Misspecification means their
+assumed scoring class (linear in the same embeddings) is wrong for large $\gamma$.
+
+\section{Shared scaffolding}
+
+\subsection{Facet projections}
+Draw (once per seed / \texttt{proj\_tag}) random projections so each user and
+item has $m$ facet coordinates $t_{u,k}, t_{a,k}$ (z-scored). Locked grid uses
+\begin{center}
+$m=4$, \texttt{proj\_tag=default}, \texttt{norm=v2}.
+\end{center}
+The same $(t_u,t_a)$ draw is shared across SoftAND$^*$ / SoftThresh / Cosine /
+PL on a given tag so family differences are not confounded with projection noise.
+
+\subsection{Bilinear perpendicular (``$\perp$'')}
+After building a raw residual score $\phi_{\mathrm{raw}}$, SoftAND$^*$ and
+SoftThresh apply an explicit projection that removes the best affine-bilinear
+fit in the embedding features (and intercepts). Intuitively:
+\begin{equation}
+\phi \;=\; \mathrm{unit\text{-}sd}\!\left(\phi_{\mathrm{raw}} - \Pi_{\mathrm{bilinear}}(\phi_{\mathrm{raw}})\right).
+\end{equation}
+So the residual that multiplies $\gamma\alpha$ is ``what a clean bilinear
+model cannot already soak up.'' $R^\star$ mostly relied on evenness for a
+similar effect; SoftAND$^*$ / SoftThresh enforce $\perp$ explicitly.
+
+\subsection{Unit-SD (norm=v2)}
+After $\perp$, rescale so the catalog pair-SD of $\phi$ is $1$. Then the
+designed residual contribution is exactly $\gamma\alpha\phi$ in SD units
+(SoftAND$^*$ / SoftThresh track $\mathrm{sd\_ratio}\approx\gamma$ empirically;
+$R^\star$ overshoots $\approx 2.4\times$).
+
+\section{SoftAND$^*$ --- thresholded per-facet concordance}
+
+\subsection{Intuition}
+Think of each facet $k$ as a soft ``topic light.'' SoftAND$^*$ gives reward
+mass when \emph{the same} facet is above a threshold on \emph{both} the user
+and the item --- an AND-like concordance --- then averages over facets.
+
+\subsection{Formula (locked)}
+With softplus $\mathrm{sp}(z)=\log(1+e^{z})$ and locked
+$c=1$, $s=\texttt{gate\_s}=0.25$:
+\begin{align}
+g_{u,k}
+&=
+\mathrm{sp}\!\left(\frac{t_{u,k}-c}{s}\right),
+&
+h_{a,k}
+&=
+\mathrm{sp}\!\left(\frac{t_{a,k}-c}{s}\right),
+\\
+\phi_{\mathrm{raw}}(u,a)
+&=
+m^{-1/2}\sum_{k=1}^{m} g_{u,k}\,h_{a,k}.
+\end{align}
+Then double-center the factor sides, apply $\perp$, then unit-SD (v2).
+
+Implementation sketch (\texttt{utils/residual\_env.py}): factorized form
+$f_u\leftarrow m^{-1/2}\mathrm{sp}((t_u-c)/s)$, $f_a\leftarrow\mathrm{sp}((t_a-c)/s)$,
+so $\phi_{\mathrm{raw}}=f_u^\top f_a$ before centering / $\perp$.
+
+\subsection{Locked residual-spec string}
+\begin{verbatim}
+m=4,c=1,gate_s=0.25,proj_tag=default,norm=v2
+\end{verbatim}
+(KuaiRec mlsize cells may append \texttt{catalog\_amp=0.75}.)
+
+\subsection{What it is / is not}
+\begin{itemize}[leftmargin=1.2em]
+\item \textbf{Is:} multiplicative gate on co-activated facets; still
+  \emph{separable} before $\perp$ (rank-$\le m$ product).
+\item \textbf{Is not:} an even warp of a second bilinear index ($R^\star$);
+  not a threshold on the \emph{sum} of facet products (that is SoftThresh).
+\item \textbf{vs $R^\star$:} SoftAND$^*$ uses one-sided softplus gates
+  (odd-ish / threshold behavior), not $\tanh(s(t^2-1))$.
+\end{itemize}
+
+\section{SoftThresh ($\tau=1.5$) --- soft threshold on $z_2$}
+
+\subsection{Intuition}
+First form a second bilinear index from the same facets,
+\begin{equation}
+z_2(u,a)=m^{-1/2}\sum_{k=1}^{m} t_{u,k}\,t_{a,k}.
+\end{equation}
+Standardize to $\tilde z_2=(z_2-\mu)/\sigma$ over the catalog.
+SoftThresh adds a \emph{sparse bonus} only when $\tilde z_2$ exceeds a
+threshold $\tau$ --- softplus so the map is smooth for gradients / SD math,
+but still ``mostly off'' below $\tau$.
+
+\subsection{Formula (locked)}
+With $\tau=1.5$, $s_{\mathrm{th}}=0.25$:
+\begin{equation}
+\phi_{\mathrm{raw}}(u,a)
+=
+\mathrm{sp}\!\left(\frac{\tilde z_2(u,a)-\tau}{s_{\mathrm{th}}}\right).
+\end{equation}
+Then $\perp$ against affine-bilinear features and unit-SD. SoftThresh is
+stored as a catalog residual (not a low-rank $f_u^\top f_a$ after the softplus),
+because softplus-of-a-sum is \textbf{not} finite-rank separable.
+
+\subsection{Locked residual-spec string}
+\begin{verbatim}
+m=4,tau=1.5,s_th=0.25,proj_tag=default,norm=v2
+\end{verbatim}
+(Optional \texttt{catalog\_amp=0.75} on KuaiRec mlsize.)
+
+\subsection{Role of $\tau$}
+Larger $\tau$ $\Rightarrow$ rarer ``on'' pairs $\Rightarrow$ more spike-like residual
+before unit-SD (unit-SD then stretches the sparse mass back to SD $1$).
+Locked confirmatory value: $\tau=1.5$.
+
+\section{Side-by-side comparison}
+
+\begin{center}
+\begin{tabular}{@{}llp{0.42\textwidth}@{}}
+\toprule
+ & SoftAND$^*$ & SoftThresh $\tau{=}1.5$ \\
+\midrule
+Where nonlinearity sits
+  & Per facet, then product
+  & On scalar $\tilde z_2$ \\
+AND semantics
+  & Same-facet co-activation
+  & ``Second index large'' (any facets) \\
+Separable after $\psi$?
+  & Yes before $\perp$
+  & No (softplus of a sum) \\
+$\perp$
+  & Yes
+  & Yes \\
+Tracks $\mathrm{sd\_ratio}\approx\gamma$?
+  & Yes
+  & Yes \\
+Typical mid-$\gamma$ var share of $\phi$
+  & $\approx 20\%$ at $\gamma{=}0.5$
+  & $\approx 20\%$ at $\gamma{=}0.5$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent
+Contrast with $R^\star$ at the same nominal $\gamma{=}0.5$: realized
+$\mathrm{sd\_ratio}\approx 1.19$ and $\mathrm{var\_share}_\phi\approx 59\%$ ---
+$R^\star$ is a \emph{louder} dial at equal $\gamma$. That is why SoftAND$^*$ /
+SoftThresh often need slightly higher $\gamma$ before hybrid clearly beats NLL,
+while still matching the designed SD dial.
+
+\section{Dial calibration (MovieLens, bias high)}
+
+Uniform $(x,a)$ measurement (seeds 300--319). Designed $\mathrm{sd}(\phi)=1$.
+Selected rows:
+
+\begin{center}\small
+\begin{tabular}{lrrrrr}
+\toprule
+family & $\gamma$ & sd\_ratio & var\_share$_\phi$ & reward\_ratio & CTR lift$_\phi$ \\
+\midrule
+SoftAND$^*$ & 0.5 & 0.50 & 19.9\% & 1.14 & $+0.33$pt \\
+SoftAND$^*$ & 1 & 1.00 & 49.8\% & 1.44 & $+0.89$pt \\
+SoftAND$^*$ & 2 & 1.99 & 79.9\% & 2.43 & $+1.86$pt \\
+SoftAND$^*$ & 100 & 99.6 & 100\% & $\gg 1$ & $+4.25$pt \\
+\midrule
+SoftThresh & 0.5 & 0.50 & 20.0\% & 1.17 & $+0.39$pt \\
+SoftThresh & 1 & 1.00 & 50.0\% & 1.57 & $+1.05$pt \\
+SoftThresh & 2 & 2.00 & 80.0\% & 3.16 & $+2.17$pt \\
+SoftThresh & 100 & 100.1 & 100\% & $\gg 1$ & $+4.25$pt \\
+\midrule
+$R^\star$ (ref) & 0.5 & 1.19 & 58.7\% & 1.72 & $+1.17$pt \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent
+\textbf{Reading.} SoftAND$^*$ / SoftThresh are faithful to the nominal dial.
+At extreme $\gamma$, $E[q_{\mathrm{GT}}]\to 0$ so raw reward ratios explode ---
+prefer $\mathrm{var\_share}_\phi$ / share-of-$E[q]$ for interpretation.
+Full table: \texttt{hybrid\_by\_cell/REWARD\_RATIOS.md}.
+
+\section{How this shows up in learner results}
+
+Primary estimands (exact-greedy CTR \%), paired over seeds:
+\begin{align}
+\Delta_{\mathrm{H},\mathrm{NLL}}(\gamma)
+&=
+V(\pi^{\mathrm{hybrid}\,f{=}0.5}_\gamma)-V(\pi^{\mathrm{NLL}}_\gamma),
+\\
+\mathrm{DiD}
+&=
+\Delta(\gamma)-\Delta(0).
+\end{align}
+On MovieLens ($n{=}40$), SoftThresh typically shows a clear hybrid win from about
+$\gamma\ge 0.5$ (CI LB$>0$), SoftAND$^*$ from about $\gamma\ge 0.75$, with both
+families large and positive at $\gamma\in\{2,4,10,100\}$.
+Well-spec $\gamma{=}0$ cells stay near zero / slightly negative for hybrid vs NLL
+(small cost of the DR phase when the world is bilinear).
+See \texttt{hybrid\_results\_by\_setup.pdf} for per-setup tables
+(dataset$\times$family$\times\gamma$) with CIs and bolded best methods.
+
+\section{Code \& tags}
+
+\begin{itemize}[leftmargin=1.2em]
+\item Implementation: \texttt{utils/residual\_env.py}
+  (\texttt{kind=softand} / \texttt{softthresh}).
+\item Family overview (incl.\ $R^\star$, foils): \texttt{FAMILIES\_EXPLAINED.md}.
+\item Full-grid run tags: \texttt{nlres\_grid\_\{ds\}\_softand\_g\{$\gamma$\}},
+  \texttt{nlres\_grid\_\{ds\}\_softthresh\_g\{$\gamma$\}}.
+\item Earlier ML locks: \texttt{nlres\_h1\_softand\_g*}, \texttt{nlres\_h1\_st15\_g*},
+  \texttt{nlres\_h1b\_softand\_g*} (cfg-clean seed extend).
+\end{itemize}
+
+\section{One-line takeaways}
+\begin{enumerate}[leftmargin=1.4em]
+\item SoftAND$^*$ $=$ soft thresholded \textbf{same-facet AND}, then strip bilinear, unit-SD.
+\item SoftThresh $=$ soft threshold on a \textbf{second bilinear index} $z_2$, then strip bilinear, unit-SD.
+\item Both track $\mathrm{sd\_ratio}\approx\gamma$; $R^\star$ is louder at the same nominal $\gamma$.
+\item They are stress tests that hybrid NLL$\to$DR is not an $R^\star$-only artifact.
+\end{enumerate}
+
+\end{document}
