@@ -130,7 +130,9 @@ That is exactly why a capacity sweep is the right next probe: it tests whether o
 
 Prefer:
 
-> “We induce **controlled class misspecification** of the true click logit relative to a locked policy score class \(\mathcal{F}\), via a unit-SD residual dial \(\gamma\phi\).”
+> “We construct worlds whose click logit contains a controlled component \(\phi\) that is orthogonal (under catalog-uniform design) to the locked bilinear score class. This is **controlled mean-function / class misspecification**: Bernoulli likelihood, link, logging policy, and propensities are exact, so identification is not at issue.”
+
+> “NLL and DR have different pseudo-true targets under misspecification (KL projection of \(q^\star\) vs best-in-class value). We report \(D(\gamma)\) and its interaction with \(\gamma\), and measure effective misspecification by the value-vs-likelihood oracle gap \(\Delta_{\mathrm{proj}}\) rather than by nominal \(\gamma\) alone.”
 
 Avoid as primary:
 
@@ -138,4 +140,18 @@ Avoid as primary:
 
 Secondary allowed:
 
-> “Equivalently, a sensitivity analysis of OPL objectives under structured departures from bilinear truth.”
+> “Equivalently, a sensitivity / comparative-statics analysis of OPL objectives under structured departures from bilinear truth.”
+
+---
+
+## 9. Corrections from independent review (do not paper over)
+
+These points came out of a second pass over the locked protocol + `residual_env` (see review notes). They change wording more than code:
+
+1. **γ=0 is not a fully well-specified world in the locked `high` cell.** Learners see biased vectors (\(\tilde x,\tilde a\); ~50% signal kept). At γ=0 the truth is still bilinear in *clean* embeddings → **representation mismatch remains**. Prefer: “γ=0 = baseline with representation mismatch only.”
+2. **⊥ is taken w.r.t. the clean bilinear span under uniform pairs**, not the learner’s biased span or the logging measure. φ can still be partly linearly visible on \(\tilde x,\tilde a\). Report \(R^2_{\mathrm{lin}}\) / \(R^2_{\mathrm{mlp}}\) on biased features; do not assume ⊥ ⇒ invisible.
+3. **“DiD” is a label for a method×γ interaction contrast** identified by design (manipulated dial + CRN). No parallel-trends assumption. Prefer “interaction / comparative-statics contrast” in careful text; keep “DiD” only with that disclaimer.
+4. **Nominal γ is not comparable across families.** At γ=0.5, R* has ~59% residual variance share vs ~20% for SoftAND*/SoftThresh. Use \(\Delta_{\mathrm{proj}}\) / var-share for cross-family claims.
+5. **γ→100 is a φ-dominated regime**, not a small perturbation of a bilinear world. Describe it that way.
+6. **Vocabulary split:** “score-/policy-class misspecification” for \(\mathcal{F}\); “nuisance misspecification” for \(\hat q\); never “residual confounding.”
+7. **Capacity trial** (linear → `linear+mlp` widths) is the right probe of whether residual effects are class-relative or persist after expanding \(\mathcal{F}\).
