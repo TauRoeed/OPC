@@ -1,8 +1,12 @@
-# Capacity × misspec dial — lean trial (draft)
+# Capacity × misspec dial — lean trial
+
+**Status.** R*/SoftThresh mlp64+mlp256 lean wave **done** (see `capacity_fair_pi/REPORT.md`). SoftAND* mlp64 gap **queued** (`run_capacity_softand_mlp64.sh`). Claims: `CLAIMS_FAIR_PI.md`.
 
 **Question.** Holding the residual dial fixed, does **increasing matched learner capacity** shrink the hybrid/DR advantage over NLL (because a richer score class can absorb φ), or does the DiD pattern persist?
 
 This is complementary to Phase-1 (linear identifying contrast) and Phase-2 (OPC-mlp64 vs CausE). Here all methods share the same capacity within a cell; we vary capacity across cells.
+
+**Fair reasonable \(\pi\):** within a cell, use matched `linear+mlp` @ **hidden 64** as the primary production-like head. Linear is the reference identifying arm (do not re-run). Width 256 is sensitivity only.
 
 ---
 
@@ -29,19 +33,20 @@ where \(c\) indexes capacity. Primary: \(\mathrm{H}=\texttt{hybrid\_seq\_f0.5}\)
 | Axis | Levels |
 |------|--------|
 | dataset | ml (`BPR/embeddings`) |
-| misspec | R* (`s=1,m=4,psi=tanh`); SoftThresh τ=1.5 (`m=4,tau=1.5,s_th=0.25,proj_tag=default,norm=v2`) |
-| γ | 0, 0.5, 2 |
-| capacity \(c\) | `linear` (reference = existing `nlres_grid_ml_*` / `nlres_h1_*`); `linear+mlp` hidden **64**; `linear+mlp` hidden **256** |
+| misspec | R* (`s=1,m=4,psi=tanh`); SoftThresh τ=1.5 (`m=4,tau=1.5,s_th=0.25,proj_tag=default,norm=v2`); **SoftAND*** gap (`m=4,c=1,gate_s=0.25,proj_tag=default,norm=v2`) |
+| γ | R*/SoftThresh: 0, 0.5, 2 (done). SoftAND*: **0, 0.5, 100** (gap) |
+| capacity \(c\) | `linear` (reference = existing `nlres_grid_ml_*` / `nlres_h1_*`); `linear+mlp` hidden **64** (primary); `linear+mlp` hidden **256** (sensitivity; R*/ST only) |
 | methods | `opc`, `nll`, `hybrid_seq_f0.5` (matched within cell) |
 | seeds | 300–309 (n=10 lean); extend 310–339 if pattern clear |
 | HPO | same Optuna ranges as hybrid grid; CRN / `--skip-completed` |
 
 **Tags.**
-- `nlres_cap_{rstar|st15}_g{γ}_mlp64`
-- `nlres_cap_{rstar|st15}_g{γ}_mlp256`
-- Linear: do **not** re-run; analyze against `nlres_grid_ml_{rstar|softthresh}_g{γ}` (or h1 locks).
+- `nlres_cap_{rstar|st15}_g{γ}_mlp64` / `_mlp256` — **done**
+- `nlres_cap_softand_g{0,0.5,100}_mlp64` — **gap to run**
+- Linear: do **not** re-run; analyze against `nlres_grid_ml_{rstar|softthresh|softand}_g{γ}` (or h1 locks).
 
-**Cells to run (new):** 2 families × 3 γ × 2 widths = **12 tags** (n=10 → ~12×10 conditions, light).
+**Cells (R*/ST):** 2 families × 3 γ × 2 widths = **12 tags** (complete).  
+**SoftAND gap:** 3 tags × n=10.
 
 ---
 

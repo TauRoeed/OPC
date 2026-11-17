@@ -1,0 +1,3 @@
+nlres_cap_softand_g0_mlp64|softand|m=4,c=1,gate_s=0.25,proj_tag=default,norm=v2|0|64
+nlres_cap_softand_g0.5_mlp64|softand|m=4,c=1,gate_s=0.25,proj_tag=default,norm=v2|0.5|64
+nlres_cap_softand_g100_mlp64|softand|m=4,c=1,gate_s=0.25,proj_tag=default,norm=v2|100|64

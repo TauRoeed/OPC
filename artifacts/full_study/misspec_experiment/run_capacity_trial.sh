@@ -3,7 +3,16 @@
 # Caps: linear+mlp @ 64 and 256; families R* + SoftThresh; γ∈{0,0.5,2}; ml; seeds 300-309.
 # Linear reference = existing nlres_grid / h1 tags (not re-run).
 set -euo pipefail
-cd /home/roee/git-repos/OPC
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+if [[ ! -f "$REPO_ROOT/training/run_full_study_parallel.py" ]]; then
+  for cand in /home/roee/git-repos/OPC "$PWD"; do
+    if [[ -f "$cand/training/run_full_study_parallel.py" ]]; then
+      REPO_ROOT="$cand"
+      break
+    fi
+  done
+fi
+cd "$REPO_ROOT"
 ROOT=artifacts/full_study/misspec_experiment
 LOGDIR=$ROOT/logs
 mkdir -p "$LOGDIR"
@@ -76,7 +85,7 @@ run_one() {
   set +e
   docker run --rm --gpus all --shm-size=64g \
     -e NVIDIA_VISIBLE_DEVICES="$GPU_IDS" -e CUDA_VISIBLE_DEVICES="$GPU_IDS" \
-    -v /home/roee/git-repos/OPC:/app -w /app \
+    -v "$REPO_ROOT:/app" -w /app \
     opc:gpu -m training.run_full_study_parallel \
     "${COMMON[@]}" \
     --policy-transform linear+mlp --mlp-hidden "$hid" \

@@ -124,6 +124,13 @@ If we enlarge \(\mathcal{F}_c\) (`linear+mlp` widths), a γ>0 gap that **shrinks
 A gap that **persists** means either φ stays outside \(\mathcal{F}_c\), or DR/hybrid wins for reasons other than class fit (optimization geometry, weighting, etc.).  
 That is exactly why a capacity sweep is the right next probe: it tests whether our “misspecification” claim is class-relative or more intrinsic.
 
+**Locked reading (see `CLAIMS_FAIR_PI.md`, `capacity_fair_pi/REPORT.md`):**
+
+- **Primary fair reasonable \(\pi\):** matched `linear+mlp` @ hidden **64** (NLL / OPC / hybrid share the class).
+- **Linear** remains the identifying small-\(\mathcal{F}\) arm from the main grid — not the production-like headline alone.
+- Lean capacity evidence: **R*** DiD **persists** under mlp64/256; **SoftThresh** mid-γ **shrinks** (class-relative absorption). Prefer width 64 over 256 (γ=0 hybrid cost worsens with width).
+- **Banned:** mismatched capacity across methods; old `mlp` (LN+dropout); equating `blob` with residual-MLP capacity.
+
 ---
 
 ## 8. Recommended wording for the paper
@@ -154,4 +161,4 @@ These points came out of a second pass over the locked protocol + `residual_env`
 4. **Nominal γ is not comparable across families.** At γ=0.5, R* has ~59% residual variance share vs ~20% for SoftAND*/SoftThresh. Use \(\Delta_{\mathrm{proj}}\) / var-share for cross-family claims.
 5. **γ→100 is a φ-dominated regime**, not a small perturbation of a bilinear world. Describe it that way.
 6. **Vocabulary split:** “score-/policy-class misspecification” for \(\mathcal{F}\); “nuisance misspecification” for \(\hat q\); never “residual confounding.”
-7. **Capacity trial** (linear → `linear+mlp` widths) is the right probe of whether residual effects are class-relative or persist after expanding \(\mathcal{F}\).
+7. **Capacity trial** (linear → `linear+mlp` widths) is the right probe of whether residual effects are class-relative or persist after expanding \(\mathcal{F}\). Elevate mlp64 as the fair reasonable \(\pi\); keep linear as identifying. SoftAND* under mlp64 is the remaining capacity gap (`run_capacity_softand_mlp64.sh`).
