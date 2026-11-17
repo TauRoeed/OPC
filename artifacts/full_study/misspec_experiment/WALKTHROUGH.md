@@ -8,7 +8,7 @@ Self-contained tour of the residual-dial / hybrid confirmatory study. Each secti
 > 2. Richer KaTeX preview: choose **“Markdown Preview Enhanced: Open Preview to the Side”** (extension `shd101wyy.markdown-preview-enhanced` is installed).
 > 3. Formulas use `$...$` and `$$...$$`, which both previews render.
 
-Companion memos: `MISSPEC_FRAMING.md`, `SOFTAND_SOFTTHRESH_EXPLAINED.md`, `FAMILIES_EXPLAINED.md`, `PROTOCOL_DRAFT_hybrid.md`, `PROTOCOL_DRAFT_capacity.md`.
+Companion memos: `MISSPEC_FRAMING.md`, `SOFTAND_SOFTTHRESH_EXPLAINED.md`, `FAMILIES_EXPLAINED.md`, `PROTOCOL_DRAFT_hybrid.md`, `PROTOCOL_DRAFT_capacity.md`, `CLAIMS_FAIR_PI.md`, `capacity_fair_pi/REPORT.md`.
 
 ---
 
@@ -685,16 +685,18 @@ From `run_full_hybrid_grid.sh`:
 | $\gamma$ | 0, 0.25, 0.5, 0.75, 1, 2, 4, 10, 100 (+ anime 0.6) |
 | datasets | ml, anime, myket, kuairand/kuairec full + mlsize |
 | seeds | 300–339 ($n=40$) |
-| capacity | `linear` (main grid) |
+| capacity | `linear` (main / identifying grid) |
 | $n$ / val | 100k train, 20k val; Optuna 20 trials |
 
 Tags look like `nlres_grid_{ds}_{kind}_g{γ}`.
 
+**Fair reasonable $\pi$ (claims lock):** matched `--policy-transform linear+mlp --mlp-hidden 64` is the production-like head for method comparisons under residual capacity; linear remains the identifying small-$\mathcal F$ arm. See `CLAIMS_FAIR_PI.md` and `capacity_fair_pi/REPORT.md`.
+
 ---
 
-## 10. Capacity trial (follow-on)
+## 10. Capacity trial (fair reasonable $\pi$)
 
-Hold the residual dial fixed and enlarge the policy class to `linear+mlp` (hidden widths 64 and 256). Ask whether
+Hold the residual dial fixed and enlarge the policy class to `linear+mlp` (primary hidden **64**; **256** as sensitivity). Ask whether
 
 $$
 \mathrm{DiD}_c
@@ -706,9 +708,15 @@ $$
 
 **In words:** for each capacity setting $c$, recompute how the hybrid–NLL gap changes from $\gamma=0$ to the chosen positive $\gamma$, then compare that interaction across widths. More capacity would support a simple capacity explanation only if this contrast systematically moved toward zero.
 
-**Lean result (ml, $n=10$, R* + SoftThresh, $\gamma\in\{0,0.5,2\}$):** DiD does **not** cleanly vanish. R* DiD stays clearly positive at mlp256; SoftThresh mid-$\gamma$ softens (NLL absorbs more) but loud SoftThresh only partially shrinks; CIs for linear vs mlp256 overlap. At $\gamma=0$, hybrid’s cost vs NLL **worsens** with width.
+**Lean result (ml, $n=10$, R* + SoftThresh, $\gamma\in\{0,0.5,2\}$):**
 
-Protocol: `PROTOCOL_DRAFT_capacity.md`; driver: `run_capacity_trial.sh`.
+- **R***: H−NLL DiD stays clearly positive under mlp64 (**+0.99** at 0→0.5; **+3.22** at 0→2) and mlp256 — not an artifact of refusing the MLP.
+- **SoftThresh:** mid-$\gamma$ softens / CI crosses 0 under MLP (NLL absorbs $\phi$ — class-relative); loud SoftThresh only partially shrinks.
+- At $\gamma=0$, hybrid’s cost vs NLL **worsens** with width (≈−0.63 pt @64 vs ≈−1.19 @256) → prefer width **64**.
+
+**SoftAND* gap:** capacity wave omitted SoftAND*; run `run_capacity_softand_mlp64.sh` (γ∈{0, 0.5, 100}, mlp64, matched methods).
+
+Protocol: `PROTOCOL_DRAFT_capacity.md`, `CLAIMS_FAIR_PI.md`; drivers: `run_capacity_trial.sh`, `run_capacity_softand_mlp64.sh`; report: `capacity_fair_pi/REPORT.md`.
 
 ---
 
@@ -749,6 +757,10 @@ Review corrections: `MISSPEC_FRAMING.md` §9.
 | Method wiring | `training/run_full_study.py` |
 | Full grid | `artifacts/.../run_full_hybrid_grid.sh` |
 | Levels / DiD | `artifacts/.../analyze_hybrid_by_cell.py` |
+| Fair-π capacity report | `artifacts/.../capacity_fair_pi/REPORT.md` |
+| Fair-π claims lock | `artifacts/.../CLAIMS_FAIR_PI.md` |
+| Capacity analyzer | `artifacts/.../analyze_capacity_fair_pi.py` |
+| SoftAND mlp64 driver | `artifacts/.../run_capacity_softand_mlp64.sh` |
 | Dial loudness | `artifacts/.../measure_reward_ratios.py` |
 | Results PDF | `artifacts/.../build_hybrid_results_pdf.py` |
 | Framing | `artifacts/.../MISSPEC_FRAMING.md` |

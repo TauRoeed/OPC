@@ -1,0 +1,60 @@
+{
+  "title": "Fair reasonable π — capacity DiD summary",
+  "protocol": "PROTOCOL_DRAFT_capacity.md + CLAIMS_FAIR_PI.md",
+  "policy_transform": "linear+mlp",
+  "primary_hidden": 64,
+  "sensitivity_hidden": 256,
+  "linear_reference": "GlobalLinearCorrection (nlres_grid_ml_* / h1 locks)",
+  "dataset": "ml",
+  "bias": "high",
+  "seeds": [300, 301, 302, 303, 304, 305, 306, 307, 308, 309],
+  "n": 10,
+  "methods": ["opc", "nll", "hybrid_seq_f0.5"],
+  "metric": "exact-greedy CTR %; DiD = (H−NLL at γ) − (H−NLL at 0), CTR points",
+  "source": "Recomputed from run_nlres_cap_{rstar|st15}_g{0,0.5,2}_mlp{64,256} /*_runs_long.csv policy_rewards_greedy, paired seeds 300–309. Linear refs from run_nlres_grid_ml_*.",
+  "frozen_at": "2026-11-17",
+  "did_h_minus_nll": [
+    {"family": "rstar", "capacity": "mlp64", "contrast": "0→0.5", "mean": 0.99, "ci_lo": 0.02, "ci_hi": 1.96, "n": 10, "n_pos": 8},
+    {"family": "rstar", "capacity": "mlp64", "contrast": "0→2", "mean": 3.22, "ci_lo": 1.99, "ci_hi": 4.45, "n": 10, "n_pos": 10},
+    {"family": "rstar", "capacity": "mlp256", "contrast": "0→0.5", "mean": 1.62, "ci_lo": 0.80, "ci_hi": 2.45, "n": 10, "n_pos": 9},
+    {"family": "rstar", "capacity": "mlp256", "contrast": "0→2", "mean": 4.22, "ci_lo": 2.18, "ci_hi": 6.25, "n": 10, "n_pos": 9},
+    {"family": "st15", "capacity": "mlp64", "contrast": "0→0.5", "mean": 0.21, "ci_lo": -1.61, "ci_hi": 2.03, "n": 10, "n_pos": 5},
+    {"family": "st15", "capacity": "mlp64", "contrast": "0→2", "mean": 1.40, "ci_lo": -0.95, "ci_hi": 3.75, "n": 10, "n_pos": 8},
+    {"family": "st15", "capacity": "mlp256", "contrast": "0→0.5", "mean": 0.80, "ci_lo": -0.36, "ci_hi": 1.97, "n": 10, "n_pos": 6},
+    {"family": "st15", "capacity": "mlp256", "contrast": "0→2", "mean": 1.57, "ci_lo": -0.67, "ci_hi": 3.81, "n": 10, "n_pos": 7},
+    {"family": "rstar", "capacity": "linear", "contrast": "0→0.5", "mean": 1.37, "ci_lo": 0.79, "ci_hi": 1.95, "n": 18, "n_pos": 17, "note": "grid seeds overlapping 300+; not forced n=10"},
+    {"family": "rstar", "capacity": "linear", "contrast": "0→2", "mean": 3.59, "ci_lo": 2.92, "ci_hi": 4.26, "n": 40, "n_pos": 37},
+    {"family": "st15", "capacity": "linear", "contrast": "0→0.5", "mean": 0.66, "ci_lo": 0.27, "ci_hi": 1.06, "n": 40, "n_pos": 29},
+    {"family": "st15", "capacity": "linear", "contrast": "0→2", "mean": 3.50, "ci_lo": 2.88, "ci_hi": 4.13, "n": 40, "n_pos": 38}
+  ],
+  "did_opc_minus_nll": [
+    {"family": "rstar", "capacity": "mlp64", "contrast": "0→0.5", "mean": 0.66, "ci_lo": 0.00, "ci_hi": 1.32, "n": 10, "n_pos": 8},
+    {"family": "rstar", "capacity": "mlp64", "contrast": "0→2", "mean": 3.01, "ci_lo": 1.74, "ci_hi": 4.28, "n": 10, "n_pos": 10},
+    {"family": "rstar", "capacity": "mlp256", "contrast": "0→0.5", "mean": 1.28, "ci_lo": 0.64, "ci_hi": 1.92, "n": 10, "n_pos": 9},
+    {"family": "rstar", "capacity": "mlp256", "contrast": "0→2", "mean": 3.25, "ci_lo": 2.05, "ci_hi": 4.45, "n": 10, "n_pos": 10},
+    {"family": "st15", "capacity": "mlp64", "contrast": "0→0.5", "mean": -1.55, "ci_lo": -2.77, "ci_hi": -0.34, "n": 10, "n_pos": 2},
+    {"family": "st15", "capacity": "mlp64", "contrast": "0→2", "mean": -0.79, "ci_lo": -3.28, "ci_hi": 1.70, "n": 10, "n_pos": 5},
+    {"family": "st15", "capacity": "mlp256", "contrast": "0→0.5", "mean": -0.99, "ci_lo": -2.21, "ci_hi": 0.23, "n": 10, "n_pos": 3},
+    {"family": "st15", "capacity": "mlp256", "contrast": "0→2", "mean": 0.59, "ci_lo": -2.24, "ci_hi": 3.42, "n": 10, "n_pos": 5}
+  ],
+  "gamma0_h_minus_nll_pt": {
+    "mlp64": -0.63,
+    "mlp256": -1.19,
+    "note": "Approximate mean H−NLL at γ=0 under linear+mlp; hybrid cost vs NLL worsens with width."
+  },
+  "softand_gap": {
+    "status": "queued",
+    "tags": [
+      "nlres_cap_softand_g0_mlp64",
+      "nlres_cap_softand_g0.5_mlp64",
+      "nlres_cap_softand_g100_mlp64"
+    ],
+    "driver": "run_capacity_softand_mlp64.sh",
+    "spec": "m=4,c=1,gate_s=0.25,proj_tag=default,norm=v2"
+  },
+  "reading": {
+    "rstar": "DiD stays clearly positive under linear+mlp@64/256 — not an artifact of refusing the MLP.",
+    "softthresh": "Mid-γ DiD softens / CI crosses 0 under MLP (NLL absorbs φ); class-relative. Loud γ only partially shrinks.",
+    "primary_class": "linear+mlp hidden 64 is the fair reasonable π head; linear remains the identifying small-F arm."
+  }
+}
