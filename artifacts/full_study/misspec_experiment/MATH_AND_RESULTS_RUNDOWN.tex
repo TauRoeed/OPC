@@ -46,7 +46,7 @@
 + scaling-law proposal + results\\[0.2em]
 \normalsize Phone portrait / ASCII}
 \author{OPC / Asia/Jerusalem}
-\date{22 Nov 2026 (v2 full formulas)}
+\date{22 Nov 2026 (v3 scaling method)}
 
 \begin{document}
 \maketitle
@@ -54,7 +54,7 @@
 {\footnotesize\raggedright
 \tag{OBSERVED} data; \tag{LOCKED} fixed;\\
 \tag{PLANNED} protocol; \tag{HYPOTHESIS} untested;\\
-\tag{ISSUE} risk. Cutoff 09:50 Asia/Jerusalem.\par
+\tag{ISSUE} risk. Cutoff 20:45 Asia/Jerusalem.\par
 }
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -74,9 +74,9 @@ Hybrid f=0.5 is the locked schedule.
 (+3.78); \textbf{inconclusive} at g=0.5
 (CI crosses 0).
 
-\textbf{Scaling:} propose floor + power-law excess
-in N\_eff, with Laws 1--2 as hypotheses ---
-blocked until nested data + floor redefine.
+\textbf{Scaling method (Sec.~8):} pin floors,
+fit excess vs N, claim N\_star(g) + Gate(C).
+Blocked until nested data A1 + floor redefine.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \phonesection{1. What ``misspec'' means here}
@@ -116,7 +116,7 @@ DR (value-oriented) and hybrid.
 \phonesub{Important correction}
 g=0 in the locked \texttt{high} bias cell is
 \textbf{not} fully well-specified: learners see
-biased vectors (~50\% signal\_kept). Truth is
+biased vectors (approx 50\% signal\_kept). Truth is
 bilinear in \emph{clean} embeddings =>
 \textbf{representation mismatch remains}.
 Say: ``g=0 = baseline with representation
@@ -249,9 +249,9 @@ features. Always report R2(phi|biased).
 \phonesub{Unit-SD (norm=v2)}
 SoftAND*/ST: after PERP, rescale catalog pair-SD
 of phi to 1 (R* v1 is not unit-sd).
-Designed residual ~ gamma*alpha*phi in SD units
-only under v2. SoftAND*/ST track sd\_ratio ~ gamma;
-R* overshoots (~2.4x at g=0.5) --- so
+Designed residual approx gamma*alpha*phi in SD units
+only under v2. SoftAND*/ST track sd\_ratio approx gamma;
+R* overshoots (approx 2.4x at g=0.5) --- so
 \textbf{nominal gamma is not cross-family
 comparable}. Prefer Delta\_proj / var-share.
 
@@ -360,13 +360,13 @@ ST 2 & 39.11 & 18.30 & 20.82 \\
 
 \textbf{Reading.} Large Delta\_proj => big
 value-vs-likelihood gap inside F.
-R2(phi|biased)~0 => residual not linearly
+R2(phi|biased) approx 0 => residual not linearly
 recoverable from biased features.
 R2\_lin(clean-lin|biased)=0.626 is already used
 by the linear class. Repair mlp64-lin: +0.48 at
 g0 vs +3.82 at R* g2 => width gain grows with
 gamma; phi partly nonlinearly visible
-(R2\_mlp64(phi|biased)~0.03, R*) --- key for Law 2.
+(R2\_mlp64(phi|biased) approx 0.03, R*) --- key for Law 2.
 
 \textbf{Caveat:} SoftThresh g2 repair mlp64
 35.52 < V\_lin\_val 39.11.
@@ -396,158 +396,341 @@ vs NLL: well ~ -0.04; misspec ~ +3.05.
 Not confirmatory.
 
 \phonesub{Capacity lean n=3 (R* g2)}
-Hy: lin 21.36 -> mlp256 26.27 (~+4.9).
+Hy: lin 21.36 -> mlp256 26.27 (approx +4.9).
 NLL: 16.81 -> 21.75. Width helps despite
-R2\_lin(phi)~0. Hy-NLL at g0 worsens with width
+R2\_lin(phi) approx 0. Hy-NLL at g0 worsens with width
 (-0.12 -> -1.53) --- watch G\_well.
 
 \phonesub{Grid progress}
-Hybrid 154/192 cells (6957/7680 seeds).
-Capacity 24/30. Recoverability done.
-GPUs held by external vLLM.
+Hybrid 154/192 cells (approx 6970/7680 seeds).
+Capacity 25/30 (rstar g2 mlp64 done).
+Recoverability done. GPU 2--3 ours;
+0--1 held by external vLLM.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\phonesection{8. Scaling laws proposal}
+\phonesection{8. Scaling laws --- method}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \tag{PLANNED} / \tag{HYPOTHESIS}
 
-\phonesub{Why not Kaplan/Chinchilla}
-\begin{itemize}
-  \item train loss != eval when g>0
-  \item stacked floors, not one E
-  \item binding: N / ESS / HPO, not FLOPs
-  \item gamma = stress dial, not resource
-\end{itemize}
-\textbf{Keep:} fit reducible regret to pinned
-oracles; three-regime curves; leave-largest-N
-holdout; matched HPO.
+\textbf{This is a method, not a result.}
+What we measure, how we pin floors, which
+curves we fit, and what would count as
+support or refute.
 
-\phonesub{Axes}
-\begin{asc}
-theta = (N, |U|, |A|, d, C, F, gamma, s)
-w_i = pi(a_i|x_i) / pi0(a_i|x_i)
-N_eff = (sum w)^2 / sum(w^2)   # Kish COUNT
-rho   = N_eff / N              # fraction
-# For NLL set N_eff := N (no IPS weights)
-# N_eff for DR depends on learned pi (endogenous)
-\end{asc}
+\textbf{Gloss.} ESS = Kish effective sample
+size. IPS = inverse propensity. HPO =
+hyperparameter search. CRN = common random
+numbers (paired seeds). ``Pinned floor'' =
+oracle value fixed before fitting. ``Collapse''
+= curves from different worlds align on one
+axis. ``Two-tower'' = separable user/item
+score class (affine-bilinear or mlp-of-dot).
 
-\phonesub{Regret to a pinned floor}
-\begin{asc}
-R_m(N,C,g,s) = V_ref(C,g) - V_m(...)
-V_ref = pinned BEFORE fit
-  (e.g. V_lin_val or repair oracle)
-# do NOT free-fit asymptote after peeking
-\end{asc}
-
-Candidate additive excess (identify only when
-axes vary independently):
-\begin{asc}
-R_m = B_m(g,s) + a_m * N_eff^(-alpha_m)
-      [+ b_m * C^(-beta_m) only if C varied
-       apart from the V_ref(C) pin]
-\end{asc}
-
-\textbf{ISSUE:} learned NLL ~18 > V\_lin\_lik
-13.05 at g0 => lik-oracle is wrong pin for
-B\_NLL. Redefine before fitting.
-
-\phonesub{Regret stack (telescoping)}
-\begin{asc}
-V_ceil - V_m =
-  Delta_feat(g; s, R2)     # features
-+ Delta_class(g, C)        # class width
-+ Delta_obj_m(g, C)        # NLL: proj gap
-+ eps_est_m(N, C, pi0, g)  # sample + HPO
-\end{asc}
-Needs explicit intermediate oracles
-V\_info, V\_class(C). Terms can be negative if
-pins are wrong.
-
-\phonesub{Law 1 --- misspec/variance crossover \tag{HYPOTHESIS}}
-\begin{asc}
-D(g;N,C) = V_DR - V_NLL
-Prefer measurable:
-  DDelta_proj(g) = Delta_proj(g)-Delta_proj(0)
-Level: D = Delta_proj_eff(g) - Delta_eps(g)
- Delta_eps = eps_DR - eps_NLL
-DiD(g) = DDelta_proj_eff(g)
- - [Delta_eps(g) - Delta_eps(0)]
-Psi = DDelta_proj_eff / [Delta_eps(g)-Delta_eps(0)]
-DiD > 0 iff Psi > 1 (denom > 0)
-Hybrid threshold lambda(f): UNTESTED (n=3)
-Headline: N_star(g), D(g;N_star)=0 (level)
-\end{asc}
-
-\textbf{Justification.} DR pays variance to
-reduce projection bias. Crossover when bias
-reduction exceeds extra estimation error.
-
-\textbf{Why not raw Delta\_proj:} at g=0,
-Delta\_proj=11.09 but D~-1.07 --- oracle gap
-!= method gap. Use DDelta or measured
-Delta\_proj\_eff.
-
-\phonesub{Law 2 --- feature-gated capacity \tag{HYPOTHESIS}}
-\begin{asc}
-Gate on R2(logit | biased, TWO-TOWER class)
-NOT R2(phi | biased) alone
-# linear+mlp is still inner-product / separable
-# cannot express SoftThresh softplus(z2)
-\end{asc}
-
-\textbf{Justification attempt:} if residual is
-invisible to the class, width cannot recover it.
-\textbf{Counter-evidence:} R2\_lin(phi)~0 yet mlp256
-gains ~+4.9 pt on R* g2 vs NLL +1.3 at g0 (n=3);
-gain grows with gamma => not representation
-mismatch alone; nonlinear phi visibility likely.
-Law 2 unsettled; measure two-tower R2(logit).
-
-\phonesub{Phase roadmap}
+\phonesub{8.0 Do this (six steps)}
 \begin{enumerate}
-  \item \textbf{P0} redefine floors; nested data
-        A1; equal account A2; HPO A4; finish
-        capacity g2 A6
-  \item \textbf{P1} N-probe 25k..800k
-  \item \textbf{P2} N x gamma identify
-  \item \textbf{P3} N x C surface
-  \item \textbf{P4} multi-ds / ESS (use rho)
-  \item \textbf{P5} 3.2M holdout; >=80\% PI
-        or ``trends only''
+  \item Build nested train prefixes A1
+        (one pool per seed; prefixes; val
+        fixed 20k).
+  \item Train matched \{NLL, OPC, Hy0.5\}
+        at each N (same HPO budget;
+        select on val DR estimate).
+  \item Record oracle V, learned V, and
+        ESS/rho for DR.
+  \item Validate / redefine floors (A3)
+        before any curve fit.
+  \item Fit crossover N\_star(g) on held-in
+        N; check it falls with
+        DDelta\_proj\_eff.
+  \item Predict held-out largest N; else
+        say ``trends only''.
 \end{enumerate}
 
-\phonesub{Claims S1--S7 (abbrev)}
-S1 bias not small-sample;
-S2 NLL saturates/inverses for g>0;
-S3 N\_star falls with DDelta\_proj;
-S4 well-spec control (bias=none, g=0): NLL >= OPC all N;
-S5 C != data substitute under right R2 gate;
-S6 ESS/rho is DR's data unit;
-S7 3.2M coverage.
+\phonesub{8.1 Question}
+Under locked class misspec (Sec.~1--5),
+how do
+\begin{asc}
+D = V_DR - V_NLL
+DiD(g) = D(g) - D(0)
+\end{asc}
+move when scarce resources (N, ESS) and
+capacity C change --- protocol fixed
+(bias, class F, residual family, f\_star)?
 
+Target: \textbf{curves + crossover points},
+not one universal exponent.
+
+\phonesub{8.2 Why not Kaplan/Chinchilla}
+\begin{itemize}
+  \item Logged NLL != eval target under
+        misspec (also at locked g=0:
+        representation mismatch remains;
+        see Sec.~1).
+  \item Floors are stacked (features /
+        class / objective), not one E.
+  \item Binding axes: N, ESS, HPO ---
+        not FLOPs (nets are tiny).
+  \item gamma = stress dial, not a
+        resource.
+\end{itemize}
+
+\textbf{Still borrow:} reducible regret to
+a pinned oracle; three regimes; largest-N
+holdout; matched HPO at every scale point.
+
+\phonesub{8.3 Axes and data unit}
+\begin{asc}
+theta = (N, |U|, |A|, d, C, F, gamma, s)
+# s := signal_kept (repr. bias), NOT
+#     SoftAND gate_s / R* tanh scale
+
+# Design axis = N (logged rows).
+# ESS is diagnostic for DR (endogenous):
+w_i = pi_soft(a_i|x_i)/pi0(a_i|x_i)
+# pi_soft = softmax of learned scores
+# (greedy pi makes Kish degenerate)
+N_eff = (sum w)^2 / sum(w^2)
+rho   = N_eff / N
+# NLL: N_eff := N
+\end{asc}
+
+\textbf{Rule.} Fit primary curves vs N.
+Report DR also vs N\_eff; S6 = ``DR aligns
+better in N\_eff than N.'' One design per
+fit (N fixed / N/|A| / N/|U| --- do not mix).
+
+\phonesub{8.4 Pin floor, then fit excess}
+\begin{asc}
+R_m = V_ref(C,g) - V_m(N,C,g,s)
+
+# Pin BEFORE looking at curves:
+V_ref = max(V_lin_val(g), V_repair_C(g))
+# V_lin_val / V_lin_lik: see Sec 5
+# V_repair_C = value oracle in same
+# width class C (clean features)
+
+# Floor B_m is ALSO pinned (not free):
+B_m := V_ref - V_m_inf
+# V_m_inf from A3 (huge-N / oracle class)
+# Fit ONLY a_m, alpha_m on excess:
+R_m - B_m = a_m * N_eff^(-alpha_m)
+# [+ b_m*C^(-beta) only if C varies
+#  apart from the V_ref(C) pin]
+\end{asc}
+
+\textbf{Intuition.} B\_m = gap left when N
+is huge. Excess term = finite-sample.
+Under misspec expect B\_NLL >> B\_DR
+(NLL keeps projection tax).
+
+\textbf{ISSUE (blocks fitting):} at g0,
+learned NLL approx 18 already beats
+V\_lin\_lik 13.05 (also at R* g2: NLL-lin
+16.81 > V\_lin\_lik 13.88). So
+\textbf{V\_lin\_lik is not NLL's asymptote}
+--- predicted B\_NLL from lik-oracle is
+wrong. Phase 0 must redefine B\_NLL
+(wider oracle / repair pin / drop lik
+pin) before any alpha fit.
+
+\phonesub{8.5 Regret stack (ledger)}
+Accounting identity, not a fitted model:
+\begin{asc}
+V_ceil - V_m =
+  Delta_feat(g; s, R2)   # unrecoverable
++ Delta_class(g, C)      # width headroom
++ Delta_obj_m(g, C)      # obj. tax
++ eps_est_m(N,C,pi0,g)   # sample + HPO
+
+# Effective projection gap (learners):
+Delta_proj_eff :=
+  Delta_obj_NLL - Delta_obj_DR
+DDelta_proj_eff(g) :=
+  Delta_proj_eff(g) - Delta_proj_eff(0)
+\end{asc}
+
+If a ledger term goes negative, fix the
+pin --- do not narrate it as a finding.
+
+Loss-scale intuition (not value-scale):
+\begin{asc}
+B_repr_L approx (g*alpha)^2 * Var(phi)
+              * [1 - R2(phi|biased)]
+\end{asc}
+
+\phonesub{8.6 Law 1: crossover}
+\tag{HYPOTHESIS} --- primary object
+
+\textbf{Story.} DR pays IPS variance to cut
+projection bias. NLL is lower-variance but
+wrong-target under misspec. As N grows,
+DR variance shrinks; bias gap stays =>
+crossover N\_star where DR catches NLL.
+
+\begin{asc}
+D(g;N,C) = V_DR - V_NLL       # level
+Delta_eps = eps_DR - eps_NLL
+
+# Prefer CRN contrast vs g=0:
+# Delta_proj: Sec 5 (V_lin_val-V_lin_lik)
+DDelta_raw = Delta_proj(g)-Delta_proj(0)
+
+Level: D = Delta_proj_eff - Delta_eps
+DiD  = DDelta_proj_eff
+     - [Delta_eps(g)-Delta_eps(0)]
+
+# Prefer DiD / difference form over Psi
+# ratio (sign-fragile when denom <= 0)
+\end{asc}
+
+\textbf{Headline:} N\_star(g) with
+D(g; N\_star)=0 at matched C (level
+crossover). Primary design axis = N.
+
+\textbf{Why not raw Delta\_proj:} at locked
+g=0, Delta\_proj=11.09 but empirical
+D approx -1.07. Oracle gap != method gap.
+S3 uses \textbf{DDelta\_proj\_eff}.
+
+\textbf{Hybrid.} f = objective schedule,
+not FLOPs. Hypothesis: Hy beats NLL when
+D\_H stays positive past a threshold
+lambda(f). Only n=3 pilot at f=0.5 ---
+lambda untested.
+
+\textbf{Test Law 1}
+\begin{enumerate}
+  \item Nested prefixes A1; val=20k.
+  \item Methods \{NLL, OPC, Hy0.5\};
+        HPO 20 trials (A4 checks 60);
+        select on val DR.
+  \item N = 25k,50k,100k,200k,400k,800k
+        (P1); then to 1.6M (P2).
+  \item Worlds: locked-high g=0 + g in
+        \{0.5,2\} x \{R*, SoftThresh\}
+        (SoftAND later; muted mid-g).
+  \item Fit N\_star(g); check falls with
+        DDelta\_proj\_eff (S3).
+  \item Leave-largest-N-out first.
+\end{enumerate}
+
+\phonesub{8.7 Law 2: capacity gate}
+\tag{HYPOTHESIS} --- secondary; unsettled
+
+\textbf{Story.} Extra width helps only if
+the class can see residual structure on
+\textbf{biased} features; else C buys IPS
+noise.
+
+\textbf{Gate (revised, incremental):}
+\begin{asc}
+Gate = R2_tt(ell|biased)
+     - R2_lin(ell|biased)
+# tt = two-tower / separable class
+# Prefer value units when possible
+# NOT R2(phi|biased) alone
+\end{asc}
+
+Why incremental: total R2(ell|biased) can
+\textbf{fall} as gamma grows (phi poorly
+visible) while width gains \textbf{rise}
+--- so a level R2 gate predicts the wrong
+direction on current numbers.
+
+n=3 lean pilot: R2\_lin(phi) approx 0 yet
+mlp256 gains approx +4.9 pt on R* g2;
+repair +3.82 at g2 vs +0.48 at g0. Old
+claim ``width never helps when
+R2\_lin(phi)=0'' is contradicted by that
+pilot --- rewrite pending Gate measurement.
+
+\textbf{Test Law 2}
+\begin{enumerate}
+  \item Measure Gate on scaling worlds.
+  \item P3: C in \{lin, mlp16,64,256,1024\}
+        at sparse N; q-hat class fixed.
+  \item Predict: when Gate low, DiD
+        persists / V gains small; when
+        Gate high, width can close DiD.
+  \item Watch G\_well: Hy-NLL at g0 must
+        not collapse with width.
+\end{enumerate}
+
+\phonesub{8.8 Phase order}
+\begin{enumerate}
+  \item \textbf{P0} A1 nested prefixes;
+        A2 equal data; A3 huge-N NLL vs
+        pinned floor (defines V\_m\_inf);
+        A4 HPO 20 vs 60; A5 100k == legacy;
+        A6 finish capacity g2 n=40.
+  \item \textbf{P1} N-probe grid above;
+        linear; seeds 100--104; + well-spec
+        control (bias=none, g=0).
+  \item \textbf{P2} N x gamma; seeds
+        300--309; fit N\_star /
+        beta\_DiD (= slope of DiD vs N
+        on log-N); leave-largest-N-out.
+  \item \textbf{P3} N x C (Law 2).
+  \item \textbf{P4} multi-ds + ESS
+        collapse (rho).
+  \item \textbf{P5} freeze; predict 3.2M;
+        >=80\% of cell means inside frozen
+        90\% PI else ``trends only''.
+\end{enumerate}
+
+\phonesub{8.9 Claims S1--S7}
+\begin{itemize}
+  \item S1 DiD is bias, not small-sample
+        (beta\_DiD LB > 0).
+  \item S2 under misspec (g>0 vs g=0 /
+        well-spec): NLL saturates or
+        inverts.
+  \item S3 N\_star falls with
+        DDelta\_proj\_eff.
+  \item S4 well-spec control: NLL >= OPC
+        all N (bias=none, g=0).
+  \item S5 C != data substitute when
+        Gate low.
+  \item S6 ESS/rho is DR's data unit.
+  \item S7 3.2M coverage.
+\end{itemize}
+
+\phonesub{8.10 Kill switches}
+Stop / downgrade if: flat curves (K1);
+HPO-bound (K2); selection-bound (K3:
+val-DR winner != oracle-V winner);
+well-spec fails (K4); A3 floor never
+approached.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \phonesection{9. Open issues}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \begin{enumerate}
-  \item \tag{ISSUE High} NLL ~18 > V\_lin\_lik
-        13.05 at g0 --- floor pin broken.
-  \item \tag{ISSUE High} Law 1 vs g=0
-        (Dproj 11 vs D -1.07) --- need
-        DDelta\_proj\_eff.
-  \item \tag{ISSUE High} Law 2 wrong gate;
-        two-tower R2(logit|biased) missing.
-  \item \tag{ISSUE High} Nested data A1 missing
-        --- blocks all N-curves.
-  \item \tag{ISSUE High} GPUs blocked (vLLM).
-  \item \tag{ISSUE High} SoftAND mid-g muted
-        (H1 CI crosses 0) despite large Dproj.
+  \item \tag{ISSUE High} V\_lin\_lik is not
+        NLL's asymptote (NLL approx 18 >
+        13.05 at g0; also at R* g2) ---
+        B\_NLL pin broken.
+  \item \tag{ISSUE High} Need measured
+        Delta\_proj\_eff / DDelta\_proj\_eff
+        (raw Dproj 11 vs D approx -1.07).
+  \item \tag{ISSUE High} Law 2 Gate
+        (incremental two-tower R2) not
+        measured yet.
+  \item \tag{ISSUE High} Nested data A1
+        missing --- blocks all N-curves.
+  \item \tag{ISSUE Med} GPU 0--1 held by
+        vLLM; 2--3 in use for capacity /
+        hybrid catchup.
+  \item \tag{ISSUE High} SoftAND mid-g
+        muted (H1 CI crosses 0); note
+        DDelta\_proj is smallest among
+        families at g0.5 --- not ``despite
+        large Dproj''.
   \item \tag{ISSUE Med} DDelta\_proj ledger
         disagrees across docs.
-  \item \tag{ISSUE Med} Capacity n=40 incomplete;
-        hybrid 154/192; HPO/equal-data audits.
+  \item \tag{ISSUE Med} Capacity 25/30;
+        hybrid 154/192; HPO/equal-data
+        audits.
 \end{enumerate}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -555,12 +738,14 @@ S7 3.2M coverage.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \begin{enumerate}
-  \item Redefine NLL floor / oracle class.
-  \item Rewrite Law 1 with DDelta\_proj\_eff.
-  \item Measure two-tower R2(logit|biased).
-  \item Nested-data prefixes (A1).
-  \item Capacity g2 to n=40 when GPUs free.
-  \item Then Phase 1 -> 2.
+  \item Redefine B\_NLL (A3) --- lik pin
+        is wrong.
+  \item Implement nested prefixes (A1).
+  \item Measure Delta\_proj\_eff and Law 2
+        Gate (incremental two-tower R2).
+  \item Finish capacity g2 / softand
+        remainders on GPU.
+  \item Then Phase 1 -> 2 per Sec.~8.8.
 \end{enumerate}
 
 \vspace{0.6em}
