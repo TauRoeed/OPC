@@ -1,0 +1,575 @@
+% Full misspec math + scaling proposal. Phone portrait, ASCII formulas.
+% Compile: pdflatex MATH_AND_RESULTS_RUNDOWN.tex && pdflatex MATH_AND_RESULTS_RUNDOWN.tex
+\documentclass[12pt]{article}
+
+\usepackage[
+  paperwidth=108mm,
+  paperheight=192mm,
+  top=8mm,bottom=10mm,left=7mm,right=7mm
+]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{setspace}
+\usepackage{needspace}
+\usepackage{fvextra}
+
+\hypersetup{colorlinks=true,linkcolor=blue!45!black,urlcolor=blue!45!black}
+\setstretch{1.12}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.4em}
+\setlength{\emergencystretch}{2em}
+\setlist[itemize]{leftmargin=1.05em,itemsep=0.12em,topsep=0.15em}
+\setlist[enumerate]{leftmargin=1.15em,itemsep=0.12em,topsep=0.15em}
+\pagestyle{plain}
+
+\DefineVerbatimEnvironment{asc}{Verbatim}{
+  fontsize=\small,
+  breaklines=true,
+  breakanywhere=true,
+  frame=single,
+  framesep=2mm,
+  baselinestretch=1.05
+}
+
+\newcommand{\phonesection}[1]{\Needspace{9\baselineskip}\section*{#1}}
+\newcommand{\phonesub}[1]{\Needspace{7\baselineskip}\subsection*{#1}}
+\newcommand{\tag}[1]{\texttt{[#1]}}
+
+\title{\textbf{Misspecification: full math}\\[0.25em]
+\large Formulas, intuition, justification\\[0.15em]
++ scaling-law proposal + results\\[0.2em]
+\normalsize Phone portrait / ASCII}
+\author{OPC / Asia/Jerusalem}
+\date{22 Nov 2026 (v2 full formulas)}
+
+\begin{document}
+\maketitle
+
+{\footnotesize\raggedright
+\tag{OBSERVED} data; \tag{LOCKED} fixed;\\
+\tag{PLANNED} protocol; \tag{HYPOTHESIS} untested;\\
+\tag{ISSUE} risk. Cutoff 09:50 Asia/Jerusalem.\par
+}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\phonesection{0. One-screen conclusion}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+We build click worlds whose logit has a controlled residual
+\texttt{phi} outside a locked bilinear score class F.
+NLL and DR then have different pseudo-true targets.
+Hybrid f=0.5 is the locked schedule.
+
+\textbf{Primary pre-registered (g*=0.5):} R* DiD
+(OPC-NLL) \textbf{+1.53 pt} [+0.97, +2.09].
+(g=100 DiDs can be larger; not the primary.)
+
+\textbf{SoftAND H1 Hy-NLL:} clear at g=100
+(+3.78); \textbf{inconclusive} at g=0.5
+(CI crosses 0).
+
+\textbf{Scaling:} propose floor + power-law excess
+in N\_eff, with Laws 1--2 as hypotheses ---
+blocked until nested data + floor redefine.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\phonesection{1. What ``misspec'' means here}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\phonesub{Tight definition}
+Controlled \textbf{class / mean-function misspec}
+of the click/policy score relative to locked F:
+Bernoulli likelihood, link, logger pi0, and
+propensities are exact. Identification is not
+the issue.
+
+\phonesub{Justification}
+Classical MLE misspec: data from P*, estimate in
+wrong family => KL projection (pseudo-true).
+We \textbf{construct} P\_gamma so the NLL
+pseudo-true policy in F is deliberately poor for
+\textbf{value} as gamma grows, then compare to
+DR (value-oriented) and hybrid.
+
+\phonesub{What it is NOT}
+\begin{itemize}
+  \item Not unobserved confounding (pi0 known)
+  \item Not ``the world is misspecified''
+  \item Not generic neural-net misspec ---
+        locked small class F
+\end{itemize}
+
+\phonesub{Three models (keep separate)}
+\begin{enumerate}
+  \item True logit ell\_gamma --- DGP
+  \item Policy score class F --- usually
+        locked affine-bilinear in embeddings
+  \item Reward model q\_hat --- DR nuisance
+\end{enumerate}
+
+\phonesub{Important correction}
+g=0 in the locked \texttt{high} bias cell is
+\textbf{not} fully well-specified: learners see
+biased vectors (~50\% signal\_kept). Truth is
+bilinear in \emph{clean} embeddings =>
+\textbf{representation mismatch remains}.
+Say: ``g=0 = baseline with representation
+mismatch only.''
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\phonesection{2. Data-generating process}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\phonesub{World equation}
+\begin{asc}
+ell_gamma(x,a)
+  = b'(gamma) + <u_x, v_a>
+    + gamma * alpha * phi(x,a)
+
+sd(phi) = 1 over catalog pairs (norm=v2)
+# R* locked = legacy v1: NOT unit-sd
+# NC1: sd = nc1_amp = 0.5
+q_gamma = sigmoid(ell_gamma)
+r ~ Bern(q_gamma)
+a ~ pi0(.|x)   # temperature frozen at g=0
+\end{asc}
+
+\textbf{Intuition.} First term = main bilinear
+taste. Second = controlled extra structure.
+gamma dials how loud that extra is.
+
+\textbf{b'(gamma):} re-solved so mean CTR on the
+fixed gamma=0 calibration pairs stays 5\%.
+Logger/best-item CTR is not re-targeted
+(logger greedy typically 9.1--11.4\%).
+
+\textbf{alpha:} fixed protocol scale. Under v2
+unit-sd, residual contribution is gamma*alpha
+in designed SD units; R* v1 does not unit-sd.
+
+\phonesub{Evaluation}
+\begin{asc}
+V(pi) = E_x[ q_gamma(x, argmax_a score_pi(x,a)) ]
+# exact-greedy CTR, percentage points
+\end{asc}
+Not OPE for the primary table --- simulator
+oracle for V.
+
+\phonesub{Shared facet scaffolding}
+Draw once per seed / proj\_tag random projections
+G,H so each user/item has m facet coords
+t\_u,k, t\_a,k (z-scored). Locked: m=4,
+proj\_tag=default, norm=v2 (R*: legacy v1).
+Same draw shared across SoftAND*/SoftThresh/PL.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\phonesection{3. Residual families (full formulas)}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\phonesub{R* (tanh) --- even second channel}
+\textbf{Intuition.} Second bilinear index, then
+an \emph{even} nonlinearity so flipping a facet
+sign leaves psi unchanged => residual roughly
+uncorrelated with odd linear scores.
+
+\begin{asc}
+psi(t) = tanh( s * (t^2 - 1) )   # even map
+phi_raw = m^(-1/2) * sum_k psi(t_u,k)*psi(t_a,k)
+then double-center; legacy v1 scaling
+(divides both sides; NOT unit-sd)
+\end{asc}
+
+Still separable / low-rank (product of per-side
+transforms). Foils: PL = same product without
+psi; NC1 = pure noise (amp-matched).
+
+\textbf{Why even?} Linear scores are odd in t;
+even psi kills first-order correlation --- soft
+orthogonality without explicit perp.
+
+\phonesub{SoftAND* --- thresholded AND}
+\textbf{Intuition.} Each facet = soft topic light.
+Bonus when the \emph{same} facet is above
+threshold on \emph{both} user and item.
+
+\begin{asc}
+sp(z) = log(1 + exp(z))          # softplus
+g_u,k = sp( (t_u,k - c) / s )
+h_a,k = sp( (t_a,k - c) / s )
+phi_raw = m^(-1/2) * sum_k g_u,k * h_a,k
+then PERP, then unit-sd
+
+LOCKED: m=4, c=1, gate_s=s=0.25,
+        proj_tag=default, norm=v2
+\end{asc}
+
+\textbf{vs R*:} one-sided softplus gates
+(threshold / AND), not even tanh(t\^{}2-1).
+Explicit PERP (R* mostly relied on evenness).
+Before PERP still separable (rank <= m).
+
+\phonesub{SoftThresh --- soft threshold on z2}
+\textbf{Intuition.} Sparse bonus only when the
+second-index score is large (any facets).
+
+\begin{asc}
+z2 = m^(-1/2) * sum_k t_u,k * t_a,k
+z2_tilde = (z2 - mu) / sigma     # catalog
+phi_raw = sp( (z2_tilde - tau) / s_th )
+then PERP, then unit-sd
+
+LOCKED: m=4, tau=1.5, s_th=0.25,
+        proj_tag=default, norm=v2
+\end{asc}
+
+\textbf{Justification of form:} softplus-of-a-sum
+is \textbf{not} finite-rank separable --- different
+inductive bias than R*/SoftAND*. Larger tau =>
+rarer ``on'' pairs => spikier before unit-sd.
+
+\phonesub{PERP (bilinear strip)}
+\begin{asc}
+phi = unit_sd( phi_raw - Pi_bilinear(phi_raw) )
+\end{asc}
+Pi = best affine-bilinear fit in \emph{clean}
+embedding features under uniform pairs
+(not the learner's biased span, not logging
+measure). So phi = ``what clean bilinear cannot
+soak up.''
+
+\textbf{Caveat:} PERP =/=> invisible on biased
+features. Always report R2(phi|biased).
+
+\phonesub{Unit-SD (norm=v2)}
+SoftAND*/ST: after PERP, rescale catalog pair-SD
+of phi to 1 (R* v1 is not unit-sd).
+Designed residual ~ gamma*alpha*phi in SD units
+only under v2. SoftAND*/ST track sd\_ratio ~ gamma;
+R* overshoots (~2.4x at g=0.5) --- so
+\textbf{nominal gamma is not cross-family
+comparable}. Prefer Delta\_proj / var-share.
+
+\phonesub{Foils}
+\begin{itemize}
+  \item \textbf{PL:} same z2 bilinear, unit-sd,
+        no PERP --- ``is gap just a second linear
+        channel?''
+  \item \textbf{NC1:} feature-free noise,
+        nc1\_amp=0.5 --- ``is gap just any jitter?''
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\phonesection{4. Learning objectives}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\phonesub{NLL (logged Bernoulli)}
+\begin{asc}
+max_theta  sum_i [
+  r_i log q_theta(x_i,a_i)
++ (1-r_i) log(1 - q_theta(x_i,a_i)) ]
+\end{asc}
+with q\_theta = sigmoid(score in F).
+\textbf{NOT} behavior cloning of pi0.
+
+\textbf{Justification / failure mode.} Under
+misspec, NLL -> KL projection of q* onto F.
+That projection need not maximize V in F
+(proxy-gold / Goodhart).
+
+\phonesub{DR / OPC}
+Optimize a doubly-robust estimate of V(pi)
+(known pi0; learned q\_hat). Targets value more
+directly; pays IPS variance.
+
+\phonesub{Hybrid schedule}
+\begin{asc}
+epochs 1..f*T : NLL
+epochs f*T..T : DR fine-tune
+LOCKED f_star = 0.5
+\end{asc}
+\textbf{Intuition (hypothesis).} NLL may act as
+localized regularization around the KL policy;
+DR then moves toward value. f is an \textbf{objective
+schedule}, not a compute dial.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\phonesection{5. Estimands}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{asc}
+D(g)   = V(DR/OPC, g) - V(NLL, g)
+D_H(g) = V(Hybrid, g) - V(NLL, g)
+
+DiD(g) = D(g) - D(0)     # method x gamma
+# interaction under CRN / paired seeds
+# NOT classical parallel-trends DiD
+
+Delta_proj(g) = V_lin_val(g) - V_lin_lik(g)
+DDelta_proj(g) = Delta_proj(g) - Delta_proj(0)
+\end{asc}
+
+\textbf{V\_lin\_val:} best affine-bilinear ranking
+under true q (value oracle in F).
+
+\textbf{V\_lin\_lik:} KL / likelihood projection
+onto F (NLL's putative asymptote).
+
+\textbf{Why Delta\_proj:} measures effective
+misspec in value units. Prefer it over nominal
+gamma for cross-family claims.
+
+\textbf{DiD identifies:} how method gap moves
+when residual turns on, protocol fixed.
+\textbf{Does not identify:} a unique field
+``misspec parameter'' or external validity.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\phonesection{6. Recoverability \tag{OBSERVED}}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\textbf{Question.} How much of phi / true logit
+is visible on biased learner features?
+
+\begin{asc}
+signal_kept ~ 0.500   (locked high-bias)
+R2_lin(phi | biased) ~ 0   for g>0
+R2_lin(clean-lin | biased) = 0.626
+\end{asc}
+
+Oracle greedy CTR (pt):
+
+\begin{tabularx}{\linewidth}{@{}Xrrr@{}}
+\toprule
+cell & Vval & Vlik & Dproj \\
+\midrule
+g0 & 24.15 & 13.05 & 11.09 \\
+R* 0.5 & 29.50 & 13.86 & 15.63 \\
+R* 2 & 34.85 & 13.88 & 20.97 \\
+SA 0.5 & 27.87 & 13.86 & 14.00 \\
+SA 2 & 30.28 & 15.57 & 14.71 \\
+ST 0.5 & 31.93 & 15.91 & 16.02 \\
+ST 2 & 39.11 & 18.30 & 20.82 \\
+\bottomrule
+\end{tabularx}
+
+\textbf{Reading.} Large Delta\_proj => big
+value-vs-likelihood gap inside F.
+R2(phi|biased)~0 => residual not linearly
+recoverable from biased features.
+R2\_lin(clean-lin|biased)=0.626 is already used
+by the linear class. Repair mlp64-lin: +0.48 at
+g0 vs +3.82 at R* g2 => width gain grows with
+gamma; phi partly nonlinearly visible
+(R2\_mlp64(phi|biased)~0.03, R*) --- key for Law 2.
+
+\textbf{Caveat:} SoftThresh g2 repair mlp64
+35.52 < V\_lin\_val 39.11.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\phonesection{7. Summary results}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\phonesub{R* Phase-1 DiD \tag{LOCKED}}
+DiD = +1.53 pt, CI [+0.97, +2.09], 10/10.
+NC1 control ~ +0.20 (null band).
+
+\phonesub{SoftAND H1 Hy-NLL \tag{OBSERVED} n=10}
+\begin{itemize}
+  \item g0: -0.26 [$-$0.77, +0.25]
+  \item g0.5: +0.24 [$-$0.39, +0.87]
+        --- \textbf{fails G\_misspec}
+  \item g100: +3.78 [+1.30, +6.26], 9/10
+\end{itemize}
+
+\phonesub{R* H1 Hy-NLL}
+g0: -0.15; g0.5: +1.54 [+0.45, +2.64].
+
+\phonesub{Hybrid lock \tag{LOCKED} but n=3 pilot}
+f\_star=0.5 on seeds 100--102.
+vs NLL: well ~ -0.04; misspec ~ +3.05.
+Not confirmatory.
+
+\phonesub{Capacity lean n=3 (R* g2)}
+Hy: lin 21.36 -> mlp256 26.27 (~+4.9).
+NLL: 16.81 -> 21.75. Width helps despite
+R2\_lin(phi)~0. Hy-NLL at g0 worsens with width
+(-0.12 -> -1.53) --- watch G\_well.
+
+\phonesub{Grid progress}
+Hybrid 154/192 cells (6957/7680 seeds).
+Capacity 24/30. Recoverability done.
+GPUs held by external vLLM.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\phonesection{8. Scaling laws proposal}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\tag{PLANNED} / \tag{HYPOTHESIS}
+
+\phonesub{Why not Kaplan/Chinchilla}
+\begin{itemize}
+  \item train loss != eval when g>0
+  \item stacked floors, not one E
+  \item binding: N / ESS / HPO, not FLOPs
+  \item gamma = stress dial, not resource
+\end{itemize}
+\textbf{Keep:} fit reducible regret to pinned
+oracles; three-regime curves; leave-largest-N
+holdout; matched HPO.
+
+\phonesub{Axes}
+\begin{asc}
+theta = (N, |U|, |A|, d, C, F, gamma, s)
+w_i = pi(a_i|x_i) / pi0(a_i|x_i)
+N_eff = (sum w)^2 / sum(w^2)   # Kish COUNT
+rho   = N_eff / N              # fraction
+# For NLL set N_eff := N (no IPS weights)
+# N_eff for DR depends on learned pi (endogenous)
+\end{asc}
+
+\phonesub{Regret to a pinned floor}
+\begin{asc}
+R_m(N,C,g,s) = V_ref(C,g) - V_m(...)
+V_ref = pinned BEFORE fit
+  (e.g. V_lin_val or repair oracle)
+# do NOT free-fit asymptote after peeking
+\end{asc}
+
+Candidate additive excess (identify only when
+axes vary independently):
+\begin{asc}
+R_m = B_m(g,s) + a_m * N_eff^(-alpha_m)
+      [+ b_m * C^(-beta_m) only if C varied
+       apart from the V_ref(C) pin]
+\end{asc}
+
+\textbf{ISSUE:} learned NLL ~18 > V\_lin\_lik
+13.05 at g0 => lik-oracle is wrong pin for
+B\_NLL. Redefine before fitting.
+
+\phonesub{Regret stack (telescoping)}
+\begin{asc}
+V_ceil - V_m =
+  Delta_feat(g; s, R2)     # features
++ Delta_class(g, C)        # class width
++ Delta_obj_m(g, C)        # NLL: proj gap
++ eps_est_m(N, C, pi0, g)  # sample + HPO
+\end{asc}
+Needs explicit intermediate oracles
+V\_info, V\_class(C). Terms can be negative if
+pins are wrong.
+
+\phonesub{Law 1 --- misspec/variance crossover \tag{HYPOTHESIS}}
+\begin{asc}
+D(g;N,C) = V_DR - V_NLL
+Prefer measurable:
+  DDelta_proj(g) = Delta_proj(g)-Delta_proj(0)
+Level: D = Delta_proj_eff(g) - Delta_eps(g)
+ Delta_eps = eps_DR - eps_NLL
+DiD(g) = DDelta_proj_eff(g)
+ - [Delta_eps(g) - Delta_eps(0)]
+Psi = DDelta_proj_eff / [Delta_eps(g)-Delta_eps(0)]
+DiD > 0 iff Psi > 1 (denom > 0)
+Hybrid threshold lambda(f): UNTESTED (n=3)
+Headline: N_star(g), D(g;N_star)=0 (level)
+\end{asc}
+
+\textbf{Justification.} DR pays variance to
+reduce projection bias. Crossover when bias
+reduction exceeds extra estimation error.
+
+\textbf{Why not raw Delta\_proj:} at g=0,
+Delta\_proj=11.09 but D~-1.07 --- oracle gap
+!= method gap. Use DDelta or measured
+Delta\_proj\_eff.
+
+\phonesub{Law 2 --- feature-gated capacity \tag{HYPOTHESIS}}
+\begin{asc}
+Gate on R2(logit | biased, TWO-TOWER class)
+NOT R2(phi | biased) alone
+# linear+mlp is still inner-product / separable
+# cannot express SoftThresh softplus(z2)
+\end{asc}
+
+\textbf{Justification attempt:} if residual is
+invisible to the class, width cannot recover it.
+\textbf{Counter-evidence:} R2\_lin(phi)~0 yet mlp256
+gains ~+4.9 pt on R* g2 vs NLL +1.3 at g0 (n=3);
+gain grows with gamma => not representation
+mismatch alone; nonlinear phi visibility likely.
+Law 2 unsettled; measure two-tower R2(logit).
+
+\phonesub{Phase roadmap}
+\begin{enumerate}
+  \item \textbf{P0} redefine floors; nested data
+        A1; equal account A2; HPO A4; finish
+        capacity g2 A6
+  \item \textbf{P1} N-probe 25k..800k
+  \item \textbf{P2} N x gamma identify
+  \item \textbf{P3} N x C surface
+  \item \textbf{P4} multi-ds / ESS (use rho)
+  \item \textbf{P5} 3.2M holdout; >=80\% PI
+        or ``trends only''
+\end{enumerate}
+
+\phonesub{Claims S1--S7 (abbrev)}
+S1 bias not small-sample;
+S2 NLL saturates/inverses for g>0;
+S3 N\_star falls with DDelta\_proj;
+S4 well-spec control (bias=none, g=0): NLL >= OPC all N;
+S5 C != data substitute under right R2 gate;
+S6 ESS/rho is DR's data unit;
+S7 3.2M coverage.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\phonesection{9. Open issues}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{enumerate}
+  \item \tag{ISSUE High} NLL ~18 > V\_lin\_lik
+        13.05 at g0 --- floor pin broken.
+  \item \tag{ISSUE High} Law 1 vs g=0
+        (Dproj 11 vs D -1.07) --- need
+        DDelta\_proj\_eff.
+  \item \tag{ISSUE High} Law 2 wrong gate;
+        two-tower R2(logit|biased) missing.
+  \item \tag{ISSUE High} Nested data A1 missing
+        --- blocks all N-curves.
+  \item \tag{ISSUE High} GPUs blocked (vLLM).
+  \item \tag{ISSUE High} SoftAND mid-g muted
+        (H1 CI crosses 0) despite large Dproj.
+  \item \tag{ISSUE Med} DDelta\_proj ledger
+        disagrees across docs.
+  \item \tag{ISSUE Med} Capacity n=40 incomplete;
+        hybrid 154/192; HPO/equal-data audits.
+\end{enumerate}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\phonesection{10. Next actions}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{enumerate}
+  \item Redefine NLL floor / oracle class.
+  \item Rewrite Law 1 with DDelta\_proj\_eff.
+  \item Measure two-tower R2(logit|biased).
+  \item Nested-data prefixes (A1).
+  \item Capacity g2 to n=40 when GPUs free.
+  \item Then Phase 1 -> 2.
+\end{enumerate}
+
+\vspace{0.6em}
+\Needspace{5\baselineskip}
+{\footnotesize\raggedright
+Sources: framing, family-formula, scaling-protocol,
+recoverability, and cached-results documents.\\
+Each compile must pass coherence + phone
+readability review before release.\par
+}
+
+\end{document}
