@@ -1,15 +1,16 @@
-% Full misspec math + scaling proposal. Phone portrait, ASCII formulas.
+% Full misspec math + scaling method. Phone portrait, pedagogical LaTeX.
 % Compile: pdflatex MATH_AND_RESULTS_RUNDOWN.tex && pdflatex MATH_AND_RESULTS_RUNDOWN.tex
-\documentclass[12pt]{article}
+\documentclass[11pt]{article}
 
 \usepackage[
   paperwidth=108mm,
   paperheight=192mm,
-  top=8mm,bottom=10mm,left=7mm,right=7mm
+  top=7mm,bottom=9mm,left=6.5mm,right=6.5mm
 ]{geometry}
 \usepackage[T1]{fontenc}
 \usepackage{lmodern}
 \usepackage{microtype}
+\usepackage{amsmath,amssymb}
 \usepackage{booktabs}
 \usepackage{tabularx}
 \usepackage{enumitem}
@@ -17,251 +18,506 @@
 \usepackage{hyperref}
 \usepackage{setspace}
 \usepackage{needspace}
-\usepackage{fvextra}
 
 \hypersetup{colorlinks=true,linkcolor=blue!45!black,urlcolor=blue!45!black}
-\setstretch{1.12}
+\setstretch{1.15}
 \setlength{\parindent}{0pt}
-\setlength{\parskip}{0.4em}
-\setlength{\emergencystretch}{2em}
-\setlist[itemize]{leftmargin=1.05em,itemsep=0.12em,topsep=0.15em}
-\setlist[enumerate]{leftmargin=1.15em,itemsep=0.12em,topsep=0.15em}
+\setlength{\parskip}{0.45em}
+\setlength{\emergencystretch}{2.5em}
+\setlist[itemize]{leftmargin=1.05em,itemsep=0.18em,topsep=0.2em}
+\setlist[enumerate]{leftmargin=1.15em,itemsep=0.18em,topsep=0.2em}
 \pagestyle{plain}
 
-\DefineVerbatimEnvironment{asc}{Verbatim}{
-  fontsize=\small,
-  breaklines=true,
-  breakanywhere=true,
-  frame=single,
-  framesep=2mm,
-  baselinestretch=1.05
-}
+\allowdisplaybreaks
+\newcommand{\phonesection}[1]{\Needspace{8\baselineskip}\section*{#1}}
+\newcommand{\phonesub}[1]{\Needspace{6\baselineskip}\subsection*{#1}}
+\newcommand{\stag}[1]{\texttt{[#1]}}
+\newcommand{\Rstar}{R^{\star}}
+\newcommand{\Dproj}{\Delta_{\mathrm{proj}}}
+\newcommand{\DDproj}{\Delta\Delta_{\mathrm{proj}}}
+\newcommand{\Dprojeff}{\Delta_{\mathrm{proj}}^{\mathrm{eff}}}
+\newcommand{\DDprojeff}{\Delta\Delta_{\mathrm{proj}}^{\mathrm{eff}}}
+\newcommand{\Neff}{N_{\mathrm{eff}}}
+\newcommand{\why}[1]{\par{\footnotesize\color{blue!35!black}\textit{Why this matters:} #1\par}}
+\newcommand{\miniex}[1]{\par{\footnotesize\color{black!70}\textbf{Mini-example.} #1\par}}
 
-\newcommand{\phonesection}[1]{\Needspace{9\baselineskip}\section*{#1}}
-\newcommand{\phonesub}[1]{\Needspace{7\baselineskip}\subsection*{#1}}
-\newcommand{\tag}[1]{\texttt{[#1]}}
-
-\title{\textbf{Misspecification: full math}\\[0.25em]
-\large Formulas, intuition, justification\\[0.15em]
-+ scaling-law proposal + results\\[0.2em]
-\normalsize Phone portrait / ASCII}
-\author{OPC / Asia/Jerusalem}
-\date{22 Nov 2026 (v3 scaling method)}
+\title{\textbf{Misspecification: full math}\\[0.2em]
+\large Formulas, intuition, justification\\[0.1em]
++ scaling-law method + results\\[0.15em]
+\normalsize Phone portrait / pedagogical \LaTeX}
+\author{OPC}
+\date{22 Nov 2026 (v6 pedagogy pass)}
 
 \begin{document}
 \maketitle
 
 {\footnotesize\raggedright
-\tag{OBSERVED} data; \tag{LOCKED} fixed;\\
-\tag{PLANNED} protocol; \tag{HYPOTHESIS} untested;\\
-\tag{ISSUE} risk. Cutoff 20:45 Asia/Jerusalem.\par
+Status tags: \stag{OBSERVED} measured;
+\stag{LOCKED} protocol-fixed;
+\stag{PLANNED} not yet run;
+\stag{HYPOTHESIS} untested claim;
+\stag{ISSUE} known risk.
+v6 folds in a pedagogical cross-check
+(glossary, bridges, mini-examples,
+level-vs-DiD labels).\par
 }
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\phonesection{0. One-screen conclusion}
+\phonesection{0. Teaser (read after Sec.~5 for numbers)}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-We build click worlds whose logit has a controlled residual
-\texttt{phi} outside a locked bilinear score class F.
-NLL and DR then have different pseudo-true targets.
-Hybrid f=0.5 is the locked schedule.
+We build synthetic click worlds whose true logit
+contains a controlled residual field $\phi$,
+constructed to be near-orthogonal to
+\emph{clean} bilinear structure (measured
+linear visibility on the learner's
+\emph{biased} features is $\approx 0$).
+Learners that maximize Bernoulli likelihood
+(NLL) therefore converge toward a different
+in-class policy than learners that target
+decision value via a doubly-robust objective
+(DR~/~OPC).  A hybrid schedule
+$f_{\star}{=}0.5$ (NLL then DR fine-tune) is
+the locked compromise.
 
-\textbf{Primary pre-registered (g*=0.5):} R* DiD
-(OPC-NLL) \textbf{+1.53 pt} [+0.97, +2.09].
-(g=100 DiDs can be larger; not the primary.)
+\textbf{Headline numbers} (defined in
+Sec.~5; CI $=$ paired-seed interval over
+the Phase-1 seed set):
+\begin{itemize}
+  \item Primary pre-registered:
+        $\Rstar$ at $\gamma^{\star}{=}0.5$,
+        DiD of (OPC$-$NLL)
+        $=+1.53$\,pt $[+0.97,+2.09]$;
+        $10/10$ seeds positive.
+  \item SoftAND H1 \emph{level}
+        $D_{H}=V(\mathrm{Hy})-V(\mathrm{NLL})$:
+        inconclusive at $\gamma{=}0.5$
+        (CI crosses 0); large at
+        $\gamma{=}100$ ($+3.78$), which is a
+        $\phi$-dominated regime --- not a
+        stronger dose of the same mid-$\gamma$
+        perturbation.
+  \item Scaling method (Sec.~8): planned
+        curves for crossover $N_{\star}(\gamma)$
+        and capacity Gate; blocked until
+        nested-data audit A1 and a redefined
+        NLL floor.
+\end{itemize}
 
-\textbf{SoftAND H1 Hy-NLL:} clear at g=100
-(+3.78); \textbf{inconclusive} at g=0.5
-(CI crosses 0).
+\why{Oracle gaps bound what is possible;
+they do not predict what finite-sample
+learners realize.  Always ask whether a
+quoted number is a \emph{level} $D(\gamma)$
+or a \emph{DiD} $D(\gamma)-D(0)$.}
 
-\textbf{Scaling method (Sec.~8):} pin floors,
-fit excess vs N, claim N\_star(g) + Gate(C).
-Blocked until nested data A1 + floor redefine.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\phonesection{0b. Glossary}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{itemize}
+  \item $\mathcal{F}$ --- locked policy-score
+        class (affine-bilinear in biased
+        embeddings unless a width $C$ is
+        stated).  ``Misspec'' is always
+        relative to $\mathcal{F}$.
+  \item Pseudo-true / KL projection ---
+        the member of $\mathcal{F}$ that
+        infinite-data NLL converges to; it
+        depends on the pair distribution
+        (logging measure).
+  \item OPC --- the repo's DR-based
+        \emph{policy-learning} objective
+        (DM$+$IPS); used interchangeably
+        with ``DR'' in this note.
+  \item Hy$_f$ --- NLL for a fraction $f$
+        of epochs, then DR fine-tuning
+        from those weights.
+  \item $\ell_{\gamma}$ --- true click logit
+        of the simulator (DGP).
+  \item $\phi$ --- residual field; family
+        chooses geometry, $\gamma$ chooses
+        loudness.
+  \item $\pi_{0}$ --- logging policy
+        (known; temperature frozen at
+        $\gamma{=}0$).
+  \item $V(\pi)$ --- exact-greedy CTR under
+        true $q_{\gamma}$ (simulator oracle,
+        not an OPE estimator).
+  \item $\texttt{signal\_kept}$ --- fraction
+        of clean-embedding signal remaining
+        in biased features ($\approx 0.5$ in
+        the locked \texttt{high} cell).
+  \item Double-centering --- remove user
+        and item main effects from $\phi$
+        so affine terms in $\mathcal{F}$
+        cannot soak them up.
+  \item PERP --- subtract the best clean
+        affine-bilinear fit to
+        $\phi_{\mathrm{raw}}$ under uniform
+        catalog pairs.
+  \item Unit-sd / \texttt{norm=v2} ---
+        rescale $\phi$ to SD 1 on catalog
+        pairs; \texttt{sd\_ratio} is realized
+        residual SD vs designed.
+  \item $\Dproj$ ---
+        $V_{\mathrm{lin\_val}}-V_{\mathrm{lin\_lik}}$,
+        oracle value cost of fitting by
+        likelihood inside $\mathcal{F}$.
+  \item DiD --- change in a method gap when
+        $\gamma$ turns on under CRN / paired
+        seeds (\emph{not} classical
+        parallel-trends DiD).
+  \item H1 --- pre-registered claim that
+        Hybrid beats NLL under misspec.
+  \item G\_well / G\_misspec --- gates:
+        Hy$-$NLL should stay non-negative at
+        $\gamma{=}0$, and be significantly
+        positive at $\gamma{>}0$.
+  \item Kish ESS $\Neff$, $\rho=\Neff/N$ ---
+        effective sample size under IPS
+        weights.
+  \item Pinned floor --- asymptote fixed
+        from oracles or huge-$N$ runs
+        \emph{before} curve fitting.
+\end{itemize}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \phonesection{1. What ``misspec'' means here}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \phonesub{Tight definition}
-Controlled \textbf{class / mean-function misspec}
-of the click/policy score relative to locked F:
-Bernoulli likelihood, link, logger pi0, and
-propensities are exact. Identification is not
-the issue.
+We study \textbf{controlled class / mean-function
+misspecification} of the click (hence policy)
+score relative to a locked class $\mathcal{F}$.
 
-\phonesub{Justification}
-Classical MLE misspec: data from P*, estimate in
-wrong family => KL projection (pseudo-true).
-We \textbf{construct} P\_gamma so the NLL
-pseudo-true policy in F is deliberately poor for
-\textbf{value} as gamma grows, then compare to
-DR (value-oriented) and hybrid.
+What stays exact: Bernoulli likelihood form,
+logistic link, logging policy $\pi_{0}$, and
+propensities $p=\pi_{0}(a\mid x)$.
 
-\phonesub{What it is NOT}
+\textbf{``Identification is not the issue''}
+means: because $\pi_{0}$ is known, the
+decision value $V(\pi)$ can be written in
+terms of observables (via IPS / DR).  Every
+failure we study is about \emph{which target
+an objective converges to}, not about whether
+that target is estimable in principle.
+
+The structural issue is
+\[
+\ell_{\gamma}\notin\mathcal{F}
+\quad\text{for }\gamma>0
+\]
+(and even at $\gamma{=}0$ a representation
+mismatch remains --- see below).
+
+\phonesub{Classical analogy, then our twist}
+Classical MLE misspec: data from $P^{\star}$,
+estimate inside a wrong family $\Rightarrow$
+KL projection (pseudo-true parameter).  That
+pseudo-true object need not minimize the
+downstream risk you care about.
+
+We engineer the same spirit.  We
+\textbf{construct} laws $P_{\gamma}$ so that,
+as $\gamma$ grows, the NLL pseudo-true policy
+inside $\mathcal{F}$ becomes deliberately
+poor for decision value $V$.  Then we compare
+NLL to a value-oriented objective (DR/OPC)
+and to a hybrid schedule.
+
+\miniex{NLL asks the model to predict click
+probabilities well on the pairs we
+\emph{logged}, weighted by how often the
+logger showed them.  A policy is judged only
+on whether each user's top item is truly
+best.  With limited capacity these goals
+trade off.\\[0.3em]
+Toy (not experimental): one user; items
+A,B,C with true CTRs $0.20$, $0.18$, $0.01$;
+logger shows C $80\%$ of the time.  NLL
+spends most effort calibrating C and may
+settle on $\hat q_B>\hat q_A$.  Value only
+cares that A ranks above B, so a value
+objective would give up C's calibration to
+get that order right.\\[0.3em]
+Formally: as $N\to\infty$, NLL $\to$ KL
+projection of $q^{\star}$ onto $\mathcal{F}$
+under the logging measure; DR moves toward
+the in-class policy with highest value.
+They agree only when the truth is in
+$\mathcal{F}$.}
+
+\phonesub{What this is NOT}
 \begin{itemize}
-  \item Not unobserved confounding (pi0 known)
-  \item Not ``the world is misspecified''
-  \item Not generic neural-net misspec ---
-        locked small class F
+  \item Not unobserved confounding ---
+        $\pi_{0}$ is known.
+  \item Not ``the world is misspecified'' ---
+        worlds aren't; models relative to
+        $\mathcal{F}$ are.
+  \item Not generic deep-net misspec ---
+        $\mathcal{F}$ is a small locked class.
+  \item Not primarily OPE identification
+        failure --- propensities are exact;
+        the story is class stress on the
+        policy score.
 \end{itemize}
 
 \phonesub{Three models (keep separate)}
 \begin{enumerate}
-  \item True logit ell\_gamma --- DGP
-  \item Policy score class F --- usually
-        locked affine-bilinear in embeddings
-  \item Reward model q\_hat --- DR nuisance
+  \item True logit $\ell_{\gamma}$ --- DGP.
+  \item Policy score class $\mathcal{F}$ ---
+        what $\pi_{\theta}$ may represent.
+  \item Reward model $\hat{q}$ --- DR
+        nuisance.
 \end{enumerate}
+Primary claim: (1) vs (2).
 
-\phonesub{Important correction}
-g=0 in the locked \texttt{high} bias cell is
-\textbf{not} fully well-specified: learners see
-biased vectors (approx 50\% signal\_kept). Truth is
-bilinear in \emph{clean} embeddings =>
-\textbf{representation mismatch remains}.
-Say: ``g=0 = baseline with representation
-mismatch only.''
+\phonesub{Important $\gamma{=}0$ correction}
+Even the locked \texttt{high}-bias cell at
+$\gamma{=}0$ is \textbf{not} fully
+well-specified.  Learners see biased
+embeddings ($\texttt{signal\_kept}\approx 0.5$).
+Truth is bilinear in \emph{clean} embeddings,
+so a representation mismatch remains.
+
+Say: ``$\gamma{=}0$ = baseline with
+representation mismatch only; $\gamma{>}0$
+adds structured residual on top.''
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \phonesection{2. Data-generating process}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-\phonesub{World equation}
-\begin{asc}
-ell_gamma(x,a)
-  = b'(gamma) + <u_x, v_a>
-    + gamma * alpha * phi(x,a)
+\phonesub{World equation (matches code)}
+\begin{align*}
+\ell_{\gamma}(x,a)
+  &= \underbrace{s\,\langle u_x, v_a\rangle
+     + b'(\gamma)}_{\text{main taste + intercept}}
+     + \gamma\,\alpha\,\phi(x,a),\\
+q_{\gamma}
+  &= \sigma(\ell_{\gamma}),\qquad
+r\sim\mathrm{Bern}(q_{\gamma}),\\
+a &\sim \pi_0(\,\cdot\mid x)
+  \quad\text{(temp.\ frozen at $\gamma{=}0$)}.
+\end{align*}
+Here $s$ is the base env scale on the clean
+dot product; $\alpha$ is the calibration
+scale from the click-model solver (same
+$\alpha$ that targets best-item CTR in the
+$\gamma{=}0$ world); $\phi$ is unit-sd (v2)
+or legacy-scaled (v1).  Code comment:
+\texttt{logit = scale*<u,v> + offset'
++ gamma*alpha*phi\_std}.
 
-sd(phi) = 1 over catalog pairs (norm=v2)
-# R* locked = legacy v1: NOT unit-sd
-# NC1: sd = nc1_amp = 0.5
-q_gamma = sigmoid(ell_gamma)
-r ~ Bern(q_gamma)
-a ~ pi0(.|x)   # temperature frozen at g=0
-\end{asc}
+\begin{itemize}
+  \item $\gamma$ dials residual loudness.
+  \item Family chooses the \emph{geometry}
+        of $\phi$.
+  \item $b'(\gamma)$ is re-solved so mean
+        CTR on fixed calibration pairs stays
+        $5\%$ as $\gamma$ changes.
+  \item Logger temperature is frozen at the
+        $\gamma{=}0$ world so logged support
+        does not secretly track $\gamma$.
+\end{itemize}
 
-\textbf{Intuition.} First term = main bilinear
-taste. Second = controlled extra structure.
-gamma dials how loud that extra is.
+\phonesub{Three different CTRs (do not mix)}
+\begin{itemize}
+  \item Catalog-average CTR $\approx 5\%$
+        (pinned by $b'$).
+  \item Logger greedy CTR $\approx 9$--$11\%$
+        (not re-targeted).
+  \item Oracle / learned $V(\pi)$ in
+        Sec.~6--7 is $13$--$39$\,pt because
+        $V$ is the CTR of each user's
+        \emph{single top-ranked} item, far
+        above the average item.
+\end{itemize}
+So ``$+1.53$\,pt'' should be read against
+learned values of roughly $15$--$30$\,pt,
+not against $5\%$.  Raising $\gamma$ can raise
+best-item CTR (and the ceiling
+$V_{\mathrm{lin\_val}}$); that is why we
+compare \emph{gaps}, not raw levels, across
+$\gamma$.
 
-\textbf{b'(gamma):} re-solved so mean CTR on the
-fixed gamma=0 calibration pairs stays 5\%.
-Logger/best-item CTR is not re-targeted
-(logger greedy typically 9.1--11.4\%).
-
-\textbf{alpha:} fixed protocol scale. Under v2
-unit-sd, residual contribution is gamma*alpha
-in designed SD units; R* v1 does not unit-sd.
-
-\phonesub{Evaluation}
-\begin{asc}
-V(pi) = E_x[ q_gamma(x, argmax_a score_pi(x,a)) ]
-# exact-greedy CTR, percentage points
-\end{asc}
-Not OPE for the primary table --- simulator
-oracle for V.
+\phonesub{Evaluation (oracle $V$, not OPE)}
+\begin{equation*}
+V(\pi)
+  = \mathbb{E}_{x}\!\Big[
+      q_{\gamma}\!\big(x,\arg\max_{a}
+      \mathrm{score}_{\pi}(x,a)\big)
+    \Big].
+\end{equation*}
+Primary tables use a simulator oracle for
+$V$: which method ranks better under the
+truth.  That is intentional --- not an OPE
+unbiasedness claim.
 
 \phonesub{Shared facet scaffolding}
-Draw once per seed / proj\_tag random projections
-G,H so each user/item has m facet coords
-t\_u,k, t\_a,k (z-scored). Locked: m=4,
-proj\_tag=default, norm=v2 (R*: legacy v1).
-Same draw shared across SoftAND*/SoftThresh/PL.
+Facets are the low-dimensional coordinates
+in which every residual family is built.
+Once per seed / \texttt{proj\_tag}, draw
+random projections $G,H$ so each user/item
+gets $m$ z-scored facet coords $t_{u,k}$,
+$t_{a,k}$.  Locked: $m{=}4$,
+\texttt{proj\_tag=default}, \texttt{norm=v2}
+(except $\Rstar$ legacy v1).  Sharing the
+draw means family differences come from the
+nonlinearity, not from a lucky projection.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\phonesection{3. Residual families (full formulas)}
+\phonesection{3. Residual families}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-\phonesub{R* (tanh) --- even second channel}
-\textbf{Intuition.} Second bilinear index, then
-an \emph{even} nonlinearity so flipping a facet
-sign leaves psi unchanged => residual roughly
-uncorrelated with odd linear scores.
+All families plug into the same world
+equation; only $\phi$'s geometry changes.
+Careful wording: $\phi$ is constructed to be
+near-orthogonal to \emph{clean} bilinear
+structure; measured visibility on
+\emph{biased} features is $\approx 0$
+linearly --- that is a measurement, not an
+automatic consequence of the construction.
 
-\begin{asc}
-psi(t) = tanh( s * (t^2 - 1) )   # even map
-phi_raw = m^(-1/2) * sum_k psi(t_u,k)*psi(t_a,k)
-then double-center; legacy v1 scaling
-(divides both sides; NOT unit-sd)
-\end{asc}
+\phonesub{$\Rstar$ (tanh) --- even second channel}
+Build a second bilinear index from facets,
+then push each facet through an even map
+$\psi$ so flipping a facet's sign leaves
+$\psi$ unchanged.  Linear scores are odd in
+$t$; an even residual is therefore roughly
+uncorrelated with them --- soft orthogonality
+without an explicit projection.
+\begin{align*}
+\psi(t)
+  &= \tanh\!\big(s_{\psi}(t^{2}-1)\big),\\
+\phi_{\mathrm{raw}}
+  &= m^{-1/2}\sum_{k}
+     \psi(t_{u,k})\,\psi(t_{a,k}),
+\end{align*}
+then \textbf{double-center} (subtract user
+means and item means, restore grand mean, so
+$\phi$ has no pure user/item main effect
+that affine terms in $\mathcal{F}$ would
+absorb); legacy v1 scaling accidentally
+divided both factor sides --- \textbf{not}
+unit-sd.
 
-Still separable / low-rank (product of per-side
-transforms). Foils: PL = same product without
-psi; NC1 = pure noise (amp-matched).
+\miniex{$\psi(2)=\psi(-2)>0$ and
+$\psi(0)<0$: it asks ``is this facet extreme
+or typical?'', not ``which direction?''
+For a fixed item, a bilinear score flips
+when the user's facet flips, but
+$\psi(t_u)\psi(t_a)$ does not.  If facets
+are roughly symmetric around 0, positive /
+negative contributions cancel $\Rightarrow$
+near-zero linear correlation with bilinear
+scores.  Still a product of per-side
+transforms $=$ low-rank, so richer classes
+can absorb it.}
 
-\textbf{Why even?} Linear scores are odd in t;
-even psi kills first-order correlation --- soft
-orthogonality without explicit perp.
+Foils: PL = same product without $\psi$;
+NC1 = pure noise, amp-matched.
 
-\phonesub{SoftAND* --- thresholded AND}
-\textbf{Intuition.} Each facet = soft topic light.
+\phonesub{SoftAND$^{\star}$ --- thresholded AND}
+Treat each facet as a soft topic light.
 Bonus when the \emph{same} facet is above
-threshold on \emph{both} user and item.
+threshold on \emph{both} sides.
+\begin{align*}
+\mathrm{sp}(z)&=\log(1+e^{z}),\\
+g_{u,k}&=\mathrm{sp}\!\big((t_{u,k}-c)/s_g\big),\\
+h_{a,k}&=\mathrm{sp}\!\big((t_{a,k}-c)/s_g\big),\\
+\phi_{\mathrm{raw}}
+  &= m^{-1/2}\sum_{k} g_{u,k}\,h_{a,k},
+\end{align*}
+then PERP, then unit-sd.
+Locked: $m{=}4$, $c{=}1$, $s_g{=}0.25$,
+\texttt{proj\_tag=default}, \texttt{norm=v2}.
 
-\begin{asc}
-sp(z) = log(1 + exp(z))          # softplus
-g_u,k = sp( (t_u,k - c) / s )
-h_a,k = sp( (t_a,k - c) / s )
-phi_raw = m^(-1/2) * sum_k g_u,k * h_a,k
-then PERP, then unit-sd
+\miniex{Facet ``sci-fi.''  Gates fire only
+when both user and item exceed $c$ on that
+facet; product $=$ soft AND.  Sum over
+facets $=$ multi-topic ANDs.}
 
-LOCKED: m=4, c=1, gate_s=s=0.25,
-        proj_tag=default, norm=v2
-\end{asc}
+vs $\Rstar$: one-sided softplus gates, not
+even $\tanh(t^{2}-1)$; explicit PERP after.
+Before PERP still separable
+($\mathrm{rank}\le m$).
 
-\textbf{vs R*:} one-sided softplus gates
-(threshold / AND), not even tanh(t\^{}2-1).
-Explicit PERP (R* mostly relied on evenness).
-Before PERP still separable (rank <= m).
+\phonesub{SoftThresh --- soft threshold on $z_{2}$}
+Ignore per-facet AND.  Take the second-index
+bilinear score and bonus only when that
+scalar is large.
+\begin{align*}
+z_{2}
+  &= m^{-1/2}\sum_{k} t_{u,k}\,t_{a,k},\\
+\tilde{z}_{2}
+  &= (z_{2}-\mu)/\sigma,\\
+\phi_{\mathrm{raw}}
+  &= \mathrm{sp}\!\big(
+       (\tilde{z}_{2}-\tau)/s_{\mathrm{th}}
+     \big),
+\end{align*}
+then PERP, unit-sd.
+Locked: $m{=}4$, $\tau{=}1.5$,
+$s_{\mathrm{th}}{=}0.25$,
+\texttt{norm=v2}.
 
-\phonesub{SoftThresh --- soft threshold on z2}
-\textbf{Intuition.} Sparse bonus only when the
-second-index score is large (any facets).
+softplus-of-a-sum is \textbf{not}
+finite-rank separable --- different inductive
+bias.  Larger $\tau$ $\Rightarrow$ rarer
+``on'' pairs $\Rightarrow$ spikier
+$\phi_{\mathrm{raw}}$ before unit-sd.
 
-\begin{asc}
-z2 = m^(-1/2) * sum_k t_u,k * t_a,k
-z2_tilde = (z2 - mu) / sigma     # catalog
-phi_raw = sp( (z2_tilde - tau) / s_th )
-then PERP, then unit-sd
-
-LOCKED: m=4, tau=1.5, s_th=0.25,
-        proj_tag=default, norm=v2
-\end{asc}
-
-\textbf{Justification of form:} softplus-of-a-sum
-is \textbf{not} finite-rank separable --- different
-inductive bias than R*/SoftAND*. Larger tau =>
-rarer ``on'' pairs => spikier before unit-sd.
+\miniex{SoftAND vs SoftThresh at $m{=}2$.
+User $(2,0)$ with item $(2,0)$: SoftAND
+fires on facet 1.  User $(1.2,1.2)$ with
+item $(1.2,1.2)$: neither facet may clear
+the sharp gate at $c{=}1$, but
+$z_{2}\propto 1.2^{2}+1.2^{2}$ is large, so
+SoftThresh can still fire.}
 
 \phonesub{PERP (bilinear strip)}
-\begin{asc}
-phi = unit_sd( phi_raw - Pi_bilinear(phi_raw) )
-\end{asc}
-Pi = best affine-bilinear fit in \emph{clean}
-embedding features under uniform pairs
-(not the learner's biased span, not logging
-measure). So phi = ``what clean bilinear cannot
-soak up.''
+\begin{equation*}
+\phi
+  = \mathrm{unit\_sd}\!\big(
+      \phi_{\mathrm{raw}}
+      - \Pi_{\mathrm{bilinear}}(\phi_{\mathrm{raw}})
+    \big).
+\end{equation*}
+$\Pi$ regresses $\phi_{\mathrm{raw}}$ on every
+affine-bilinear function of the
+\emph{clean} embeddings under
+\emph{uniform} catalog pairs, and keeps the
+residual.  What survives is structure no
+clean bilinear score can reproduce.
 
-\textbf{Caveat:} PERP =/=> invisible on biased
-features. Always report R2(phi|biased).
+\miniex{Learners see \emph{biased}
+embeddings and train on \emph{logged}
+pairs.  A function orthogonal to the clean
+span can still correlate with something in
+the biased span.  That is why we always
+report $R^{2}(\phi\mid\mathrm{biased})$.
+Empirically $\approx 0$ linearly and
+$\approx 0.03$ for mlp64 on $\Rstar$ --- a
+measurement, not a consequence of PERP.}
 
-\phonesub{Unit-SD (norm=v2)}
-SoftAND*/ST: after PERP, rescale catalog pair-SD
-of phi to 1 (R* v1 is not unit-sd).
-Designed residual approx gamma*alpha*phi in SD units
-only under v2. SoftAND*/ST track sd\_ratio approx gamma;
-R* overshoots (approx 2.4x at g=0.5) --- so
-\textbf{nominal gamma is not cross-family
-comparable}. Prefer Delta\_proj / var-share.
+\phonesub{Unit-SD (\texttt{norm=v2})}
+SoftAND$^{\star}$/ST rescale catalog pair-SD
+of $\phi$ to $1$.  $\Rstar$ v1 does not.
+Consequence: SoftAND/ST track
+$\mathrm{sd\_ratio}\approx\gamma$; $\Rstar$
+overshoots ($\approx 2.4\times$ at
+$\gamma{=}0.5$).  Same nominal $\gamma$ mixes
+loudness with geometry --- prefer $\Dproj$.
 
 \phonesub{Foils}
 \begin{itemize}
-  \item \textbf{PL:} same z2 bilinear, unit-sd,
-        no PERP --- ``is gap just a second linear
-        channel?''
+  \item \textbf{PL:} same $z_{2}$ bilinear,
+        unit-sd, no PERP --- ``just a second
+        linear channel?''
   \item \textbf{NC1:} feature-free noise,
-        nc1\_amp=0.5 --- ``is gap just any jitter?''
+        \texttt{nc1\_amp}${}=0.5$ --- ``just
+        any logit jitter?''
 \end{itemize}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -269,88 +525,180 @@ comparable}. Prefer Delta\_proj / var-share.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \phonesub{NLL (logged Bernoulli)}
-\begin{asc}
-max_theta  sum_i [
-  r_i log q_theta(x_i,a_i)
-+ (1-r_i) log(1 - q_theta(x_i,a_i)) ]
-\end{asc}
-with q\_theta = sigmoid(score in F).
-\textbf{NOT} behavior cloning of pi0.
+\begin{equation*}
+\max_{\theta}
+\sum_{i}\Big[
+  r_{i}\log q_{\theta}(x_{i},a_{i})
+  +(1-r_{i})\log\big(1-q_{\theta}(x_{i},a_{i})\big)
+\Big],
+\end{equation*}
+with $q_{\theta}=\sigma(\mathrm{score}_{\theta})$
+and $\mathrm{score}_{\theta}\in\mathcal{F}$.
 
-\textbf{Justification / failure mode.} Under
-misspec, NLL -> KL projection of q* onto F.
-That projection need not maximize V in F
-(proxy-gold / Goodhart).
+NLL fits $r\mid(x,a)$ --- supervised click
+prediction on logged pairs.  It is
+\textbf{not} behavior cloning of $\pi_{0}$
+(which would fit $a\mid x$).  Its only link
+to $\pi_{0}$ is that $\pi_{0}$ decides which
+pairs get weight.
+
+Under misspec, NLL $\to$ KL projection of
+$q^{\star}$ onto $\mathcal{F}$ under the
+logging measure.  That projection maximizes
+likelihood, not necessarily $V$
+(proxy / Goodhart).
 
 \phonesub{DR / OPC}
-Optimize a doubly-robust estimate of V(pi)
-(known pi0; learned q\_hat). Targets value more
-directly; pays IPS variance.
+OPC is the repo's doubly-robust
+\emph{policy-learning} objective: a
+direct-method term using $\hat{q}$ plus an
+IPS correction with known $\pi_{0}$.
+Training scores a stochastic policy
+$\pi_{\mathrm{soft}}$ (softmax over scores);
+gradients flow through DM$+$IPS.
+Evaluation then uses the greedy argmax.
+So ``DR targets best-in-class value'' holds
+strictly in the low-temperature limit;
+greedy eval is the operational target.
+
+Pays IPS variance when $\pi$ diverges from
+$\pi_{0}$.
 
 \phonesub{Hybrid schedule}
-\begin{asc}
-epochs 1..f*T : NLL
-epochs f*T..T : DR fine-tune
-LOCKED f_star = 0.5
-\end{asc}
-\textbf{Intuition (hypothesis).} NLL may act as
-localized regularization around the KL policy;
-DR then moves toward value. f is an \textbf{objective
-schedule}, not a compute dial.
+\begin{align*}
+\text{epochs }1..fT &:\;\mathrm{NLL},\\
+\text{epochs }fT..T &:\;\mathrm{DR\ fine\text{-}tune},\\
+f_{\star} &= 0.5\quad\text{(locked)}.
+\end{align*}
+
+\miniex{With fixed budget $T{=}20$: $f{=}1$
+is pure NLL; $f{=}0$ is pure DR; $f{=}0.5$
+means 10 NLL epochs then 10 DR epochs
+\emph{from those weights}.  Total compute
+is the same for every $f$ --- hence
+``objective schedule,'' not a compute dial.
+Hypothesis: NLL quickly reaches a stable
+low-variance region near the likelihood
+projection; DR then moves ranking toward
+value without starting cold, where IPS
+variance hurts most.  $f{=}0.5$ was locked
+on a 3-seed pilot --- treat as
+pre-registered choice, not an optimum.}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \phonesection{5. Estimands}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-\begin{asc}
-D(g)   = V(DR/OPC, g) - V(NLL, g)
-D_H(g) = V(Hybrid, g) - V(NLL, g)
+\begin{align*}
+D(\gamma)
+  &= V(\mathrm{OPC},\gamma)
+   - V(\mathrm{NLL},\gamma)
+   \quad\text{(level)},\\
+D_{H}(\gamma)
+  &= V(\mathrm{Hy},\gamma)
+   - V(\mathrm{NLL},\gamma)
+   \quad\text{(level)},\\
+\mathrm{DiD}(\gamma)
+  &= D(\gamma)-D(0)
+   \quad\text{(interaction)}.
+\end{align*}
 
-DiD(g) = D(g) - D(0)     # method x gamma
-# interaction under CRN / paired seeds
-# NOT classical parallel-trends DiD
+\textbf{DiD here is a designed interaction,
+not classical DiD.}  Picture a $2\times 2$
+with methods (OPC, NLL) as rows and worlds
+($\gamma{=}0$, $\gamma{=}0.5$) as columns.
+$D(\gamma)$ $=$ row difference within a
+column; DiD $=$ how that difference changes
+between columns.  We set $\gamma$ ourselves;
+both methods run on the same seed (same
+embeddings, logs, eval users $=$ CRN).  The
+interaction is identified by design; pairing
+cancels shared seed noise.
 
-Delta_proj(g) = V_lin_val(g) - V_lin_lik(g)
-DDelta_proj(g) = Delta_proj(g) - Delta_proj(0)
-\end{asc}
+\miniex{If $D(0)\approx -1.07$ and
+$\mathrm{DiD}=+1.53$, then
+$D(0.5)\approx +0.46$ (same run family).
+OPC loses slightly in the baseline and wins
+once the residual is on.  Do \emph{not}
+confuse this DiD with the nearby Hy$-$NLL
+\emph{level} $+1.54$ at $\Rstar$ $\gamma0.5$
+--- different method pair.}
 
-\textbf{V\_lin\_val:} best affine-bilinear ranking
-under true q (value oracle in F).
+Oracle projection gaps (no learning):
+\begin{align*}
+\Dproj(\gamma)
+  &= V_{\mathrm{lin\_val}}(\gamma)
+   - V_{\mathrm{lin\_lik}}(\gamma),\\
+\DDproj(\gamma)
+  &= \Dproj(\gamma)-\Dproj(0).
+\end{align*}
 
-\textbf{V\_lin\_lik:} KL / likelihood projection
-onto F (NLL's putative asymptote).
+\begin{itemize}
+  \item $V_{\mathrm{lin\_val}}$ --- best
+        greedy value any affine-bilinear
+        ranker can reach under true $q$
+        (clean features / value objective).
+  \item $V_{\mathrm{lin\_lik}}$ --- value of
+        the bilinear ranker that maximizes
+        expected likelihood (NLL's putative
+        asymptote \emph{if} the pin were
+        correct --- Sec.~8.4 says it is not).
+\end{itemize}
+Exact pair measure / feature details of each
+oracle: verify against the recoverability
+code before citing as asymptotes.
 
-\textbf{Why Delta\_proj:} measures effective
-misspec in value units. Prefer it over nominal
-gamma for cross-family claims.
+\why{Oracle gaps bound what is possible;
+they do not predict what learners realize.
+At $\gamma{=}0$, $\Dproj\approx 11$\,pt but
+empirical $D\approx -1.07$: finite-sample
+variance, optimization, and selection eat
+the difference.  Scaling therefore uses
+$\DDprojeff$, not raw $\DDproj$.}
 
-\textbf{DiD identifies:} how method gap moves
-when residual turns on, protocol fixed.
+\textbf{DiD identifies:} how the method gap
+moves when residual turns on, protocol fixed.
 \textbf{Does not identify:} a unique field
-``misspec parameter'' or external validity.
+``misspec parameter,'' or external validity
+beyond this DGP.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\phonesection{6. Recoverability \tag{OBSERVED}}
+\phonesection{6. Recoverability \stag{OBSERVED}}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-\textbf{Question.} How much of phi / true logit
-is visible on biased learner features?
+\textbf{Question.} How much of $\phi$ / true
+logit is visible from the learner's
+\emph{biased} features?
 
-\begin{asc}
-signal_kept ~ 0.500   (locked high-bias)
-R2_lin(phi | biased) ~ 0   for g>0
-R2_lin(clean-lin | biased) = 0.626
-\end{asc}
+\begin{align*}
+\texttt{signal\_kept}
+  &\approx 0.500
+  \quad\text{(locked high-bias)},\\
+R^{2}_{\mathrm{lin}}(\phi\mid\mathrm{biased})
+  &\approx 0
+  \quad(\gamma{>}0),\\
+R^{2}_{\mathrm{lin}}(\mathrm{clean\text{-}lin}\mid\mathrm{biased})
+  &= 0.626.
+\end{align*}
+
+About half the clean bilinear signal
+survives the bias map; residual $\phi$ is
+almost invisible to a \emph{linear} readout
+on biased features.  That is \emph{not} a
+paradox with width helping: linear $R^{2}$
+cannot detect nonlinear visibility
+($R^{2}_{\mathrm{mlp64}}(\phi\mid\mathrm{biased})\approx 0.03$
+on $\Rstar$).
 
 Oracle greedy CTR (pt):
 
 \begin{tabularx}{\linewidth}{@{}Xrrr@{}}
 \toprule
-cell & Vval & Vlik & Dproj \\
+cell & $V_{\mathrm{val}}$ & $V_{\mathrm{lik}}$ & $\Dproj$ \\
 \midrule
-g0 & 24.15 & 13.05 & 11.09 \\
-R* 0.5 & 29.50 & 13.86 & 15.63 \\
-R* 2 & 34.85 & 13.88 & 20.97 \\
+$\gamma0$ & 24.15 & 13.05 & 11.09 \\
+$\Rstar$ 0.5 & 29.50 & 13.86 & 15.63 \\
+$\Rstar$ 2 & 34.85 & 13.88 & 20.97 \\
 SA 0.5 & 27.87 & 13.86 & 14.00 \\
 SA 2 & 30.28 & 15.57 & 14.71 \\
 ST 0.5 & 31.93 & 15.91 & 16.02 \\
@@ -358,379 +706,336 @@ ST 2 & 39.11 & 18.30 & 20.82 \\
 \bottomrule
 \end{tabularx}
 
-\textbf{Reading.} Large Delta\_proj => big
-value-vs-likelihood gap inside F.
-R2(phi|biased) approx 0 => residual not linearly
-recoverable from biased features.
-R2\_lin(clean-lin|biased)=0.626 is already used
-by the linear class. Repair mlp64-lin: +0.48 at
-g0 vs +3.82 at R* g2 => width gain grows with
-gamma; phi partly nonlinearly visible
-(R2\_mlp64(phi|biased) approx 0.03, R*) --- key for Law 2.
+\textbf{Reading.}
+At $\gamma0$: $24.15$ vs $13.05$ $\Rightarrow$
+$\Dproj\approx 11.1$\,pt even in the baseline
+(representation mismatch).  Large $\Dproj$
+is why NLL \emph{can} lose to DR; it is not
+a forecast of the realized method gap.
 
-\textbf{Caveat:} SoftThresh g2 repair mlp64
-35.52 < V\_lin\_val 39.11.
+\textbf{Repair oracle.}
+``Repair mlp64$-$lin'' $=$ value of an
+mlp64 class fit as a value oracle on clean
+features, minus the linear value oracle.
+Gains: $+0.48$\,pt at $\gamma0$ vs $+3.82$
+at $\Rstar$ $\gamma2$ --- width gains grow
+with $\gamma$.
+
+\textbf{SoftThresh caveat.}
+Repair mlp64 at ST $\gamma2$ lands at
+$35.52 < V_{\mathrm{lin\_val}}\,39.11$: the
+richer-class oracle scored \emph{below} the
+linear oracle, so it is an imperfect
+optimizer.  That is why
+$V_{\mathrm{ref}}=\max(V_{\mathrm{lin\_val}},
+V_{\mathrm{repair},C})$ takes a max.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \phonesection{7. Summary results}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-\phonesub{R* Phase-1 DiD \tag{LOCKED}}
-DiD = +1.53 pt, CI [+0.97, +2.09], 10/10.
-NC1 control ~ +0.20 (null band).
+Always label \textbf{level} vs \textbf{DiD}
+and the method pair.  Intervals are
+paired-seed CIs over the stated seed set;
+``$k/10$'' $=$ seeds with positive sign.
 
-\phonesub{SoftAND H1 Hy-NLL \tag{OBSERVED} n=10}
+\phonesub{$\Rstar$ Phase-1 DiD \stag{LOCKED}
+(OPC$-$NLL)}
+\[
+\mathrm{DiD}=+1.53\,\mathrm{pt},\quad
+\mathrm{CI}\,[+0.97,+2.09],\quad 10/10.
+\]
+NC1 noise control $\approx +0.20$ (null band)
+--- not ``any jitter.''
+
+\phonesub{SoftAND H1 \emph{level} $D_{H}$
+\stag{OBSERVED} $n{=}10$}
 \begin{itemize}
-  \item g0: -0.26 [$-$0.77, +0.25]
-  \item g0.5: +0.24 [$-$0.39, +0.87]
-        --- \textbf{fails G\_misspec}
-  \item g100: +3.78 [+1.30, +6.26], 9/10
+  \item $\gamma0$: $-0.26$ $[-\,0.77,+0.25]$
+  \item $\gamma0.5$: $+0.24$ $[-\,0.39,+0.87]$
+        --- fails G\_misspec (CI crosses 0).
+        SoftAND mid-$\gamma$ is muted;
+        $\DDproj$ is also the smallest among
+        families at $\gamma0.5$.
+  \item $\gamma100$: $+3.78$ $[+1.30,+6.26]$,
+        $9/10$ --- $\phi$-dominated regime,
+        not a dose-response continuation of
+        mid-$\gamma$.
 \end{itemize}
 
-\phonesub{R* H1 Hy-NLL}
-g0: -0.15; g0.5: +1.54 [+0.45, +2.64].
+\phonesub{$\Rstar$ H1 \emph{level} $D_{H}$}
+$\gamma0$: $-0.15$;
+$\gamma0.5$: $+1.54$ $[+0.45,+2.64]$.
+(Do not merge with the $+1.53$ OPC$-$NLL DiD.)
 
-\phonesub{Hybrid lock \tag{LOCKED} but n=3 pilot}
-f\_star=0.5 on seeds 100--102.
-vs NLL: well ~ -0.04; misspec ~ +3.05.
-Not confirmatory.
+\phonesub{Hybrid lock \stag{LOCKED}, $n{=}3$ pilot}
+$f_{\star}{=}0.5$ on seeds 100--102.
+\emph{Level} Hy$-$NLL: well-spec cell
+$\approx -0.04$; misspec cell
+$\approx +3.05$ (verify family/$\gamma$ in
+the lock note).  Chooses $f$, not
+confirmatory.
 
-\phonesub{Capacity lean n=3 (R* g2)}
-Hy: lin 21.36 -> mlp256 26.27 (approx +4.9).
-NLL: 16.81 -> 21.75. Width helps despite
-R2\_lin(phi) approx 0. Hy-NLL at g0 worsens with width
-(-0.12 -> -1.53) --- watch G\_well.
-
-\phonesub{Grid progress}
-Hybrid 154/192 cells (approx 6970/7680 seeds).
-Capacity 25/30 (rstar g2 mlp64 done).
-Recoverability done. GPU 2--3 ours;
-0--1 held by external vLLM.
+\phonesub{Capacity lean $n{=}3$ ($\Rstar$ $\gamma2$)}
+Hy: lin $21.36\to$ mlp256 $26.27$
+($\approx +4.9$\,pt).  NLL: $16.81\to 21.75$.
+Width helps despite
+$R^{2}_{\mathrm{lin}}(\phi)\approx 0$ because
+linear $R^{2}$ misses nonlinear visibility.
+Watch G\_well: Hy$-$NLL at $\gamma0$ worsened
+with width ($-0.12\to -1.53$).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \phonesection{8. Scaling laws --- method}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-\tag{PLANNED} / \tag{HYPOTHESIS}
+\stag{PLANNED} / \stag{HYPOTHESIS}
 
-\textbf{This is a method, not a result.}
-What we measure, how we pin floors, which
-curves we fit, and what would count as
-support or refute.
+\textbf{Method, not a result.}  What we
+measure, how we pin floors, which curves we
+fit, what counts as support or refute.
 
-\textbf{Gloss.} ESS = Kish effective sample
-size. IPS = inverse propensity. HPO =
-hyperparameter search. CRN = common random
-numbers (paired seeds). ``Pinned floor'' =
-oracle value fixed before fitting. ``Collapse''
-= curves from different worlds align on one
-axis. ``Two-tower'' = separable user/item
-score class (affine-bilinear or mlp-of-dot).
-
-\phonesub{8.0 Do this (six steps)}
+\phonesub{8.0 Six steps}
 \begin{enumerate}
-  \item Build nested train prefixes A1
-        (one pool per seed; prefixes; val
-        fixed 20k).
-  \item Train matched \{NLL, OPC, Hy0.5\}
-        at each N (same HPO budget;
-        select on val DR estimate).
-  \item Record oracle V, learned V, and
-        ESS/rho for DR.
+  \item Nested train prefixes A1 (one pool
+        per seed; prefixes; val fixed 20k).
+  \item Matched $\{\mathrm{NLL},\mathrm{OPC},
+        \mathrm{Hy}_{0.5}\}$ at each $N$
+        (same HPO; select on val DR).
+  \item Record oracle $V$, learned $V$,
+        ESS/$\rho$ for DR.
   \item Validate / redefine floors (A3)
-        before any curve fit.
-  \item Fit crossover N\_star(g) on held-in
-        N; check it falls with
-        DDelta\_proj\_eff.
-  \item Predict held-out largest N; else
-        say ``trends only''.
+        \emph{before} any curve fit.
+  \item Fit crossover $N_{\star}(\gamma)$ on
+        held-in $N$; check it falls as
+        $\DDprojeff$ rises.
+  \item Predict held-out largest $N$; else
+        ``trends only''.
 \end{enumerate}
 
 \phonesub{8.1 Question}
-Under locked class misspec (Sec.~1--5),
-how do
-\begin{asc}
-D = V_DR - V_NLL
-DiD(g) = D(g) - D(0)
-\end{asc}
-move when scarce resources (N, ESS) and
-capacity C change --- protocol fixed
-(bias, class F, residual family, f\_star)?
+Under locked class misspec, how do
+$D$ and $\mathrm{DiD}(\gamma)$ move when
+scarce resources ($N$, ESS) and capacity $C$
+change --- bias, $\mathcal{F}$, family,
+$f_{\star}$ fixed?  Target: curves $+$
+crossover points, not one universal
+exponent.
 
-Target: \textbf{curves + crossover points},
-not one universal exponent.
+\phonesub{8.2 Why not Kaplan / Chinchilla}
+Logged NLL $\ne$ eval target under misspec
+(also at locked $\gamma{=}0$: representation
+mismatch).  Floors are stacked (features /
+class / objective), not one $E$.  Binding
+axes: $N$, ESS, HPO --- not FLOPs.  $\gamma$
+is a stress dial, not a resource.
 
-\phonesub{8.2 Why not Kaplan/Chinchilla}
-\begin{itemize}
-  \item Logged NLL != eval target under
-        misspec (also at locked g=0:
-        representation mismatch remains;
-        see Sec.~1).
-  \item Floors are stacked (features /
-        class / objective), not one E.
-  \item Binding axes: N, ESS, HPO ---
-        not FLOPs (nets are tiny).
-  \item gamma = stress dial, not a
-        resource.
-\end{itemize}
-
-\textbf{Still borrow:} reducible regret to
-a pinned oracle; three regimes; largest-N
-holdout; matched HPO at every scale point.
+Still borrow: reducible regret to a pinned
+oracle; three regimes; leave-largest-$N$-out;
+matched HPO at every scale point.
 
 \phonesub{8.3 Axes and data unit}
-\begin{asc}
-theta = (N, |U|, |A|, d, C, F, gamma, s)
-# s := signal_kept (repr. bias), NOT
-#     SoftAND gate_s / R* tanh scale
-
-# Design axis = N (logged rows).
-# ESS is diagnostic for DR (endogenous):
-w_i = pi_soft(a_i|x_i)/pi0(a_i|x_i)
-# pi_soft = softmax of learned scores
-# (greedy pi makes Kish degenerate)
-N_eff = (sum w)^2 / sum(w^2)
-rho   = N_eff / N
-# NLL: N_eff := N
-\end{asc}
-
-\textbf{Rule.} Fit primary curves vs N.
-Report DR also vs N\_eff; S6 = ``DR aligns
-better in N\_eff than N.'' One design per
-fit (N fixed / N/|A| / N/|U| --- do not mix).
+Design axis $=N$ (logged rows).  ESS is
+endogenous for DR:
+\begin{align*}
+w_{i}
+  &= \frac{\pi_{\mathrm{soft}}(a_{i}\mid x_{i})}
+         {\pi_{0}(a_{i}\mid x_{i})},\\
+\Neff
+  &= \frac{(\sum_{i} w_{i})^{2}}
+         {\sum_{i} w_{i}^{2}},\qquad
+\rho=\Neff/N.
+\end{align*}
+For NLL set $\Neff:=N$.  Fit primary curves
+vs $N$; also report DR vs $\Neff$ (claim S6).
+One design per fit --- do not mix
+$N$, $N/|A|$, $N/|U|$.
 
 \phonesub{8.4 Pin floor, then fit excess}
-\begin{asc}
-R_m = V_ref(C,g) - V_m(N,C,g,s)
+\begin{align*}
+R_{m}
+  &= V_{\mathrm{ref}}(C,\gamma)
+   - V_{m}(N,C,\gamma),\\
+V_{\mathrm{ref}}
+  &= \max\!\big(
+       V_{\mathrm{lin\_val}}(\gamma),\,
+       V_{\mathrm{repair},C}(\gamma)
+     \big),\\
+B_{m}
+  &:= V_{\mathrm{ref}}-V_{m}^{\infty}
+  \quad\text{(A3)},\\
+R_{m}-B_{m}
+  &= a_{m}\,N^{-\kappa_{m}}
+  \quad\text{(primary; vs $N$)}.
+\end{align*}
+Optional DR diagnostic replaces $N$ by
+$\Neff$ (for NLL they coincide).  Fit only
+$(a_{m},\kappa_{m})$ on excess --- floor is
+pinned, not free.  ($\kappa_{m}$ avoids
+overloading residual scale $\alpha$.)
 
-# Pin BEFORE looking at curves:
-V_ref = max(V_lin_val(g), V_repair_C(g))
-# V_lin_val / V_lin_lik: see Sec 5
-# V_repair_C = value oracle in same
-# width class C (clean features)
-
-# Floor B_m is ALSO pinned (not free):
-B_m := V_ref - V_m_inf
-# V_m_inf from A3 (huge-N / oracle class)
-# Fit ONLY a_m, alpha_m on excess:
-R_m - B_m = a_m * N_eff^(-alpha_m)
-# [+ b_m*C^(-beta) only if C varies
-#  apart from the V_ref(C) pin]
-\end{asc}
-
-\textbf{Intuition.} B\_m = gap left when N
-is huge. Excess term = finite-sample.
-Under misspec expect B\_NLL >> B\_DR
-(NLL keeps projection tax).
-
-\textbf{ISSUE (blocks fitting):} at g0,
-learned NLL approx 18 already beats
-V\_lin\_lik 13.05 (also at R* g2: NLL-lin
-16.81 > V\_lin\_lik 13.88). So
-\textbf{V\_lin\_lik is not NLL's asymptote}
---- predicted B\_NLL from lik-oracle is
-wrong. Phase 0 must redefine B\_NLL
-(wider oracle / repair pin / drop lik
-pin) before any alpha fit.
+\textbf{\stag{ISSUE} (blocks fitting).}
+At $\gamma0$, learned NLL already reaches
+$\approx 18$\,pt $> V_{\mathrm{lin\_lik}}\,13.05$
+(same at $\Rstar$ $\gamma2$: $16.81>13.88$).
+A learner cannot beat its own asymptote, so
+the lik-oracle is not NLL's pseudo-true
+target.  Candidates (unverified): (a) oracle
+projects under uniform pairs, real NLL under
+logging measure; (b) early stopping /
+val-DR selection steers away from pure
+likelihood; (c) feature mismatch.  A3
+(huge-$N$ NLL) replaces the theoretical pin
+with an empirical one.  No exponent until
+then.
 
 \phonesub{8.5 Regret stack (ledger)}
-Accounting identity, not a fitted model:
-\begin{asc}
-V_ceil - V_m =
-  Delta_feat(g; s, R2)   # unrecoverable
-+ Delta_class(g, C)      # width headroom
-+ Delta_obj_m(g, C)      # obj. tax
-+ eps_est_m(N,C,pi0,g)   # sample + HPO
+Accounting identity:
+\begin{align*}
+V_{\mathrm{ceil}}-V_{m}
+  &= \Delta_{\mathrm{feat}}
+   + \Delta_{\mathrm{class}}
+   + \Delta_{\mathrm{obj},m}
+   + \varepsilon_{\mathrm{est},m}.
+\end{align*}
+If feature and class terms are the same for
+OPC and NLL (matched $C$, matched HPO), they
+cancel in the difference:
+\begin{align*}
+D
+  &= \Dprojeff-\Delta_{\varepsilon},\\
+\Dprojeff
+  &:= \Delta_{\mathrm{obj},\mathrm{NLL}}
+    - \Delta_{\mathrm{obj},\mathrm{DR}},\\
+\DDprojeff(\gamma)
+  &:= \Dprojeff(\gamma)-\Dprojeff(0).
+\end{align*}
+If methods select different widths or HPO
+winners, cancellation fails --- fix the
+protocol, do not narrate a negative ledger
+term as a finding.
 
-# Effective projection gap (learners):
-Delta_proj_eff :=
-  Delta_obj_NLL - Delta_obj_DR
-DDelta_proj_eff(g) :=
-  Delta_proj_eff(g) - Delta_proj_eff(0)
-\end{asc}
-
-If a ledger term goes negative, fix the
-pin --- do not narrate it as a finding.
-
-Loss-scale intuition (not value-scale):
-\begin{asc}
-B_repr_L approx (g*alpha)^2 * Var(phi)
-              * [1 - R2(phi|biased)]
-\end{asc}
+Loss-scale heuristic (not value-scale;
+omitted-variable intuition):
+\begin{equation*}
+B_{\mathrm{repr},L}
+  \propto (\gamma\alpha)^{2}\,\mathrm{Var}(\phi)\,
+  \big[1-R^{2}(\phi\mid\mathrm{biased})\big].
+\end{equation*}
 
 \phonesub{8.6 Law 1: crossover}
-\tag{HYPOTHESIS} --- primary object
+\stag{HYPOTHESIS}
 
-\textbf{Story.} DR pays IPS variance to cut
-projection bias. NLL is lower-variance but
-wrong-target under misspec. As N grows,
-DR variance shrinks; bias gap stays =>
-crossover N\_star where DR catches NLL.
+DR pays IPS variance to cut projection bias.
+NLL is lower-variance but wrong-target under
+misspec.  As $N$ grows, DR variance shrinks
+while the bias gap stays $\Rightarrow$
+crossover $N_{\star}$ where
+$D(\gamma;N_{\star})=0$ at matched $C$.
 
-\begin{asc}
-D(g;N,C) = V_DR - V_NLL       # level
-Delta_eps = eps_DR - eps_NLL
+Prefer DiD / difference forms over a ratio
+(sign-fragile near 0).  Prefer
+$\DDprojeff$ over raw $\DDproj$ (Sec.~5).
 
-# Prefer CRN contrast vs g=0:
-# Delta_proj: Sec 5 (V_lin_val-V_lin_lik)
-DDelta_raw = Delta_proj(g)-Delta_proj(0)
-
-Level: D = Delta_proj_eff - Delta_eps
-DiD  = DDelta_proj_eff
-     - [Delta_eps(g)-Delta_eps(0)]
-
-# Prefer DiD / difference form over Psi
-# ratio (sign-fragile when denom <= 0)
-\end{asc}
-
-\textbf{Headline:} N\_star(g) with
-D(g; N\_star)=0 at matched C (level
-crossover). Primary design axis = N.
-
-\textbf{Why not raw Delta\_proj:} at locked
-g=0, Delta\_proj=11.09 but empirical
-D approx -1.07. Oracle gap != method gap.
-S3 uses \textbf{DDelta\_proj\_eff}.
-
-\textbf{Hybrid.} f = objective schedule,
-not FLOPs. Hypothesis: Hy beats NLL when
-D\_H stays positive past a threshold
-lambda(f). Only n=3 pilot at f=0.5 ---
-lambda untested.
-
-\textbf{Test Law 1}
-\begin{enumerate}
-  \item Nested prefixes A1; val=20k.
-  \item Methods \{NLL, OPC, Hy0.5\};
-        HPO 20 trials (A4 checks 60);
-        select on val DR.
-  \item N = 25k,50k,100k,200k,400k,800k
-        (P1); then to 1.6M (P2).
-  \item Worlds: locked-high g=0 + g in
-        \{0.5,2\} x \{R*, SoftThresh\}
-        (SoftAND later; muted mid-g).
-  \item Fit N\_star(g); check falls with
-        DDelta\_proj\_eff (S3).
-  \item Leave-largest-N-out first.
-\end{enumerate}
+\textbf{Test:} nested A1; methods
+$\{\mathrm{NLL},\mathrm{OPC},\mathrm{Hy}_{0.5}\}$;
+HPO 20 (A4 checks 60); select on val DR;
+$N\in\{25\mathrm{k},\ldots,800\mathrm{k}\}$ then
+$1.6$M; worlds locked-high $\gamma{=}0$ plus
+$\gamma\in\{0.5,2\}\times\{\Rstar,\mathrm{ST}\}$;
+leave-largest-$N$-out first.
 
 \phonesub{8.7 Law 2: capacity gate}
-\tag{HYPOTHESIS} --- secondary; unsettled
+\stag{HYPOTHESIS} --- secondary; unsettled
 
-\textbf{Story.} Extra width helps only if
-the class can see residual structure on
-\textbf{biased} features; else C buys IPS
-noise.
+Extra width helps only if the class can see
+residual structure on \textbf{biased}
+features; else $C$ buys IPS noise.
 
-\textbf{Gate (revised, incremental):}
-\begin{asc}
-Gate = R2_tt(ell|biased)
-     - R2_lin(ell|biased)
-# tt = two-tower / separable class
-# Prefer value units when possible
-# NOT R2(phi|biased) alone
-\end{asc}
+\textbf{Gate (incremental):}
+\begin{equation*}
+\mathrm{Gate}
+  = R^{2}_{\mathrm{tt}}(\ell\mid\mathrm{biased})
+  - R^{2}_{\mathrm{lin}}(\ell\mid\mathrm{biased}).
+\end{equation*}
+tt $=$ two-tower / separable nonlinear class.
+\textbf{Not} $R^{2}(\phi\mid\mathrm{biased})$
+alone.
 
-Why incremental: total R2(ell|biased) can
-\textbf{fall} as gamma grows (phi poorly
-visible) while width gains \textbf{rise}
---- so a level R2 gate predicts the wrong
-direction on current numbers.
+\miniex{Illustrative (not measured): at one
+$\gamma$, $R^{2}_{\mathrm{lin}}{=}0.60$ and
+$R^{2}_{\mathrm{tt}}{=}0.66$ $\Rightarrow$
+$\mathrm{Gate}{=}0.06$.  At higher $\gamma$,
+levels fall to $0.50/0.58$ but Gate rises to
+$0.08$.  Level-$R^{2}$ would predict the
+wrong direction; incremental Gate matches
+``width gains rise as $\gamma$ grows.''}
 
-n=3 lean pilot: R2\_lin(phi) approx 0 yet
-mlp256 gains approx +4.9 pt on R* g2;
-repair +3.82 at g2 vs +0.48 at g0. Old
-claim ``width never helps when
-R2\_lin(phi)=0'' is contradicted by that
-pilot --- rewrite pending Gate measurement.
-
-\textbf{Test Law 2}
-\begin{enumerate}
-  \item Measure Gate on scaling worlds.
-  \item P3: C in \{lin, mlp16,64,256,1024\}
-        at sparse N; q-hat class fixed.
-  \item Predict: when Gate low, DiD
-        persists / V gains small; when
-        Gate high, width can close DiD.
-  \item Watch G\_well: Hy-NLL at g0 must
-        not collapse with width.
-\end{enumerate}
+The $n{=}3$ lean pilot already contradicts
+``width never helps when
+$R^{2}_{\mathrm{lin}}(\phi){=}0$''.  Rewrite
+pending measured Gate.
 
 \phonesub{8.8 Phase order}
-\begin{enumerate}
-  \item \textbf{P0} A1 nested prefixes;
-        A2 equal data; A3 huge-N NLL vs
-        pinned floor (defines V\_m\_inf);
-        A4 HPO 20 vs 60; A5 100k == legacy;
-        A6 finish capacity g2 n=40.
-  \item \textbf{P1} N-probe grid above;
-        linear; seeds 100--104; + well-spec
-        control (bias=none, g=0).
-  \item \textbf{P2} N x gamma; seeds
-        300--309; fit N\_star /
-        beta\_DiD (= slope of DiD vs N
-        on log-N); leave-largest-N-out.
-  \item \textbf{P3} N x C (Law 2).
-  \item \textbf{P4} multi-ds + ESS
-        collapse (rho).
-  \item \textbf{P5} freeze; predict 3.2M;
-        >=80\% of cell means inside frozen
-        90\% PI else ``trends only''.
-\end{enumerate}
+P0: A1--A6 (A6 capacity $n{=}40$ now done).
+P1: $N$-probe + well-spec control.
+P2: $N\times\gamma$; fit $N_{\star}$ /
+$\beta_{\mathrm{DiD}}$.
+P3: $N\times C$ (Law 2).
+P4: multi-ds + ESS collapse.
+P5: freeze; predict $3.2$M; coverage gate.
 
 \phonesub{8.9 Claims S1--S7}
 \begin{itemize}
-  \item S1 DiD is bias, not small-sample
-        (beta\_DiD LB > 0).
-  \item S2 under misspec (g>0 vs g=0 /
-        well-spec): NLL saturates or
-        inverts.
-  \item S3 N\_star falls with
-        DDelta\_proj\_eff.
-  \item S4 well-spec control: NLL >= OPC
-        all N (bias=none, g=0).
-  \item S5 C != data substitute when
-        Gate low.
-  \item S6 ESS/rho is DR's data unit.
-  \item S7 3.2M coverage.
+  \item S1 DiD is lasting bias, not a
+        small-sample artifact.  A pure
+        finite-sample artifact would shrink
+        as $N$ grows ($\beta_{\mathrm{DiD}}<0$).
+        Requiring the lower bound of
+        $\beta_{\mathrm{DiD}}>0$ is the
+        stronger ``grows / persists'' claim.
+  \item S2 under misspec, NLL saturates or
+        inverts vs $\gamma{=}0$ / well-spec.
+  \item S3 $N_{\star}$ falls with
+        $\DDprojeff$.
+  \item S4 well-spec control: NLL $\ge$ OPC
+        at all $N$.
+  \item S5 $C\ne$ data substitute when Gate
+        low.
+  \item S6 ESS/$\rho$ is DR's data unit.
+  \item S7 $3.2$M predictive coverage.
 \end{itemize}
 
 \phonesub{8.10 Kill switches}
 Stop / downgrade if: flat curves (K1);
-HPO-bound (K2); selection-bound (K3:
-val-DR winner != oracle-V winner);
-well-spec fails (K4); A3 floor never
-approached.
+\textbf{HPO-bound} (K2: results change when
+search budget changes); \textbf{selection-bound}
+(K3: val-DR winner $\ne$ oracle-$V$ winner,
+so curves measure the selector); well-spec
+fails (K4); A3 floor never approached.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \phonesection{9. Open issues}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \begin{enumerate}
-  \item \tag{ISSUE High} V\_lin\_lik is not
-        NLL's asymptote (NLL approx 18 >
-        13.05 at g0; also at R* g2) ---
-        B\_NLL pin broken.
-  \item \tag{ISSUE High} Need measured
-        Delta\_proj\_eff / DDelta\_proj\_eff
-        (raw Dproj 11 vs D approx -1.07).
-  \item \tag{ISSUE High} Law 2 Gate
-        (incremental two-tower R2) not
-        measured yet.
-  \item \tag{ISSUE High} Nested data A1
-        missing --- blocks all N-curves.
-  \item \tag{ISSUE Med} GPU 0--1 held by
-        vLLM; 2--3 in use for capacity /
-        hybrid catchup.
-  \item \tag{ISSUE High} SoftAND mid-g
-        muted (H1 CI crosses 0); note
-        DDelta\_proj is smallest among
-        families at g0.5 --- not ``despite
-        large Dproj''.
-  \item \tag{ISSUE Med} DDelta\_proj ledger
-        disagrees across docs.
-  \item \tag{ISSUE Med} Capacity 25/30;
-        hybrid 154/192; HPO/equal-data
-        audits.
+  \item \stag{ISSUE High} $V_{\mathrm{lin\_lik}}$
+        is not NLL's asymptote ---
+        $B_{\mathrm{NLL}}$ pin broken.
+  \item \stag{ISSUE High} Need measured
+        $\Dprojeff/\DDprojeff$.
+  \item \stag{ISSUE High} Law 2 Gate not
+        measured.
+  \item \stag{ISSUE High} Nested data A1
+        missing --- blocks $N$-curves.
+  \item \stag{ISSUE High} SoftAND mid-$\gamma$
+        muted; $\DDproj$ smallest among
+        families at $\gamma0.5$.
+  \item \stag{ISSUE Med} $\DDproj$ ledger
+        disagrees across older docs.
+  \item \stag{ISSUE Med} Hybrid grid still
+        partial on \texttt{kuairec\_full};
+        HPO / equal-data audits pending.
 \end{enumerate}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -738,23 +1043,37 @@ approached.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \begin{enumerate}
-  \item Redefine B\_NLL (A3) --- lik pin
-        is wrong.
+  \item Redefine $B_{\mathrm{NLL}}$ via A3.
   \item Implement nested prefixes (A1).
-  \item Measure Delta\_proj\_eff and Law 2
-        Gate (incremental two-tower R2).
-  \item Finish capacity g2 / softand
-        remainders on GPU.
-  \item Then Phase 1 -> 2 per Sec.~8.8.
+  \item Measure $\Dprojeff$ and Law 2 Gate.
+  \item Finish remaining hybrid cells.
+  \item Then Phase 1 $\to$ 2 per Sec.~8.8.
 \end{enumerate}
 
-\vspace{0.6em}
-\Needspace{5\baselineskip}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\phonesection{Appendix. Live ops (not science)}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+{\footnotesize
+Hybrid $\approx 158/192$ cells at $n{=}40$;
+capacity confirm done $30/30$; recoverability
+CSVs written.  Remaining hybrid mass on
+\texttt{kuairec\_full} + anime / kuairand
+softthresh tails.  GPU 0--1 held by external
+vLLM; catchup on GPU 2--3.\par
+}
+
+\vspace{0.4em}
 {\footnotesize\raggedright
-Sources: framing, family-formula, scaling-protocol,
-recoverability, and cached-results documents.\\
-Each compile must pass coherence + phone
-readability review before release.\par
+Sources: MISSPEC\_FRAMING, FAMILIES\_EXPLAINED,
+SOFTAND\_SOFTTHRESH\_EXPLAINED, residual\_env
+code docstring, recoverability outputs,
+Phase-1 / hybrid caches.\\
+v6 integrates the pedagogical review:
+bridges, mini-examples, level-vs-DiD labels,
+CTR-scale reconciliation, DR training vs
+greedy eval, floor-pin issue, Gate
+direction argument.\par
 }
 
 \end{document}
