@@ -1,0 +1,118 @@
+% ESS <-> OPC usability under misspecification
+% Compile: pdflatex NOTE_ess_opc_usability.tex
+% Phone-friendly: narrow text block, large type, short sections.
+\documentclass[12pt]{article}
+\usepackage[paperwidth=5.8in,paperheight=10in,margin=0.5in]{geometry}
+\usepackage{titlesec}
+\titlespacing*{\section}{0pt}{0.7em}{0.25em}
+\usepackage{lmodern}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{microtype}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\hypersetup{colorlinks=true,linkcolor=black,urlcolor=blue!50!black}
+\setlist[itemize]{leftmargin=1.1em,itemsep=0.15em,topsep=0.3em}
+\setlist[enumerate]{leftmargin=1.2em,itemsep=0.15em,topsep=0.3em}
+\setlength{\parskip}{0.45em}
+\setlength{\parindent}{0pt}
+
+\title{\textbf{ESS and OPC usability under misspec}\\[0.25em]
+\large MovieLens scaling fill --- practical note}
+\author{OPC project}
+\date{2026-11-24 (Asia/Jerusalem)}
+
+\begin{document}
+\maketitle
+
+\section*{Claim}
+OPC beats NLL when misspecification is strong
+\emph{relative to} sample size $N$ and the policy class---
+\textbf{not} because DR ``gets more ESS.''
+
+\[
+D(N)
+=
+100\cdot\bigl(
+V_{\mathrm{greedy}}(\mathrm{OPC})
+-
+V_{\mathrm{greedy}}(\mathrm{NLL})
+\bigr)
+\quad\text{(CTR percentage points).}
+\]
+$D>0$ means OPC is ahead.
+
+\section*{What we ran}
+\begin{itemize}
+\item \textbf{R$^\star$ ladder} done for $\gamma\in\{0,0.5,2\}$:
+  nested sizes $6.25$k$\to 400$k,
+  tags \texttt{scale\_p1\_rstar\_g*},
+  methods nll / opc / hybrid\_seq\_f0.5,
+  5 seeds, 60 Optuna trials,
+  \texttt{clip:10}, linear policy.
+\item \textbf{Wellspec fill}: stage-1 done; densify in flight
+  (\texttt{scale\_p1\_wellspec}).
+\item \textbf{Skipped}: SoftAND/ST $N$-ladders
+  (use hybrid $\gamma$-grid @ $100$k instead).
+\item \textbf{Deferred}: $800$k (breaks $N_{\max}{=}400$k pool).
+\end{itemize}
+
+\section*{$D(N)$ on R$^\star$ (mean, $n=5$)}
+{\small
+\begin{tabular}{@{}r rrr@{}}
+\toprule
+$N$ & $\gamma{=}0$ & $\gamma{=}0.5$ & $\gamma{=}2$ \\
+\midrule
+6.25k  & $+1.7$ & $+2.9$ & $+3.5$ \\
+12.5k  & $+0.9$ & $+2.0$ & $+4.5$ \\
+25k    & $+0.4$ & $+1.7$ & $+3.3$ \\
+50k    & $-0.2$ & $+0.9$ & $+4.6$ \\
+100k   & $-1.0$ & $+0.5$ & $+4.8$ \\
+200k   & $-1.7$ & $-0.1$ & $+5.3$ \\
+400k   & $-1.4$ & $-0.3$ & $+5.6$ \\
+\bottomrule
+\end{tabular}}
+
+\medskip
+\textbf{Crossover} $N^\star(\gamma)=\min\{N:\,D(N)\le 0\}$:
+\begin{itemize}
+\item $\gamma=0$: $N^\star\in(25\mathrm{k},50\mathrm{k}]$
+\item $\gamma=0.5$: $N^\star\in(100\mathrm{k},200\mathrm{k}]$
+\item $\gamma=2$: \textbf{no crossover} $\le 400\mathrm{k}$
+  ($D$ widens; at 400k, OPC$\approx 21\%$, NLL$\approx 15\%$)
+\item wellspec (stage-1): $D$: $+6.8\to +1.8\to +0.3$
+  as $N$: $25\mathrm{k}\to 100\mathrm{k}\to 400\mathrm{k}$
+\end{itemize}
+
+\section*{ESS is not the flip}
+Winning-run weight ESS under misspec grows slowly while
+$\mathrm{ESS}/N$ collapses (e.g.\ $R^\star\,\gamma{=}2$:
+$\sim\!1\%$ at 25k $\to$ $0.26\%$ at 400k).
+Wellspec keeps $\mathrm{ESS}/N\sim 12$--$15\%$ \emph{and}
+$D\to 0$.
+So ranking tracks \textbf{misspec vs class}, not ESS accumulation.
+
+\section*{Other families (hybrid @ $N=100\mathrm{k}$)}
+Min $\gamma$ with mean $D>0$ on ML:
+$R^\star\gtrsim 0.75$, SoftThresh $\gtrsim 2$, SoftAND $\gtrsim 4$.
+Same story; family only shifts the threshold.
+
+\section*{Rule of thumb (linear class)}
+\begin{enumerate}
+\item Well-spec / absorbable misspec $+$ large $N$:
+  NLL and OPC \textbf{converge}.
+\item Slight misspec ($R^\star\,\gamma\approx 0.5$):
+  OPC helps at small $N$, then the gap shrinks / crosses.
+\item Strong misspec ($R^\star\,\gamma\gtrsim 2$):
+  they do \textbf{not} converge $\le 400\mathrm{k}$;
+  NLL stalls, OPC stays ahead
+  (MLP width at fixed $N=100\mathrm{k}$ does not erase this).
+\end{enumerate}
+
+\section*{Headline}
+\small
+With a small policy class: mild misspec $\Rightarrow$ OPC helps early,
+then converges; strong misspec $\Rightarrow$ OPC stays ahead at large $N$.
+ESS clipping limits OPE precision; it is not what flips the ranking.
+
+\end{document}
