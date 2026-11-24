@@ -1,7 +1,7 @@
 # ESS ↔ OPC usability under misspec
 
-**Updated:** 2026-11-24 ~21:35 Asia/Jerusalem  
-**Scope:** MovieLens, linear policy, `select-weights clip:10`, nested prefixes, 5 seeds (100–104).
+**Updated:** 2026-11-25 ~01:20 Asia/Jerusalem (00:20 Europe/Rome)  
+**Scope:** MovieLens, frozen \(d{=}32\) BPR emb, `select-weights clip:10`, nested prefixes, 5 seeds (100–104).
 
 ## One claim
 
@@ -18,10 +18,11 @@ D(N)=100\cdot\bigl(V_{\mathrm{greedy}}(\mathrm{OPC})-V_{\mathrm{greedy}}(\mathrm
 | Piece | Status | Tag / note |
 |---|---|---|
 | R\* stage-1 \(N\in\{25,100,400\}\mathrm{k}\) | done | `scale_p1_rstar_g{0,0.5,2}`, `scale_p1_wellspec` |
-| R\* fill \(N\in\{6.25,12.5,50,200\}\mathrm{k}\) | **3/4 worlds done** | same tags; wellspec fill **in flight** (started 21:35) |
+| R\* fill \(N\in\{6.25,12.5,50,200\}\mathrm{k}\) | **done (4/4)** | same tags; wellspec finished 2026-11-25T01:02 Asia/Jerusalem |
 | SoftAND / SoftThresh \(N\)-ladders | **skipped** | redundant for this claim |
-| Cross-family γ-grid @ \(N=100\mathrm{k}\) | ~165/192 cells @40 seeds | `nlres_grid_*` (hybrid evidence) |
-| Capacity confirm | done (30/30) | MLP width does not erase strong-\(R^\star\) edge |
+| Cross-family γ-grid @ \(N=100\mathrm{k}\) | hybrid in flight | `nlres_grid_*` |
+| Capacity @ fixed \(N=100\mathrm{k}\) | done (30/30) | MLP width does not erase strong-\(R^\star\) edge |
+| Capacity × \(N\) (mlp256) | **Tier 1 launching** | `PROTOCOL_LOCKED_capacity_x_N.md` |
 | 800k nested ladder | deferred | would break \(N_{\max}=400\mathrm{k}\) prefix pool |
 
 Shared fill knobs: `n_trials=60`, methods `{nll, opc, hybrid_seq_f0.5}`, nested pool with \(N_{\max}=400\mathrm{k}\).
@@ -30,12 +31,12 @@ Shared fill knobs: `n_trials=60`, methods `{nll, opc, hybrid_seq_f0.5}`, nested 
 
 | \(N\) | \(R^\star\,\gamma{=}0\) | \(\gamma{=}0.5\) | \(\gamma{=}2\) | wellspec |
 |---:|---:|---:|---:|---:|
-| 6.25k | **+1.7** ±0.7 | **+2.9** ±0.5 | **+3.5** ±0.4 | *(fill pending)* |
-| 12.5k | **+0.9** ±0.2 | **+2.0** ±0.5 | **+4.5** ±0.5 | — |
+| 6.25k | **+1.7** ±0.7 | **+2.9** ±0.5 | **+3.5** ±0.4 | **+9.9** ±1.0 |
+| 12.5k | **+0.9** ±0.2 | **+2.0** ±0.5 | **+4.5** ±0.5 | **+10.6** ±0.5 |
 | 25k | +0.4 ±0.3 | **+1.7** ±0.5 | **+3.3** ±0.8 | **+6.8** ±0.9 |
-| 50k | −0.2 ±0.2 | +0.9 ±0.3 | **+4.6** ±0.8 | — |
+| 50k | −0.2 ±0.2 | +0.9 ±0.3 | **+4.6** ±0.8 | **+5.6** ±1.3 |
 | 100k | −1.0 ±0.3 | +0.5 ±0.8 | **+4.8** ±1.2 | +1.8 ±0.5 |
-| 200k | −1.7 ±0.1 | −0.1 ±0.2 | **+5.3** ±0.6 | — |
+| 200k | −1.7 ±0.1 | −0.1 ±0.2 | **+5.3** ±0.6 | +0.4 ±0.1 |
 | 400k | −1.4 ±0.2 | −0.3 ±0.9 | **+5.6** ±1.3 | +0.3 ±0.1 |
 
 **Crossover \(N^\star(\gamma)\)** = smallest \(N\) where mean \(D\le 0\):
@@ -43,9 +44,33 @@ Shared fill knobs: `n_trials=60`, methods `{nll, opc, hybrid_seq_f0.5}`, nested 
 - \(\gamma=0\): \(N^\star \in (25\mathrm{k},50\mathrm{k}]\)
 - \(\gamma=0.5\): \(N^\star \in (100\mathrm{k},200\mathrm{k}]\)
 - \(\gamma=2\): **no crossover ≤400k** (\(D\) *widens*)
-- wellspec: \(D\downarrow 0\) from above (NLL catches the bilinear target)
+- wellspec: \(D\downarrow 0\) from above (NLL catches the bilinear target; still \(D>0\) at 400k but tiny)
 
 Absolute levels at \(\gamma=2\), \(N=400\mathrm{k}\): OPC ≈21.0%, NLL ≈15.4% — NLL stalls; OPC keeps climbing.
+
+## What is a “large dataset” here?
+
+Not raw \(N\). On this catalog (\(|U|{=}6038\), \(|A|{=}3533\), frozen \(d{=}32\)):
+
+| Scale @ \(N{=}400\mathrm{k}\) | linear (\(p{\approx}2112\)) | mlp256 (\(p{\approx}35\mathrm{k}\)) |
+|---|---:|---:|
+| \(N/p\) | ~190 | ~11 |
+| ESS/\(N\) under \(R^\star\,\gamma{=}2\) | ~0.3% | (same clip regime) |
+| rows / user | ~66 | ~66 |
+| pair coverage \(N/(|U||A|)\) | ~1.9% | ~1.9% |
+
+**Working definition:** \(N\) is “large” once \(N \gtrsim N^\star(\gamma,C)\) — NLL’s bias floor dominates variance for that class.  
+For **linear**: ~50k at γ=0, ~200k at γ=0.5; **never ≤400k** at γ=2.  
+Same 400k is **not** large for mlp256 (\(N/p\sim 11\)). Policy \(p\) does **not** scale with \(|U|,|A|\) (shared transforms on frozen emb).
+
+**Generalizable?** Mechanism yes (ESS/\(N\) collapse ≠ ranking flip; binding axis = misspec vs class). Numbers no — do not export \(N^\star\) or “OPC unusable at large \(N\)” outside ML + this clip + frozen emb.
+
+## Model / capacity
+
+- **Policy:** frozen biased BPR \(d{=}32\) + per-side `GlobalLinearCorrection` \((I{+}D)x{+}b\) (≈2112 params), or `linear+mlp` H∈{64,256} (≈10.5k / 35k).
+- **Nuisance \(\hat q\):** separate regression; **not** widened in capacity trials.
+- At fixed \(N{=}100\mathrm{k}\), mlp256 **did not erase** \(R^\star\,\gamma{=}2\) edge. SoftAND often has \(D_{\mathrm{opc}}{<}0\).
+- Capacity can still **move \(N^\star\)** at mild γ — that is Tier 1 (`scale_cap_rstar_g{0.5,2}_mlp256`). Locked plan: `PROTOCOL_LOCKED_capacity_x_N.md`.
 
 ## ESS is not the ranking flip
 
@@ -81,4 +106,4 @@ Same qualitative story; family only shifts the γ threshold. Full SoftAND/ST \(N
 
 **Small class + mild misspec → OPC helps early, then converges. Strong misspec → OPC stays ahead at large \(N\). ESS clipping limits OPE precision; it is not what flips the ranking.**
 
-Companion PDF source: `NOTE_ess_opc_usability.tex` (phone-friendly layout).
+Companion PDF source: `NOTE_ess_opc_usability.tex` (phone-friendly layout). Locked capacity×N plan: `PROTOCOL_LOCKED_capacity_x_N.md`.

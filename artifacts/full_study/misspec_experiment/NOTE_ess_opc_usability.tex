@@ -20,7 +20,7 @@
 \title{\textbf{ESS and OPC usability under misspec}\\[0.25em]
 \large MovieLens scaling fill --- practical note}
 \author{OPC project}
-\date{2026-11-24 (Asia/Jerusalem)}
+\date{2026-11-25 (Europe/Rome)}
 
 \begin{document}
 \maketitle
@@ -50,26 +50,26 @@ $D>0$ means OPC is ahead.
   methods nll / opc / hybrid\_seq\_f0.5,
   5 seeds, 60 Optuna trials,
   \texttt{clip:10}, linear policy.
-\item \textbf{Wellspec fill}: stage-1 done; densify in flight
-  (\texttt{scale\_p1\_wellspec}).
-\item \textbf{Skipped}: SoftAND/ST $N$-ladders
-  (use hybrid $\gamma$-grid @ $100$k instead).
+\item \textbf{Wellspec fill}: \textbf{done} (full ladder).
+\item \textbf{Capacity $\times N$}: Tier~1 launching
+  (\texttt{linear+mlp}, $H{=}256$ on $\gamma\in\{0.5,2\}$).
+\item \textbf{Skipped}: SoftAND/ST $N$-ladders.
 \item \textbf{Deferred}: $800$k (breaks $N_{\max}{=}400$k pool).
 \end{itemize}
 
 \section*{$D(N)$ on R$^\star$ (mean, $n=5$)}
 {\small
-\begin{tabular}{@{}r rrr@{}}
+\begin{tabular}{@{}r rrrr@{}}
 \toprule
-$N$ & $\gamma{=}0$ & $\gamma{=}0.5$ & $\gamma{=}2$ \\
+$N$ & $\gamma{=}0$ & $0.5$ & $2$ & well \\
 \midrule
-6.25k  & $+1.7$ & $+2.9$ & $+3.5$ \\
-12.5k  & $+0.9$ & $+2.0$ & $+4.5$ \\
-25k    & $+0.4$ & $+1.7$ & $+3.3$ \\
-50k    & $-0.2$ & $+0.9$ & $+4.6$ \\
-100k   & $-1.0$ & $+0.5$ & $+4.8$ \\
-200k   & $-1.7$ & $-0.1$ & $+5.3$ \\
-400k   & $-1.4$ & $-0.3$ & $+5.6$ \\
+6.25k  & $+1.7$ & $+2.9$ & $+3.5$ & $+9.9$ \\
+12.5k  & $+0.9$ & $+2.0$ & $+4.5$ & $+10.6$ \\
+25k    & $+0.4$ & $+1.7$ & $+3.3$ & $+6.8$ \\
+50k    & $-0.2$ & $+0.9$ & $+4.6$ & $+5.6$ \\
+100k   & $-1.0$ & $+0.5$ & $+4.8$ & $+1.8$ \\
+200k   & $-1.7$ & $-0.1$ & $+5.3$ & $+0.4$ \\
+400k   & $-1.4$ & $-0.3$ & $+5.6$ & $+0.3$ \\
 \bottomrule
 \end{tabular}}
 
@@ -80,9 +80,17 @@ $N$ & $\gamma{=}0$ & $\gamma{=}0.5$ & $\gamma{=}2$ \\
 \item $\gamma=0.5$: $N^\star\in(100\mathrm{k},200\mathrm{k}]$
 \item $\gamma=2$: \textbf{no crossover} $\le 400\mathrm{k}$
   ($D$ widens; at 400k, OPC$\approx 21\%$, NLL$\approx 15\%$)
-\item wellspec (stage-1): $D$: $+6.8\to +1.8\to +0.3$
-  as $N$: $25\mathrm{k}\to 100\mathrm{k}\to 400\mathrm{k}$
+\item wellspec: $D\downarrow 0$ from above (still tiny-positive at 400k)
 \end{itemize}
+
+\section*{What is ``large $N$''?}
+Not raw $N$. On ML ($|U|{=}6038$, $|A|{=}3533$,
+frozen $d{=}32$): at $N{=}400$k,
+linear ($p{\approx}2112$) has $N/p\sim 190$;
+mlp256 ($p{\approx}35$k) has $N/p\sim 11$.
+$N$ is large once $N\gtrsim N^\star(\gamma,C)$.
+Mechanism generalizes; the numbers do not
+(outside this clip $+$ frozen emb).
 
 \section*{ESS is not the flip}
 Winning-run weight ESS under misspec grows slowly while
