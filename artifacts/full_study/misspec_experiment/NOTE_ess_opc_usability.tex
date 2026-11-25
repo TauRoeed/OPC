@@ -1,6 +1,4 @@
-% ESS <-> OPC usability under misspecification
-% Compile: pdflatex NOTE_ess_opc_usability.tex
-% Phone-friendly: narrow text block, large type, short sections.
+% ESS <-> OPC usability --- phone note. Full tables: NOTE_ess_opc_usability.md
 \documentclass[12pt]{article}
 \usepackage[paperwidth=5.8in,paperheight=10in,margin=0.5in]{geometry}
 \usepackage{titlesec}
@@ -18,7 +16,7 @@
 \setlength{\parindent}{0pt}
 
 \title{\textbf{ESS and OPC usability under misspec}\\[0.25em]
-\large MovieLens scaling + capacity --- practical note}
+\large Absolute \(V\), CIs, why \(D\) flips}
 \author{OPC project}
 \date{2026-11-25 (Europe/Rome)}
 
@@ -26,108 +24,71 @@
 \maketitle
 
 \section*{Claim}
-OPC beats NLL when misspecification is strong
-\emph{relative to} sample size $N$ and the policy class---
-\textbf{not} because DR ``gets more ESS.''
+OPC beats NLL when misspec is strong
+\emph{relative to} \(N\) and the policy class---
+not because DR ``gets more ESS.''
+Full tables with 95\% \(t\) CIs:
+\texttt{NOTE\_ess\_opc\_usability.md}.
 
-\[
-D(N)
-=
-100\cdot\bigl(
-V_{\mathrm{greedy}}(\mathrm{OPC})
--
-V_{\mathrm{greedy}}(\mathrm{NLL})
-\bigr)
-\quad\text{(CTR percentage points).}
-\]
-$D>0$ means OPC is ahead.
+\section*{Why ``OPC loses with \(N\)'' is wrong}
+\textbf{OPC's absolute greedy CTR rises with \(N\).}
+What flips is the gap \(D=V_{\mathrm{OPC}}-V_{\mathrm{NLL}}\).
 
-\section*{What we ran}
-\begin{itemize}
-\item \textbf{R$^\star$ linear ladder} done:
-  $6.25$k$\to 400$k, $\gamma\in\{0,0.5,2\}$ + wellspec.
-\item \textbf{Capacity $\times N$} Tier~1 done
-  (\texttt{linear+mlp}, $H{=}256$);
-  Tier~2 densify in flight
-  ($g0.5$ 50/200k done; $g2$ running).
-\item \textbf{Skipped}: SoftAND/ST $N$-ladders.
-\end{itemize}
-
-\section*{$D(N)$ linear R$^\star$ (mean, $n=5$)}
 {\small
-\begin{tabular}{@{}r rrrr@{}}
+\begin{tabular}{@{}l rr@{}}
 \toprule
-$N$ & $\gamma{=}0$ & $0.5$ & $2$ & well \\
+world (linear) & OPC 6.25k$\to$400k & NLL 6.25k$\to$400k \\
 \midrule
-6.25k  & $+1.7$ & $+2.9$ & $+3.5$ & $+9.9$ \\
-12.5k  & $+0.9$ & $+2.0$ & $+4.5$ & $+10.6$ \\
-25k    & $+0.4$ & $+1.7$ & $+3.3$ & $+6.8$ \\
-50k    & $-0.2$ & $+0.9$ & $+4.6$ & $+5.6$ \\
-100k   & $-1.0$ & $+0.5$ & $+4.8$ & $+1.8$ \\
-200k   & $-1.7$ & $-0.1$ & $+5.3$ & $+0.4$ \\
-400k   & $-1.4$ & $-0.3$ & $+5.6$ & $+0.3$ \\
+$\gamma{=}0.5$ & $14.3\to 19.3$ & $11.4\to 19.5$ \\
+$\gamma{=}2$   & $14.1\to 21.0$ & $10.6\to 15.4$ \\
+wellspec       & $28.9\to 29.6$ & $19.0\to 29.4$ \\
 \bottomrule
 \end{tabular}}
 
 \medskip
-\textbf{Crossover} (linear):
-$\gamma{=}0$: $(25\mathrm{k},50\mathrm{k}]$;
-$\gamma{=}0.5$: $(100\mathrm{k},200\mathrm{k}]$;
-$\gamma{=}2$: none $\le 400\mathrm{k}$.
+Mild / wellspec: NLL catches an absorbable projection
+$\Rightarrow D\to 0$.
+Strong $\gamma$: NLL stalls, OPC keeps climbing
+$\Rightarrow D$ stays large.
+Clipped ESS$/N$ collapses, so more rows help NLL's
+parametric fit more than OPC's OPE selector.
 
-\section*{Capacity $\times N$ (mlp256 vs linear)}
+\section*{Greedy vs stochastic}
+\textbf{Greedy} (\texttt{policy\_rewards\_greedy}):
+deployment CTR --- primary.
+\textbf{Stochastic} (\texttt{policy\_rewards}):
+softmax CTR.
+OPC is nearly deterministic (greedy$\approx$stoch);
+NLL is diffuse (stoch $\ll$ greedy).
+Stochastic $D$ is mostly a sharpness artifact.
+
+\section*{Snapshot @400k greedy (mean, $n{=}5$)}
 {\small
-\begin{tabular}{@{}r rr rr@{}}
+\begin{tabular}{@{}l rrr@{}}
 \toprule
-$N$ & $0.5$ mlp & lin & $2$ mlp & lin \\
+world & OPC & NLL & $D$ \\
 \midrule
-25k  & $+1.6$ & $+1.7$ & $+2.0$ & $+3.3$ \\
-50k  & $+0.0$ & $+0.9$ & --- & $+4.6$ \\
-100k & $-0.4$ & $+0.5$ & $+1.2$ & $+4.8$ \\
-200k & $-0.6$ & $-0.1$ & --- & $+5.3$ \\
-400k & $-2.9$ & $-0.3$ & $+0.9$ & $+5.6$ \\
+$\gamma{=}0$   & 18.8 & 20.1 & $-1.4$ \\
+$\gamma{=}0.5$ & 19.3 & 19.5 & $-0.3$ \\
+$\gamma{=}2$   & 21.0 & 15.4 & $+5.6$ \\
+wellspec       & 29.6 & 29.4 & $+0.3$ \\
+mlp256 $\gamma{=}0.5$ & 20.1 & 22.9 & $-2.9$ \\
+mlp256 $\gamma{=}2$   & 23.9 & 23.0 & $+0.9$ \\
 \bottomrule
 \end{tabular}}
 
-\medskip
-Mild $\gamma$: mlp $N^\star\in(25\mathrm{k},50\mathrm{k}]$
-(vs linear $(100\mathrm{k},200\mathrm{k}]$).
-Strong $\gamma$: OPC edge collapses
-($+0.9$ vs $+5.6$ at 400k).
-\textbf{G1\_NO\_STOP} $\Rightarrow$ Tier~2.
-
-\section*{What is ``large $N$''?}
-Not raw $N$. On ML ($|U|{=}6038$, $|A|{=}3533$,
-frozen $d{=}32$): at $N{=}400$k,
-linear ($p{\approx}2112$) has $N/p\sim 190$;
-mlp256 ($p{\approx}35$k) has $N/p\sim 11$.
-$N$ is large once $N\gtrsim N^\star(\gamma,C)$.
-Mechanism generalizes; the numbers do not.
-
-\section*{ESS is not the flip}
-Under misspec $\mathrm{ESS}/N$ collapses while
-ranking still flips (mild) or grows (strong, linear).
-Wellspec keeps high $\mathrm{ESS}/N$ \emph{and} $D\to 0$.
-Binding axis: \textbf{misspec vs class}.
-
-\section*{Rule of thumb}
-\begin{enumerate}
-\item Well-spec $+$ large $N$: NLL and OPC converge.
-\item Mild misspec: OPC helps early; crossover
-  earlier with more capacity ($\sim$50k mlp vs
-  $\sim$100--200k linear).
-\item Strong misspec vs a \emph{small} class:
-  OPC stays ahead at large $N$; a wider class
-  can absorb most of that edge.
-\end{enumerate}
+\section*{Support / best achievable (planned)}
+If $\pi^\star$ has near-zero logging mass,
+``learn the optimum'' is impossible under clip.
+Measure opt-mass + clipped ESS; then pick
+$\arg\max_\pi\mathrm{CI}_{-}(\mathrm{DR})$ over a
+candidate set (logger, NLL, OPC, class oracles).
+Draft: \texttt{PROTOCOL\_DRAFT\_support\_best\_achievable.md}.
 
 \section*{Headline}
 \small
-Usability is class-relative.
-Mild misspec $\Rightarrow$ OPC helps early then converges
-(sooner with capacity);
-strong misspec $\Rightarrow$ OPC stays ahead at large $N$
-only if the class cannot absorb it.
-ESS clipping is not what flips the ranking.
+OPC does not degrade with \(N\); NLL catches absorbable misspec.
+Strong misspec vs a small class $\Rightarrow$ NLL stalls, OPC rises.
+Use greedy for decisions; ESS clip is not the ranking flip.
 
 \end{document}
