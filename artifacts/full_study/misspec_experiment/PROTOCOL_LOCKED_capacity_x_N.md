@@ -65,9 +65,14 @@ Mean \(D\) (pp, \(n=5\)):
 
 → **Tier 2 launched.**
 
-### Tier 2 progress (2026-11-25 ~08:15 Europe/Rome)
-- `g0.5` densify **done** (50k/200k filled). Dense ladder \(D\): 25k +1.6, **50k +0.0**, 100k −0.4, 200k −0.6, 400k −2.9 → \(N^\star\in(25\mathrm{k},50\mathrm{k}]\) (vs linear \((100\mathrm{k},200\mathrm{k}]\)).
-- `g2` densify **running**; γ=0 DiD next.
+### Tier 2 result (done_all 2026-11-25 13:14 Asia/Jerusalem = 12:14 Europe/Rome)
+- Densify **done** both tags; `g0_mlp256` **done** (5/5).
+- γ=0.5 mlp dense: \(D\) 25k +1.6, 50k +0.0, 100k −0.4, 200k −0.6, 400k −2.9 → \(N^\star\in(25\mathrm{k},50\mathrm{k}]\) (vs linear \((100\mathrm{k},200\mathrm{k}]\)).
+- γ=2 mlp dense: \(D\) stays ≥0 but compressed vs linear (+0.9 vs +5.6 @400k); no CI-clear OPC (wide).
+- γ=0 mlp: @25k Vocp/Vnll **above** linear; @400k clear NLL (\(D{=}{-}1.6\)).
+- **G2 PASS:** γ=0 @25k mlp vs linear ΔNLL=+1.2 pp, ΔOPC=+0.6 pp (not a >2 pp hurt).
+
+→ **Tier 3 launched** (`scale_cap_rstar_g0.5_mlp64`, same dense \(N\)s).
 
 ### Tier 2 — only if capacity shifted curves (G1 did not kill)
 - Densify bracketing \(N\) (50k/200k) on **both** moving tags (`--skip-completed`, same run-tags).
