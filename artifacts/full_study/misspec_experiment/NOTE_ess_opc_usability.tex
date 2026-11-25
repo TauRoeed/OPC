@@ -133,8 +133,44 @@ $N$ & OPC & NLL & $D$ & clear \\
 \bottomrule
 \end{tabular}}
 
+\section*{Policy skew --- IW Gini + logit sharpness}
+Stochastic $D$ favors OPC because OPC is near-deterministic while NLL is diffuse.
+\textbf{IW Gini} = Gini of $\pi_e/\pi_b$ on logged actions; \textbf{logit\_scale} = inverse temperature.
+Gini is high for both; the gap tracks logit\_scale (OPC $\gg$ NLL). Wellspec can have higher NLL Gini at small $N$ --- Gini alone does not explain the stochastic win.
+
+\subsection*{@400k snapshot}
+{\scriptsize
+\begin{tabular}{@{}l rr rr@{}}
+\toprule
+world & Gini OPC & Gini NLL & ls OPC & ls NLL \\
+\midrule
+$\gamma{=}0$ & 0.970 & 0.895 & 37.8 & 0.24 \\
+$\gamma{=}0.5$ & 0.977 & 0.906 & 67.2 & 0.31 \\
+$\gamma{=}2$ & 0.979 & 0.949 & 79.6 & 0.43 \\
+wellspec & 0.837 & 0.795 & 24.5 & 0.45 \\
+\bottomrule
+\end{tabular}}
+
+\subsection*{$\Delta$Gini ladder (OPC$-$NLL), linear}
+{\scriptsize
+\begin{tabular}{@{}r lll@{}}
+\toprule
+$N$ & $\gamma{=}0$ & $\gamma{=}0.5$ & $\gamma{=}2$ \\
+\midrule
+6.25k & $+0.030$ $[-0.01,+0.07]$ & $+0.017$ $[-0.03,+0.07]$ & $+0.017$ $[-0.02,+0.06]$ \\
+12.5k & $+0.041$ $[+0.02,+0.06]$ & $+0.032$ $[+0.00,+0.06]$ & $+0.024$ $[-0.01,+0.06]$ \\
+25k & $+0.047$ $[+0.03,+0.07]$ & $+0.041$ $[+0.00,+0.08]$ & $+0.024$ $[+0.00,+0.05]$ \\
+50k & $+0.046$ $[+0.02,+0.07]$ & $+0.041$ $[+0.01,+0.07]$ & $+0.024$ $[+0.00,+0.05]$ \\
+100k & $+0.074$ $[+0.04,+0.10]$ & $+0.051$ $[+0.01,+0.09]$ & $+0.019$ $[-0.02,+0.05]$ \\
+200k & $+0.072$ $[+0.06,+0.09]$ & $+0.061$ $[+0.03,+0.09]$ & $+0.026$ $[+0.00,+0.05]$ \\
+400k & $+0.075$ $[+0.05,+0.10]$ & $+0.071$ $[+0.04,+0.10]$ & $+0.030$ $[+0.01,+0.05]$ \\
+\bottomrule
+\end{tabular}}
+
+Full Gini$+$logit tables: \texttt{NOTE\_ess\_opc\_usability.md}.
+
 \section*{All ladders --- stochastic (secondary)}
-OPC $\approx$ greedy; NLL soft --- clear OPC often sharpness, not deployment.
+OPC $\approx$ greedy; NLL soft --- clear OPC often sharpness (logit\_scale), not deployment.
 
 \subsection*{linear $R^\star\,\gamma{=}0$ (stoch)}
 {\scriptsize
@@ -202,6 +238,7 @@ $N$ & OPC & NLL & $D$ & clear \\
 
 
 \section*{Headline}
-Use greedy + CI-excludes-0. Full narrative: \texttt{NOTE\_ess\_opc\_usability.md}.
+Use greedy + CI-excludes-0. Stochastic OPC wins $\approx$ sharpness, not IW Gini alone.
+Full narrative: \texttt{NOTE\_ess\_opc\_usability.md}.
 
 \end{document}

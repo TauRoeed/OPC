@@ -10,7 +10,7 @@
 Mild / wellspec: NLL catches an absorbable projection. Strong \(\gamma\): NLL stalls (~15%), OPC keeps climbing (~21%).  
 Clipped ESS/\(N\) collapses — more rows help NLL’s parametric fit more than OPC’s OPE selector.
 
-**Greedy** (`policy_rewards_greedy`) = deployment primary. **Stochastic** (`policy_rewards`) = softmax; OPC≈greedy, NLL much softer — stochastic “clear OPC” is often sharpness, not a fair deployment win.
+**Greedy** (`policy_rewards_greedy`) = deployment primary. **Stochastic** (`policy_rewards`) = softmax; OPC≈greedy, NLL much softer — stochastic “clear OPC” is often sharpness, not a fair deployment win. See **IW Gini + logit_scale** section below.
 
 ## Clear-winner rule
 
@@ -147,8 +147,67 @@ OPC ≈ greedy (sharp); NLL much softer — clear OPC here is often a sharpness 
 | 400k | 29.60 [29.15, 30.05] | 10.99 [10.69, 11.29] | +18.61 [+18.05, +19.17] | **OPC** |
 
 
+## Policy skew: IW Gini + logit sharpness
+
+Stochastic \(D\) favors OPC largely because OPC’s softmax is near-deterministic while NLL stays diffuse — not because greedy ranking is always better.
+
+Diagnostics from winning runs (`runs_long.csv`, `weights_gini` / `logit_scale`):
+
+- **IW Gini** = Gini of importance weights \(\pi_e/\pi_b\) on logged actions (0 = equal weights, →1 = max inequality).
+- **logit_scale** = learned inverse temperature; larger ⇒ sharper \(\pi_e\) (stochastic ≈ greedy).
+
+IW Gini is already high for both under clipped logging. The stochastic gap tracks **logit_scale** (OPC tens–80 vs NLL ~0.2–0.4). Wellspec even has **higher** NLL Gini at small \(N\), yet stochastic still favors OPC — so Gini alone does not explain the skew win. **Greedy** remains the deployment metric.
+
+### linear γ=0
+
+| \(N\) | Gini OPC | Gini NLL | \(\Delta\)Gini [95% CI] | logit_scale OPC | logit_scale NLL |
+|---:|---|---|---|---|---|
+| 6.25k | 0.956 [0.938, 0.974] | 0.926 [0.901, 0.951] | +0.030 [-0.006, +0.066] | 17.7 | 0.19 |
+| 12.5k | 0.959 [0.954, 0.965] | 0.918 [0.898, 0.937] | +0.041 [+0.024, +0.059] | 31.0 | 0.20 |
+| 25k | 0.964 [0.954, 0.975] | 0.917 [0.895, 0.939] | +0.047 [+0.026, +0.068] | 37.2 | 0.22 |
+| 50k | 0.960 [0.944, 0.976] | 0.914 [0.903, 0.926] | +0.046 [+0.023, +0.069] | 24.4 | 0.23 |
+| 100k | 0.976 [0.958, 0.994] | 0.902 [0.886, 0.918] | +0.074 [+0.043, +0.104] | 45.6 | 0.25 |
+| 200k | 0.969 [0.963, 0.975] | 0.897 [0.884, 0.910] | +0.072 [+0.055, +0.089] | 26.8 | 0.25 |
+| 400k | 0.970 [0.956, 0.985] | 0.895 [0.879, 0.912] | +0.075 [+0.047, +0.103] | 37.8 | 0.24 |
+
+### linear γ=0.5
+
+| \(N\) | Gini OPC | Gini NLL | \(\Delta\)Gini [95% CI] | logit_scale OPC | logit_scale NLL |
+|---:|---|---|---|---|---|
+| 6.25k | 0.948 [0.916, 0.981] | 0.931 [0.905, 0.958] | +0.017 [-0.033, +0.067] | 17.0 | 0.20 |
+| 12.5k | 0.955 [0.938, 0.972] | 0.923 [0.904, 0.942] | +0.032 [+0.004, +0.059] | 34.4 | 0.20 |
+| 25k | 0.954 [0.927, 0.980] | 0.912 [0.890, 0.935] | +0.041 [+0.002, +0.080] | 42.2 | 0.31 |
+| 50k | 0.957 [0.931, 0.984] | 0.916 [0.904, 0.928] | +0.041 [+0.010, +0.072] | 32.8 | 0.27 |
+| 100k | 0.963 [0.933, 0.992] | 0.912 [0.898, 0.925] | +0.051 [+0.012, +0.091] | 43.7 | 0.31 |
+| 200k | 0.968 [0.953, 0.982] | 0.907 [0.890, 0.924] | +0.061 [+0.034, +0.088] | 40.9 | 0.30 |
+| 400k | 0.977 [0.957, 0.998] | 0.906 [0.891, 0.922] | +0.071 [+0.041, +0.101] | 67.2 | 0.31 |
+
+### linear γ=2
+
+| \(N\) | Gini OPC | Gini NLL | \(\Delta\)Gini [95% CI] | logit_scale OPC | logit_scale NLL |
+|---:|---|---|---|---|---|
+| 6.25k | 0.956 [0.930, 0.983] | 0.939 [0.912, 0.966] | +0.017 [-0.022, +0.057] | 16.1 | 0.25 |
+| 12.5k | 0.968 [0.956, 0.980] | 0.944 [0.914, 0.974] | +0.024 [-0.010, +0.058] | 37.3 | 0.38 |
+| 25k | 0.967 [0.952, 0.982] | 0.944 [0.920, 0.967] | +0.024 [+0.001, +0.046] | 44.4 | 0.43 |
+| 50k | 0.968 [0.953, 0.983] | 0.944 [0.923, 0.964] | +0.024 [+0.001, +0.047] | 32.7 | 0.39 |
+| 100k | 0.970 [0.944, 0.996] | 0.952 [0.936, 0.967] | +0.019 [-0.017, +0.054] | 47.5 | 0.42 |
+| 200k | 0.973 [0.958, 0.989] | 0.947 [0.934, 0.960] | +0.026 [+0.001, +0.051] | 56.1 | 0.41 |
+| 400k | 0.979 [0.961, 0.996] | 0.949 [0.939, 0.959] | +0.030 [+0.010, +0.051] | 79.6 | 0.43 |
+
+### wellspec
+
+| \(N\) | Gini OPC | Gini NLL | \(\Delta\)Gini [95% CI] | logit_scale OPC | logit_scale NLL |
+|---:|---|---|---|---|---|
+| 6.25k | 0.865 [0.824, 0.906] | 0.960 [0.951, 0.969] | -0.095 [-0.144, -0.046] | 10.5 | 0.16 |
+| 12.5k | 0.842 [0.780, 0.905] | 0.957 [0.934, 0.981] | -0.115 [-0.179, -0.051] | 12.7 | 0.27 |
+| 25k | 0.856 [0.815, 0.898] | 0.907 [0.849, 0.965] | -0.051 [-0.124, +0.023] | 32.4 | 0.42 |
+| 50k | 0.840 [0.765, 0.914] | 0.903 [0.836, 0.969] | -0.063 [-0.177, +0.051] | 23.7 | 0.35 |
+| 100k | 0.854 [0.809, 0.899] | 0.839 [0.780, 0.898] | +0.016 [-0.082, +0.113] | 32.9 | 0.43 |
+| 200k | 0.875 [0.862, 0.888] | 0.821 [0.794, 0.849] | +0.054 [+0.027, +0.080] | 40.7 | 0.44 |
+| 400k | 0.837 [0.805, 0.869] | 0.795 [0.785, 0.806] | +0.041 [+0.001, +0.082] | 24.5 | 0.45 |
+
 ## Headline
 
-OPC does not degrade with \(N\); NLL catches absorbable misspec. Strong misspec vs a small class → NLL stalls, OPC rises. Use **greedy** + CI-excludes-0 for claims. Support / best-under-CI plan: `PROTOCOL_DRAFT_support_best_achievable.md`.
+OPC does not degrade with \(N\); NLL catches absorbable misspec. Strong misspec vs a small class → NLL stalls, OPC rises. Use **greedy** + CI-excludes-0 for claims. Stochastic “OPC wins” often = sharpness (logit_scale), not IW Gini alone. Support / best-under-CI plan: `PROTOCOL_DRAFT_support_best_achievable.md`.
 
 Companion PDF: `NOTE_ess_opc_usability.pdf`. Capacity plan: `PROTOCOL_LOCKED_capacity_x_N.md`.
