@@ -22,7 +22,7 @@ D(N)=100\cdot\bigl(V_{\mathrm{greedy}}(\mathrm{OPC})-V_{\mathrm{greedy}}(\mathrm
 | SoftAND / SoftThresh \(N\)-ladders | **skipped** | redundant for this claim |
 | Cross-family γ-grid @ \(N=100\mathrm{k}\) | hybrid in flight | `nlres_grid_*` |
 | Capacity @ fixed \(N=100\mathrm{k}\) | done (30/30) | MLP width does not erase strong-\(R^\star\) edge |
-| Capacity × \(N\) (mlp256) | **Tier 1 launching** | `PROTOCOL_LOCKED_capacity_x_N.md` |
+| Capacity × \(N\) (mlp256) | **Tier 1 done → Tier 2** | G1_NO_STOP: capacity shrinks strong-γ OPC edge; moves mild \(N^\star\) earlier (`PROTOCOL_LOCKED_capacity_x_N.md`) |
 | 800k nested ladder | deferred | would break \(N_{\max}=400\mathrm{k}\) prefix pool |
 
 Shared fill knobs: `n_trials=60`, methods `{nll, opc, hybrid_seq_f0.5}`, nested pool with \(N_{\max}=400\mathrm{k}\).
@@ -70,7 +70,11 @@ Same 400k is **not** large for mlp256 (\(N/p\sim 11\)). Policy \(p\) does **not*
 - **Policy:** frozen biased BPR \(d{=}32\) + per-side `GlobalLinearCorrection` \((I{+}D)x{+}b\) (≈2112 params), or `linear+mlp` H∈{64,256} (≈10.5k / 35k).
 - **Nuisance \(\hat q\):** separate regression; **not** widened in capacity trials.
 - At fixed \(N{=}100\mathrm{k}\), mlp256 **did not erase** \(R^\star\,\gamma{=}2\) edge. SoftAND often has \(D_{\mathrm{opc}}{<}0\).
-- Capacity can still **move \(N^\star\)** at mild γ — that is Tier 1 (`scale_cap_rstar_g{0.5,2}_mlp256`). Locked plan: `PROTOCOL_LOCKED_capacity_x_N.md`.
+- **Tier 1 ladder (done):** mlp256 **does** change usability vs \(N\):
+  - γ=0.5: \(D(100\mathrm{k}){=}{-}0.4\) (linear still +0.5) → \(N^\star\) earlier; \(D(400\mathrm{k}){=}{-}2.9\).
+  - γ=2: \(D(400\mathrm{k}){=}{+}0.9\) vs linear +5.6 — OPC edge nearly absorbed.
+  - So “large \(N\)” for mlp256 arrives sooner; strong-misspec OPC advantage is class-relative.
+- Tier 2 (densify 50/200k + γ=0 DiD) running. Plan: `PROTOCOL_LOCKED_capacity_x_N.md`.
 
 ## ESS is not the ranking flip
 

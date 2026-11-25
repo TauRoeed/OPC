@@ -50,13 +50,31 @@ Do **not** claim universal \(N^\star\) or “OPC unusable at large \(N\)” outs
 
 **G1 kill:** if γ=0.5 \(D_{\mathrm{mlp256}}\) stays within ±0.8 pp of linear at all 3 \(N\) **and** γ=2 \(D(400\mathrm{k})\ge +1.5\) without shrink 100→400k → **STOP** (capacity×N null/weak).
 
-### Tier 2 — only if G1 fires (shift / flip)
-- Densify bracketing \(N\) (50k/200k) on the moving tag (`--skip-completed`).
+### Tier 1 result (2026-11-25 05:01 Asia/Jerusalem = 04:01 Europe/Rome) — **G1_NO_STOP**
+Mean \(D\) (pp, \(n=5\)):
+
+| \(N\) | γ=0.5 mlp256 | γ=0.5 linear | γ=2 mlp256 | γ=2 linear |
+|---:|---:|---:|---:|---:|
+| 25k | +1.56 | +1.68 | +2.04 | +3.33 |
+| 100k | −0.37 | +0.45 | +1.19 | +4.78 |
+| 400k | −2.87 | −0.26 | +0.93 | +5.55 |
+
+- Mild γ: \(N^\star\) moves earlier (mlp already \(D{<}0\) at 100k); at 400k NLL wins harder.
+- Strong γ: OPC edge **collapses** (+0.9 vs +5.6) — capacity absorbs misspec for NLL; \(D(400\mathrm{k}){<}1.5\).
+- Fixed-\(N{=}100\mathrm{k}\) confirm still held a positive edge; the **ladder** shows capacity×\(N\) is not null.
+
+→ **Tier 2 launched.**
+
+### Tier 2 — only if capacity shifted curves (G1 did not kill)
+- Densify bracketing \(N\) (50k/200k) on **both** moving tags (`--skip-completed`, same run-tags).
 - Add `scale_cap_rstar_g0_mlp256` at {25k,100k,400k} (matched DiD).
-- **G2:** if γ=0 \(N{=}25\mathrm{k}\) mlp256 hurts NLL/OPC by >2 pp vs linear → flag \(N/p\) overparam, don’t read γ>0 as absorption.
+- **G2:** if γ=0 \(N{=}25\mathrm{k}\) mlp256 hurts NLL **or** OPC greedy by >2 pp vs linear → flag \(N/p\) overparam, don’t read γ>0 as absorption.
+
+Driver: `run_scaling_capacity_x_N_tier2.sh`
 
 ### Tier 3 — only if mlp256 moves \(N^\star\) ≥1 ladder step
-- `scale_cap_rstar_g0.5_mlp64` at the same sentinel \(N\)s (dose-response).
+- Confirmed for γ=0.5 (cross by 100k vs linear’s (100k,200k]).
+- After Tier 2 densify confirms the bracket: `scale_cap_rstar_g0.5_mlp64` at sentinel \(N\)s (dose-response).
 
 ## Do NOT run
 - SoftAND/ST \(N\)-ladders  
