@@ -65,6 +65,10 @@ Mean \(D\) (pp, \(n=5\)):
 
 → **Tier 2 launched.**
 
+### Tier 2 progress (2026-11-25 ~08:15 Europe/Rome)
+- `g0.5` densify **done** (50k/200k filled). Dense ladder \(D\): 25k +1.6, **50k +0.0**, 100k −0.4, 200k −0.6, 400k −2.9 → \(N^\star\in(25\mathrm{k},50\mathrm{k}]\) (vs linear \((100\mathrm{k},200\mathrm{k}]\)).
+- `g2` densify **running**; γ=0 DiD next.
+
 ### Tier 2 — only if capacity shifted curves (G1 did not kill)
 - Densify bracketing \(N\) (50k/200k) on **both** moving tags (`--skip-completed`, same run-tags).
 - Add `scale_cap_rstar_g0_mlp256` at {25k,100k,400k} (matched DiD).
@@ -73,8 +77,8 @@ Mean \(D\) (pp, \(n=5\)):
 Driver: `run_scaling_capacity_x_N_tier2.sh`
 
 ### Tier 3 — only if mlp256 moves \(N^\star\) ≥1 ladder step
-- Confirmed for γ=0.5 (cross by 100k vs linear’s (100k,200k]).
-- After Tier 2 densify confirms the bracket: `scale_cap_rstar_g0.5_mlp64` at sentinel \(N\)s (dose-response).
+- **Confirmed** for γ=0.5 after densify (\(N^\star\) moved ≥1 step).
+- Launch after Tier 2 finishes: `scale_cap_rstar_g0.5_mlp64` at sentinel \(N\)s (dose-response), unless G2 flags overparam.
 
 ## Do NOT run
 - SoftAND/ST \(N\)-ladders  

@@ -18,7 +18,7 @@
 \setlength{\parindent}{0pt}
 
 \title{\textbf{ESS and OPC usability under misspec}\\[0.25em]
-\large MovieLens scaling fill --- practical note}
+\large MovieLens scaling + capacity --- practical note}
 \author{OPC project}
 \date{2026-11-25 (Europe/Rome)}
 
@@ -44,20 +44,16 @@ $D>0$ means OPC is ahead.
 
 \section*{What we ran}
 \begin{itemize}
-\item \textbf{R$^\star$ ladder} done for $\gamma\in\{0,0.5,2\}$:
-  nested sizes $6.25$k$\to 400$k,
-  tags \texttt{scale\_p1\_rstar\_g*},
-  methods nll / opc / hybrid\_seq\_f0.5,
-  5 seeds, 60 Optuna trials,
-  \texttt{clip:10}, linear policy.
-\item \textbf{Wellspec fill}: \textbf{done} (full ladder).
-\item \textbf{Capacity $\times N$}: Tier~1 launching
-  (\texttt{linear+mlp}, $H{=}256$ on $\gamma\in\{0.5,2\}$).
+\item \textbf{R$^\star$ linear ladder} done:
+  $6.25$k$\to 400$k, $\gamma\in\{0,0.5,2\}$ + wellspec.
+\item \textbf{Capacity $\times N$} Tier~1 done
+  (\texttt{linear+mlp}, $H{=}256$);
+  Tier~2 densify in flight
+  ($g0.5$ 50/200k done; $g2$ running).
 \item \textbf{Skipped}: SoftAND/ST $N$-ladders.
-\item \textbf{Deferred}: $800$k (breaks $N_{\max}{=}400$k pool).
 \end{itemize}
 
-\section*{$D(N)$ on R$^\star$ (mean, $n=5$)}
+\section*{$D(N)$ linear R$^\star$ (mean, $n=5$)}
 {\small
 \begin{tabular}{@{}r rrrr@{}}
 \toprule
@@ -74,14 +70,31 @@ $N$ & $\gamma{=}0$ & $0.5$ & $2$ & well \\
 \end{tabular}}
 
 \medskip
-\textbf{Crossover} $N^\star(\gamma)=\min\{N:\,D(N)\le 0\}$:
-\begin{itemize}
-\item $\gamma=0$: $N^\star\in(25\mathrm{k},50\mathrm{k}]$
-\item $\gamma=0.5$: $N^\star\in(100\mathrm{k},200\mathrm{k}]$
-\item $\gamma=2$: \textbf{no crossover} $\le 400\mathrm{k}$
-  ($D$ widens; at 400k, OPC$\approx 21\%$, NLL$\approx 15\%$)
-\item wellspec: $D\downarrow 0$ from above (still tiny-positive at 400k)
-\end{itemize}
+\textbf{Crossover} (linear):
+$\gamma{=}0$: $(25\mathrm{k},50\mathrm{k}]$;
+$\gamma{=}0.5$: $(100\mathrm{k},200\mathrm{k}]$;
+$\gamma{=}2$: none $\le 400\mathrm{k}$.
+
+\section*{Capacity $\times N$ (mlp256 vs linear)}
+{\small
+\begin{tabular}{@{}r rr rr@{}}
+\toprule
+$N$ & $0.5$ mlp & lin & $2$ mlp & lin \\
+\midrule
+25k  & $+1.6$ & $+1.7$ & $+2.0$ & $+3.3$ \\
+50k  & $+0.0$ & $+0.9$ & --- & $+4.6$ \\
+100k & $-0.4$ & $+0.5$ & $+1.2$ & $+4.8$ \\
+200k & $-0.6$ & $-0.1$ & --- & $+5.3$ \\
+400k & $-2.9$ & $-0.3$ & $+0.9$ & $+5.6$ \\
+\bottomrule
+\end{tabular}}
+
+\medskip
+Mild $\gamma$: mlp $N^\star\in(25\mathrm{k},50\mathrm{k}]$
+(vs linear $(100\mathrm{k},200\mathrm{k}]$).
+Strong $\gamma$: OPC edge collapses
+($+0.9$ vs $+5.6$ at 400k).
+\textbf{G1\_NO\_STOP} $\Rightarrow$ Tier~2.
 
 \section*{What is ``large $N$''?}
 Not raw $N$. On ML ($|U|{=}6038$, $|A|{=}3533$,
@@ -89,38 +102,32 @@ frozen $d{=}32$): at $N{=}400$k,
 linear ($p{\approx}2112$) has $N/p\sim 190$;
 mlp256 ($p{\approx}35$k) has $N/p\sim 11$.
 $N$ is large once $N\gtrsim N^\star(\gamma,C)$.
-Mechanism generalizes; the numbers do not
-(outside this clip $+$ frozen emb).
+Mechanism generalizes; the numbers do not.
 
 \section*{ESS is not the flip}
-Winning-run weight ESS under misspec grows slowly while
-$\mathrm{ESS}/N$ collapses (e.g.\ $R^\star\,\gamma{=}2$:
-$\sim\!1\%$ at 25k $\to$ $0.26\%$ at 400k).
-Wellspec keeps $\mathrm{ESS}/N\sim 12$--$15\%$ \emph{and}
-$D\to 0$.
-So ranking tracks \textbf{misspec vs class}, not ESS accumulation.
+Under misspec $\mathrm{ESS}/N$ collapses while
+ranking still flips (mild) or grows (strong, linear).
+Wellspec keeps high $\mathrm{ESS}/N$ \emph{and} $D\to 0$.
+Binding axis: \textbf{misspec vs class}.
 
-\section*{Other families (hybrid @ $N=100\mathrm{k}$)}
-Min $\gamma$ with mean $D>0$ on ML:
-$R^\star\gtrsim 0.75$, SoftThresh $\gtrsim 2$, SoftAND $\gtrsim 4$.
-Same story; family only shifts the threshold.
-
-\section*{Rule of thumb (linear class)}
+\section*{Rule of thumb}
 \begin{enumerate}
-\item Well-spec / absorbable misspec $+$ large $N$:
-  NLL and OPC \textbf{converge}.
-\item Slight misspec ($R^\star\,\gamma\approx 0.5$):
-  OPC helps at small $N$, then the gap shrinks / crosses.
-\item Strong misspec ($R^\star\,\gamma\gtrsim 2$):
-  they do \textbf{not} converge $\le 400\mathrm{k}$;
-  NLL stalls, OPC stays ahead
-  (MLP width at fixed $N=100\mathrm{k}$ does not erase this).
+\item Well-spec $+$ large $N$: NLL and OPC converge.
+\item Mild misspec: OPC helps early; crossover
+  earlier with more capacity ($\sim$50k mlp vs
+  $\sim$100--200k linear).
+\item Strong misspec vs a \emph{small} class:
+  OPC stays ahead at large $N$; a wider class
+  can absorb most of that edge.
 \end{enumerate}
 
 \section*{Headline}
 \small
-With a small policy class: mild misspec $\Rightarrow$ OPC helps early,
-then converges; strong misspec $\Rightarrow$ OPC stays ahead at large $N$.
-ESS clipping limits OPE precision; it is not what flips the ranking.
+Usability is class-relative.
+Mild misspec $\Rightarrow$ OPC helps early then converges
+(sooner with capacity);
+strong misspec $\Rightarrow$ OPC stays ahead at large $N$
+only if the class cannot absorb it.
+ESS clipping is not what flips the ranking.
 
 \end{document}
