@@ -1,8 +1,8 @@
-% ESS <-> OPC usability --- phone note. Full tables: NOTE_ess_opc_usability.md
-\documentclass[12pt]{article}
-\usepackage[paperwidth=5.8in,paperheight=10in,margin=0.5in]{geometry}
+% ESS <-> OPC usability --- phone note with 95% t CIs
+\documentclass[11pt]{article}
+\usepackage[paperwidth=5.8in,paperheight=10in,margin=0.45in]{geometry}
 \usepackage{titlesec}
-\titlespacing*{\section}{0pt}{0.7em}{0.25em}
+\titlespacing*{\section}{0pt}{0.55em}{0.2em}
 \usepackage{lmodern}
 \usepackage{amsmath,amssymb}
 \usepackage{booktabs}
@@ -10,85 +10,132 @@
 \usepackage{enumitem}
 \usepackage{hyperref}
 \hypersetup{colorlinks=true,linkcolor=black,urlcolor=blue!50!black}
-\setlist[itemize]{leftmargin=1.1em,itemsep=0.15em,topsep=0.3em}
-\setlist[enumerate]{leftmargin=1.2em,itemsep=0.15em,topsep=0.3em}
-\setlength{\parskip}{0.45em}
+\setlist[itemize]{leftmargin=1.1em,itemsep=0.12em,topsep=0.25em}
+\setlength{\parskip}{0.35em}
 \setlength{\parindent}{0pt}
 
-\title{\textbf{ESS and OPC usability under misspec}\\[0.25em]
-\large Absolute \(V\), CIs, why \(D\) flips}
+\title{\textbf{ESS and OPC usability under misspec}\\[0.2em]
+\large Absolute \(V\) + 95\% \(t\) CIs}
 \author{OPC project}
 \date{2026-11-25 (Europe/Rome)}
 
 \begin{document}
 \maketitle
 
-\section*{Claim}
-OPC beats NLL when misspec is strong
-\emph{relative to} \(N\) and the policy class---
-not because DR ``gets more ESS.''
-Full tables with 95\% \(t\) CIs:
-\texttt{NOTE\_ess\_opc\_usability.md}.
+All intervals are \textbf{95\% Student-\(t\) CIs} over seeds 100--104
+(\(n{=}5\), \(t_{0.975,4}{=}2.776\)), CTR percentage points.
+Full ladder tables also in \texttt{NOTE\_ess\_opc\_usability.md}.
 
 \section*{Why ``OPC loses with \(N\)'' is wrong}
-\textbf{OPC's absolute greedy CTR rises with \(N\).}
-What flips is the gap \(D=V_{\mathrm{OPC}}-V_{\mathrm{NLL}}\).
+OPC's \emph{absolute} greedy CTR rises with \(N\).
+What flips is \(D=V_{\mathrm{OPC}}-V_{\mathrm{NLL}}\).
+Mild misspec: NLL catches an absorbable projection.
+Strong \(\gamma\): NLL stalls, OPC keeps climbing.
 
-{\small
-\begin{tabular}{@{}l rr@{}}
+\section*{@400k greedy --- mean [95\% CI]}
+{\footnotesize
+\begin{tabular}{@{}l l l l@{}}
 \toprule
-world (linear) & OPC 6.25k$\to$400k & NLL 6.25k$\to$400k \\
+world & OPC & NLL & \(D\) \\
 \midrule
-$\gamma{=}0.5$ & $14.3\to 19.3$ & $11.4\to 19.5$ \\
-$\gamma{=}2$   & $14.1\to 21.0$ & $10.6\to 15.4$ \\
-wellspec       & $28.9\to 29.6$ & $19.0\to 29.4$ \\
+\(\gamma{=}0\)
+  & 18.76 [17.73, 19.79]
+  & 20.12 [19.54, 20.69]
+  & $-1.35$ [$-1.92$, $-0.79$] \\
+\(\gamma{=}0.5\)
+  & 19.28 [15.71, 22.84]
+  & 19.54 [17.51, 21.58]
+  & $-0.26$ [$-2.68$, $+2.15$] \\
+\(\gamma{=}2\)
+  & 20.96 [15.75, 26.17]
+  & 15.41 [13.30, 17.52]
+  & $+5.55$ [$+1.94$, $+9.16$] \\
+wellspec
+  & 29.63 [29.14, 30.12]
+  & 29.37 [28.99, 29.75]
+  & $+0.26$ [$-0.06$, $+0.58$] \\
+mlp256 \(0.5\)
+  & 20.06 [15.57, 24.55]
+  & 22.92 [20.46, 25.38]
+  & $-2.87$ [$-6.95$, $+1.21$] \\
+mlp256 \(2\)
+  & 23.94 [19.66, 28.23]
+  & 23.01 [19.64, 26.39]
+  & $+0.93$ [$-1.23$, $+3.09$] \\
 \bottomrule
 \end{tabular}}
 
-\medskip
-Mild / wellspec: NLL catches an absorbable projection
-$\Rightarrow D\to 0$.
-Strong $\gamma$: NLL stalls, OPC keeps climbing
-$\Rightarrow D$ stays large.
-Clipped ESS$/N$ collapses, so more rows help NLL's
-parametric fit more than OPC's OPE selector.
-
-\section*{Greedy vs stochastic}
-\textbf{Greedy} (\texttt{policy\_rewards\_greedy}):
-deployment CTR --- primary.
-\textbf{Stochastic} (\texttt{policy\_rewards}):
-softmax CTR.
-OPC is nearly deterministic (greedy$\approx$stoch);
-NLL is diffuse (stoch $\ll$ greedy).
-Stochastic $D$ is mostly a sharpness artifact.
-
-\section*{Snapshot @400k greedy (mean, $n{=}5$)}
-{\small
-\begin{tabular}{@{}l rrr@{}}
+\section*{Linear \(\gamma{=}0.5\) ladder --- greedy mean [95\% CI]}
+{\footnotesize
+\begin{tabular}{@{}r l l l@{}}
 \toprule
-world & OPC & NLL & $D$ \\
+\(N\) & OPC & NLL & \(D\) \\
 \midrule
-$\gamma{=}0$   & 18.8 & 20.1 & $-1.4$ \\
-$\gamma{=}0.5$ & 19.3 & 19.5 & $-0.3$ \\
-$\gamma{=}2$   & 21.0 & 15.4 & $+5.6$ \\
-wellspec       & 29.6 & 29.4 & $+0.3$ \\
-mlp256 $\gamma{=}0.5$ & 20.1 & 22.9 & $-2.9$ \\
-mlp256 $\gamma{=}2$   & 23.9 & 23.0 & $+0.9$ \\
+6.25k & 14.32 [13.17, 15.47] & 11.41 [9.51, 13.32] & $+2.91$ [$+1.44$, $+4.38$] \\
+12.5k & 15.29 [13.81, 16.76] & 13.32 [12.32, 14.32] & $+1.97$ [$+0.56$, $+3.37$] \\
+25k   & 16.51 [14.15, 18.87] & 14.84 [13.83, 15.85] & $+1.68$ [$+0.31$, $+3.04$] \\
+50k   & 17.53 [15.42, 19.65] & 16.67 [15.35, 18.00] & $+0.86$ [$-0.08$, $+1.80$] \\
+100k  & 18.66 [15.66, 21.66] & 18.21 [16.25, 20.18] & $+0.45$ [$-1.87$, $+2.76$] \\
+200k  & 19.18 [17.30, 21.07] & 19.25 [17.26, 21.23] & $-0.06$ [$-0.69$, $+0.57$] \\
+400k  & 19.28 [15.71, 22.84] & 19.54 [17.51, 21.58] & $-0.26$ [$-2.68$, $+2.15$] \\
 \bottomrule
 \end{tabular}}
 
-\section*{Support / best achievable (planned)}
-If $\pi^\star$ has near-zero logging mass,
-``learn the optimum'' is impossible under clip.
-Measure opt-mass + clipped ESS; then pick
-$\arg\max_\pi\mathrm{CI}_{-}(\mathrm{DR})$ over a
-candidate set (logger, NLL, OPC, class oracles).
-Draft: \texttt{PROTOCOL\_DRAFT\_support\_best\_achievable.md}.
+\section*{Linear \(\gamma{=}2\) ladder --- greedy mean [95\% CI]}
+{\footnotesize
+\begin{tabular}{@{}r l l l@{}}
+\toprule
+\(N\) & OPC & NLL & \(D\) \\
+\midrule
+6.25k & 14.07 [12.15, 15.99] & 10.58 [9.39, 11.78] & $+3.49$ [$+2.52$, $+4.45$] \\
+12.5k & 15.99 [14.36, 17.62] & 11.48 [9.71, 13.25] & $+4.51$ [$+3.14$, $+5.88$] \\
+25k   & 16.76 [13.93, 19.59] & 13.43 [10.76, 16.10] & $+3.33$ [$+1.00$, $+5.66$] \\
+50k   & 18.45 [14.64, 22.26] & 13.84 [11.04, 16.64] & $+4.62$ [$+2.40$, $+6.83$] \\
+100k  & 19.61 [15.49, 23.73] & 14.83 [12.34, 17.33] & $+4.78$ [$+1.52$, $+8.04$] \\
+200k  & 20.80 [17.68, 23.91] & 15.54 [12.75, 18.34] & $+5.26$ [$+3.66$, $+6.85$] \\
+400k  & 20.96 [15.75, 26.17] & 15.41 [13.30, 17.52] & $+5.55$ [$+1.94$, $+9.16$] \\
+\bottomrule
+\end{tabular}}
+
+\section*{Wellspec ladder --- greedy mean [95\% CI]}
+{\footnotesize
+\begin{tabular}{@{}r l l l@{}}
+\toprule
+\(N\) & OPC & NLL & \(D\) \\
+\midrule
+6.25k & 28.89 [28.35, 29.42] & 19.04 [16.35, 21.73] & $+9.85$ [$+7.06$, $+12.63$] \\
+25k   & 29.25 [28.54, 29.97] & 22.51 [20.42, 24.60] & $+6.75$ [$+4.38$, $+9.12$] \\
+100k  & 29.33 [28.89, 29.77] & 27.58 [26.49, 28.68] & $+1.75$ [$+0.35$, $+3.14$] \\
+400k  & 29.63 [29.14, 30.12] & 29.37 [28.99, 29.75] & $+0.26$ [$-0.06$, $+0.58$] \\
+\bottomrule
+\end{tabular}}
+
+\section*{Stochastic @400k (secondary) --- mean [95\% CI]}
+OPC \(\approx\) greedy (near-deterministic).
+NLL much softer --- stochastic \(D\) is mostly sharpness.
+{\footnotesize
+\begin{tabular}{@{}l l l l@{}}
+\toprule
+world & OPC & NLL & \(D\) \\
+\midrule
+\(\gamma{=}0.5\)
+  & 19.28 [15.71, 22.84]
+  & 8.37 [7.82, 8.92]
+  & $+10.91$ [$+7.75$, $+14.06$] \\
+\(\gamma{=}2\)
+  & 20.95 [15.75, 26.15]
+  & 8.00 [7.44, 8.55]
+  & $+12.95$ [$+7.84$, $+18.07$] \\
+well
+  & 29.60 [29.15, 30.05]
+  & 10.99 [10.69, 11.29]
+  & $+18.61$ [$+18.05$, $+19.17$] \\
+\bottomrule
+\end{tabular}}
 
 \section*{Headline}
-\small
 OPC does not degrade with \(N\); NLL catches absorbable misspec.
-Strong misspec vs a small class $\Rightarrow$ NLL stalls, OPC rises.
-Use greedy for decisions; ESS clip is not the ranking flip.
+Strong misspec vs small class \(\Rightarrow\) NLL stalls, OPC rises.
+Decisions: \textbf{greedy}. CIs: seed-level 95\% \(t\).
 
 \end{document}
