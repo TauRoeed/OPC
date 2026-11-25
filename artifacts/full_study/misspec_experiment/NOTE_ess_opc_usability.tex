@@ -1,20 +1,20 @@
-% All ladders with 95% t CIs + clear winner
+% All ladders with 95% t CIs + clear winner + Gini
 \documentclass[10pt]{article}
-\usepackage[paperwidth=5.8in,paperheight=10in,margin=0.4in]{geometry}
+\usepackage[paperwidth=5.8in,paperheight=10in,margin=0.35in]{geometry}
 \usepackage{titlesec}
-\titlespacing*{\section}{0pt}{0.5em}{0.15em}
-\titlespacing*{\subsection}{0pt}{0.4em}{0.1em}
+\titlespacing*{\section}{0pt}{0.45em}{0.12em}
+\titlespacing*{\subsection}{0pt}{0.35em}{0.08em}
 \usepackage{lmodern}
 \usepackage{amsmath,amssymb}
 \usepackage{booktabs}
 \usepackage{microtype}
 \usepackage{hyperref}
 \hypersetup{colorlinks=true,linkcolor=black,urlcolor=blue!50!black}
-\setlength{\parskip}{0.3em}
+\setlength{\parskip}{0.25em}
 \setlength{\parindent}{0pt}
 
 \title{\textbf{ESS / OPC --- all ladders}\\[0.15em]
-\large Absolute \(V\), 95\% \(t\) CI, clear winner}
+\large Absolute \(V\), Gini, 95\% \(t\) CI, clear winner}
 \author{OPC project}
 \date{2026-11-25 (Europe/Rome)}
 
@@ -22,14 +22,14 @@
 \maketitle
 
 OPC absolute greedy rises with \(N\); \(D\) flips when NLL catches absorbable misspec.
-Primary metric: \textbf{greedy}. Stochastic tables secondary (NLL soft).
+Primary: \textbf{greedy}. Stochastic secondary (NLL soft / sharpness). IW Gini + logit\_scale below.
 
 \section*{Clear-winner rule}
-Bold winner when the 95\% $t$ CI for $D=V_{\mathrm{OPC}}-V_{\mathrm{NLL}}$ excludes 0 (entirely $>0$ $\Rightarrow$ OPC; entirely $<0$ $\Rightarrow$ NLL). Otherwise ---. CTR percentage points; $n{=}5$ unless marked.
+Bold when 95\% $t$ CI for $D=V_{\mathrm{OPC}}-V_{\mathrm{NLL}}$ excludes 0. CTR pp; $n{=}5$ unless marked.
 
 \section*{All ladders --- greedy (primary)}
 
-\subsection*{linear $R^\star\,\gamma{=}0$}
+\subsection*{linear $\gamma{=}0$}
 {\scriptsize
 \begin{tabular}{@{}r lll c@{}}
 \toprule
@@ -45,7 +45,7 @@ $N$ & OPC & NLL & $D$ & clear \\
 \bottomrule
 \end{tabular}}
 
-\subsection*{linear $R^\star\,\gamma{=}0.5$}
+\subsection*{linear $\gamma{=}0.5$}
 {\scriptsize
 \begin{tabular}{@{}r lll c@{}}
 \toprule
@@ -61,7 +61,7 @@ $N$ & OPC & NLL & $D$ & clear \\
 \bottomrule
 \end{tabular}}
 
-\subsection*{linear $R^\star\,\gamma{=}2$}
+\subsection*{linear $\gamma{=}2$}
 {\scriptsize
 \begin{tabular}{@{}r lll c@{}}
 \toprule
@@ -121,58 +121,36 @@ $N$ & OPC & NLL & $D$ & clear \\
 \bottomrule
 \end{tabular}}
 
-\subsection*{mlp256 $\gamma{=}0$ (Tier2, partial)}
+\subsection*{mlp256 $\gamma{=}0$}
 {\scriptsize
 \begin{tabular}{@{}r lll c@{}}
 \toprule
 $N$ & OPC & NLL & $D$ & clear \\
 \midrule
-25k & 16.01 [14.73,17.28]\textsuperscript{(2)} & 16.88 [16.02,17.74]\textsuperscript{(2)} & $-0.87$ $[-1.29,-0.45]$\textsuperscript{(2)} & n=2 \\
-100k & 17.88 [14.21,21.55]\textsuperscript{(2)} & 19.05 [15.02,23.08]\textsuperscript{(2)} & $-1.17$ $[-1.53,-0.82]$\textsuperscript{(2)} & n=2 \\
-400k & 18.95 [18.25,19.66]\textsuperscript{(2)} & 20.72 [19.86,21.57]\textsuperscript{(2)} & $-1.76$ $[-3.32,-0.20]$\textsuperscript{(2)} & n=2 \\
+25k & 17.00 [15.49,18.51] & 17.24 [16.48,18.00] & $-0.24$ $[-1.43,+0.95]$ & — \\
+100k & 18.58 [17.54,19.62] & 19.31 [18.68,19.95] & $-0.74$ $[-1.81,+0.34]$ & — \\
+400k & 19.35 [18.79,19.92] & 20.95 [20.39,21.50] & $-1.59$ $[-2.36,-0.82]$ & \textbf{NLL} \\
 \bottomrule
 \end{tabular}}
 
-\section*{Policy skew --- IW Gini + logit sharpness}
-Stochastic $D$ favors OPC because OPC is near-deterministic while NLL is diffuse.
-\textbf{IW Gini} = Gini of $\pi_e/\pi_b$ on logged actions; \textbf{logit\_scale} = inverse temperature.
-Gini is high for both; the gap tracks logit\_scale (OPC $\gg$ NLL). Wellspec can have higher NLL Gini at small $N$ --- Gini alone does not explain the stochastic win.
-
-\subsection*{@400k snapshot}
+\subsection*{mlp64 $\gamma{=}0.5$}
 {\scriptsize
-\begin{tabular}{@{}l rr rr@{}}
+\begin{tabular}{@{}r lll c@{}}
 \toprule
-world & Gini OPC & Gini NLL & ls OPC & ls NLL \\
+$N$ & OPC & NLL & $D$ & clear \\
 \midrule
-$\gamma{=}0$ & 0.970 & 0.895 & 37.8 & 0.24 \\
-$\gamma{=}0.5$ & 0.977 & 0.906 & 67.2 & 0.31 \\
-$\gamma{=}2$ & 0.979 & 0.949 & 79.6 & 0.43 \\
-wellspec & 0.837 & 0.795 & 24.5 & 0.45 \\
+25k & 17.41 [15.52,19.30] & 16.56 [15.35,17.78] & $+0.85$ $[-0.53,+2.23]$ & — \\
+50k & 18.64 [16.37,20.90] & 18.28 [16.09,20.47] & $+0.36$ $[-1.43,+2.14]$ & — \\
+100k & 19.22 [17.01,21.44] & 19.98 [17.46,22.50] & $-0.76$ $[-2.36,+0.84]$ & — \\
+200k & 19.65 [17.22,22.07] & 21.06 [18.95,23.16] & $-1.41$ $[-2.81,-0.02]$ & \textbf{NLL} \\
+400k & 19.72 [16.05,23.39] & 22.54 [20.28,24.81] & $-2.82$ $[-5.56,-0.09]$ & \textbf{NLL} \\
 \bottomrule
 \end{tabular}}
-
-\subsection*{$\Delta$Gini ladder (OPC$-$NLL), linear}
-{\scriptsize
-\begin{tabular}{@{}r lll@{}}
-\toprule
-$N$ & $\gamma{=}0$ & $\gamma{=}0.5$ & $\gamma{=}2$ \\
-\midrule
-6.25k & $+0.030$ $[-0.01,+0.07]$ & $+0.017$ $[-0.03,+0.07]$ & $+0.017$ $[-0.02,+0.06]$ \\
-12.5k & $+0.041$ $[+0.02,+0.06]$ & $+0.032$ $[+0.00,+0.06]$ & $+0.024$ $[-0.01,+0.06]$ \\
-25k & $+0.047$ $[+0.03,+0.07]$ & $+0.041$ $[+0.00,+0.08]$ & $+0.024$ $[+0.00,+0.05]$ \\
-50k & $+0.046$ $[+0.02,+0.07]$ & $+0.041$ $[+0.01,+0.07]$ & $+0.024$ $[+0.00,+0.05]$ \\
-100k & $+0.074$ $[+0.04,+0.10]$ & $+0.051$ $[+0.01,+0.09]$ & $+0.019$ $[-0.02,+0.05]$ \\
-200k & $+0.072$ $[+0.06,+0.09]$ & $+0.061$ $[+0.03,+0.09]$ & $+0.026$ $[+0.00,+0.05]$ \\
-400k & $+0.075$ $[+0.05,+0.10]$ & $+0.071$ $[+0.04,+0.10]$ & $+0.030$ $[+0.01,+0.05]$ \\
-\bottomrule
-\end{tabular}}
-
-Full Gini$+$logit tables: \texttt{NOTE\_ess\_opc\_usability.md}.
 
 \section*{All ladders --- stochastic (secondary)}
 OPC $\approx$ greedy; NLL soft --- clear OPC often sharpness (logit\_scale), not deployment.
 
-\subsection*{linear $R^\star\,\gamma{=}0$ (stoch)}
+\subsection*{linear $\gamma{=}0$ (stoch)}
 {\scriptsize
 \begin{tabular}{@{}r lll c@{}}
 \toprule
@@ -188,7 +166,7 @@ $N$ & OPC & NLL & $D$ & clear \\
 \bottomrule
 \end{tabular}}
 
-\subsection*{linear $R^\star\,\gamma{=}0.5$ (stoch)}
+\subsection*{linear $\gamma{=}0.5$ (stoch)}
 {\scriptsize
 \begin{tabular}{@{}r lll c@{}}
 \toprule
@@ -204,7 +182,7 @@ $N$ & OPC & NLL & $D$ & clear \\
 \bottomrule
 \end{tabular}}
 
-\subsection*{linear $R^\star\,\gamma{=}2$ (stoch)}
+\subsection*{linear $\gamma{=}2$ (stoch)}
 {\scriptsize
 \begin{tabular}{@{}r lll c@{}}
 \toprule
@@ -236,9 +214,185 @@ $N$ & OPC & NLL & $D$ & clear \\
 \bottomrule
 \end{tabular}}
 
+\subsection*{mlp256 $\gamma{=}0.5$ (stoch)}
+{\scriptsize
+\begin{tabular}{@{}r lll c@{}}
+\toprule
+$N$ & OPC & NLL & $D$ & clear \\
+\midrule
+25k & 17.84 [15.51,20.17] & 7.20 [6.72,7.68] & $+10.63$ $[+8.39,+12.87]$ & \textbf{OPC} \\
+50k & 18.52 [15.37,21.67] & 8.63 [7.48,9.77] & $+9.89$ $[+7.47,+12.31]$ & \textbf{OPC} \\
+100k & 19.51 [17.01,22.01] & 9.81 [8.21,11.42] & $+9.70$ $[+7.30,+12.10]$ & \textbf{OPC} \\
+200k & 20.12 [18.23,22.01] & 11.46 [10.61,12.32] & $+8.66$ $[+6.92,+10.39]$ & \textbf{OPC} \\
+400k & 20.05 [15.56,24.54] & 12.49 [11.23,13.75] & $+7.56$ $[+3.82,+11.31]$ & \textbf{OPC} \\
+\bottomrule
+\end{tabular}}
+
+\subsection*{mlp256 $\gamma{=}2$ (stoch)}
+{\scriptsize
+\begin{tabular}{@{}r lll c@{}}
+\toprule
+$N$ & OPC & NLL & $D$ & clear \\
+\midrule
+25k & 17.89 [13.66,22.12] & 9.29 [7.07,11.52] & $+8.60$ $[+6.07,+11.12]$ & \textbf{OPC} \\
+50k & 19.95 [16.19,23.71] & 12.13 [9.53,14.73] & $+7.81$ $[+5.60,+10.02]$ & \textbf{OPC} \\
+100k & 20.63 [15.96,25.30] & 15.36 [11.86,18.87] & $+5.26$ $[+3.38,+7.15]$ & \textbf{OPC} \\
+200k & 23.41 [18.74,28.08] & 17.12 [15.03,19.21] & $+6.29$ $[+3.45,+9.13]$ & \textbf{OPC} \\
+400k & 23.94 [19.63,28.25] & 19.46 [17.09,21.82] & $+4.48$ $[+1.65,+7.32]$ & \textbf{OPC} \\
+\bottomrule
+\end{tabular}}
+
+\subsection*{mlp256 $\gamma{=}0$ (stoch)}
+{\scriptsize
+\begin{tabular}{@{}r lll c@{}}
+\toprule
+$N$ & OPC & NLL & $D$ & clear \\
+\midrule
+25k & 17.00 [15.50,18.51] & 6.55 [5.92,7.18] & $+10.45$ $[+8.70,+12.20]$ & \textbf{OPC} \\
+100k & 18.58 [17.54,19.61] & 7.84 [7.49,8.19] & $+10.74$ $[+9.85,+11.63]$ & \textbf{OPC} \\
+400k & 19.35 [18.79,19.92] & 8.73 [8.05,9.41] & $+10.62$ $[+9.76,+11.49]$ & \textbf{OPC} \\
+\bottomrule
+\end{tabular}}
+
+\subsection*{mlp64 $\gamma{=}0.5$ (stoch)}
+{\scriptsize
+\begin{tabular}{@{}r lll c@{}}
+\toprule
+$N$ & OPC & NLL & $D$ & clear \\
+\midrule
+25k & 17.41 [15.52,19.30] & 7.16 [6.16,8.17] & $+10.25$ $[+8.84,+11.65]$ & \textbf{OPC} \\
+50k & 18.63 [16.36,20.89] & 8.66 [7.63,9.69] & $+9.97$ $[+8.41,+11.53]$ & \textbf{OPC} \\
+100k & 19.21 [16.98,21.44] & 9.83 [8.27,11.38] & $+9.38$ $[+7.58,+11.19]$ & \textbf{OPC} \\
+200k & 19.65 [17.21,22.08] & 10.63 [9.68,11.59] & $+9.01$ $[+6.93,+11.09]$ & \textbf{OPC} \\
+400k & 19.72 [16.05,23.38] & 11.60 [10.70,12.49] & $+8.12$ $[+4.83,+11.41]$ & \textbf{OPC} \\
+\bottomrule
+\end{tabular}}
+
+\section*{Policy skew --- IW Gini + logit sharpness}
+\textbf{IW Gini} = Gini of $\pi_e/\pi_b$ on logged actions; \textbf{logit\_scale} = inverse temperature.
+Gini high for both; stochastic gap tracks logit\_scale (OPC $\gg$ NLL).
+
+\subsection*{linear $\gamma{=}0$}
+{\scriptsize
+\begin{tabular}{@{}r ll l rr@{}}
+\toprule
+$N$ & Gini OPC & Gini NLL & $\Delta$Gini & ls OPC & ls NLL \\
+\midrule
+6.25k & 0.956 [0.938,0.974] & 0.926 [0.901,0.951] & $+0.030$ $[-0.006,+0.066]$ & 17.7 & 0.19 \\
+12.5k & 0.959 [0.954,0.965] & 0.918 [0.898,0.937] & $+0.041$ $[+0.024,+0.059]$ & 31.0 & 0.20 \\
+25k & 0.964 [0.954,0.975] & 0.917 [0.895,0.939] & $+0.047$ $[+0.026,+0.068]$ & 37.2 & 0.22 \\
+50k & 0.960 [0.944,0.976] & 0.914 [0.903,0.926] & $+0.046$ $[+0.023,+0.069]$ & 24.4 & 0.23 \\
+100k & 0.976 [0.958,0.994] & 0.902 [0.886,0.918] & $+0.074$ $[+0.043,+0.104]$ & 45.6 & 0.25 \\
+200k & 0.969 [0.963,0.975] & 0.897 [0.884,0.910] & $+0.072$ $[+0.055,+0.089]$ & 26.8 & 0.25 \\
+400k & 0.970 [0.956,0.985] & 0.895 [0.879,0.912] & $+0.075$ $[+0.047,+0.103]$ & 37.8 & 0.24 \\
+\bottomrule
+\end{tabular}}
+
+\subsection*{linear $\gamma{=}0.5$}
+{\scriptsize
+\begin{tabular}{@{}r ll l rr@{}}
+\toprule
+$N$ & Gini OPC & Gini NLL & $\Delta$Gini & ls OPC & ls NLL \\
+\midrule
+6.25k & 0.948 [0.916,0.981] & 0.931 [0.905,0.958] & $+0.017$ $[-0.033,+0.067]$ & 17.0 & 0.20 \\
+12.5k & 0.955 [0.938,0.972] & 0.923 [0.904,0.942] & $+0.032$ $[+0.004,+0.059]$ & 34.4 & 0.20 \\
+25k & 0.954 [0.927,0.980] & 0.912 [0.890,0.935] & $+0.041$ $[+0.002,+0.080]$ & 42.2 & 0.31 \\
+50k & 0.957 [0.931,0.984] & 0.916 [0.904,0.928] & $+0.041$ $[+0.010,+0.072]$ & 32.8 & 0.27 \\
+100k & 0.963 [0.933,0.992] & 0.912 [0.898,0.925] & $+0.051$ $[+0.012,+0.091]$ & 43.7 & 0.31 \\
+200k & 0.968 [0.953,0.982] & 0.907 [0.890,0.924] & $+0.061$ $[+0.034,+0.088]$ & 40.9 & 0.30 \\
+400k & 0.977 [0.957,0.998] & 0.906 [0.891,0.922] & $+0.071$ $[+0.041,+0.101]$ & 67.2 & 0.31 \\
+\bottomrule
+\end{tabular}}
+
+\subsection*{linear $\gamma{=}2$}
+{\scriptsize
+\begin{tabular}{@{}r ll l rr@{}}
+\toprule
+$N$ & Gini OPC & Gini NLL & $\Delta$Gini & ls OPC & ls NLL \\
+\midrule
+6.25k & 0.956 [0.930,0.983] & 0.939 [0.912,0.966] & $+0.017$ $[-0.022,+0.057]$ & 16.1 & 0.25 \\
+12.5k & 0.968 [0.956,0.980] & 0.944 [0.914,0.974] & $+0.024$ $[-0.010,+0.058]$ & 37.3 & 0.38 \\
+25k & 0.967 [0.952,0.982] & 0.944 [0.920,0.967] & $+0.024$ $[+0.001,+0.046]$ & 44.4 & 0.43 \\
+50k & 0.968 [0.953,0.983] & 0.944 [0.923,0.964] & $+0.024$ $[+0.001,+0.047]$ & 32.7 & 0.39 \\
+100k & 0.970 [0.944,0.996] & 0.952 [0.936,0.967] & $+0.019$ $[-0.017,+0.054]$ & 47.5 & 0.42 \\
+200k & 0.973 [0.958,0.989] & 0.947 [0.934,0.960] & $+0.026$ $[+0.001,+0.051]$ & 56.1 & 0.41 \\
+400k & 0.979 [0.961,0.996] & 0.949 [0.939,0.959] & $+0.030$ $[+0.010,+0.051]$ & 79.6 & 0.43 \\
+\bottomrule
+\end{tabular}}
+
+\subsection*{wellspec}
+{\scriptsize
+\begin{tabular}{@{}r ll l rr@{}}
+\toprule
+$N$ & Gini OPC & Gini NLL & $\Delta$Gini & ls OPC & ls NLL \\
+\midrule
+6.25k & 0.865 [0.824,0.906] & 0.960 [0.951,0.969] & $-0.095$ $[-0.144,-0.046]$ & 10.5 & 0.16 \\
+12.5k & 0.842 [0.780,0.905] & 0.957 [0.934,0.981] & $-0.115$ $[-0.179,-0.051]$ & 12.7 & 0.27 \\
+25k & 0.856 [0.815,0.898] & 0.907 [0.849,0.965] & $-0.051$ $[-0.124,+0.023]$ & 32.4 & 0.42 \\
+50k & 0.840 [0.765,0.914] & 0.903 [0.836,0.969] & $-0.063$ $[-0.177,+0.051]$ & 23.7 & 0.35 \\
+100k & 0.854 [0.809,0.899] & 0.839 [0.780,0.898] & $+0.016$ $[-0.082,+0.113]$ & 32.9 & 0.43 \\
+200k & 0.875 [0.862,0.888] & 0.821 [0.794,0.849] & $+0.054$ $[+0.027,+0.080]$ & 40.7 & 0.44 \\
+400k & 0.837 [0.805,0.869] & 0.795 [0.785,0.806] & $+0.041$ $[+0.001,+0.082]$ & 24.5 & 0.45 \\
+\bottomrule
+\end{tabular}}
+
+\subsection*{mlp256 $\gamma{=}0.5$}
+{\scriptsize
+\begin{tabular}{@{}r ll l rr@{}}
+\toprule
+$N$ & Gini OPC & Gini NLL & $\Delta$Gini & ls OPC & ls NLL \\
+\midrule
+25k & 0.987 [0.977,0.997] & 0.889 [0.877,0.900] & $+0.099$ $[+0.088,+0.109]$ & 16.3 & 0.46 \\
+50k & 0.986 [0.974,0.999] & 0.900 [0.887,0.914] & $+0.086$ $[+0.068,+0.104]$ & 12.6 & 0.46 \\
+100k & 0.990 [0.976,1.004] & 0.908 [0.872,0.943] & $+0.082$ $[+0.033,+0.132]$ & 15.8 & 0.60 \\
+200k & 0.984 [0.970,0.997] & 0.937 [0.908,0.966] & $+0.047$ $[+0.011,+0.083]$ & 16.7 & 0.80 \\
+400k & 0.986 [0.969,1.003] & 0.937 [0.926,0.948] & $+0.049$ $[+0.024,+0.074]$ & 20.3 & 0.99 \\
+\bottomrule
+\end{tabular}}
+
+\subsection*{mlp256 $\gamma{=}2$}
+{\scriptsize
+\begin{tabular}{@{}r ll l rr@{}}
+\toprule
+$N$ & Gini OPC & Gini NLL & $\Delta$Gini & ls OPC & ls NLL \\
+\midrule
+25k & 0.997 [0.993,1.000] & 0.941 [0.906,0.976] & $+0.055$ $[+0.019,+0.091]$ & 17.0 & 0.63 \\
+50k & 0.991 [0.988,0.994] & 0.964 [0.940,0.987] & $+0.027$ $[+0.002,+0.052]$ & 12.7 & 0.97 \\
+100k & 0.990 [0.976,1.003] & 0.986 [0.977,0.995] & $+0.004$ $[-0.017,+0.024]$ & 18.2 & 1.60 \\
+200k & 0.990 [0.986,0.994] & 0.986 [0.980,0.993] & $+0.004$ $[-0.006,+0.013]$ & 20.8 & 1.75 \\
+400k & 0.989 [0.979,0.999] & 0.993 [0.989,0.997] & $-0.004$ $[-0.011,+0.003]$ & 27.4 & 2.48 \\
+\bottomrule
+\end{tabular}}
+
+\subsection*{mlp256 $\gamma{=}0$}
+{\scriptsize
+\begin{tabular}{@{}r ll l rr@{}}
+\toprule
+$N$ & Gini OPC & Gini NLL & $\Delta$Gini & ls OPC & ls NLL \\
+\midrule
+25k & 0.993 [0.989,0.997] & 0.896 [0.867,0.926] & $+0.097$ $[+0.068,+0.126]$ & 13.9 & 0.39 \\
+100k & 0.986 [0.975,0.998] & 0.885 [0.861,0.908] & $+0.101$ $[+0.068,+0.135]$ & 13.4 & 0.41 \\
+400k & 0.987 [0.979,0.995] & 0.896 [0.886,0.906] & $+0.091$ $[+0.077,+0.105]$ & 12.5 & 0.41 \\
+\bottomrule
+\end{tabular}}
+
+\subsection*{mlp64 $\gamma{=}0.5$}
+{\scriptsize
+\begin{tabular}{@{}r ll l rr@{}}
+\toprule
+$N$ & Gini OPC & Gini NLL & $\Delta$Gini & ls OPC & ls NLL \\
+\midrule
+25k & 0.978 [0.969,0.987] & 0.893 [0.874,0.912] & $+0.085$ $[+0.062,+0.108]$ & 34.3 & 0.35 \\
+50k & 0.975 [0.964,0.986] & 0.891 [0.880,0.903] & $+0.084$ $[+0.067,+0.101]$ & 20.2 & 0.40 \\
+100k & 0.976 [0.951,1.002] & 0.899 [0.877,0.922] & $+0.077$ $[+0.031,+0.124]$ & 28.3 & 0.45 \\
+200k & 0.981 [0.967,0.996] & 0.915 [0.891,0.938] & $+0.067$ $[+0.035,+0.098]$ & 25.3 & 0.49 \\
+400k & 0.984 [0.965,1.002] & 0.920 [0.902,0.938] & $+0.064$ $[+0.041,+0.087]$ & 35.8 & 0.51 \\
+\bottomrule
+\end{tabular}}
 
 \section*{Headline}
 Use greedy + CI-excludes-0. Stochastic OPC wins $\approx$ sharpness, not IW Gini alone.
+Capacity moves $N^\star$ earlier (mlp64 between linear and mlp256 at $\gamma{=}0.5$).
 Full narrative: \texttt{NOTE\_ess\_opc\_usability.md}.
 
 \end{document}

@@ -74,6 +74,20 @@ Mean \(D\) (pp, \(n=5\)):
 
 → **Tier 3 launched** (`scale_cap_rstar_g0.5_mlp64`, same dense \(N\)s).
 
+### Tier 3 result (done_all 2026-11-25 16:43 Asia/Jerusalem = 15:43 Europe/Rome)
+`scale_cap_rstar_g0.5_mlp64` 5/5. Greedy \(D\) @ γ=0.5 (95% \(t\) CI; * = excludes 0):
+
+| \(N\) | linear | mlp64 | mlp256 |
+|---:|---:|---:|---:|
+| 25k | **+1.68*** | +0.85 | +1.56 |
+| 50k | +0.86 | +0.36 | +0.04 |
+| 100k | +0.45 | −0.76 | −0.37 |
+| 200k | −0.06 | **−1.41*** | −0.59 |
+| 400k | −0.26 | **−2.82*** | −2.87 |
+
+\(N^\star\): linear ≈200k → **mlp64 ≈100k** → mlp256 ≈50k. H=64 sits between linear and H=256.
+
+
 ### Tier 2 — only if capacity shifted curves (G1 did not kill)
 - Densify bracketing \(N\) (50k/200k) on **both** moving tags (`--skip-completed`, same run-tags).
 - Add `scale_cap_rstar_g0_mlp256` at {25k,100k,400k} (matched DiD).
