@@ -1,0 +1,351 @@
+% Unified misspec project report (phone portrait).
+% Compile: pdflatex MISSPEC_FULL_REPORT.tex && pdflatex MISSPEC_FULL_REPORT.tex
+\documentclass[11pt]{article}
+
+\usepackage[
+  paperwidth=108mm,
+  paperheight=192mm,
+  top=6.5mm,bottom=8mm,left=6mm,right=6mm
+]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{setspace}
+\usepackage{needspace}
+
+\hypersetup{colorlinks=true,linkcolor=blue!45!black,urlcolor=blue!45!black}
+\setstretch{1.1}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.32em}
+\setlength{\emergencystretch}{2.5em}
+\setlist[itemize]{leftmargin=1.0em,itemsep=0.1em,topsep=0.1em}
+\setlist[enumerate]{leftmargin=1.1em,itemsep=0.1em,topsep=0.1em}
+\pagestyle{plain}
+\allowdisplaybreaks
+
+\newcommand{\phonesection}[1]{\Needspace{6\baselineskip}\section*{#1}}
+\newcommand{\phonesub}[1]{\Needspace{4.5\baselineskip}\subsection*{#1}}
+\newcommand{\why}[1]{\par{\footnotesize\color{blue!35!black}\textit{Why:} #1\par}}
+\newcommand{\Rstar}{R^{\star}}
+\newcommand{\DiD}{\mathrm{DiD}}
+\newcommand{\clearwin}{\emph{clear}}
+
+\title{\textbf{Misspecification --- full report}\\[0.12em]
+\large Math, families, trials, numbers, plan\\[0.08em]
+\normalsize Phone portrait; greedy CTR; 95\% CI}
+\author{OPC}
+\date{26 Nov 2026 (Europe/Rome)}
+
+\begin{document}
+\maketitle
+
+{\footnotesize\raggedright
+\textbf{Glossary.}
+\(\mathcal{F}\): locked score class (affine-bilinear /
+\texttt{linear+mlp}).
+NLL: Bernoulli likelihood on logged pairs.
+OPC/DR: doubly-robust value objective.
+\(V(\pi)\): simulator \textbf{greedy} CTR (\%).
+\(D(\gamma)=V_{\mathrm{OPC}}-V_{\mathrm{NLL}}\) (level).
+\(\DiD=D(\gamma^\star)-D(0)\) (paired seeds).
+\clearwin: 95\% \(t\) CI excludes 0.
+BPR: pairwise-ranking embeddings (\(d{=}32\)).
+CRN: common random numbers (reuse \(\pi_0\)).
+IW: importance weights \(\pi_e/\pi_b\).
+ESS: Kish size under IW.
+CausE / BLOB: published causal / blending
+baselines (Phase-2 refs).
+Scenario $=$ (family, \(\gamma\)), not per-ds.
+\par}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\phonesection{1. Teaser}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{itemize}
+  \item Truth $=$ biased bilinear $+$
+        controlled residual \(\gamma\phi\).
+        Family $=$ geometry of \(\phi\);
+        \(\gamma\) $=$ loudness.
+  \item Primary lock: \(\Rstar\) at mid
+        \(\gamma^\star\) --- OPC DiD clear vs NLL
+        (ML confirmatory).
+  \item SoftAND / SoftThresh: mid-\(\gamma\) null;
+        \(\gamma{=}100\) large clear OPC.
+  \item Hybrid \(f{=}0.5\): best abs CTR at
+        \(\Rstar\,\gamma^\star\).
+  \item Scaling: OPC abs \(V\) rises with \(N\);
+        mild-\(\gamma\) ``OPC loses'' $=$ NLL
+        catch-up. Capacity moves \(N^\star\).
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\phonesection{2. Math}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\phonesub{2.1 World}
+\[
+\ell_\gamma(u,a)
+=\alpha\bigl(\tilde z_1(u,a)+\gamma\,\phi(u,a)\bigr)
++b'(\gamma),
+\quad \mathrm{sd}(\phi)=1.
+\]
+\(\tilde z_1\): biased BPR bilinear
+(frozen emb).
+\(\phi\): residual after double-center /
+PERP (strip clean affine-bilinear) /
+unit-sd.
+Logger \(\pi_0\) temperature frozen at
+\(\gamma{=}0\) and reused (CRN).
+Reference CTR \(5\%\).
+
+\why{Click logit $=$ biased taste $+$
+controlled residual; logger frozen so
+only \(\phi\)/ \(\gamma\) change the world.}
+
+\phonesub{2.2 Objectives}
+NLL: KL projection of \(\pi_0\) onto
+\(\mathcal{F}\) (fit logged pairs).
+OPC: DR estimate of \textbf{greedy}
+\(V(\pi)\) inside \(\mathcal{F}\).
+Hybrid \(f\): NLL for fraction \(f\) of epochs,
+then DR fine-tune (\(f^\star{=}0.5\)).
+
+\phonesub{2.3 Estimands}
+\[
+D(\gamma)=V(\pi^{\mathrm{OPC}}_\gamma)-V(\pi^{\mathrm{NLL}}_\gamma),
+\quad
+\DiD=D(\gamma^\star)-D(0).
+\]
+\(N^\star(\gamma,C)\): first train size with
+mean \(D\le 0\) for class \(C\).
+Oracle gap \(\Delta_{\mathrm{proj}}=
+V_{\mathrm{lin,val}}-V_{\mathrm{lin,lik}}\)
+bounds what likelihood vs value prefer
+inside \(\mathcal{F}\).
+
+\why{Level \(D\) \(\neq\) DiD --- quote which.
+Greedy \(V\) is deployment; stochastic \(V\)
+is not the primary metric.}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\phonesection{3. Misspec types (families)}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+Shared: facet scores \(t_{u,k},t_{a,k}\) from
+random projections; then \(\phi\) from a map.
+
+\phonesub{\(\Rstar\) (primary)}
+Even warp then product:
+\(\psi(t)=\tanh(s(t^2-1))\),
+\(\phi_{\mathrm{raw}}\propto\sum_k\psi(t_{u,k})\psi(t_{a,k})\).
+Evenness \(\Rightarrow\) near-orthogonal to
+linear scores. Spec: \(s{=}1,m{=}4\).
+
+\phonesub{SoftAND\(^\star\)}
+Thresholded co-activation:
+\(g=\mathrm{softplus}((t_u-c)/s)\),
+\(h=\mathrm{softplus}((t_a-c)/s)\),
+\(\phi_{\mathrm{raw}}\propto\sum_k g_k h_k\),
+then \(\perp\) bilinear span.
+``AND-like'' facet concordance.
+
+\phonesub{SoftThresh}
+Threshold on the \emph{scalar} second index
+\(z_2\propto\sum_k t_{u,k}t_{a,k}\):
+\(\phi_{\mathrm{raw}}=\mathrm{softplus}((z_2-\tau)/s)\),
+then \(\perp\).
+Sparse high-\(z_2\) spikes; not finite-rank
+separable.
+
+\phonesub{Foils}
+PL: second bilinear, no \(\perp\) (placebo
+channel). NC1: feature-free noise
+(\(\mathrm{sd}\) matched). Cosine:
+angles only (exploratory; often absorbed).
+
+\why{Do not pool families. SoftAND mid-\(\gamma\)
+\(\neq\) SoftAND \(\gamma{=}100\)
+(\(\phi\)-dominated regime).}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\phonesection{4. Confirmatory trials (scenario)}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+Locked Phase-1: linear \(\mathcal{F}\),
+\(N{=}10^5\), val \(2{\cdot}10^4\),
+bias=high, seeds \(300+\). Numbers:
+scenario-level (family\(\times\gamma\));
+primary lock on ML unless tagged pooled.
+All \(V\) $=$ greedy CTR \%.
+
+\phonesub{4.1 \(\Rstar\) primary (ML, \(n{=}10\))}
+{\scriptsize
+\begin{tabular}{@{}l rr@{}}
+\toprule
+greedy \% & \(\gamma{=}0\) & \(\gamma{=}0.5\) \\
+\midrule
+OPC & \(16.99\) & \(18.42\) \\
+NLL & \(18.06\) & \(17.96\) \\
+\(D\) & \(-1.07\) & \(+0.46\) \\
+\bottomrule
+\end{tabular}}
+
+\(\DiD{=}+1.53\) \([+0.97,+2.09]\), \(10/10\)
+--- \clearwin.
+NC1 control \(\DiD{+}0.20\) \([-0.08,+0.49]\)
+(null).
+
+\phonesub{4.2 Hybrid \(f{=}0.5\) (ML, \(n{=}20\))}
+{\scriptsize
+\begin{tabular}{@{}l rr@{}}
+\toprule
+greedy \% & \(\gamma{=}0\) & \(\gamma{=}0.5\) \\
+\midrule
+NLL & \(18.27\) & \(18.63\) \\
+OPC & \(17.17\) & \(18.88\) \\
+Hy & \(18.07\) & \(\mathbf{19.62}\) \\
+\bottomrule
+\end{tabular}}
+
+OPC$-$NLL \(\DiD{+1.35}\) \([0.88,1.83]\)
+\(19/20\) --- \clearwin.
+Hy$-$NLL \(\DiD{+1.19}\) \([0.59,1.79]\)
+\(17/20\) --- \clearwin.
+Hy \(\approx\) NLL at \(\gamma{=}0\).
+
+\phonesub{4.3 SoftAND / SoftThresh DiD (ML)}
+{\scriptsize
+\begin{tabular}{@{}ll rl@{}}
+\toprule
+fam & \(\gamma^\star\) & \(\DiD\) & CI \\
+\midrule
+SoftAND & \(0.5\) & \(+0.09\) & \([-0.11,+0.29]\) \\
+ST \(\tau{=}1\) & \(0.5\) & \(-0.20\) & \([-1.19,+0.79]\) \\
+ST \(1.5\) & \(0.5\) & \(+0.02\) & \([-0.80,+0.84]\) \\
+ST \(2\) & \(0.25\) & \(+0.02\) & \([-0.51,+0.55]\) \\
+\midrule
+SoftAND & \(100\) & \(+3.76^\star\) & \([+2.07,+5.46]\) \\
+ST \(1\) & \(100\) & \(+4.64^\star\) & \([+2.84,+6.45]\) \\
+ST \(2\) & \(100\) & \(+7.17^\star\) & \([+5.24,+9.10]\) \\
+\(\Rstar\) & \(100\) & \(+6.10^\star\) & \([+4.58,+7.62]\) \\
+\bottomrule
+\end{tabular}}
+
+\(^\star=\) \clearwin\ (CI excludes 0).
+Mid-\(\gamma\): SoftAND/ST inconclusive.
+\(\gamma{=}100\): \(\phi\)-dominated, not
+``stronger mid.'' SoftAND Hy$-$NLL:
+\(0.5\) null (\(+0.24\) \([-0.39,+0.87]\));
+\(100\) \clearwin\ \(+3.78\) \([1.30,6.26]\).
+
+\phonesub{4.4 Phase-2 refs (ML, \(n{=}10\))}
+At \(\gamma{=}0.5\): OPC-mlp \(19.55\),
+CausE-C-mlp \(18.68\), BLOB-L10 \(20.09\).
+OPC$-$CausE \(\DiD{+2.32}\) \([1.11,3.54]\)
+--- \clearwin;
+OPC$-$BLOB \(\DiD{+1.20}\) \([0.54,1.85]\)
+--- \clearwin.
+BLOB wins \textbf{abs} \(V\); OPC wins
+\textbf{relative} DiD.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\phonesection{5. Pooled hybrid grid (by scenario)}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+Completed cells (\(\ge 40\) seeds) pooled
+across datasets per (family, \(\gamma\)).
+\(D=\) greedy OPC$-$NLL \textbf{level}
+(not Phase-1 \(\DiD\)). \(^\star=\) \clearwin.
+
+{\scriptsize
+\begin{tabular}{@{}l r r r@{}}
+\toprule
+fam & \(\gamma\) & \(D\) & CI \\
+\midrule
+\(\Rstar\) & \(0\) & \(-1.16^\star\) & \([-1.31,-1.01]\) \\
+\(\Rstar\) & \(0.5\) & \(-0.37^\star\) & \([-0.54,-0.19]\) \\
+\(\Rstar\) & \(2\) & \(+2.08^\star\) & \([+1.83,+2.33]\) \\
+\(\Rstar\) & \(100\) & \(+3.08^\star\) & \([+2.70,+3.45]\) \\
+SoftAND & \(0.5\) & \(-1.08^\star\) & \([-1.25,-0.90]\) \\
+SoftAND & \(10\) & \(+1.29^\star\) & \([+0.98,+1.59]\) \\
+SoftAND & \(100\) & \(+1.98^\star\) & \([+1.61,+2.35]\) \\
+ST & \(0.5\) & \(-1.34^\star\) & \([-1.54,-1.13]\) \\
+ST & \(4\) & \(+3.18^\star\) & \([+2.79,+3.57]\) \\
+ST & \(100\) & \(+4.44^\star\) & \([+3.89,+5.00]\) \\
+\bottomrule
+\end{tabular}}
+
+\(\Rstar\) turns OPC-positive earlier than
+SoftAND; SoftThresh high-\(\gamma\) largest \(D\).
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\phonesection{6. Scaling, capacity, ESS}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+Nested \(N\)-ladders (ML, \(\Rstar\), \(n{=}5\),
+clip:10). Absolute \(V_{\mathrm{OPC}}\)
+\textbf{rises} with \(N\) always. Mild \(\gamma\):
+\(D\) flips as NLL catches projection.
+Strong \(\gamma{=}2\): NLL \(\approx 15\%\) @400k,
+OPC \(\approx 21\%\), \(D{+}5.6\) \([1.9,9.2]\)
+\clearwin.
+
+Capacity @ \(\gamma{=}0.5\) (mean \(D\); \(^*=\)
+\clearwin):
+
+{\scriptsize
+\begin{tabular}{@{}r rrr@{}}
+\toprule
+\(N\) & lin & mlp64 & mlp256 \\
+\midrule
+25k & \(+1.7^*\) & \(+0.9\) & \(+1.6\) \\
+100k & \(+0.5\) & \(-0.8\) & \(-0.4\) \\
+400k & \(-0.3\) & \(-2.8^*\) & \(-2.9\) \\
+\bottomrule
+\end{tabular}}
+
+\(N^\star\): lin\(\approx 200\)k \(\to\)
+mlp64\(\approx 100\)k \(\to\) mlp256\(\approx 50\)k.
+At \(\gamma{=}2\), mlp256 compresses edge
+(+0.9 vs +5.6). ``Large \(N\)'' \(=
+N\gtrsim N^\star(\gamma,C)\).
+
+IW Gini high for both methods
+(\(\sim\)0.9+) --- diagnostic only; do not
+read as OPC usability. Prefer greedy \(V\).
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\phonesection{7. Plan}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{enumerate}
+  \item Finish remaining hybrid partials.
+  \item Support / best-under-CI prototype
+        (\(\Rstar\,\gamma{=}2\)): opt-mass + clipped
+        ESS for \(\pi^\star\); else
+        \(\hat\pi_{\mathrm{safe}}=
+        \arg\max\mathrm{CI}_-(\mathrm{DR})\).
+        \texttt{PROTOCOL\_DRAFT\_support\_best\_achievable.md}.
+  \item No SoftAND/ST \(N\)-ladders / mlp1024
+        until (2) speaks.
+  \item Writeup: greedy; abs \(V\)+\(D\)/\(\DiD\)+CI;
+        mark \clearwin; never pool families.
+\end{enumerate}
+
+{\footnotesize\raggedright
+Detail (same folder):
+\texttt{NOTE\_ess\_opc\_usability},
+\texttt{PROTOCOL\_LOCKED\_capacity\_x\_N},
+\texttt{MATH\_AND\_RESULTS\_RUNDOWN},
+\texttt{FAMILIES\_EXPLAINED},
+\texttt{misspec\_results\_summary};
+\texttt{PLANE\_TRIP\_REPORT} is narrower.
+\par}
+
+\end{document}
