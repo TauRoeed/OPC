@@ -1,0 +1,229 @@
+% Plane-trip phone report: math → results → plan.
+% Compile: pdflatex PLANE_TRIP_REPORT.tex && pdflatex PLANE_TRIP_REPORT.tex
+\documentclass[11pt]{article}
+
+\usepackage[
+  paperwidth=108mm,
+  paperheight=192mm,
+  top=7mm,bottom=9mm,left=6.5mm,right=6.5mm
+]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{setspace}
+\usepackage{needspace}
+
+\hypersetup{colorlinks=true,linkcolor=blue!45!black,urlcolor=blue!45!black}
+\setstretch{1.12}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.38em}
+\setlength{\emergencystretch}{2.5em}
+\setlist[itemize]{leftmargin=1.05em,itemsep=0.12em,topsep=0.12em}
+\setlist[enumerate]{leftmargin=1.15em,itemsep=0.12em,topsep=0.12em}
+\pagestyle{plain}
+\allowdisplaybreaks
+
+\newcommand{\phonesection}[1]{\Needspace{7\baselineskip}\section*{#1}}
+\newcommand{\phonesub}[1]{\Needspace{5\baselineskip}\subsection*{#1}}
+\newcommand{\why}[1]{\par{\footnotesize\color{blue!35!black}\textit{Why:} #1\par}}
+\newcommand{\Rstar}{R^{\star}}
+\newcommand{\clearwin}{\emph{clear}}
+
+\title{\textbf{Misspec / OPC --- plane report}\\[0.15em]
+\large Math $\to$ results $\to$ next\\[0.1em]
+\normalsize Phone portrait; CIs; greedy primary}
+\author{OPC}
+\date{26 Nov 2026 (Europe/Rome)}
+
+\begin{document}
+\maketitle
+
+{\footnotesize\raggedright
+\textbf{Glossary:}
+NLL $=$ likelihood fit on logged pairs;
+DR/OPC $=$ doubly-robust value objective
+(repo name OPC);
+ESS $=$ Kish effective sample size under IW;
+IW Gini $=$ Gini of \(\pi_e/\pi_b\) on logged
+actions;
+\(V\) $=$ simulator \textbf{greedy} CTR (\%);
+\(D=V_{\mathrm{OPC}}-V_{\mathrm{NLL}}\) (level);
+DiD \(=D(\gamma)-D(0)\) (paired seeds);
+\clearwin\ $=$ 95\% \(t\) CI for \(D\) excludes 0.
+CI over \(n{=}5\) (ladders) or \(n{=}40\) (hybrid).
+\par
+{\footnotesize Companions:
+\texttt{NOTE\_ess\_opc\_usability.*} (full ladders+Gini);
+\texttt{PROTOCOL\_LOCKED\_capacity\_x\_N.md};
+\texttt{MATH\_AND\_RESULTS\_RUNDOWN.*};
+\texttt{PROTOCOL\_DRAFT\_support\_best\_achievable.md}.\par}
+}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\phonesection{1. Teaser}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{itemize}
+  \item Under residual misspec \(\gamma\phi\) vs
+        class \(\mathcal{F}\), NLL tracks a KL
+        projection; OPC targets value --- so
+        \(D(\gamma)\) can favor OPC when the
+        projection is bad.
+  \item \textbf{OPC absolute \(V\) rises with \(N\).}
+        Mild-\(\gamma\) ``losses'' are NLL catching
+        up (\(D\) flips); strong \(\gamma{=}2\) keeps
+        \clearwin\ OPC (\(D{+}5.6\) @400k).
+  \item Judge deployment on \textbf{greedy} +
+        CI-excludes-0. Stochastic OPC wins
+        \(\approx\) sharpness
+        (\texttt{logit\_scale} OPC \(\sim\)20--80 vs
+        NLL \(\sim\)0.2--0.4; §4), not IW Gini.
+\end{itemize}
+
+\why{Need \(\mathcal{F}\), \(V\), \(D\), DiD
+before reading ladders.}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\phonesection{2. Math (minimal)}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+True logit
+\(\ell_\gamma =\) (biased bilinear in
+\(\mathcal{F}\)) \(+\gamma\phi\), with \(\phi\)
+orthogonalized to clean bilinear structure.
+Frozen \(d{=}32\) BPR embeddings (pretrained
+ranking features). Logging \(\pi_0\) fixed from
+the \(\gamma{=}0\) world and reused across \(\gamma\)
+(paired seeds / CRN).
+
+NLL \(\to\) KL projection of \(\pi_0\) onto
+\(\mathcal{F}\).
+OPC \(\to\) DR estimate of \(V(\pi)\).
+Hybrid \(f{=}0.5\): NLL then DR fine-tune.
+\(N^\star\): first \(N\) with mean \(D\le 0\).
+
+Ex.\ (linear): if \(D(2){+}5.6\) and
+\(D(0){-}1.4\), DiD \(\approx{+}7\) is the
+\emph{misspec effect} --- not the raw level.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\phonesection{3. Ladders (greedy; abs + \(D\))}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+OPC does not degrade with \(N\): absolute
+\(V_{\mathrm{OPC}}\) rises in every world.
+Mild \(\gamma\): \(D\) flips as NLL catches an
+absorbable projection. Strong \(\gamma{=}2\):
+NLL stalls \(\approx 15\%\) @400k, OPC
+\(\approx 21\%\), \(D{+}5.6\) [1.9,9.2]
+\clearwin\ OPC. Clipped ESS/\(N\) collapses
+while \(D\) stays \(+\) at \(\gamma{=}2\) --- ESS
+does not track the sign of \(D\).
+
+\phonesub{3.1 Linear \(\gamma{=}0.5\) (level \(D\); greedy \%)}
+{\scriptsize
+\begin{tabular}{@{}r rrr c@{}}
+\toprule
+\(N\) & OPC & NLL & \(D\) & clear \\
+\midrule
+25k & 16.5 & 14.8 & \(+1.7\) & \textbf{OPC} \\
+50k & 17.5 & 16.7 & \(+0.9\) & --- \\
+100k & 18.7 & 18.2 & \(+0.5\) & --- \\
+200k & 19.2 & 19.3 & \(-0.1\) & --- \\
+400k & 19.3 & 19.5 & \(-0.3\) & --- \\
+\bottomrule
+\end{tabular}}
+
+\phonesub{3.2 Capacity \(\times N\) @ \(\gamma{=}0.5\)}
+Mean \(D\) (\(n{=}5\); \(*\) CI excludes 0):
+
+{\scriptsize
+\begin{tabular}{@{}r rrr@{}}
+\toprule
+\(N\) & lin & mlp64 & mlp256 \\
+\midrule
+25k & \(+1.7^*\) & \(+0.9\) & \(+1.6\) \\
+50k & \(+0.9\) & \(+0.4\) & \(+0.0\) \\
+100k & \(+0.5\) & \(-0.8\) & \(-0.4\) \\
+200k & \(-0.1\) & \(-1.4^*\) & \(-0.6\) \\
+400k & \(-0.3\) & \(-2.8^*\) & \(-2.9\) \\
+\bottomrule
+\end{tabular}}
+
+\(N^\star\): lin \(\approx 200\)k \(\to\)
+mlp64 \(\approx 100\)k \(\to\) mlp256 \(\approx 50\)k.
+At \(\gamma{=}2\), mlp256 compresses OPC's edge
+(+0.9 vs +5.6 @400k).
+``Large \(N\)'' \(=N\gtrsim N^\star(\gamma,C)\);
+on ML, \(N/p\sim 190\) (lin) vs \(\sim 11\)
+(mlp256) @400k.
+
+\why{§3 is greedy levels. Stochastic looks
+like a huge OPC win --- next separates
+sharpness from IW Gini.}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\phonesection{4. Stochastic vs Gini}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{itemize}
+  \item Stochastic \(D\) \clearwin\ OPC almost
+        everywhere because OPC is near-
+        deterministic (\texttt{logit\_scale}
+        \(\sim\)20--80) while NLL stays soft
+        (\(\sim\)0.2--0.4).
+  \item IW Gini is high for \emph{both}
+        (\(\sim\)0.90--0.98); wellspec can even
+        show higher NLL Gini at small \(N\).
+  \item \(\Rightarrow\) Gini is a diagnostic;
+        deployment metric $=$ greedy.
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\phonesection{5. Hybrid grid}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\why{Ladders fix \(N\)/capacity on \(\Rstar\);
+hybrid cells test other families/datasets.}
+
+Status 26 Nov \(\sim\)10:00 Europe/Rome:
+\textbf{168/192} cells \(\ge 40\) seeds
+(ml+kuairec done; kuairec\_full 11/27).
+
+Recent \(n{=}40\) greedy \(D_{\mathrm{OPC}}\):
+\begin{itemize}
+  \item SoftAND (product-style residual)
+        \(\gamma{=}100\), kuairec\_full:
+        \(D{+}2.9\) [2.1,3.7] \clearwin\ OPC;
+        Hy\(_{0.5}\) \(D{+}3.7\).
+  \item SoftThresh (threshold residual)
+        \(\gamma{=}0.5,0.75\):
+        \(D\approx{-}1.1\) \clearwin\ NLL.
+\end{itemize}
+Do not pool \(\Rstar\) / SoftAND / SoftThresh
+--- see \texttt{FAMILIES\_EXPLAINED.md}.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\phonesection{6. Plan}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{enumerate}
+  \item Finish remaining hybrid partials
+        (CPU).
+  \item Support / best-under-CI prototype
+        (\(\Rstar\,\gamma{=}2\) first):
+        \texttt{PROTOCOL\_DRAFT\_support\_best\_achievable.md}.
+  \item No SoftAND/ST \(N\)-ladders or mlp1024
+        until that prototype speaks.
+  \item Writeup rule: greedy primary;
+        abs \(V\)+\(D\)+CI; mark \clearwin;
+        Gini diagnostic only; never pool
+        families.
+\end{enumerate}
+
+\end{document}
